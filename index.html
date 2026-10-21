@@ -1702,21 +1702,47 @@ div.res-calib .i { color: var(--good); }
 .neru-flop { position: absolute; z-index: 2; pointer-events: none; }
 .neru-flop i { position: absolute; display: block; background-repeat: no-repeat; }
 .neru-drop { position: absolute; z-index: 3; width: 7px; height: 7px; border-radius: 50%; pointer-events: none; background: #bfe6f7; box-shadow: 0 0 0 1.5px rgba(59, 42, 53, .55); }
-/* (clicked in time with the music: notes; patted: hearts; dropped once too often: a cloud of gloom) */
-.neru-note, .neru-heart, .neru-gloom { position: absolute; z-index: 3; pointer-events: none; }
+/* (clicked in time with the music: notes; dropped once too often: a cloud of gloom; shaken: dizzy stars; the internet gone: a bead of sweat) */
+.neru-note, .neru-gloom { position: absolute; z-index: 3; pointer-events: none; }
 .neru-note { top: calc(var(--nm-top, 0%) + 8%); width: 30px; height: 30px; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .35)); }
-.neru-heart { top: calc(var(--nm-top, 0%) + 6%); width: var(--hs, 20px); height: var(--hs, 20px); filter: drop-shadow(0 2px 5px rgba(255, 60, 140, .45)); }
 .neru-gloom { left: 50%; top: calc(var(--nm-top, 0%) - 4%); width: 54px; height: 40px; }
-.neru-note svg, .neru-heart svg, .neru-gloom svg, .neru-dizzy svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.neru-note svg, .neru-gloom svg, .neru-dizzy svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .neru-sweat { position: absolute; z-index: 3; left: 70%; top: calc(var(--nm-top, 0%) + 14%); width: 16px; height: 22px; pointer-events: none; }
 .neru-sweat svg { display: block; width: 100%; height: 100%; }
 .neru-dizzy { position: absolute; z-index: 3; left: 50%; top: calc(var(--nm-top, 0%) + 5%); width: 0; height: 0; pointer-events: none; }
 .neru-dizzy i { position: absolute; left: 0; top: 0; width: 25px; height: 25px; filter: drop-shadow(0 0 4px rgba(255, 213, 74, .7)); }
-.neru.shy .neru-img { animation: neruShy 700ms cubic-bezier(.34, 1.56, .64, 1); }
-@keyframes neruShy { 0% { transform: none; } 30% { transform: translateY(5px) scale(1.03, .95); } 65% { transform: translateY(-2px) scale(.99, 1.02); } 100% { transform: none; } }
 /* (the lights down around her on the main menu: a spotlight left on her) */
 .neru-dim { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
 .home .neru.lit { z-index: 6; }
+.neru-heart { position: absolute; z-index: 3; pointer-events: none; filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 2px 4px rgba(0, 0, 0, .35)); }
+.neru-heart svg { display: block; width: 100%; height: 100%; }
+/* (the time of year drifting around her: behind her, and — nearer, bigger, a little out of focus — in front) */
+.neru-drift { position: absolute; left: -30%; right: -45%; top: -6%; bottom: 0; pointer-events: none; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 22%, #000 88%, transparent); mask-image: linear-gradient(transparent, #000 22%, #000 88%, transparent); }
+.neru-drift.nd-front { z-index: 1; }
+.nd { position: absolute; left: 0; top: 0; will-change: transform; }
+.nd > i, .nd > i > i { display: block; width: 100%; height: 100%; }
+.nd svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, .3)); }
+.neru-drift:not(.nd-front) .nd { opacity: .8; }
+.nd-front .nd { filter: blur(.7px); }
+.nd-dot { border-radius: 50%; }
+.nd-snow .nd-dot { box-shadow: 0 0 5px rgba(255, 255, 255, .85); }
+.nd-snow.nd-front .nd { filter: blur(1.2px); }
+.nd-fireflies .nd-dot { box-shadow: 0 0 6px 2px rgba(214, 255, 120, .75), 0 0 16px 5px rgba(214, 255, 120, .3); }
+.nd-fireflies .nd, .nd-fireflies.nd-front .nd { filter: none; }
+/* (night: stars high up around her, far off — behind the time of year's drift) */
+.neru-sky { position: absolute; left: -30%; right: -45%; top: -6%; bottom: 40%; pointer-events: none; overflow: hidden; -webkit-mask-image: linear-gradient(transparent 12%, #000 30%, #000 72%, transparent); mask-image: linear-gradient(transparent 12%, #000 30%, #000 72%, transparent); }
+.nd-star { position: absolute; }
+.nd-star svg { display: block; width: 100%; height: 100%; fill: #fff6dc; filter: drop-shadow(0 0 3px rgba(255, 244, 210, .9)) drop-shadow(0 0 8px rgba(190, 200, 255, .45)); }
+/* (April Fools' Day: the other way round) */
+.neru.nm-fools .neru-body { scale: -1 1; }
+.nd-hearts .nd svg { filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, .8)) drop-shadow(0 1px 2px rgba(0, 0, 0, .3)); }
+.nd-bats .nd svg { filter: drop-shadow(0 0 1px rgba(255, 196, 140, .9)) drop-shadow(0 0 7px rgba(255, 140, 70, .35)); }
+.neru-drift.nd-bats .nd { opacity: 1; }
+/* (Halloween: a harvest moon low behind her for the bats to cross) */
+.neru-drift.nd-bats { -webkit-mask-image: linear-gradient(transparent, #000 3%, #000 88%, transparent); mask-image: linear-gradient(transparent, #000 3%, #000 88%, transparent); }
+.neru-drift.nd-bats:not(.nd-front)::before { content: ''; position: absolute; right: 0; top: 15%; width: 30%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, #ffd892, #ffbd68 42%, #f39446 57%, rgba(243, 140, 60, .32) 60%, rgba(243, 140, 60, .1) 78%, transparent); opacity: .55; animation: ndMoon 1.6s ease-out both; }
+@keyframes ndMoon { from { opacity: 0; transform: translateY(14px); } }
+.nd > i { transform-origin: 50% 0; } /* (a leaf swings from above, as from a stem) */
 .neru-dust { position: absolute; z-index: 2; left: 50%; bottom: -2px; width: 34px; height: 16px; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 255, 255, .55), transparent); }
 @media (prefers-reduced-motion: reduce) { .neru.huff .neru-img, .neru.shake .neru-img, .neru.startle .neru-img { animation: none; } }
 .slow .neru-cameo.hop .nc-img { animation: neruHop 620ms linear; }
@@ -14939,21 +14965,27 @@ Bus.on('library:changed', () => MenuMusic.removed());
  * Settings → Interface, otherwise neru.png / neru.webp / neru.gif / neru.jpg placed next to index.html (the
  * public/ folder). With no picture nothing is shown.
  * She's alive: she breathes, bobs to the music's beat (harder in kiai), leans towards the cursor, perks up when
- * hovered, and clicking her makes her hop — her excited face for a moment, and a few sparkles.
- * And a few things to find just by playing (NeruEggs): bored when left alone (and fishing when left a good while
- * longer), in a huff when clicked over and over, dancing when clicked in time with the music, flustered when her
- * head's patted, cheering through a song's chorus, the lights down and sunglasses on when you keep the pointer on her
- * (and still on just after an SS), picked up and dropped (sulking if it keeps happening, dizzy if she was shaken
- * about), worried when the internet goes, fishing when a pause goes on (click her and the fish on her line flops
- * about), a glint off her sunglasses, a double take at her own name, the volume turned all the way up or down, and the
+ * hovered, and clicking her makes her hop — her excited face for a moment, and a few sparkles (clicked in time with
+ * the music, eight beats running, she dances).
+ * And a few things to find just by playing (NeruEggs): bored when left alone — then fishing, then hugging her knees,
+ * and sulking when you come back — in a huff when clicked over and over, cheering through a song's chorus, the lights
+ * down and sunglasses on when you keep the pointer on her, picked up and dropped (sulking if it keeps happening, dizzy
+ * if she was shaken about), a headpat (hearts — then a huff, as if she hadn't liked it), worried when the internet
+ * goes, fishing when a pause goes on (click her and the fish on her line flops about), a glint off her sunglasses, a
+ * double take at her own name, the volume turned all the way up or down, songs skipped one after another, and the
  * small Neru on other screens in a huff too when clicked over and over. Each screen's own picture of her stays as it
- * is. */
+ * is; a click there, now and then, gets a pose of her own instead of her happy face: a dance after a full combo, a
+ * snicker after a fail, worried at a song far above anything you've passed. And the time of year drifting around her
+ * — autumn leaves, snow, cherry blossom, fireflies on a summer night, bats at Halloween, hearts on Valentine's Day
+ * (and twice the snow at Christmas; on April Fools' Day she's the other way round), stars twinkling at night — a
+ * cheer on New Year's Day and at a milestone play, a sulk when you're back after a week away, a worried look after an
+ * hour's playing without a break, and her sunglasses still on after an SS. */
 
 const NeruMascot = {
   FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
   /** Her other faces and poses, public/neru-<name>.png (tools/neru-art.py makes them, from frames of her song's music
    *  video): the build lists the ones there are, so none is looked for that isn't there. */
-  POSES: ["bored","cheer","cool","dance","fishing","happy","huh","knees","meh","mock","point","sassy","sulk","switch","tired","wink","worried"],
+  POSES: ["bored","cheer","cool","dance","fishing","happy","huh","knees","meh","mock","point","sassy","snicker","sulk","switch","tired","wink","worried"],
   _pics: null, _blobURL: null,
   /** Her pictures — { base, happy, poses: { name: url } } (happy: the face she makes when clicked or pleased; null if
    *  there isn't one) — or null with none. The picture chosen in Settings → Interface is all of them; otherwise the
@@ -14991,23 +15023,29 @@ const NeruMascot = {
       el.addEventListener('pointerenter', e => { el.classList.add('perk'); NeruEggs.hoverStart(e); });
       el.addEventListener('pointerleave', () => { el.classList.remove('perk'); NeruEggs.hoverEnd(); });
       el.addEventListener('pointerdown', e => NeruEggs.press(e));
-      el.addEventListener('pointermove', e => NeruEggs.patMove(e));
+      el.addEventListener('contextmenu', e => e.preventDefault()); // (a long press on a touch screen is a headpat, not the browser's menu)
       this.start();
       // (the bundled Neru has a second, excited picture she switches to when clicked — loaded now, so it's there at once)
       this.base = pics.base; this.happy = pics.happy;
       if (pics.happy) new Image().src = pics.happy;
       // (and her worried face — for when the internet goes, when it couldn't be fetched any more — kept in memory)
-      const w = pics.poses && pics.poses.worried;
-      if (w && !w.startsWith('blob:')) fetch(w).then(r => r.ok ? r.blob() : null).then(b => { if (b && pics.poses.worried === w) pics.poses.worried = URL.createObjectURL(b); }).catch(() => {});
+      const w = pics.poses && pics.poses[NeruCameo.EGG.offline];
+      if (w && !w.startsWith('blob:')) fetch(w).then(r => r.ok ? r.blob() : null).then(b => { if (b && pics.poses[NeruCameo.EGG.offline] === w) pics.poses[NeruCameo.EGG.offline] = URL.createObjectURL(b); }).catch(() => {});
       NeruEggs._vol = Settings.get('audio.master'); // (where the volume starts: only a change to all the way up or down counts)
       NeruEggs.namesake();
-      NeruEggs.afterSS();
+      if (NeruEggs.foolsDay()) el.classList.add('nm-fools');
+      NeruEggs.greet();
+      NeruEggs.milestone();
+      NeruEggs.breather();
+      NeruEggs.drift(el);
+      // (after the drift: put in first of all, so the stars are furthest back — behind the leaves, the snow, the moon)
+      if (NeruEggs.night()) NeruEggs.twinkle(el);
     });
     return el;
   },
   /** Her pose when nothing's going on: bored once she's been left alone a while, cheering through a song's chorus,
    *  her usual picture otherwise. */
-  rest() { return this._idle === 'fishing' && this.has('fishing') ? 'fishing' : this._idle && this.has('bored') ? 'bored' : this._kiai && this.has('cheer') ? 'cheer' : null; },
+  rest() { return this._idle && this.has(this._idlePose || 'bored') ? this._idlePose || 'bored' : this._kiai && this.has('cheer') ? 'cheer' : null; },
   /** In the middle of something (a huff, being held, a stare, her happy face after a click): poses wait for it. */
   busy() { const t = performance.now(); return t < (this._huffUntil || 0) || t < (this._happyUntil || 0) || t < (this._actUntil || 0) || !!this._drag || !!this._drop || !!this._staring; },
   /** Whether a pose of hers is there (the bundled pictures — not a picture of the player's own). */
@@ -15049,7 +15087,7 @@ const NeruMascot = {
       }
       this._lean += (want - this._lean) * (1 - Math.exp(-dt / 260));
       // (dancing: she rocks from side to side, a beat each way)
-      const tilt = performance.now() < (this._danceUntil || 0) ? this._tiltTo || 0 : 0;
+      const tilt = NeruEggs.dancing() ? this._tiltTo || 0 : 0;
       this._tilt = (this._tilt || 0) + (tilt - (this._tilt || 0)) * (1 - Math.exp(-dt / 90));
       this._bob *= Math.exp(-dt / 140);
       const b = this._bob;
@@ -15067,32 +15105,43 @@ const NeruMascot = {
   beat(adj = 1, kiai = false) {
     NeruEggs.chorus(kiai);
     if (!this.body || !Settings.get('ui.animSpeed')) return;
-    // (dancing: every beat a full bounce, a rock the other way and a note)
-    const dancing = performance.now() < (this._danceUntil || 0);
-    if (dancing) { this._tiltTo = this._tiltTo > 0 ? -5 : 5; NeruEggs.note(this.el); }
-    this._bob = Math.max(this._bob, dancing ? 1 : clamp(adj, 0, 1) * (kiai ? 1 : 0.55));
+    // (dancing: every beat bounces her all the way, rocks her the other way and sends up a note; every other one
+    // brings sparkles)
+    if (NeruEggs.dancing()) {
+      this._bob = 1; this._tiltTo = this._tiltTo > 0 ? -5 : 5; NeruEggs.note(this.el);
+      if ((this._danceBeat = (this._danceBeat || 0) + 1) % 2 === 0) this.sparkle();
+      return;
+    }
+    this._bob = Math.max(this._bob, clamp(adj, 0, 1) * (kiai ? 1 : 0.55));
   },
   hop() {
     if (!this.el) return;
     const now = performance.now();
     // (in a huff: a click only gets a shake of her head)
     if (now < (this._huffUntil || 0)) { this.el.classList.remove('shake'); void this.el.offsetWidth; this.el.classList.add('shake'); UISounds.play('click-short'); return; }
-    if (now < (this._danceUntil || 0)) return; // (dancing: she's busy)
     // (clicked in time with the music: she keeps time with you — a note for each, a little higher each time — and on
-    // the eighth she dances. Keeping time isn't mashing: those clicks don't count towards a huff)
-    const kept = NeruEggs.keepTime(now);
-    if (kept >= NeruEggs.RHYTHM_HITS && NeruEggs.dance()) return;
+    // the eighth she dances; dancing, clicks still in time keep her going. Keeping time isn't mashing: those clicks
+    // never add up to a huff)
+    const kept = NeruEggs.keepTime(now), pitch = 1 + Math.min(kept, 8) * 0.045;
+    if (NeruEggs.dancing()) {
+      if (kept >= 2) NeruEggs.keepDancing();
+      this._bob = 1; NeruEggs.note(this.el); UISounds.play('click-short-confirm', 1, pitch);
+      return;
+    }
+    if (kept >= NeruEggs.TAPS && NeruEggs.dance()) return;
     if (kept < 3) {
       this._clicks = (this._clicks || []).filter(t => now - t < 2600);
       this._clicks.push(now);
       if (this._clicks.length >= 8 && this.has('sassy')) { NeruEggs.huff(); return; }
     }
     this.el.classList.remove('hop'); void this.el.offsetWidth; this.el.classList.add('hop');
-    if (kept >= 2) { NeruEggs.note(this.el); UISounds.play('click-short-confirm', 1, 1 + Math.min(kept, 8) * 0.045); }
+    if (kept >= 2) { NeruEggs.note(this.el); UISounds.play('click-short-confirm', 1, pitch); }
     else UISounds.click();
     NeruEggs.stopStare();
     if (this.happy && this.img) {
-      this.show('happy', { pop: false });
+      // (April Fools' Day: she laughs instead — got you)
+      this.show(NeruEggs.foolsDay() && this.has('mock') ? 'mock' : 'happy', { pop: false });
+      if (NeruEggs.valentine()) for (let i = 0; i < 4; i++) setTimeout(() => NeruEggs.heart(), i * 120);
       clearTimeout(this._back);
       this._happyUntil = now + 1600;
       this._back = setTimeout(() => this.show(this.rest()), 1600);
@@ -15125,9 +15174,10 @@ const NeruMascot = {
   stop() {
     clearTimeout(this._back); cancelAnimationFrame(this._raf);
     if (this._onMove) window.removeEventListener('pointermove', this._onMove);
-    NeruEggs.unwatchIdle(); NeruEggs.stopStare(); NeruEggs.letGo(true); NeruEggs._rhythm = null; this._danceUntil = 0; this._tilt = 0;
+    NeruEggs.unwatchIdle(); NeruEggs.stopStare(); NeruEggs.letGo(true); clearTimeout(NeruEggs._patT); clearInterval(NeruEggs._heartT); NeruEggs._patting = false;
+    NeruEggs._rhythm = null; NeruEggs._danceUntil = 0; this._tilt = 0;
     // (a huff, a chorus or a stare cut short by leaving ends with it)
-    this.el = null; this.img = null; this.body = null; this.shadow = null; this._idle = this._kiai = false; this._huffUntil = this._happyUntil = 0;
+    this.el = null; this.img = null; this.body = null; this.shadow = null; this._idle = this._kiai = false; this._idlePose = null; this._huffUntil = this._happyUntil = 0;
   },
 };
 
@@ -15146,12 +15196,21 @@ const NeruCameo = {
     perfect: 'cool', great: 'point', okay: 'wink', bad: 'tired', failed: 'mock',
     paused: 'bored', loading: 'cheer', empty: 'sassy', list: 'huh', boot: 'fishing',
   },
+  /** The poses only easter eggs bring out (NeruEggs): a dance when clicked in time with the music, fishing and then
+   *  hugging her knees when left alone longer, and a sulk when you come back after that (or after a week away, or when
+   *  she's dropped once too often); the light switch before her sunglasses, queasy after being shaken about, worried
+   *  when the internet goes (and after an hour's playing without a break); and on other screens, clicked, a dance after
+   *  a full combo, a snicker after a fail, worried while a song far above anything you've passed loads. */
+  EGG: {
+    beat: 'dance', aloneLonger: 'fishing', aloneLongest: 'knees', back: 'sulk', dropped: 'sulk', lights: 'switch',
+    dizzy: 'meh', offline: 'worried', fullCombo: 'dance', failed: 'snicker', farAbove: 'worried', longSession: 'worried',
+  },
   /** How much of each pose's picture her head takes up (top of her hair to her chin, against its height): a close-up
    *  is shown smaller, so that her head comes out no bigger than in her default picture (HEAD_SIZE) — the same Neru
    *  whichever pose it is, not one twice the size of the other. */
   HEAD: {
     bored: 0.43, cheer: 0.37, cool: 0.38, dance: 0.26, fishing: 0.38, happy: 0.45, huh: 0.45, knees: 0.45, meh: 0.52,
-    mock: 0.38, point: 0.45, sassy: 0.49, sulk: 0.45, switch: 0.31, tired: 0.68, wink: 0.28, worried: 0.47,
+    mock: 0.38, point: 0.45, sassy: 0.49, snicker: 0.33, sulk: 0.45, switch: 0.31, tired: 0.68, wink: 0.28, worried: 0.47,
   },
   HEAD_SIZE: 0.36,
   /** Her pose for `mood`'s screen (her default picture without it). */
@@ -15170,8 +15229,9 @@ const NeruCameo = {
     return ['A', 'B'].includes(s.grade) ? 'okay' : 'bad';
   },
   /** Neru in `mood`, for a screen to put where `cls` places her; she comes in once her picture is ready (and in a mood
-   *  she's pleased about, sparkles `delay` ms later). Null when she's turned off. */
-  make(mood, cls, { delay = 450 } = {}) {
+   *  she's pleased about, sparkles `delay` ms later). `poke`: an easter egg's pose a click brings out for a moment, in
+   *  place of her happy face. Null when she's turned off. */
+  make(mood, cls, { delay = 450, poke = null } = {}) {
     if (!Settings.get('ui.mascot')) return null;
     const el = h(`button.neru-cameo.${cls}`, { type: 'button', 'aria-label': 'Neru', tabindex: '-1', hidden: true });
     // (sparkles: in a mood she's pleased about)
@@ -15180,7 +15240,9 @@ const NeruCameo = {
       if (!pics) { el.remove(); return; }
       let face = this.face(pics, mood);
       const happy = pics.happy && this.pose(pics, 'happy');
-      if (happy) new Image().src = happy.src; // (ready before the first click)
+      // (what a click brings out for a moment: her happy face, or the easter egg's pose — when that picture is there)
+      const react = poke && pics.poses && pics.poses[poke] ? this.pose(pics, poke) : happy;
+      if (react) new Image().src = react.src; // (ready before the first click)
       const img = h('img.nc-img', { src: face.src, alt: '', draggable: 'false' });
       // (her place's height, times how big she's shown in this pose — crossfaded from the one before)
       const show = f => this.swap(img, f.src, () => el.style.setProperty('--nc-s', f.scale));
@@ -15201,8 +15263,39 @@ const NeruCameo = {
       setTimeout(() => { if (el.isConnected && pleased) this.burst(el); }, anim ? delay : 0);
       // (her sunglasses on — an SS — catch the light now and then)
       if (pics.poses && pics.poses.cool) NeruEggs.glintLoop(img.parentElement, img, () => el.isConnected && img.getAttribute('src') === pics.poses.cool);
+      // (pressed and held: a headpat, like the main menu's Neru — her happy face, hearts; let go, a huff, and no click
+      // besides)
+      el.addEventListener('pointerdown', e => {
+        if (e.button || el._patT || el._patting) return;
+        const up = () => {
+          clearTimeout(el._patT); el._patT = null;
+          window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+          if (!el._patting) return;
+          el._patting = false; clearInterval(el._hearts);
+          el._noClick = true; setTimeout(() => { el._noClick = false; }, 400);
+          clearTimeout(el._back);
+          if (performance.now() - el._patFrom > 900 && pics.poses && pics.poses.sassy) {
+            show(this.pose(pics, 'sassy'));
+            el.classList.remove('hop', 'shake'); void el.offsetWidth; el.classList.add('shake');
+            UISounds.play('click-short');
+            el._back = setTimeout(() => { el.classList.remove('shake'); show(face); }, 1500);
+          } else show(face);
+        };
+        window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+        el._patT = setTimeout(() => {
+          el._patT = null;
+          if (!el.isConnected || performance.now() < (el._huffUntil || 0)) return;
+          el._patting = true; el._patFrom = performance.now(); clearTimeout(el._back);
+          if (happy) show(happy);
+          UISounds.play('check-on');
+          const heart = () => { if (!el.isConnected) { clearInterval(el._hearts); return; } NeruEggs.heart(el, img); };
+          heart(); el._hearts = setInterval(heart, 230);
+        }, NeruEggs.PAT_MS);
+      });
+      el.addEventListener('contextmenu', e => e.preventDefault());
       el.addEventListener('click', e => {
         e.stopPropagation();
+        if (el._noClick) { el._noClick = false; return; } // (let go after a headpat)
         const now = performance.now();
         // (in a huff — clicked over and over, like the main menu's Neru — a click only gets a shake of her head)
         if (now < (el._huffUntil || 0)) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); UISounds.play('click-short'); return; }
@@ -15220,9 +15313,9 @@ const NeruCameo = {
         if (pics.poses && face.src === pics.poses.fishing && img.getAttribute('src') === face.src) { NeruEggs.flopFish(img.parentElement, img); return; }
         el.classList.remove('hop'); void el.offsetWidth; el.classList.add('hop');
         UISounds.click();
-        // (her happy face for a moment, whatever her mood)
-        if (happy && face.src !== happy.src) { show(happy); clearTimeout(el._back); el._back = setTimeout(() => show(face), 1600); }
-        if (pleased) this.burst(el);
+        // (her happy face for a moment, whatever her mood — or the easter egg's pose, held a little longer)
+        if (react && face.src !== react.src) { show(react); clearTimeout(el._back); el._back = setTimeout(() => show(face), react === happy ? 1600 : 2200); }
+        if (pleased || (react !== happy && poke === this.EGG.fullCombo)) this.burst(el);
       });
     });
     return el;
@@ -15276,10 +15369,10 @@ const NeruCameo = {
   },
 };
 
+Bus.on('music:changed', m => NeruEggs.skipped(m));
 // (the connection lost on the main menu: she's worried — no signal! — and glad when it's back)
 addEventListener('offline', () => NeruEggs.signal(false));
 addEventListener('online', () => NeruEggs.signal(true));
-
 Bus.on('settings:changed', k => {
   if (k === 'audio.master') NeruEggs.volume(Settings.get('audio.master'));
   if (k === 'ui.mascot' && Screens.currentName === 'home') { const old = document.querySelector('.home .neru'); if (old) old.replaceWith(NeruMascot.build()); }
@@ -15289,11 +15382,12 @@ Bus.on('settings:changed', k => {
  *  says anything. */
 const NeruEggs = {
   IDLE_MS: 45000,
-  FISH_IDLE_MS: 120000,
-  /** Poses only her easter eggs use (each screen's own are NeruCameo.POSE). */
-  EGG_POSES: ['dance', 'knees', 'meh', 'sulk', 'switch', 'worried'],
-  // ── left alone on the main menu: after a while she gets bored (at her desk); back to herself, with a start, when
-  // you move or press anything
+  /** Left alone longer still: she gives up waiting and goes fishing, then hugs her knees (each only if that picture is
+   *  there). */
+  get IDLE_STAGES() { return [[this.IDLE_MS, 'bored'], [165000, NeruCameo.EGG.aloneLonger], [360000, NeruCameo.EGG.aloneLongest]]; },
+  // ── left alone on the main menu: after a while she gets bored (at her desk), then goes fishing, and in the end sits
+  // hugging her knees; back to herself, with a start, when you move or press anything (from her knees: in a sulk for a
+  // moment first)
   watchIdle() {
     this.unwatchIdle();
     this._seen = performance.now();
@@ -15301,8 +15395,11 @@ const NeruEggs = {
       this._seen = performance.now();
       const M = NeruMascot;
       if (!M._idle) return;
-      M._idle = false;
+      const was = M._idlePose;
+      M._idle = false; M._idlePose = null;
       if (M.el) { M.el.classList.remove('startle'); void M.el.offsetWidth; M.el.classList.add('startle'); }
+      // (left alone so long she ended up hugging her knees: she sulks a moment before she's herself again)
+      if (was === NeruCameo.EGG.aloneLongest && this.act(NeruCameo.EGG.back, 2600, { hop: false })) return;
       if (!M.busy()) M.show(M.rest());
     };
     for (const ev of ['pointerdown', 'keydown', 'wheel']) window.addEventListener(ev, this._wake, { passive: true });
@@ -15310,10 +15407,12 @@ const NeruEggs = {
     this._idleT = setInterval(() => {
       const M = NeruMascot;
       if (!M.img || document.hidden || M.busy()) return;
-      const quiet = performance.now() - this._seen;
-      if (!M._idle) { if (quiet >= this.IDLE_MS && M.has('bored')) { M._idle = true; M.show('bored'); } return; }
-      // (left alone a good while longer: she gives up waiting and goes fishing)
-      if (M._idle !== 'fishing' && quiet >= this.IDLE_MS + this.FISH_IDLE_MS && M.has('fishing')) { M._idle = 'fishing'; M.show('fishing'); }
+      const away = performance.now() - this._seen;
+      // (the latest stage reached whose picture is there)
+      let pose = null;
+      for (const [ms, name] of this.IDLE_STAGES) if (away >= ms && M.has(name)) pose = name;
+      if (!pose || (M._idle && M._idlePose === pose)) return;
+      M._idle = true; M._idlePose = pose; M.show(pose);
     }, 3000);
   },
   unwatchIdle() {
@@ -15384,12 +15483,309 @@ const NeruEggs = {
     }, 1400);
   },
 
+  // ── clicked in time with the menu music — eight beats running — she dances, for as long as you keep the beat
+  TAPS: 8,
+  /** The menu music's beat now — its length, and how far into it the song is (0–1) — or null with none playing. */
+  beatPhase() {
+    const tm = typeof Music !== 'undefined' && Music.playing && Music.meta && Music.meta.timing;
+    if (!tm || !tm.length) return null;
+    const t = Music.time, tp = tm[Math.max(0, bsearchLE(tm, t, 'time'))];
+    if (!tp || !(tp.beatLength > 0)) return null;
+    const x = (t - tp.time) / tp.beatLength;
+    return { len: tp.beatLength, phase: x - Math.floor(x) };
+  },
+  /** A click on her: how many in a row have kept time — each a beat or two after the one before, at the same point in
+   *  the beat (wherever that is as you hear it: on the beat, or off it, Bluetooth headphones and all) — counting this
+   *  one; 1 when it starts over, 0 with no music. */
+  keepTime(now) {
+    const b = this.beatPhase(), r = this._rhythm;
+    if (!b) { this._rhythm = null; return 0; }
+    if (r && Math.abs(b.len - r.len) < 1) {
+      const gap = (now - r.at) / b.len, beats = Math.round(gap), d = Math.abs(b.phase - r.phase), off = Math.min(d, 1 - d);
+      if (beats >= 1 && beats <= 2 && Math.abs(gap - beats) < 0.2 && off < 0.2) { r.n++; r.at = now; return r.n; }
+    }
+    this._rhythm = { len: b.len, phase: b.phase, at: now, n: 1 };
+    return 1;
+  },
+  /** She dances: for a couple of bars, bouncing and rocking on every beat, notes flying. */
+  dance() {
+    const M = NeruMascot, now = performance.now(), pose = NeruCameo.EGG.beat;
+    if (!M.img || !M.el || !M.has(pose) || M._drag || M._drop || this._patting || now < (M._huffUntil || 0)) return false;
+    const b = this.beatPhase(), ms = clamp((b ? b.len : 500) * 8, 2600, 4400);
+    this._rhythm = null; this.stopStare();
+    clearTimeout(M._back); M._happyUntil = 0; M._idle = false; M._idlePose = null;
+    M._actUntil = this._danceUntil = now + ms; M._tiltTo = 5;
+    M.show(pose);
+    M.el.classList.remove('hop'); void M.el.offsetWidth; M.el.classList.add('hop');
+    UISounds.play('check-on'); M.sparkle();
+    for (let i = 0; i < 3; i++) setTimeout(() => this.note(M.el), i * 120);
+    clearTimeout(this._actT);
+    this._actT = setTimeout(() => { if (!M.busy()) M.show(M.rest()); }, ms + 30);
+    return true;
+  },
+  /** Whether she's dancing now. */
+  dancing() { const now = performance.now(); return now < (this._danceUntil || 0) && now < (NeruMascot._actUntil || 0); },
+  /** Still in time while she dances: she keeps going (a few more beats from now). */
+  keepDancing() {
+    const M = NeruMascot, b = this.beatPhase(), ms = Math.max(2400, (b ? b.len : 500) * 6);
+    M._actUntil = this._danceUntil = performance.now() + ms;
+    clearTimeout(this._actT);
+    this._actT = setTimeout(() => { if (!M.busy()) M.show(M.rest()); }, ms + 30);
+  },
+  /** A music note that pops up from her head and floats away. */
+  note(el) {
+    if (!el || !el.isConnected || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
+    const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), pa = document.createElementNS(NS, 'path');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    pa.setAttribute('d', 'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z');
+    for (const [k, v] of [['fill', ['#ffd54a', '#ff8cc0', '#8fd3ff', '#ffffff'][Math.floor(Math.random() * 4)]], ['stroke', '#3b2a35'], ['stroke-width', '1.4'], ['stroke-linejoin', 'round'], ['paint-order', 'stroke']]) pa.setAttribute(k, v);
+    svg.append(pa);
+    const n = h('span.neru-note', svg), side = Math.random() < 0.5 ? -1 : 1;
+    n.style.left = `${50 + side * (12 + Math.random() * 22)}%`;
+    el.append(n);
+    const dx = side * (18 + Math.random() * 26), up = 70 + Math.random() * 50, rot = side * (10 + Math.random() * 16);
+    n.animate([{ transform: 'translate(-50%, 0) scale(.4) rotate(0deg)', opacity: 0 },
+      { transform: `translate(calc(-50% + ${dx * 0.3}px), -${up * 0.3}px) scale(1) rotate(${-rot}deg)`, opacity: 1, offset: 0.25 },
+      { transform: `translate(calc(-50% + ${dx * 0.75}px), -${up * 0.7}px) scale(1) rotate(${rot}deg)`, opacity: 1, offset: 0.65 },
+      { transform: `translate(calc(-50% + ${dx}px), -${up}px) scale(.8) rotate(0deg)`, opacity: 0 }],
+      { duration: 1100 + Math.random() * 300, easing: 'cubic-bezier(.25, .8, .4, 1)' }).onfinish = () => n.remove();
+  },
+
+  // ── songs skipped one after another on the main menu — three in a few seconds — a blank "huh?": make up your mind
+  /** Each song the menu music moves on to (the same one again — restarted, paused — isn't one). */
+  skipped(map) {
+    if (!map || map.id === this._song) return;
+    this._song = map.id;
+    if (Screens.currentName !== 'home') { this._skips = []; return; }
+    const now = performance.now();
+    this._skips = (this._skips || []).filter(t => now - t < 12000);
+    this._skips.push(now);
+    if (this._skips.length >= 3) { this._skips = []; this.act('huh', 1700, { hop: false }); }
+  },
+
   // ── the main menu's volume turned all the way up: she cheers; all the way down: the music's gone, she's bored
   volume(v) {
     const was = this._vol; this._vol = v;
     if (was == null || Screens.currentName !== 'home') return;
     if (v >= 1 && was < 1) this.act('cheer', 1500, { sparkle: true });
     else if (v <= 0 && was > 0) this.act('bored', 1800, { hop: false });
+  },
+
+  // ── her hello, the first time she sees you: on New Year's Day, a cheer and sparkles, again and again; back after a
+  // week or more away, a sulk — then she can't help being glad
+  /** Today (its date and time, by the clock here). */
+  today() { return new Date(); },
+  /** Back after a week or more without a play (once there have been a few). */
+  away(d = this.today()) {
+    const sc = typeof ScoreManager !== 'undefined' ? ScoreManager.scores : [], last = sc[sc.length - 1];
+    return sc.length >= 5 && !!last && d - (last.date || d) >= 7 * 864e5;
+  },
+  greet(d = this.today()) {
+    const newYear = d.getMonth() === 0 && d.getDate() === 1, back = this.away(d);
+    if (this._greeted || !(newYear || back)) return;
+    this._greeted = true;
+    clearTimeout(this._greetT);
+    this._greetT = setTimeout(() => {
+      const M = NeruMascot;
+      if (newYear) {
+        if (!this.act('cheer', 2600, { sparkle: true })) { this._greeted = false; return; }
+        for (const t of [550, 1100, 1650]) setTimeout(() => { if (M.img && M.img.dataset.pose === 'cheer') { M._bob = 1; M.sparkle(); } }, t);
+      } else {
+        if (!this.act(NeruCameo.EGG.back, 2600, { hop: false })) { this._greeted = false; return; }
+        clearTimeout(this._greetT);
+        this._greetT = setTimeout(() => { if (M.img && M.img.dataset.pose === NeruCameo.EGG.back) { M._actUntil = 0; this.act('happy', 1500, { sparkle: true }); } }, 2600);
+      }
+    }, 1600);
+  },
+
+  // ── an SS since she last saw you: back on the main menu, her sunglasses are still on for a while, catching the light
+  /** The plays from `from` on (the ones since she last saw you): one an SS, and on go the sunglasses. */
+  shades(from) {
+    const perfect = ScoreManager.scores.slice(from).some(sc => sc.passed && sc.own !== false && ['XH', 'X', 'SS'].includes(sc.grade));
+    if (!perfect) return;
+    clearTimeout(this._mileT);
+    this._mileT = setTimeout(() => {
+      const M = NeruMascot;
+      if (!this.act('cool', 6000, { hop: false })) return;
+      for (const t of [700, 3200]) setTimeout(() => { if (M.img && M.img.dataset.pose === 'cool') this.glint(M.body, M.img); }, t);
+    }, 1200);
+  },
+
+  // ── an hour of playing at a stretch: back on the main menu, she's worried about you for a moment (once) — not that
+  // she'd say so
+  SINCE: Date.now(),
+  BREAK_MS: 3600000,
+  /** On the main menu: an hour's playing (songs played to their end, or failed) since the game was opened, a look. */
+  breather() {
+    if (this._breather || typeof ScoreManager === 'undefined') return;
+    const sc = ScoreManager.scores;
+    let ms = 0;
+    for (let i = sc.length - 1; i >= 0 && (sc[i].date || 0) >= this.SINCE; i--) if (sc[i].own !== false) ms += sc[i].duration || 0;
+    if (ms < this.BREAK_MS) return;
+    this._breather = true;
+    clearTimeout(this._breatherT);
+    this._breatherT = setTimeout(() => { if (!this.act(NeruCameo.EGG.longSession, 2800, { hop: false })) this._breather = false; }, 1400);
+  },
+
+  // ── a milestone — your 100th play, 250th, 500th, 1000th… — and back on the main menu she cheers, sparkles and all
+  MILESTONES: [100, 250, 500, 1000, 2500, 5000, 10000],
+  /** On the main menu (each time it's shown): a milestone passed since she last saw it, a cheer. */
+  milestone() {
+    const n = typeof ScoreManager !== 'undefined' ? ScoreManager.scores.length : 0, was = this._plays;
+    this._plays = n;
+    if (!(was > 0) || n <= was) return;
+    if (!this.MILESTONES.some(m => was < m && n >= m)) { this.shades(was); return; }
+    clearTimeout(this._mileT);
+    this._mileT = setTimeout(() => {
+      const M = NeruMascot;
+      if (!this.act('cheer', 3000, { sparkle: true })) return;
+      UISounds.play('check-on');
+      for (const t of [450, 900, 1350, 1800, 2250]) setTimeout(() => { if (M.img && M.img.dataset.pose === 'cheer') { M._bob = 1; M.sparkle(); } }, t);
+    }, 1200);
+  },
+
+  // ── the time of year, around her on the main menu: autumn leaves drifting down, snow in winter, cherry blossom in
+  // spring, fireflies on a summer night, and bats across a harvest moon for Halloween — a few at a time, some behind her and some (bigger,
+  // softer, nearer) in front; the other way round south of the equator (by the time zone)
+  /** Which, on day `d`: 'leaves', 'snow', 'petals', 'fireflies' (summer, evenings), 'bats' (the last days of
+   *  October), 'hearts' (Valentine's Day), or null. */
+  seasonOf(d = this.today(), zone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } })()) {
+    const m = d.getMonth() + 1, day = d.getDate(), hr = d.getHours();
+    if (m === 10 && day >= 29) return 'bats';
+    if (m === 2 && day === 14) return 'hearts';
+    const south = /^(Australia|Antarctica|Pacific\/(Auckland|Chatham))|^America\/(Argentina|Sao_Paulo|Santiago|Montevideo|Asuncion|Punta_Arenas)|^Africa\/(Johannesburg|Maseru|Mbabane|Windhoek|Maputo|Harare)/.test(zone);
+    const n = south ? (m + 5) % 12 + 1 : m; // (the month it'd be up north)
+    if (n === 12 || n <= 2) return 'snow';
+    if ((n === 3 && day >= 20) || n === 4) return 'petals';
+    if (n === 10 || n === 11) return 'leaves';
+    if (n >= 6 && n <= 8 && (hr >= 19 || hr < 5)) return 'fireflies';
+    return null;
+  },
+  /** How each kind drifts: how big (px), how long one takes to cross (ms), how often a new one comes (ms), how many at
+   *  once, how far it sways (px) and over how long (ms), how fast it flutters (ms: none for 0), how far it tilts with
+   *  each sway (degrees: a heart, which doesn't flutter — it stays facing you), and its colours. */
+  DRIFT: {
+    leaves: { size: [22, 32], ms: [8000, 11000], every: [1500, 2600], most: 6, sway: [16, 34], swayMs: [1500, 2500], spin: [2600, 4600], colors: ['#f08c3c', '#e8663a', '#f2a23a', '#de5434', '#f5c842'] },
+    snow: { size: [4, 9], ms: [8500, 13000], every: [320, 700], most: 22, sway: [8, 20], swayMs: [2400, 4000], spin: [0, 0], colors: ['#ffffff', '#f2f7ff', '#e6f0ff'] },
+    petals: { size: [17, 24], ms: [8000, 11500], every: [1000, 1900], most: 8, sway: [20, 40], swayMs: [1700, 2900], spin: [2200, 3800], colors: ['#ffc4d8', '#ffb3cb', '#ffd8e6', '#f9a8c4'] },
+    fireflies: { size: [5, 7], ms: [6000, 9000], every: [800, 1500], most: 8, sway: [18, 36], swayMs: [2600, 4200], spin: [0, 0], colors: ['#e8ff8a', '#fff59a', '#c8ff7a'] },
+    bats: { size: [42, 56], ms: [4800, 6800], every: [2600, 5200], most: 3, sway: [8, 14], swayMs: [700, 1000], spin: [0, 0], colors: ['#160d1f', '#1d1228', '#120a19'] },
+    hearts: { size: [18, 27], ms: [8000, 11000], every: [900, 1700], most: 8, sway: [14, 28], swayMs: [1800, 2800], spin: [0, 0], tilt: [8, 16], colors: ['#ff6fa8', '#ff8fc0', '#ff4d8d', '#ffb3d1'] },
+  },
+  /** Christmas Eve and Day: twice the snow. */
+  christmas(d = this.today()) { return d.getMonth() === 11 && (d.getDate() === 24 || d.getDate() === 25); },
+  /** April Fools' Day: she's the other way round all day, and laughs when clicked. */
+  foolsDay(d = this.today()) { return d.getMonth() === 3 && d.getDate() === 1; },
+  /** Valentine's Day: a click brings hearts too. */
+  valentine(d = this.today()) { return d.getMonth() === 1 && d.getDate() === 14; },
+  /** The shape of one: an SVG, coloured `c` (a gold leaf: a ginkgo's fan). */
+  driftShape(kind, c) {
+    if (kind === 'leaves' && c === '#f5c842') return `<svg viewBox="0 0 24 24"><path fill="${c}" d="M12 14.5C7.2 14.5 2.6 11 2 4.6 5 2.4 9.2 2.1 11.2 3.6L12 6.2l.8-2.6c2-1.5 6.2-1.2 9.2 1C21.4 11 16.8 14.5 12 14.5z"/><path fill="none" stroke="${c}" stroke-width="1.4" stroke-linecap="round" d="M12 14v8.5"/><path fill="none" stroke="rgba(150,100,20,.4)" stroke-width=".8" stroke-linecap="round" d="M12 13.6 7 6.5M12 13.6 9.4 5M12 13.6l2.6-8.6M12 13.6 17 6.5"/></svg>`;
+    if (kind === 'leaves') return `<svg viewBox="0 0 24 24"><path fill="${c}" d="M12 1.5c-3.6 3-6.8 6.6-6.8 11.2 0 4 2.9 7 6.1 8.1V23h1.4v-2.2c3.2-1.1 6.1-4.1 6.1-8.1 0-4.6-3.2-8.2-6.8-11.2z"/><path fill="none" stroke="rgba(90,40,20,.45)" stroke-width="1" stroke-linecap="round" d="M12 4v17M12 10l-3.2-2.6M12 10l3.2-2.6M12 14.5l-4-3M12 14.5l4-3"/></svg>`;
+    if (kind === 'petals') return `<svg viewBox="0 0 20 20"><path fill="${c}" d="M10 19C4.6 15.6 2.6 10.6 4.2 6.2 5.2 3.4 7.4 1.6 8.8 1l1.2 2.4L11.2 1c1.4.6 3.6 2.4 4.6 5.2 1.6 4.4-.4 9.4-5.8 12.8z"/><path fill="none" stroke="rgba(230,110,150,.5)" stroke-width=".8" stroke-linecap="round" d="M10 17V7"/></svg>`;
+    if (kind === 'hearts') return `<svg viewBox="0 0 24 22"><path fill="${c}" d="M12 21.4l-1.4-1.3C5.4 15.4 2 12.3 2 8.5 2 5.4 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1C13.1 3.8 14.8 3 16.5 3 19.6 3 22 5.4 22 8.5c0 3.8-3.4 6.9-8.6 11.6L12 21.4z"/></svg>`;
+    if (kind === 'bats') return `<svg viewBox="0 0 32 16"><path fill="${c}" d="M16 5.2c.7-1.6 1.4-2.6 1.4-2.6l.6 2.4c3.4-2.6 8.6-3.8 13-2.4-1.8 1-3 2.8-3.4 5.4-1.8-1.2-4-1.2-5.6.4-1-1.2-2.8-1.4-4-.2-.4 1.4-1.2 2.6-2 3.4-.8-.8-1.6-2-2-3.4-1.2-1.2-3-1-4 .2-1.6-1.6-3.8-1.6-5.6-.4C4 5.6 2.8 3.8 1 2.8c4.4-1.4 9.6-.2 13 2.4l.6-2.4s.7 1 1.4 2.6z"/></svg>`;
+    return ''; // (snow, fireflies: a soft dot — its colour from CSS)
+  },
+  /** `el`'s size, read again only every few seconds: a new leaf or snowflake every fraction of a second mustn't make
+   *  the page work out its layout each time (on a slow Chromebook, that's what costs). */
+  measure(el) {
+    let w = 0, hh = 0, at = -1e9;
+    return () => { const t = performance.now(); if (t - at > 4000 || !w) { w = el.offsetWidth; hh = el.offsetHeight; at = t; } return [w, hh]; };
+  },
+  /** Night (10pm till 5, by the clock here): stars come out. */
+  night(d = this.today()) { const hr = d.getHours(); return hr >= 22 || hr < 5; },
+  /** Stars twinkling high up around the main menu's Neru (`el`) — far off, behind whatever the time of year brings —
+   *  for as long as she's there. */
+  twinkle(el) {
+    if (!el) return;
+    const html = document.documentElement, still = matchMedia('(prefers-reduced-motion: reduce)');
+    const quiet = () => !Settings.get('ui.animSpeed') || still.matches || html.classList.contains('slow') || html.classList.contains('perf');
+    if (quiet()) return;
+    const sky = h('span.neru-sky', { 'aria-hidden': 'true' });
+    el.prepend(sky);
+    let n = 0;
+    const box = this.measure(sky);
+    const one = () => {
+      const [W, H] = box();
+      if (!W || !H) return;
+      const st = h('span.nd-star'), sz = 13 + Math.random() * 9;
+      st.innerHTML = '<svg viewBox="0 0 20 20"><path d="M10 0l2.6 7.4L20 10l-7.4 2.6L10 20l-2.6-7.4L0 10l7.4-2.6z"/></svg>';
+      // (in the open sky beside her — to her right, or a few to her left — not behind her, where they'd never be seen)
+      const x = Math.random() < 0.72 ? 0.75 + Math.random() * 0.23 : 0.02 + Math.random() * 0.13;
+      Object.assign(st.style, { left: `${W * x}px`, top: `${H * (0.22 + Math.random() * 0.66)}px`, width: `${sz}px`, height: `${sz}px` });
+      sky.append(st); n++;
+      st.animate([{ opacity: 0, transform: 'translate(-50%, -50%) scale(.3) rotate(0deg)' }, { opacity: 1, transform: 'translate(-50%, -50%) scale(1) rotate(45deg)', offset: 0.5 },
+        { opacity: 0, transform: 'translate(-50%, -50%) scale(.3) rotate(90deg)' }], { duration: 1800 + Math.random() * 1400, easing: 'ease-in-out' }).onfinish = () => { st.remove(); n--; };
+    };
+    const go = () => {
+      if (!el.isConnected || !sky.isConnected) { sky.remove(); return; }
+      setTimeout(go, 350 + Math.random() * 650);
+      if (!document.hidden && n < 8 && !quiet()) one();
+    };
+    setTimeout(go, 500);
+  },
+  /** Starts the time of year drifting around the main menu's Neru (`el`), for as long as she's there. */
+  drift(el, kind = this.seasonOf()) {
+    const K = kind === 'snow' && this.christmas() ? { ...this.DRIFT.snow, every: [150, 360], most: 34 } : this.DRIFT[kind];
+    if (!K || !el) return;
+    const html = document.documentElement, still = matchMedia('(prefers-reduced-motion: reduce)');
+    const quiet = () => !Settings.get('ui.animSpeed') || still.matches || html.classList.contains('slow') || html.classList.contains('perf');
+    if (quiet()) return;
+    const back = h(`span.neru-drift.nd-${kind}`, { 'aria-hidden': 'true' }), front = h(`span.neru-drift.nd-${kind}.nd-front`, { 'aria-hidden': 'true' });
+    el.prepend(back); el.append(front);
+    const r = ([a, b]) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
+    let n = 0;
+    const box = this.measure(back); // (the layer in front is the same size)
+    /** One more, on its way across (`pre`: already part of the way, as if it had been falling a while). */
+    const one = (pre = false) => {
+      const near = Math.random() < 0.28, layer = near ? front : back, [W, H] = box();
+      if (!W || !H) return;
+      const size = r(K.size) * (near ? 1.3 : 1), ms = r(K.ms) * (near ? 0.85 : 1), c = pick(K.colors);
+      // three layers: the fall (or flight) across, the sway from side to side, and the turn (or flap, or glow)
+      const p = h('span.nd'), sway = h('i'), spin = h('i');
+      spin.innerHTML = this.driftShape(kind, c);
+      if (!spin.firstChild) { spin.className = 'nd-dot'; spin.style.background = c; }
+      Object.assign(p.style, { width: `${size}px`, height: `${size * (kind === 'bats' ? 0.5 : 1)}px` });
+      sway.append(spin); p.append(sway); layer.append(p); n++;
+      let path;
+      if (kind === 'bats') {
+        // (across her, from one side to the other, climbing a little; facing the way it flies)
+        const ltr = Math.random() < 0.5, y0 = H * r([0.12, 0.42]), y1 = y0 - H * r([0.04, 0.12]);
+        path = [{ transform: `translate(${ltr ? -size * 2 : W + size}px, ${y0}px)` }, { transform: `translate(${ltr ? W + size : -size * 2}px, ${y1}px)` }];
+        if (!ltr) spin.style.scale = '-1 1';
+        spin.animate([{ transform: 'scaleY(1)' }, { transform: 'scaleY(.45) translateY(12%)' }], { duration: r([150, 210]), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
+      } else if (kind === 'fireflies') {
+        // (where it is, low around her, glowing up and fading as it wanders)
+        const x = W * r([0.05, 0.95]), y = H * r([0.35, 0.95]);
+        path = [{ transform: `translate(${x}px, ${y}px)`, opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.8 }, { transform: `translate(${x + r([-30, 30])}px, ${y - r([10, 40])}px)`, opacity: 0 }];
+        spin.animate([{ opacity: 0.35, transform: 'scale(.8)' }, { opacity: 1, transform: 'scale(1.1)' }], { duration: r([900, 1600]), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
+      } else {
+        // (down from above her head to the floor)
+        const x = W * r([0.02, 0.98]);
+        path = [{ transform: `translate(${x}px, ${-size * 2}px)` }, { transform: `translate(${x + r([-40, 40])}px, ${H + size}px)` }];
+        const turn = r(K.spin);
+        if (turn) {
+          // (a leaf or a petal flutters as it falls — turning a little towards you and away — at an angle of its own)
+          const a = Math.random() * 360, f = r([35, 65]);
+          spin.animate([{ transform: `rotate(${a}deg) rotateY(${-f}deg) rotateX(${f * 0.4}deg)` }, { transform: `rotate(${a + r([-40, 40])}deg) rotateY(${f}deg) rotateX(${-f * 0.4}deg)` }],
+            { duration: turn, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out', delay: -Math.random() * turn });
+        }
+      }
+      // (side to side as it comes down — a leaf or a petal tilting with each swing, like a pendulum)
+      const amp = r(K.sway), tilt = K.tilt ? r(K.tilt) : K.spin[1] ? r([18, 30]) : 0;
+      // (a bat bobs up and down as it flies instead)
+      const ax = kind === 'bats' ? 'translateY' : 'translateX';
+      sway.animate([{ transform: `${ax}(${-amp}px) rotate(${-tilt}deg)` }, { transform: `${ax}(${amp}px) rotate(${tilt}deg)` }], { duration: r(K.swayMs), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out', delay: -Math.random() * 2000 });
+      p.animate(path, { duration: ms, easing: 'linear', delay: pre ? -ms * r([0.15, 0.75]) : 0 }).onfinish = () => { p.remove(); n--; };
+    };
+    const spawn = () => {
+      if (!el.isConnected || !back.isConnected) { back.remove(); front.remove(); return; }
+      setTimeout(spawn, r(K.every));
+      if (!document.hidden && n < K.most && !quiet()) one();
+    };
+    // (the first few already on their way when she comes in: not an empty sky that slowly fills)
+    setTimeout(() => { if (el.isConnected && !quiet()) for (let i = Math.max(1, Math.round(K.most / 3)); i > 0; i--) one(true); spawn(); }, 400);
   },
 
   // ── her sunglasses (an SS, or the pointer kept on her on the main menu): now and then a glint runs across them
@@ -15413,7 +15809,8 @@ const NeruEggs = {
   },
   /** Glints every few seconds for as long as she wears them (`still()`). */
   glintLoop(box, img, still) {
-    const go = () => { if (!img.isConnected || !still()) return; this.glint(box, img); setTimeout(go, 3600 + Math.random() * 1800); };
+    // (still going while she's in another pose for a moment — clicked — and glinting again once they're back on)
+    const go = () => { if (!img.isConnected) return; if (still()) this.glint(box, img); setTimeout(go, 3600 + Math.random() * 1800); };
     setTimeout(go, 900);
   },
 
@@ -15463,6 +15860,22 @@ const NeruEggs = {
     }, at[i] * ms);
   },
 
+  // ── the small Neru on other screens: her picture there stays as it is, but a click now and then gets a pose of her
+  // own for a moment instead of her happy face (NeruCameo.make's `poke`)
+  /** While a song loads: one far above anything you've passed — she's worried for you (not on Auto: you're not even
+   *  playing). */
+  loaderPoke(mods = [], rec = null) { return rec && !mods.includes('AT') && this.outOfReach(rec.stars) ? NeruCameo.EGG.farAbove : null; },
+  /** A star rating well past the hardest you've passed (by a star and a half, and a third again): only once you've
+   *  passed a few, so a new player isn't met with it every time. */
+  outOfReach(stars) {
+    if (!(stars > 0) || typeof ScoreManager === 'undefined') return false;
+    let best = 0, n = 0;
+    for (const sc of ScoreManager.scores) if (sc.passed && !(sc.mods || []).includes('AT') && sc.stars > 0) { n++; if (sc.stars > best) best = sc.stars; }
+    return n >= 3 && stars >= Math.max(best + 1.5, best * 1.35);
+  },
+  /** A play's results: a full combo — not one miss — gets a little dance (with sparkles). */
+  resultsPoke(s) { const c = (s && s.passed && s.counts) || []; return c.length > 5 && c[5] === 0 ? NeruCameo.EGG.fullCombo : null; },
+
   // ── the menu music's chorus (kiai): she cheers through it, bouncing harder on each beat, and stops when it ends
   chorus(on) {
     const M = NeruMascot;
@@ -15485,8 +15898,8 @@ const NeruEggs = {
       if (!M.el || !M.el.matches(':hover') || M.busy() || !M.has('cool')) return;
       M._staring = true; this._staredAt = performance.now();
       // (the lights first: she flicks the switch and the room goes dark around her — then the sunglasses)
-      const sw = M.has('switch');
-      if (sw) { M.show('switch', { pop: false }); UISounds.play('check-off'); this.lights(true); }
+      const sw = M.has(NeruCameo.EGG.lights);
+      if (sw) { M.show(NeruCameo.EGG.lights, { pop: false }); UISounds.play('check-off'); this.lights(true); }
       this._stareT = setTimeout(() => {
         if (!M._staring) return;
         M.show('cool', { pop: false }).then(() => setTimeout(() => { if (M._staring && M.img && M.img.dataset.pose === 'cool') this.glint(M.body, M.img); }, 350));
@@ -15529,15 +15942,20 @@ const NeruEggs = {
     if (e.button || !M.body || this._p) return;
     // (in the page's own pixels: the interface may be scaled — UI scale — so screen pixels are divided by that)
     const r = M.body.getBoundingClientRect(), k = M.body.offsetWidth ? r.width / M.body.offsetWidth : 1;
-    this._p = { id: e.pointerId, x: e.clientX, y: e.clientY, k, ox: (e.clientX - r.left) / k, oy: (e.clientY - r.top) / k, lx: e.clientX, lt: performance.now(), pat: e.pointerType === 'touch' && this.onHead(e) };
+    this._p = { id: e.pointerId, x: e.clientX, y: e.clientY, k, ox: (e.clientX - r.left) / k, oy: (e.clientY - r.top) / k, lx: e.clientX, lt: performance.now() };
+    // (held still on her head a moment: a headpat)
+    clearTimeout(this._patT);
+    const ir = M.img && M.img.getBoundingClientRect();
+    if (ir && ir.height && (e.clientY - ir.top) / ir.height < this.HEAD_TOP) this._patT = setTimeout(() => { if (this._p && !M._drag) this.pat(true); }, this.PAT_MS);
     const move = ev => {
       const p = this._p;
       if (!p || ev.pointerId !== p.id) return;
       const dx = ev.clientX - p.x, dy = ev.clientY - p.y, t = performance.now();
       if (!M._drag) {
-        // (a finger on her head may be patting it: she's picked up once it's clearly moving her, not rubbing)
-        if (p.pat ? Math.abs(dy) < 18 && Math.abs(dx) < 70 : Math.hypot(dx, dy) < 10) return;
-        if (M._drop) return;
+        // (stroking her head, mid-pat: still a pat, not picking her up)
+        if (this._patting) return;
+        if (Math.hypot(dx, dy) < 10 || M._drop) return;
+        clearTimeout(this._patT);
         // (picked up)
         this.stopStare(); clearTimeout(M._back); M._huffUntil = M._happyUntil = 0; M.el.classList.remove('huff', 'hop', 'shake');
         M._drag = { dx: 0, dy: 0, vx: 0, ang: 0 };
@@ -15561,11 +15979,14 @@ const NeruEggs = {
     };
     const up = ev => {
       if (!this._p || ev.pointerId !== this._p.id) return;
-      this._pEnd();
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+      this._p = null;
+      clearTimeout(this._patT);
+      // (let go after a pat, or after being carried: not a click as well)
+      if (this._patting) { M._dragged = true; setTimeout(() => { M._dragged = false; }, 400); this.pat(false); }
       if (M._drag) { M._dragged = true; setTimeout(() => { M._dragged = false; }, 400); this.letGo(); }
     };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
-    this._pEnd = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); this._p = null; };
   },
   letGo(now = false) {
     const M = NeruMascot, d = M._drag;
@@ -15601,10 +16022,10 @@ const NeruEggs = {
       // shaken about first: dizzy, a hand to her mouth, stars going round her head)
       const drops = this._drops = (this._drops || []).filter(t => now - t < 40000);
       drops.push(now);
-      const dizzy = f.shaken && M.has('meh'), fed = !dizzy && drops.length >= 3 && M.has('sulk'), ms = dizzy || fed ? 2800 : 1400;
+      const dizzy = f.shaken && M.has(NeruCameo.EGG.dizzy), fed = !dizzy && drops.length >= 3 && M.has(NeruCameo.EGG.dropped), ms = dizzy || fed ? 2800 : 1400;
       if (fed) { this._drops = []; this.gloom(M.el); }
       if (dizzy) this.dizzy(M.el, ms);
-      M.show(dizzy ? 'meh' : fed ? 'sulk' : M.has('sassy') ? 'sassy' : null, { pop: false });
+      M.show(dizzy ? NeruCameo.EGG.dizzy : fed ? NeruCameo.EGG.dropped : M.has('sassy') ? 'sassy' : null, { pop: false });
       M._happyUntil = now + ms;
       clearTimeout(M._back); M._back = setTimeout(() => { if (!M.busy()) M.show(M.rest()); }, ms);
       return null;
@@ -15613,119 +16034,70 @@ const NeruEggs = {
     return { tf: `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${a.toFixed(2)}deg)`, sh: `translateX(${x.toFixed(1)}px) scaleX(${(1 - lift * 0.55).toFixed(3)})`, so: (1 - lift * 0.7).toFixed(2) };
   },
 
-  // ── clicked in time with the menu music: she keeps time with you, and dances
-  RHYTHM_HITS: 8,
-  /** The menu music's beat now — its length, and how far into it the song is (0–1) — or null with none playing. */
-  beatPhase() {
-    const tm = typeof Music !== 'undefined' && Music.playing && Music.meta && Music.meta.timing;
-    if (!tm || !tm.length) return null;
-    const t = Music.time, tp = tm[Math.max(0, bsearchLE(tm, t, 'time'))];
-    if (!tp || !(tp.beatLength > 0)) return null;
-    const x = (t - tp.time) / tp.beatLength;
-    return { len: tp.beatLength, phase: x - Math.floor(x) };
-  },
-  /** A click on her: how many in a row have kept time — each a beat or two after the one before, at the same point in
-   *  the beat (wherever that is: on the beat, or off it, as you hear it) — counting this one; 1 when it starts over. */
-  keepTime(now) {
-    const b = this.beatPhase(), r = this._rhythm;
-    if (!b) { this._rhythm = null; return 0; }
-    if (r && Math.abs(b.len - r.len) < 1) {
-      const gap = (now - r.at) / b.len, beats = Math.round(gap), d = Math.abs(b.phase - r.phase), off = Math.min(d, 1 - d);
-      if (beats >= 1 && beats <= 2 && Math.abs(gap - beats) < 0.2 && off < 0.2) { r.n++; r.at = now; return r.n; }
-    }
-    this._rhythm = { len: b.len, phase: b.phase, at: now, n: 1 };
-    return 1;
-  },
-  /** She dances: for a couple of bars, bouncing and rocking on every beat, notes flying. */
-  dance() {
-    const M = NeruMascot, now = performance.now();
-    if (!M.img || !M.el || !M.has('dance') || M._drag || M._drop || now < (M._huffUntil || 0)) return false;
-    const b = this.beatPhase(), ms = clamp((b ? b.len : 500) * 8, 2600, 4400);
-    this._rhythm = null; this.stopStare();
-    clearTimeout(M._back); M._happyUntil = 0; M._idle = false;
-    M._danceUntil = M._actUntil = now + ms; M._tiltTo = 5;
-    M.show('dance');
-    M.el.classList.remove('hop'); void M.el.offsetWidth; M.el.classList.add('hop');
-    UISounds.play('check-on'); M.sparkle();
-    for (let i = 0; i < 3; i++) setTimeout(() => this.note(M.el), i * 120);
-    clearTimeout(this._actT);
-    this._actT = setTimeout(() => { if (!M.busy()) M.show(M.rest()); }, ms + 30);
-    return true;
-  },
-  /** A music note that pops up from her head and floats away. */
-  note(el) {
-    if (!el || !el.isConnected || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
-    const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), pa = document.createElementNS(NS, 'path');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    pa.setAttribute('d', 'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z');
-    for (const [k, v] of [['fill', ['#ffd54a', '#ff8cc0', '#8fd3ff', '#ffffff'][Math.floor(Math.random() * 4)]], ['stroke', '#3b2a35'], ['stroke-width', '1.4'], ['stroke-linejoin', 'round'], ['paint-order', 'stroke']]) pa.setAttribute(k, v);
-    svg.append(pa);
-    const n = h('span.neru-note', svg), side = Math.random() < 0.5 ? -1 : 1;
-    n.style.left = `${50 + side * (12 + Math.random() * 22)}%`;
-    el.append(n);
-    const dx = side * (18 + Math.random() * 26), up = 70 + Math.random() * 50, rot = side * (10 + Math.random() * 16);
-    n.animate([{ transform: 'translate(-50%, 0) scale(.4) rotate(0deg)', opacity: 0 },
-      { transform: `translate(calc(-50% + ${dx * 0.3}px), -${up * 0.3}px) scale(1) rotate(${-rot}deg)`, opacity: 1, offset: 0.25 },
-      { transform: `translate(calc(-50% + ${dx * 0.75}px), -${up * 0.7}px) scale(1) rotate(${rot}deg)`, opacity: 1, offset: 0.65 },
-      { transform: `translate(calc(-50% + ${dx}px), -${up}px) scale(.8) rotate(0deg)`, opacity: 0 }],
-      { duration: 1100 + Math.random() * 300, easing: 'cubic-bezier(.25, .8, .4, 1)' }).onfinish = () => n.remove();
-  },
-
-  // ── her head patted (the pointer rubbed back and forth over it, or a finger): flustered — hugging her knees, red in
-  // the face — and a few hearts
-  /** Whether a pointer is on her head (the top of her picture, between its sides). */
-  onHead(e) {
-    const img = NeruMascot.img;
-    if (!img) return false;
-    const r = img.getBoundingClientRect();
-    return e.clientX > r.left + r.width * 0.15 && e.clientX < r.right - r.width * 0.15 && e.clientY > r.top && e.clientY < r.top + r.height * 0.4;
-  },
-  patMove(e) {
+  // ── a headpat: press and hold on her head and she leans into it — her happy face, little hearts floating up (stroke
+  // it, and it goes on) — and let go, she remembers herself: hand on hip, a shake of her head, as if she hadn't liked
+  // it at all
+  /** How far down her picture her head goes, and how long a press there is held before it's a pat (ms). */
+  HEAD_TOP: 0.4,
+  PAT_MS: 550,
+  pat(on) {
     const M = NeruMascot;
-    // (a mouse moving over her with no button held; a finger pressed on her head)
-    if (!M.img || M._drag || M._drop || (e.pointerType === 'touch' ? !(this._p && this._p.pat) : e.buttons)) return;
-    if (!this.onHead(e)) { this._pat = null; return; }
-    const now = performance.now(), p = this._pat || (this._pat = { x: e.clientX, dir: 0, flips: [] }), dx = e.clientX - p.x;
-    if (Math.abs(dx) < 6) return;
-    const dir = Math.sign(dx);
-    p.x = e.clientX;
-    if (p.dir && dir !== p.dir) { p.flips = p.flips.filter(t => now - t < 1500); p.flips.push(now); }
-    p.dir = dir;
-    if (p.flips.length >= 4) { this._pat = null; this.patted(); }
+    if (on) {
+      if (!M.img || M._drag || M._drop || this._patting) return;
+      this._patting = true; this._patFrom = performance.now();
+      this.stopStare(); clearTimeout(M._back); clearTimeout(this._actT); M._huffUntil = M._happyUntil = 0; M._idle = false; M._idlePose = null;
+      if (M.el) M.el.classList.remove('huff', 'shake', 'hop');
+      M._actUntil = Infinity; // (busy for as long as it goes on)
+      M.show(M.happy ? 'happy' : null, { pop: false });
+      UISounds.play('check-on');
+      clearInterval(this._heartT);
+      this._heartT = setInterval(() => this.heart(), 230);
+      this.heart();
+      return;
+    }
+    if (!this._patting) return;
+    this._patting = false; clearInterval(this._heartT);
+    M._actUntil = 0;
+    if (!M.img) return;
+    // (a long one: she catches herself enjoying it)
+    if (performance.now() - this._patFrom > 900 && M.has('sassy')) {
+      this.act('sassy', 1500, { hop: false });
+      if (M.el) { M.el.classList.remove('shake'); void M.el.offsetWidth; M.el.classList.add('shake'); }
+      UISounds.play('click-short');
+    } else M.show(M.rest(), { pop: false });
   },
-  patted() {
-    const M = NeruMascot, now = performance.now();
-    if (now - (this._pattedAt || -1e9) < 12000 || !M.has('knees')) return;
-    // (a finger: not picked up after all)
-    if (this._p && this._p.pat && this._pEnd) this._pEnd();
-    this.stopStare();
-    if (!this.act('knees', 2600, { hop: false })) return;
-    this._pattedAt = now;
-    M.el.classList.remove('shy'); void M.el.offsetWidth; M.el.classList.add('shy');
-    UISounds.play('select-expand');
-    this.hearts(M.el);
-  },
-  /** A few hearts that float up from her head. */
-  hearts(el) {
-    if (!el || !Settings.get('ui.animSpeed')) return;
-    const NS = 'http://www.w3.org/2000/svg';
-    for (let i = 0; i < 3; i++) setTimeout(() => {
-      if (!el.isConnected) return;
-      const svg = document.createElementNS(NS, 'svg'), pa = document.createElementNS(NS, 'path');
-      svg.setAttribute('viewBox', '0 0 24 24');
-      pa.setAttribute('d', 'M12 21s-7.5-4.6-9.6-9.2C.9 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.3 5.4 3.3 1.7-2 3.2-3.3 5.4-3.3 3.7 0 5.7 3.9 4.2 7.3C19.5 16.4 12 21 12 21z');
-      for (const [k, v] of [['fill', i === 1 ? '#ff8cc0' : '#ff5c9d'], ['stroke', '#3b2a35'], ['stroke-width', '1.6'], ['stroke-linejoin', 'round']]) pa.setAttribute(k, v);
-      svg.append(pa);
-      const hd = h('span.neru-heart', svg), x = [38, 62, 50][i];
-      hd.style.left = `${x}%`; hd.style.setProperty('--hs', `${[26, 20, 30][i]}px`);
-      el.append(hd);
-      const dx = (x - 50) * 1.4, up = 60 + i * 18;
-      hd.animate([{ transform: 'translate(-50%, 0) scale(.2)', opacity: 0 }, { transform: `translate(calc(-50% + ${dx * 0.4}px), -${up * 0.35}px) scale(1.15)`, opacity: 1, offset: 0.3 },
-        { transform: `translate(calc(-50% + ${dx * 0.8}px), -${up * 0.8}px) scale(1)`, opacity: 1, offset: 0.7 }, { transform: `translate(calc(-50% + ${dx}px), -${up}px) scale(.9)`, opacity: 0 }],
-        { duration: 1300, easing: 'cubic-bezier(.22, 1, .36, 1)' }).onfinish = () => hd.remove();
-    }, i * 200);
+  /** A little heart floating up beside her face (and fading): the main menu's Neru, or `box` with her picture `img` —
+   *  a small Neru on another screen. */
+  heart(box = NeruMascot.el, img = NeruMascot.img) {
+    if (!box || !img || !box.isConnected || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
+    const er = box.getBoundingClientRect(), ir = img.getBoundingClientRect(), k = box.offsetWidth ? er.width / box.offsetWidth : 1;
+    // (from beside her face, not the top of her head: on the main menu that's under its bar of buttons)
+    const side = Math.random() < 0.5 ? -1 : 1, x = (ir.left - er.left + ir.width * (0.5 + side * (0.2 + Math.random() * 0.22))) / k, y = (ir.top - er.top + ir.height * (0.2 + Math.random() * 0.12)) / k;
+    const c = ['#ff6fa8', '#ff8fc0', '#ff4d8d'][Math.floor(Math.random() * 3)], sz = 20 + Math.random() * 9;
+    const el = h('span.neru-heart');
+    el.innerHTML = `<svg viewBox="0 0 24 22"><path fill="${c}" d="M12 21.4l-1.4-1.3C5.4 15.4 2 12.3 2 8.5 2 5.4 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1C13.1 3.8 14.8 3 16.5 3 19.6 3 22 5.4 22 8.5c0 3.8-3.4 6.9-8.6 11.6L12 21.4z"/></svg>`;
+    Object.assign(el.style, { left: `${x}px`, top: `${y}px`, width: `${sz}px`, height: `${sz}px` });
+    box.append(el);
+    const dx = side * (8 + Math.random() * 22), up = 40 + Math.random() * 30, tilt = side * (5 + Math.random() * 15);
+    el.animate([{ transform: 'translate(-50%, -50%) scale(.3)', opacity: 0 },
+      { transform: `translate(calc(-50% + ${dx * 0.3}px), calc(-50% - ${up * 0.3}px)) scale(1.1) rotate(${tilt * 0.5}deg)`, opacity: 1, offset: 0.25 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% - ${up}px)) scale(.8) rotate(${tilt}deg)`, opacity: 0 }],
+      { duration: 1100 + Math.random() * 300, easing: 'cubic-bezier(.22, 1, .36, 1)' }).onfinish = () => el.remove();
   },
 
+  /** A little cloud of gloom over her head: wavy lines, as a manga draws a sulk. */
+  gloom(el) {
+    if (!el || !Settings.get('ui.animSpeed')) return;
+    const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), g = document.createElementNS(NS, 'g');
+    svg.setAttribute('viewBox', '0 0 40 30');
+    for (const [k, v] of [['fill', 'none'], ['stroke', '#6f5a9e'], ['stroke-width', '2.6'], ['stroke-linecap', 'round']]) g.setAttribute(k, v);
+    for (const x of [10, 20, 30]) { const pa = document.createElementNS(NS, 'path'); pa.setAttribute('d', `M${x} 3c-3 4 3 7 0 11s3 7 0 12`); g.append(pa); }
+    svg.append(g);
+    const gl = h('span.neru-gloom', svg);
+    el.append(gl);
+    gl.animate([{ opacity: 0, transform: 'translate(-50%, -8px)' }, { opacity: 0.9, transform: 'translate(-50%, 0)', offset: 0.2 }, { opacity: 0.9, transform: 'translate(-50%, 3px)', offset: 0.8 },
+      { opacity: 0, transform: 'translate(-50%, 6px)' }], { duration: 2600, easing: 'ease-in-out' }).onfinish = () => gl.remove();
+  },
   /** Stars going round and round her head, for `ms`. */
   dizzy(el, ms = 2800) {
     if (!el || !Settings.get('ui.animSpeed')) return;
@@ -15750,12 +16122,12 @@ const NeruEggs = {
     ring.animate([{ opacity: 0 }, { opacity: 1, offset: 0.08 }, { opacity: 1, offset: 0.82 }, { opacity: 0 }], { duration: ms }).onfinish = () => ring.remove();
   },
 
-  // ── the internet gone, on the main menu: worried, a bead of sweat; back again, she cheers
+  // ── the internet gone, on the main menu: worried — no signal! — a bead of sweat; back again, she cheers
   signal(on) {
     const M = NeruMascot;
     if (Screens.currentName !== 'home' || !M.img) return;
     if (on) { if (this._lost) { this._lost = false; this.act('cheer', 1400, { sparkle: true }); } return; }
-    if (!this.act('worried', 3200, { hop: false })) return;
+    if (!this.act(NeruCameo.EGG.offline, 3200, { hop: false })) return;
     this._lost = true;
     M.el.classList.remove('startle'); void M.el.offsetWidth; M.el.classList.add('startle');
     this.sweat(M.el);
@@ -15772,32 +16144,6 @@ const NeruEggs = {
     el.append(d);
     d.animate([{ transform: 'translateY(-6px) scale(.4)', opacity: 0 }, { transform: 'translateY(0) scale(1)', opacity: 1, offset: 0.15 },
       { transform: 'translateY(10px) scale(1)', opacity: 1, offset: 0.75 }, { transform: 'translateY(22px) scale(.9)', opacity: 0 }], { duration: 2400, easing: 'ease-in' }).onfinish = () => d.remove();
-  },
-
-  // ── back on the main menu straight after an SS: she's still got her sunglasses on, for a moment
-  afterSS() {
-    const s = typeof ScoreManager !== 'undefined' && ScoreManager.recent(1)[0];
-    if (!s || !s.passed || !['XH', 'X', 'SS'].includes(s.grade) || Date.now() - (s.date || 0) > 300000 || this._ssSeen === s.id) return;
-    this._ssSeen = s.id;
-    setTimeout(() => {
-      const M = NeruMascot;
-      if (!this.act('cool', 2600, { hop: false })) return;
-      setTimeout(() => { if (M.img && M.img.dataset.pose === 'cool') this.glint(M.body, M.img); }, 800);
-    }, 900);
-  },
-
-  /** A little cloud of gloom over her head: wavy lines, as a manga draws a sulk. */
-  gloom(el) {
-    if (!el || !Settings.get('ui.animSpeed')) return;
-    const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), g = document.createElementNS(NS, 'g');
-    svg.setAttribute('viewBox', '0 0 40 30');
-    for (const [k, v] of [['fill', 'none'], ['stroke', '#6f5a9e'], ['stroke-width', '2.6'], ['stroke-linecap', 'round']]) g.setAttribute(k, v);
-    for (const x of [10, 20, 30]) { const pa = document.createElementNS(NS, 'path'); pa.setAttribute('d', `M${x} 3c-3 4 3 7 0 11s3 7 0 12`); g.append(pa); }
-    svg.append(g);
-    const gl = h('span.neru-gloom', svg);
-    el.append(gl);
-    gl.animate([{ opacity: 0, transform: 'translate(-50%, -8px)' }, { opacity: 0.9, transform: 'translate(-50%, 0)', offset: 0.2 }, { opacity: 0.9, transform: 'translate(-50%, 3px)', offset: 0.8 },
-      { opacity: 0, transform: 'translate(-50%, 6px)' }], { duration: 2600, easing: 'ease-in-out' }).onfinish = () => gl.remove();
   },
 
   // ── a pause that goes on: bored at her desk, she gives up waiting and goes fishing
@@ -17623,7 +17969,7 @@ const GameplayScreen = {
       p.mp ? h('div.pl-hint', 'Get ready!') : null,
       // (Neru wishing you luck — or something like it — while it loads; not when watching a replay or someone playing,
       // nor for the skin editor's preview)
-      p.replay || p.skinEditor ? null : NeruCameo.make('loading', 'nc-loader'));
+      p.replay || p.skinEditor ? null : NeruCameo.make('loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
     this.loaderT0 = performance.now(); this.loaderExtra = 0;
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
@@ -18756,7 +19102,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
     if (failed && this.failedScore) el.append(this.failFooter());
     // (Neru: smug about a fail, teasing about a pause — when you're the one playing, and not in a match)
-    if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause'); if (n) { el.append(n); if (!failed) NeruEggs.fishLater(n); } }
+    if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause', { poke: failed ? NeruCameo.EGG.failed : null }); if (n) { el.append(n); if (!failed) NeruEggs.fishLater(n); } }
     this.pauseEl = el;
     this.el.appendChild(el);
     this.el.classList.add('show-cursor');
@@ -19873,7 +20219,7 @@ const ResultsScreen = {
     el.append(body, actions);
     // (Neru's reaction to the play you've just finished — not to a replay, someone else's play or a match)
     if (!this._swapping) {
-      this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(NeruCameo.moodOf(s), 'nc-results', { delay: 1500 }) : null;
+      this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(NeruCameo.moodOf(s), 'nc-results', { delay: 1500, poke: NeruEggs.resultsPoke(s) }) : null;
       if (this._neru) el.append(this._neru);
     }
     this.fitToScreen(body, grid);
@@ -21314,8 +21660,8 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
-  { id: '2026.10.21', title: 'Neru secrets', sections: [
-    { icon: 'heart', title: 'Neru secrets', items: ['More Neru secrets to find on the main menu', 'Your profile picture and background show on every device', 'On phones, the typing bar waits for the keyboard'] },
+  { id: '2026.10.21', title: 'Neru update', sections: [
+    { icon: 'sparkle', title: 'Neru update', items: ['New Neru poses, and lots more secrets to find', 'Neru on the main menu changes with the seasons', 'Your profile picture and background show on every device', 'On phones, the typing bar waits for the keyboard'] },
   ] },
   { id: '2026.10.20c', title: 'Skins update', sections: [
     { icon: 'brush', title: 'Skins update', items: ['Preview any skin from 1K to 18K', 'A cleaner skin editor that shows hidden parts too', 'A few Neru secrets to find'] },
@@ -29109,7 +29455,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '81561674f273';
+const APP_BUILD = 'c47db0f766f9';
 
 const App = {
   lastReport: null,

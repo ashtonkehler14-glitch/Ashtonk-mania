@@ -22,16 +22,15 @@ test('the page lists Neru\'s poses that are in public/ (neru-<pose>.png)', () =>
   assert.ok(files.includes('happy'));
 });
 
-test('each of Neru\'s screens has a pose that\'s there, every pose has a screen or an easter egg, and each has its head size', () => {
+test('each of Neru\'s screens and easter eggs has a pose that\'s there, every pose is used, and each has its head size', () => {
   const src = read('src/js/13b-neru.js');
   const obj = name => new Function(`return ${(new RegExp(`\\n  ${name}: (\\{[^}]*\\}),`).exec(src) || [])[1]}`)();
-  const pose = obj('POSE'), head = obj('HEAD');
+  const pose = obj('POSE'), head = obj('HEAD'), egg = obj('EGG');
   const files = readdirSync(new URL('../public/', import.meta.url)).map(f => /^neru-([a-z]+)\.png$/.exec(f)).filter(Boolean).map(m => m[1]).sort();
   for (const [screen, n] of Object.entries(pose)) assert.ok(files.includes(n), `${screen}: no public/neru-${n}.png`);
-  const eggs = JSON.parse((/\n  EGG_POSES: (\[[^\]\n]*\]),/.exec(src) || [])[1].replace(/'/g, '"'));
-  for (const n of eggs) assert.ok(files.includes(n), `easter egg: no public/neru-${n}.png`);
-  const used = new Set(Object.values(pose).concat('happy', eggs));
-  assert.deepEqual(files.filter(n => !used.has(n)), [], 'poses no screen or easter egg shows (they belong in art/neru/)');
+  for (const [what, n] of Object.entries(egg)) assert.ok(files.includes(n), `${what}: no public/neru-${n}.png`);
+  const used = new Set(Object.values(pose).concat(Object.values(egg), 'happy'));
+  assert.deepEqual(files.filter(n => !used.has(n)), [], 'poses no screen shows (they belong in art/neru/)');
   assert.deepEqual(Object.keys(head).sort(), files, 'HEAD: one for each pose');
 });
 

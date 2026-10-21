@@ -1683,21 +1683,47 @@ div.res-calib .i { color: var(--good); }
 .neru-flop { position: absolute; z-index: 2; pointer-events: none; }
 .neru-flop i { position: absolute; display: block; background-repeat: no-repeat; }
 .neru-drop { position: absolute; z-index: 3; width: 7px; height: 7px; border-radius: 50%; pointer-events: none; background: #bfe6f7; box-shadow: 0 0 0 1.5px rgba(59, 42, 53, .55); }
-/* (clicked in time with the music: notes; patted: hearts; dropped once too often: a cloud of gloom) */
-.neru-note, .neru-heart, .neru-gloom { position: absolute; z-index: 3; pointer-events: none; }
+/* (clicked in time with the music: notes; dropped once too often: a cloud of gloom; shaken: dizzy stars; the internet gone: a bead of sweat) */
+.neru-note, .neru-gloom { position: absolute; z-index: 3; pointer-events: none; }
 .neru-note { top: calc(var(--nm-top, 0%) + 8%); width: 30px; height: 30px; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .35)); }
-.neru-heart { top: calc(var(--nm-top, 0%) + 6%); width: var(--hs, 20px); height: var(--hs, 20px); filter: drop-shadow(0 2px 5px rgba(255, 60, 140, .45)); }
 .neru-gloom { left: 50%; top: calc(var(--nm-top, 0%) - 4%); width: 54px; height: 40px; }
-.neru-note svg, .neru-heart svg, .neru-gloom svg, .neru-dizzy svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.neru-note svg, .neru-gloom svg, .neru-dizzy svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .neru-sweat { position: absolute; z-index: 3; left: 70%; top: calc(var(--nm-top, 0%) + 14%); width: 16px; height: 22px; pointer-events: none; }
 .neru-sweat svg { display: block; width: 100%; height: 100%; }
 .neru-dizzy { position: absolute; z-index: 3; left: 50%; top: calc(var(--nm-top, 0%) + 5%); width: 0; height: 0; pointer-events: none; }
 .neru-dizzy i { position: absolute; left: 0; top: 0; width: 25px; height: 25px; filter: drop-shadow(0 0 4px rgba(255, 213, 74, .7)); }
-.neru.shy .neru-img { animation: neruShy 700ms cubic-bezier(.34, 1.56, .64, 1); }
-@keyframes neruShy { 0% { transform: none; } 30% { transform: translateY(5px) scale(1.03, .95); } 65% { transform: translateY(-2px) scale(.99, 1.02); } 100% { transform: none; } }
 /* (the lights down around her on the main menu: a spotlight left on her) */
 .neru-dim { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
 .home .neru.lit { z-index: 6; }
+.neru-heart { position: absolute; z-index: 3; pointer-events: none; filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 2px 4px rgba(0, 0, 0, .35)); }
+.neru-heart svg { display: block; width: 100%; height: 100%; }
+/* (the time of year drifting around her: behind her, and — nearer, bigger, a little out of focus — in front) */
+.neru-drift { position: absolute; left: -30%; right: -45%; top: -6%; bottom: 0; pointer-events: none; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 22%, #000 88%, transparent); mask-image: linear-gradient(transparent, #000 22%, #000 88%, transparent); }
+.neru-drift.nd-front { z-index: 1; }
+.nd { position: absolute; left: 0; top: 0; will-change: transform; }
+.nd > i, .nd > i > i { display: block; width: 100%; height: 100%; }
+.nd svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, .3)); }
+.neru-drift:not(.nd-front) .nd { opacity: .8; }
+.nd-front .nd { filter: blur(.7px); }
+.nd-dot { border-radius: 50%; }
+.nd-snow .nd-dot { box-shadow: 0 0 5px rgba(255, 255, 255, .85); }
+.nd-snow.nd-front .nd { filter: blur(1.2px); }
+.nd-fireflies .nd-dot { box-shadow: 0 0 6px 2px rgba(214, 255, 120, .75), 0 0 16px 5px rgba(214, 255, 120, .3); }
+.nd-fireflies .nd, .nd-fireflies.nd-front .nd { filter: none; }
+/* (night: stars high up around her, far off — behind the time of year's drift) */
+.neru-sky { position: absolute; left: -30%; right: -45%; top: -6%; bottom: 40%; pointer-events: none; overflow: hidden; -webkit-mask-image: linear-gradient(transparent 12%, #000 30%, #000 72%, transparent); mask-image: linear-gradient(transparent 12%, #000 30%, #000 72%, transparent); }
+.nd-star { position: absolute; }
+.nd-star svg { display: block; width: 100%; height: 100%; fill: #fff6dc; filter: drop-shadow(0 0 3px rgba(255, 244, 210, .9)) drop-shadow(0 0 8px rgba(190, 200, 255, .45)); }
+/* (April Fools' Day: the other way round) */
+.neru.nm-fools .neru-body { scale: -1 1; }
+.nd-hearts .nd svg { filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, .8)) drop-shadow(0 1px 2px rgba(0, 0, 0, .3)); }
+.nd-bats .nd svg { filter: drop-shadow(0 0 1px rgba(255, 196, 140, .9)) drop-shadow(0 0 7px rgba(255, 140, 70, .35)); }
+.neru-drift.nd-bats .nd { opacity: 1; }
+/* (Halloween: a harvest moon low behind her for the bats to cross) */
+.neru-drift.nd-bats { -webkit-mask-image: linear-gradient(transparent, #000 3%, #000 88%, transparent); mask-image: linear-gradient(transparent, #000 3%, #000 88%, transparent); }
+.neru-drift.nd-bats:not(.nd-front)::before { content: ''; position: absolute; right: 0; top: 15%; width: 30%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, #ffd892, #ffbd68 42%, #f39446 57%, rgba(243, 140, 60, .32) 60%, rgba(243, 140, 60, .1) 78%, transparent); opacity: .55; animation: ndMoon 1.6s ease-out both; }
+@keyframes ndMoon { from { opacity: 0; transform: translateY(14px); } }
+.nd > i { transform-origin: 50% 0; } /* (a leaf swings from above, as from a stem) */
 .neru-dust { position: absolute; z-index: 2; left: 50%; bottom: -2px; width: 34px; height: 16px; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 255, 255, .55), transparent); }
 @media (prefers-reduced-motion: reduce) { .neru.huff .neru-img, .neru.shake .neru-img, .neru.startle .neru-img { animation: none; } }
 .slow .neru-cameo.hop .nc-img { animation: neruHop 620ms linear; }

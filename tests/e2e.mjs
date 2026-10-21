@@ -132,6 +132,8 @@ await shot('01-home-empty');
   const pose = () => page.evaluate(() => NeruMascot.img.dataset.pose || 'usual');
   const r = await page.evaluate(async () => {
     const M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), out = {}, p = () => M.img.dataset.pose || 'usual';
+    // (her hello at this hour — a yawn after midnight — over, or not to come: these don't depend on the time of day)
+    NeruEggs._greeted = true; clearTimeout(NeruEggs._greetT); clearTimeout(NeruEggs._actT); M._actUntil = 0; await M.show(null);
     for (let i = 0; i < 8; i++) M.el.click();
     await wait(500);
     out.huff = `${p()}|${M.el.classList.contains('huff')}|${!!M.el.querySelector('.neru-vein')}`;
@@ -171,60 +173,225 @@ await shot('01-home-empty');
     S.set('audio.master', 1); await wait(400); out.up = p(); await wait(1700);
     S.set('audio.master', 0); await wait(400); out.down = p(); await wait(2000);
     S.set('audio.master', v0);
+    // (songs skipped one after another: three in a few seconds; two aren't enough, nor the same one again)
+    const E0 = NeruEggs; E0._song = null; E0._skips = [];
+    for (const id of ['s1', 's2', 's2']) E0.skipped({ id }); await wait(400); out.twoSkips = p();
+    E0.skipped({ id: 's3' }); await wait(400); out.threeSkips = p(); await wait(1600);
+    const E = NeruEggs, x = v => v || '-';
+    // (clicked on other screens: a dance after a full combo — not one miss, not a fail —, worried while a song far above
+    // anything passed loads, once a few have been passed, and not on Auto)
+    const play = (extra = {}) => ({ passed: true, accuracy: 0.97, counts: [50, 5, 1, 0, 0, 0], ...extra });
+    out.results = [E.resultsPoke(play()), E.resultsPoke(play({ grade: 'SS' })), E.resultsPoke(play({ counts: [50, 5, 1, 0, 0, 1] })), E.resultsPoke(play({ passed: false }))].map(x).join();
+    const saved = ScoreManager.scores;
+    ScoreManager.scores = [1.8, 2, 2.4].map(stars => ({ passed: true, stars, mods: [] }));
+    out.worried = [E.loaderPoke([], { stars: 4 }), E.loaderPoke([], { stars: 3 }), E.loaderPoke(['HR'], { stars: 4 }), E.loaderPoke(['AT'], { stars: 4 })].map(x).join();
+    ScoreManager.scores = [{ passed: true, stars: 2, mods: [] }];
+    out.newcomer = x(E.loaderPoke([], { stars: 6 }));
+    ScoreManager.scores = saved;
     return out;
   });
-  check('Neru\'s small easter eggs: the volume all the way up (a cheer) or down (bored)', small.up === 'cheer' && small.down === 'bored', JSON.stringify(small));
-  // clicked in time with the music (a stand-in beat, 150 BPM): she keeps time — notes, no huff — and dances on the
-  // eighth click; her head patted: flustered, hugging her knees, hearts; left alone a good while longer: fishing
+  check('Neru\'s small easter eggs: the volume all the way up (a cheer) or down (bored); three songs skipped in a row, a blank "huh?"',
+    small.up === 'cheer' && small.down === 'bored' && small.twoSkips === 'usual' && small.threeSkips === 'huh', JSON.stringify(small));
+  check('…and clicked on other screens: a dance after a full combo, worried at a song far above anything passed (not for a newcomer, nor on Auto)',
+    small.results === 'dance,dance,-,-' && small.worried === 'worried,-,worried,-' && small.newcomer === '-', JSON.stringify(small));
+  // left alone longer: fishing, then hugging her knees — and back to her, a sulk for a moment first
   const more = await page.evaluate(async () => {
+    const M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', out = {};
+    M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; await M.show(null);
+    NeruEggs._seen = performance.now() - 200000; await wait(3400); out.fishing = p();
+    NeruEggs._seen = performance.now() - 400000; await wait(3400); out.knees = p();
+    window.dispatchEvent(new PointerEvent('pointerdown')); await wait(500); out.woke = p();
+    await wait(2600); out.over = p();
+    return out;
+  });
+  check('Neru left alone longer goes fishing, then hugs her knees, and sulks a moment when you\'re back',
+    more.fishing === 'fishing' && more.knees === 'knees' && more.woke === 'sulk' && more.over === 'usual', JSON.stringify(more));
+  // clicked in time with the music (a stand-in beat, 150 BPM): she keeps time — no huff — and dances on the eighth click;
+  // clicks still in time keep her going; clicks out of time, nothing; dropped once too often she sulks, shaken she's
+  // dizzy; the internet gone, worried (and a cheer when it's back)
+  const beat = await page.evaluate(async () => {
     const M = NeruMascot, E = NeruEggs, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', out = {};
     M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; M._clicks = []; await M.show(null);
-    const real = E.beatPhase, t0 = performance.now();
+    const real = E.beatPhase, t0 = performance.now(), onBeat = () => wait(400 - (performance.now() - t0) % 400 + 20);
     E.beatPhase = () => ({ len: 400, phase: ((performance.now() - t0) % 400) / 400 });
-    const kept = [];
-    for (let i = 0; i < 8; i++) { await wait(400 - (performance.now() - t0) % 400 + 20); M.el.click(); kept.push(E._rhythm ? E._rhythm.n : 'over'); }
-    await wait(300);
-    out.dance = `${kept.join()}|${p()}|${!M.el.classList.contains('huff')}`;
-    // (clicks out of time: no streak)
-    E._rhythm = null; E.keepTime(performance.now()); await wait(130); out.offbeat = E.keepTime(performance.now());
-    E.beatPhase = real; E._rhythm = null;
-    M._danceUntil = M._actUntil = M._happyUntil = 0; clearTimeout(E._actT); await M.show(null);
-    E._pattedAt = -1e9; E.patted(); await wait(300);
-    out.pat = `${p()}|${M.el.querySelectorAll('.neru-heart').length > 0}`;
-    await wait(2600);
-    M._actUntil = 0; M._idle = true; await M.show('bored');
-    E._seen = performance.now() - (E.IDLE_MS + E.FISH_IDLE_MS + 1000); await wait(3400);
-    out.fishing = p();
-    window.dispatchEvent(new PointerEvent('pointerdown')); await wait(500);
-    out.woke = p();
-    return out;
-  });
-  // dropped a third time in a little while: she sulks at her desk, a cloud of gloom over her
-  await page.evaluate(() => { NeruEggs._drops = [performance.now() - 5000, performance.now() - 2000]; });
-  const db = await (await page.$('.home .neru')).boundingBox(), dx = db.x + db.width / 2, dy = db.y + db.height * 0.5;
-  await page.mouse.move(dx, dy); await page.mouse.down(); await page.mouse.move(dx + 120, dy - 140, { steps: 8 }); await page.waitForTimeout(100); await page.mouse.up();
-  await page.waitForTimeout(1000);
-  more.sulk = await page.evaluate(() => `${NeruMascot.img.dataset.pose}|${!!NeruMascot.el.querySelector('.neru-gloom')}`);
-  await page.mouse.move(5, 300); await page.waitForTimeout(2600);
-  // shaken about while held: she comes down dizzy (stars round her head); back from an SS: still in her sunglasses
-  Object.assign(more, await page.evaluate(async () => {
-    const M = NeruMascot, E = NeruEggs, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', out = {};
-    M._actUntil = M._happyUntil = M._huffUntil = 0; E._drops = []; await M.show(null);
+    try {
+      const kept = [];
+      for (let i = 0; i < 8; i++) { await onBeat(); M.el.click(); kept.push(E._rhythm ? E._rhythm.n : 'over'); }
+      await wait(300);
+      out.eight = `${kept.join()}|${p()}|${!M.el.classList.contains('huff')}`;
+      const from = performance.now();
+      for (let i = 0; i < 6; i++) { await onBeat(); M.el.click(); }
+      await wait(3600 - (performance.now() - from)); out.kept = p();
+      await wait(3000); out.stopped = p();
+      M._clicks = []; M._happyUntil = 0; await M.show(null);
+      // (a beat and a half apart: never in time)
+      for (let i = 0; i < 8; i++) { await wait(600); M.el.click(); }
+      await wait(300); out.offBeat = `${p() === 'dance'}|${E._rhythm ? E._rhythm.n : 0}`;
+    } finally { E.beatPhase = real; E._rhythm = null; }
+    M._happyUntil = M._actUntil = M._huffUntil = 0; E._danceUntil = 0; clearTimeout(E._actT); await M.show(null);
+    // (dropped a third time: a sulk and its gloom; shaken first: queasy, stars going round)
+    E._drops = [performance.now() - 5000, performance.now() - 2000];
+    M._drag = { dx: 0, dy: -60, vx: 0, ang: 0 }; E.letGo(); await wait(900);
+    out.sulk = `${p()}|${!!M.el.querySelector('.neru-gloom')}`;
+    await wait(2400); E._drops = [];
     M._drag = { dx: 0, dy: -60, vx: 0, ang: 0, shaken: true }; E.letGo(); await wait(900);
     out.dizzy = `${p()}|${M.el.querySelectorAll('.neru-dizzy i').length}`;
     await wait(2400);
-    const S = AshtonkMania.ScoreManager; S.scores.push({ id: 'e2e-ss', grade: 'X', passed: true, date: Date.now(), mapHash: 'e2e-ss' });
-    E._ssSeen = null; E.afterSS(); await wait(1200); out.ss = p();
-    S.scores.pop(); await wait(2600);
-    // (the internet gone: worried, a bead of sweat; back: a cheer)
     E.signal(false); await wait(500); out.offline = `${p()}|${!!M.el.querySelector('.neru-sweat')}`;
     await wait(3000); E.signal(true); await wait(500); out.online = p();
     await wait(1500);
     return out;
-  }));
-  check('Neru\'s easter eggs: clicked in time with the music she dances (no huff), patted she\'s flustered, dropped once too often she sulks (shaken, dizzy), left alone a while she goes fishing, back from an SS still cool, worried when the internet goes',
-    more.dance === '1,2,3,4,5,6,7,over|dance|true' && more.offbeat === 1 && more.pat === 'knees|true' && more.fishing === 'fishing' && more.woke === 'usual' && more.sulk === 'sulk|true'
-    && more.dizzy === 'meh|3' && more.ss === 'cool' && more.offline === 'worried|true' && more.online === 'cheer', JSON.stringify(more));
+  });
+  check('Neru dances to eight clicks in time with the music (never a huff), keeps going while you keep time, and not off the beat',
+    beat.eight === '1,2,3,4,5,6,7,over|dance|true' && beat.kept === 'dance' && beat.stopped !== 'dance' && beat.offBeat === 'false|1', JSON.stringify(beat));
+  check('…dropped once too often she sulks under a cloud of gloom, shaken she comes down dizzy, and the internet gone she\'s worried',
+    beat.sulk === 'sulk|true' && beat.dizzy === 'meh|3' && beat.offline === 'worried|true' && beat.online === 'cheer', JSON.stringify(beat));
+  // a headpat: press and hold on her head — her happy face, hearts floating up (stroking it, still a pat, never picked
+  // up); let go and she huffs, with no click's hop; held on her middle, no pat
+  {
+    await page.mouse.move(5, 300);
+    await page.evaluate(async () => { const M = NeruMascot; M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; M._clicks = []; await M.show(null); });
+    await page.waitForTimeout(400);
+    const ib = await page.evaluate(() => { const r = NeruMascot.img.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+    const lite = await page.evaluate(() => !AshtonkMania.Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow'));
+    const hearts = () => page.evaluate(() => document.querySelectorAll('.home .neru .neru-heart').length);
+    await page.mouse.move(ib.x + ib.w * 0.5, ib.y + ib.h * 0.15); await page.mouse.down();
+    await page.waitForTimeout(1600);
+    const pat = { during: await page.evaluate(() => NeruMascot.img.dataset.pose), hearts: lite || await hearts() > 0 };
+    await page.mouse.move(ib.x + ib.w * 0.6, ib.y + ib.h * 0.18, { steps: 5 }); await page.mouse.move(ib.x + ib.w * 0.4, ib.y + ib.h * 0.14, { steps: 5 });
+    pat.stroked = await page.evaluate(() => `${NeruMascot.img.dataset.pose}|${NeruMascot.el.classList.contains('held')}`);
+    await page.mouse.up(); await page.waitForTimeout(300);
+    pat.after = await page.evaluate(() => `${NeruMascot.img.dataset.pose}|${NeruMascot.el.classList.contains('hop')}`);
+    await page.mouse.move(5, 300); await page.waitForTimeout(2600);
+    await page.evaluate(() => document.querySelectorAll('.home .neru .neru-heart').forEach(x => x.remove()));
+    await page.mouse.move(ib.x + ib.w * 0.5, ib.y + ib.h * 0.75); await page.mouse.down(); await page.waitForTimeout(900);
+    pat.body = `${await page.evaluate(() => NeruMascot.img.dataset.pose)}|${await hearts()}`;
+    await page.mouse.up(); await page.mouse.move(5, 300); await page.waitForTimeout(1800);
+    check('Neru: a headpat — her happy face and hearts, stroking it still a pat — then a huff when let go (no hop); not held lower down',
+      pat.during === 'happy' && pat.hearts && pat.stroked === 'happy|false' && pat.after === 'sassy|false' && !/^happy/.test(pat.body) && pat.body.endsWith('|0'), JSON.stringify(pat));
+  }
+  // April Fools' Day: she's the other way round, and a click gets a laugh; Valentine's Day: a click brings hearts
+  const days = await page.evaluate(async () => {
+    const E = NeruEggs, S = AshtonkMania.Settings, wait = ms => new Promise(res => setTimeout(res, ms)), today = E.today, out = {};
+    const rebuild = async () => { S.set('ui.mascot', false); S.set('ui.mascot', true); for (let i = 0; i < 40 && !(NeruMascot.img && NeruMascot.img.complete); i++) await wait(100); await wait(300); };
+    const click = async () => { const M = NeruMascot; M._actUntil = M._happyUntil = M._huffUntil = 0; M._clicks = []; M.el.click(); await wait(300); return M.img.dataset.pose; };
+    try {
+      E.today = () => new Date(2027, 3, 1, 12); await rebuild();
+      out.mirrored = NeruMascot.el.classList.contains('nm-fools') && /^-1/.test(getComputedStyle(NeruMascot.body).scale);
+      out.foolsClick = await click();
+      E.today = () => new Date(2027, 1, 14, 12); await rebuild();
+      out.notMirrored = !NeruMascot.el.classList.contains('nm-fools');
+      out.valClick = await click();
+      out.hearts = NeruMascot.el.querySelectorAll('.neru-heart').length > 0 || document.documentElement.classList.contains('slow');
+    } finally { E.today = today; await rebuild(); }
+    out.after = NeruMascot.el.classList.contains('nm-fools');
+    return out;
+  });
+  check('Neru on April Fools\' Day: the other way round, and a click gets a laugh; on Valentine\'s Day a click brings hearts',
+    days.mirrored && days.foolsClick === 'mock' && days.notMirrored && days.valClick === 'happy' && days.hearts && !days.after, JSON.stringify(days));
+  // night: stars twinkling around her (not in the daytime, nor with the animations off); and a headpat for a small Neru
+  // on another screen too — held, her happy face and hearts; let go, a huff and no click's hop
+  const night = await page.evaluate(async () => {
+    const E = NeruEggs, M = NeruMascot, S = AshtonkMania.Settings, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
+    const slow = document.documentElement.classList.contains('slow'); document.documentElement.classList.remove('slow');
+    out.when = [E.night(new Date(2026, 9, 21, 23)), E.night(new Date(2026, 9, 21, 3)), E.night(new Date(2026, 9, 21, 12))].join();
+    for (const x of M.el.querySelectorAll('.neru-sky')) x.remove();
+    E.twinkle(M.el); await wait(1600);
+    out.stars = M.el.querySelectorAll('.neru-sky .nd-star').length;
+    for (const x of M.el.querySelectorAll('.neru-sky')) x.remove();
+    const anim = S.get('ui.animSpeed'); S.set('ui.animSpeed', 0); E.twinkle(M.el); S.set('ui.animSpeed', anim);
+    out.offNone = !M.el.querySelector('.neru-sky');
+    const c = AshtonkMania.NeruCameo.make('perfect', 'nc-results');
+    Object.assign(c.style, { position: 'fixed', right: '20px', bottom: '20px' }); document.body.append(c);
+    for (let i = 0; i < 40 && !c.querySelector('.nc-img'); i++) await wait(100);
+    await wait(900);
+    const face = () => c.querySelector('.nc-img').src.split('/').pop();
+    out.before = face();
+    c.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 11 })); await wait(1500);
+    out.pat = `${face()}|${c.querySelectorAll('.neru-heart').length > 0 || document.documentElement.classList.contains('slow')}`;
+    window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 11 })); c.click(); await wait(350);
+    out.after = `${face()}|${c.classList.contains('hop')}`;
+    await wait(1600); out.back = face();
+    c.remove();
+    if (slow) document.documentElement.classList.add('slow');
+    return out;
+  });
+  check('Neru at night: stars twinkle around her (10pm till 5; not with the animations off)', night.when === 'true,true,false' && night.stars > 0 && night.offNone, JSON.stringify(night));
+  check('…and a small Neru on another screen takes a headpat too: happy, hearts, then a huff (no hop), and back to her picture',
+    night.pat === 'neru-happy.png|true' && night.after === 'neru-sassy.png|false' && night.back === night.before, JSON.stringify(night));
+  // the time of year around her on the main menu: leaves in autumn, snow in winter, blossom in spring, fireflies on a
+  // summer night, bats at Halloween (the other way round in the south); a few at a time, never in the way of a click;
+  // and on New Year's Day a cheer
+  const season = await page.evaluate(async () => {
+    const E = NeruEggs, M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', out = {};
+    // (a long while with no key or pointer press, this: not one that leaves her alone — bored — meanwhile)
+    E._seen = performance.now() + 600000;
+    const at = (m, d, hr = 12, zone = 'Europe/London') => E.seasonOf(new Date(2026, m - 1, d, hr), zone) || '-';
+    out.north = [at(10, 21), at(10, 30), at(12, 25), at(2, 10), at(3, 25), at(5, 10), at(7, 4, 21), at(7, 4, 12), at(9, 1)].join();
+    out.days = [at(2, 14), at(2, 14, 12, 'Australia/Sydney'), at(2, 15), at(12, 24)].join() + '|' + [E.christmas(new Date(2026, 11, 24)), E.christmas(new Date(2026, 11, 26)), E.foolsDay(new Date(2027, 3, 1)), E.valentine(new Date(2027, 1, 14)), E.valentine(new Date(2027, 1, 13))].join();
+    out.south = [at(10, 21, 12, 'Australia/Sydney'), at(4, 20, 12, 'Australia/Sydney'), at(7, 4, 12, 'America/Argentina/Buenos_Aires'), at(1, 10, 22, 'Pacific/Auckland'), at(10, 30, 12, 'Australia/Sydney')].join();
+    // (the menu's own drift — today's — out of the way, and one of each in turn; as where the menus run at full speed)
+    for (const d of M.el.querySelectorAll('.neru-drift')) d.remove();
+    const slow = document.documentElement.classList.contains('slow'); document.documentElement.classList.remove('slow');
+    out.kinds = {};
+    for (const kind of Object.keys(E.DRIFT)) {
+      E.drift(M.el, kind); await wait(kind === 'bats' ? 3200 : 1500);
+      const parts = [...M.el.querySelectorAll(`.neru-drift.nd-${kind} .nd`)];
+      out.kinds[kind] = { n: parts.length, layers: M.el.querySelectorAll(`.neru-drift.nd-${kind}`).length, shape: parts.length > 0 && !!(parts[0].querySelector('svg') || parts[0].querySelector('.nd-dot')), moving: parts.length > 0 && parts[0].getAnimations({ subtree: true }).length >= 2 };
+      for (const d of M.el.querySelectorAll('.neru-drift')) d.remove();
+    }
+    // (never in the way: clicks go through to what's under them)
+    E.drift(M.el, 'snow'); await wait(1200);
+    out.through = [...M.el.querySelectorAll('.neru-drift')].every(d => getComputedStyle(d).pointerEvents === 'none');
+    // (off with the animations)
+    for (const d of M.el.querySelectorAll('.neru-drift')) d.remove();
+    const S = AshtonkMania.Settings, anim = S.get('ui.animSpeed'); S.set('ui.animSpeed', 0); E.drift(M.el, 'snow'); S.set('ui.animSpeed', anim);
+    out.offNone = !M.el.querySelector('.neru-drift');
+    if (slow) document.documentElement.classList.add('slow');
+    // after midnight: nothing (no sleepy Neru); New Year's Day: a cheer
+    M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; await M.show(null);
+    E._greeted = false; E.greet(new Date(2026, 9, 21, 2, 30)); await wait(1900); out.late = p();
+    E._greeted = false; E.greet(new Date(2027, 0, 1, 15)); await wait(1900); out.newYear = p(); await wait(2400);
+    E._greeted = false; E.greet(new Date(2026, 9, 21, 15)); await wait(1900); out.day = p();
+    // back after a week away: a sulk, then glad after all; a milestone play: a cheer (once)
+    const saved = ScoreManager.scores, old = +new Date(2026, 9, 12, 12);
+    ScoreManager.scores = [1, 2, 3, 4, 5].map(i => ({ passed: true, stars: 2, mods: [], date: old - i * 1000 }));
+    E._greeted = false; E.greet(new Date(2026, 9, 21, 15)); await wait(1900); out.back = p(); await wait(2900); out.glad = p(); await wait(1800);
+    ScoreManager.scores = saved.slice(0, 3);
+    E._greeted = false; E.greet(new Date(2026, 9, 21, 15)); await wait(1900); out.notAway = p();
+    E._plays = 99; ScoreManager.scores = Array.from({ length: 100 }, (_, i) => ({ passed: true, stars: 2, mods: [], date: Date.now() - i }));
+    E.milestone(); await wait(1500); out.milestone = p(); await wait(3000);
+    E.milestone(); await wait(1500); out.again = p(); await wait(1800);
+    // an SS since she last saw you: sunglasses still on, back on the main menu (not for an S)
+    const sc0 = ScoreManager.scores;
+    E._plays = sc0.length; ScoreManager.scores = sc0.concat([{ passed: true, own: true, grade: 'S', stars: 2, mods: [], date: Date.now() }]);
+    E.milestone(); await wait(1500); out.afterS = p();
+    E._plays = ScoreManager.scores.length; ScoreManager.scores = ScoreManager.scores.concat([{ passed: true, own: true, grade: 'X', stars: 2, mods: [], date: Date.now() }]);
+    E.milestone(); await wait(1500); out.afterSS = p(); M._actUntil = 0; await M.show(null);
+    // an hour's playing since the game was opened: worried, once (not for the plays before it was opened)
+    const since = E.SINCE;
+    ScoreManager.scores = Array.from({ length: 20 }, (_, i) => ({ passed: true, stars: 2, mods: [], own: true, date: since - 1000 + i, duration: 240000 }));
+    E._breather = false; E.breather(); await wait(1700); out.shortSession = p();
+    ScoreManager.scores = Array.from({ length: 20 }, (_, i) => ({ passed: true, stars: 2, mods: [], own: true, date: since + 1000 + i, duration: 200000 }));
+    E.breather(); await wait(1700); out.longSession = p(); await wait(2800);
+    E.breather(); await wait(1700); out.longAgain = p();
+    ScoreManager.scores = saved; E._plays = saved.length;
+    E._greeted = true; E._seen = performance.now();
+    return out;
+  });
+  check('…and on the days: hearts on Valentine\'s Day (wherever you are), twice the snow at Christmas, April Fools\' Day',
+    season.days === 'hearts,hearts,snow,snow|true,false,true,true,false', season.days);
+  check('Neru through the year: leaves, Halloween bats, snow, blossom, summer-night fireflies — the other way round in the south',
+    season.north === 'leaves,bats,snow,snow,petals,-,fireflies,-,-' && season.south === 'petals,leaves,snow,fireflies,bats', JSON.stringify(season));
+  check('…each drifts around her a few at a time, behind and in front, never in the way of a click, and not with the animations off',
+    Object.values(season.kinds).every(k => k.n > 0 && k.layers === 2 && k.shape && k.moving) && season.through && season.offNone, JSON.stringify(season.kinds));
+  check('…a cheer the first time she sees you on New Year\'s Day — nothing on another day, by day or after midnight',
+    season.late === 'usual' && season.newYear === 'cheer' && season.day === 'usual', JSON.stringify(season));
+  check('…back after a week away she sulks, then she\'s glad after all (not after a day, nor with hardly any plays); a milestone play gets a cheer, once',
+    season.back === 'sulk' && season.glad === 'happy' && season.notAway === 'usual' && season.milestone === 'cheer' && season.again === 'usual', JSON.stringify(season));
+  check('…after an SS, back on the main menu her sunglasses are still on (not after an S)', season.afterS === 'usual' && season.afterSS === 'cool', JSON.stringify(season));
+  check('…and after an hour\'s playing at a stretch (since the game was opened), a worried look, once',
+    season.shortSession === 'usual' && season.longSession === 'worried' && season.longAgain === 'usual', JSON.stringify(season));
 }
 // import via synthetic drop event (exercises the drag & drop pipeline)
 const dropFiles = async (names) => page.evaluate(async (names) => {
@@ -831,8 +998,14 @@ await page.waitForFunction(() => document.querySelector('.pause-box h2.failed'),
 check('Sudden Death fails on first miss', true);
 {
   await page.waitForSelector('.pause-menu .nc-pause:not([hidden]) .nc-img', { timeout: 5000 }).catch(() => {});
-  const n = await page.evaluate(() => ({ face: ((document.querySelector('.pause-menu .nc-img') || {}).src || '').split('/').pop(), pose: `neru-${AshtonkMania.NeruCameo.POSE.failed}.png` }));
-  check('the fail screen has Neru, laughing at it', n.face === n.pose && n.pose === 'neru-mock.png', JSON.stringify(n));
+  const n = await page.evaluate(async () => {
+    const el = document.querySelector('.pause-menu .nc-pause'), img = () => ((el && el.querySelector('.nc-img')) || {}).src || '';
+    const face = img().split('/').pop();
+    // (clicked: a snicker behind her hands, for a moment, instead of her happy face)
+    el.click(); await new Promise(r => setTimeout(r, 450));
+    return { face, pose: `neru-${AshtonkMania.NeruCameo.POSE.failed}.png`, clicked: img().split('/').pop() };
+  });
+  check('the fail screen has Neru, laughing at it — and clicked, snickering', n.face === n.pose && n.pose === 'neru-mock.png' && n.clicked === 'neru-snicker.png', JSON.stringify(n));
 }
 {
   const t0 = await page.evaluate(() => AshtonkMania.GameplayScreen.s.failClock.t);
@@ -868,8 +1041,8 @@ await page.waitForTimeout(500);
     out.old = await look(play('S', true), { fromList: true });
     out.replay = await look(play('S', true), { fresh: false, watched: 'replay' });
     A.Settings.set('ui.mascot', false); out.off = await look(play('S', true)); A.Settings.set('ui.mascot', true);
-    // clicking her: a hop, and her excited face for a moment
-    await look(play('A', true));
+    // clicking her: a hop, and her excited face for a moment (an A with a miss or two: a full combo has a dance of its own)
+    await look(play('A', true, { counts: [100, 10, 1, 0, 0, 2] }));
     const el = A.Screens.current._el.querySelector('.nc-results'), before = face(el);
     el.click(); await wait(50);
     // (her new face once its picture's decoded)
@@ -878,6 +1051,13 @@ await page.waitForTimeout(500);
     // she steps aside while the statistics are open
     A.Screens.current._el.querySelector('.res-grid > .rs').click(); await wait(500);
     out.aside = getComputedStyle(el).opacity;
+    // a full combo: clicked, a little dance (with sparkles) for a moment instead — and back to the grade's own picture
+    await look(play('A', true));
+    const fc = A.Screens.current._el.querySelector('.nc-results'), fcBefore = face(fc);
+    fc.click(); await wait(450);
+    // (sparkles: not where the menus run lighter — a slow device — as everywhere)
+    out.fc = { before: fcBefore, face: face(fc), sparks: fc.querySelectorAll('.neru-spark').length > 0 || document.documentElement.classList.contains('slow') };
+    await wait(2300); out.fc.after = face(fc);
     out.moods = ['XH', 'X', 'SH', 'S', 'A', 'B', 'C', 'D'].map(g => A.NeruCameo.moodOf({ passed: true, grade: g })).join() + '|' + A.NeruCameo.moodOf({ passed: true, grade: 'A', isPB: true }) + '|' + A.NeruCameo.moodOf({ passed: false, grade: 'S' });
     await A.Screens.go('home');
     // (the mood's own pose)
@@ -889,6 +1069,8 @@ await page.waitForTimeout(500);
     r.ss && r.ok.perfect && !r.ss.said && r.fail && r.ok.failed, JSON.stringify(r));
   check('results: no Neru on an older score, a replay, or with her turned off; clicking her makes her hop with her excited face; she steps aside for the statistics',
     !r.old && !r.replay && !r.off && r.clicked.hop && r.ok.okay && r.clicked.face === 'neru-happy.png' && +r.aside < 0.5, JSON.stringify(r));
+  check('results: clicked after a full combo, Neru dances (with sparkles) for a moment, then her grade\'s picture is back',
+    r.fc && r.fc.before === 'neru-wink.png' && r.fc.face === 'neru-dance.png' && r.fc.sparks && r.fc.after === 'neru-wink.png', JSON.stringify(r.fc));
   check('results: her mood follows the grade (SS perfect, S great, A/B okay, C/D bad) — a new best too — and a fail', r.moods === 'perfect,perfect,great,great,okay,okay,bad,bad|okay|failed', r.moods);
 }
 
