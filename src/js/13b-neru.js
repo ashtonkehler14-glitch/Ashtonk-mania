@@ -71,8 +71,9 @@ const NeruMascot = {
       NeruEggs.greet();
       NeruEggs.milestone();
       NeruEggs.breather();
-      if (NeruEggs.night()) NeruEggs.twinkle(el);
       NeruEggs.drift(el);
+      // (after the drift: put in first of all, so the stars are furthest back — behind the leaves, the snow, the moon)
+      if (NeruEggs.night()) NeruEggs.twinkle(el);
     });
     return el;
   },
@@ -702,6 +703,12 @@ const NeruEggs = {
     if (kind === 'bats') return `<svg viewBox="0 0 32 16"><path fill="${c}" d="M16 5.2c.7-1.6 1.4-2.6 1.4-2.6l.6 2.4c3.4-2.6 8.6-3.8 13-2.4-1.8 1-3 2.8-3.4 5.4-1.8-1.2-4-1.2-5.6.4-1-1.2-2.8-1.4-4-.2-.4 1.4-1.2 2.6-2 3.4-.8-.8-1.6-2-2-3.4-1.2-1.2-3-1-4 .2-1.6-1.6-3.8-1.6-5.6-.4C4 5.6 2.8 3.8 1 2.8c4.4-1.4 9.6-.2 13 2.4l.6-2.4s.7 1 1.4 2.6z"/></svg>`;
     return ''; // (snow, fireflies: a soft dot — its colour from CSS)
   },
+  /** `el`'s size, read again only every few seconds: a new leaf or snowflake every fraction of a second mustn't make
+   *  the page work out its layout each time (on a slow Chromebook, that's what costs). */
+  measure(el) {
+    let w = 0, hh = 0, at = -1e9;
+    return () => { const t = performance.now(); if (t - at > 4000 || !w) { w = el.offsetWidth; hh = el.offsetHeight; at = t; } return [w, hh]; };
+  },
   /** Night (10pm till 5, by the clock here): stars come out. */
   night(d = this.today()) { const hr = d.getHours(); return hr >= 22 || hr < 5; },
   /** Stars twinkling high up around the main menu's Neru (`el`) — far off, behind whatever the time of year brings —
@@ -714,14 +721,15 @@ const NeruEggs = {
     const sky = h('span.neru-sky', { 'aria-hidden': 'true' });
     el.prepend(sky);
     let n = 0;
+    const box = this.measure(sky);
     const one = () => {
-      const W = sky.offsetWidth, H = sky.offsetHeight;
+      const [W, H] = box();
       if (!W || !H) return;
       const st = h('span.nd-star'), sz = 13 + Math.random() * 9;
       st.innerHTML = '<svg viewBox="0 0 20 20"><path d="M10 0l2.6 7.4L20 10l-7.4 2.6L10 20l-2.6-7.4L0 10l7.4-2.6z"/></svg>';
       // (in the open sky beside her — to her right, or a few to her left — not behind her, where they'd never be seen)
       const x = Math.random() < 0.72 ? 0.75 + Math.random() * 0.23 : 0.02 + Math.random() * 0.13;
-      Object.assign(st.style, { left: `${W * x}px`, top: `${H * (0.08 + Math.random() * 0.8)}px`, width: `${sz}px`, height: `${sz}px` });
+      Object.assign(st.style, { left: `${W * x}px`, top: `${H * (0.22 + Math.random() * 0.66)}px`, width: `${sz}px`, height: `${sz}px` });
       sky.append(st); n++;
       st.animate([{ opacity: 0, transform: 'translate(-50%, -50%) scale(.3) rotate(0deg)' }, { opacity: 1, transform: 'translate(-50%, -50%) scale(1) rotate(45deg)', offset: 0.5 },
         { opacity: 0, transform: 'translate(-50%, -50%) scale(.3) rotate(90deg)' }], { duration: 1800 + Math.random() * 1400, easing: 'ease-in-out' }).onfinish = () => { st.remove(); n--; };
@@ -744,9 +752,10 @@ const NeruEggs = {
     el.prepend(back); el.append(front);
     const r = ([a, b]) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
     let n = 0;
+    const box = this.measure(back); // (the layer in front is the same size)
     /** One more, on its way across (`pre`: already part of the way, as if it had been falling a while). */
     const one = (pre = false) => {
-      const near = Math.random() < 0.28, layer = near ? front : back, W = layer.offsetWidth, H = layer.offsetHeight;
+      const near = Math.random() < 0.28, layer = near ? front : back, [W, H] = box();
       if (!W || !H) return;
       const size = r(K.size) * (near ? 1.3 : 1), ms = r(K.ms) * (near ? 0.85 : 1), c = pick(K.colors);
       // three layers: the fall (or flight) across, the sway from side to side, and the turn (or flap, or glow)

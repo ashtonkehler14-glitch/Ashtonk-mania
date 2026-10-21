@@ -1715,7 +1715,7 @@ div.res-calib .i { color: var(--good); }
 .nd-fireflies .nd-dot { box-shadow: 0 0 6px 2px rgba(214, 255, 120, .75), 0 0 16px 5px rgba(214, 255, 120, .3); }
 .nd-fireflies .nd, .nd-fireflies.nd-front .nd { filter: none; }
 /* (night: stars high up around her, far off — behind the time of year's drift) */
-.neru-sky { position: absolute; left: -30%; right: -45%; top: -6%; bottom: 40%; pointer-events: none; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 10%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 10%, #000 70%, transparent); }
+.neru-sky { position: absolute; left: -30%; right: -45%; top: -6%; bottom: 40%; pointer-events: none; overflow: hidden; -webkit-mask-image: linear-gradient(transparent 12%, #000 30%, #000 72%, transparent); mask-image: linear-gradient(transparent 12%, #000 30%, #000 72%, transparent); }
 .nd-star { position: absolute; }
 .nd-star svg { display: block; width: 100%; height: 100%; fill: #fff6dc; filter: drop-shadow(0 0 3px rgba(255, 244, 210, .9)) drop-shadow(0 0 8px rgba(190, 200, 255, .45)); }
 /* (April Fools' Day: the other way round) */
@@ -1725,7 +1725,7 @@ div.res-calib .i { color: var(--good); }
 .neru-drift.nd-bats .nd { opacity: 1; }
 /* (Halloween: a harvest moon low behind her for the bats to cross) */
 .neru-drift.nd-bats { -webkit-mask-image: linear-gradient(transparent, #000 3%, #000 88%, transparent); mask-image: linear-gradient(transparent, #000 3%, #000 88%, transparent); }
-.neru-drift.nd-bats:not(.nd-front)::before { content: ''; position: absolute; right: 0; top: 0; width: 32%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, #ffd892, #ffbd68 42%, #f39446 57%, rgba(243, 140, 60, .32) 60%, rgba(243, 140, 60, .1) 78%, transparent); opacity: .55; animation: ndMoon 1.6s ease-out both; }
+.neru-drift.nd-bats:not(.nd-front)::before { content: ''; position: absolute; right: 0; top: 15%; width: 30%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, #ffd892, #ffbd68 42%, #f39446 57%, rgba(243, 140, 60, .32) 60%, rgba(243, 140, 60, .1) 78%, transparent); opacity: .55; animation: ndMoon 1.6s ease-out both; }
 @keyframes ndMoon { from { opacity: 0; transform: translateY(14px); } }
 .nd > i { transform-origin: 50% 0; } /* (a leaf swings from above, as from a stem) */
 .neru-dust { position: absolute; z-index: 2; left: 50%; bottom: -2px; width: 34px; height: 16px; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 255, 255, .55), transparent); }
@@ -15019,8 +15019,9 @@ const NeruMascot = {
       NeruEggs.greet();
       NeruEggs.milestone();
       NeruEggs.breather();
-      if (NeruEggs.night()) NeruEggs.twinkle(el);
       NeruEggs.drift(el);
+      // (after the drift: put in first of all, so the stars are furthest back — behind the leaves, the snow, the moon)
+      if (NeruEggs.night()) NeruEggs.twinkle(el);
     });
     return el;
   },
@@ -15650,6 +15651,12 @@ const NeruEggs = {
     if (kind === 'bats') return `<svg viewBox="0 0 32 16"><path fill="${c}" d="M16 5.2c.7-1.6 1.4-2.6 1.4-2.6l.6 2.4c3.4-2.6 8.6-3.8 13-2.4-1.8 1-3 2.8-3.4 5.4-1.8-1.2-4-1.2-5.6.4-1-1.2-2.8-1.4-4-.2-.4 1.4-1.2 2.6-2 3.4-.8-.8-1.6-2-2-3.4-1.2-1.2-3-1-4 .2-1.6-1.6-3.8-1.6-5.6-.4C4 5.6 2.8 3.8 1 2.8c4.4-1.4 9.6-.2 13 2.4l.6-2.4s.7 1 1.4 2.6z"/></svg>`;
     return ''; // (snow, fireflies: a soft dot — its colour from CSS)
   },
+  /** `el`'s size, read again only every few seconds: a new leaf or snowflake every fraction of a second mustn't make
+   *  the page work out its layout each time (on a slow Chromebook, that's what costs). */
+  measure(el) {
+    let w = 0, hh = 0, at = -1e9;
+    return () => { const t = performance.now(); if (t - at > 4000 || !w) { w = el.offsetWidth; hh = el.offsetHeight; at = t; } return [w, hh]; };
+  },
   /** Night (10pm till 5, by the clock here): stars come out. */
   night(d = this.today()) { const hr = d.getHours(); return hr >= 22 || hr < 5; },
   /** Stars twinkling high up around the main menu's Neru (`el`) — far off, behind whatever the time of year brings —
@@ -15662,14 +15669,15 @@ const NeruEggs = {
     const sky = h('span.neru-sky', { 'aria-hidden': 'true' });
     el.prepend(sky);
     let n = 0;
+    const box = this.measure(sky);
     const one = () => {
-      const W = sky.offsetWidth, H = sky.offsetHeight;
+      const [W, H] = box();
       if (!W || !H) return;
       const st = h('span.nd-star'), sz = 13 + Math.random() * 9;
       st.innerHTML = '<svg viewBox="0 0 20 20"><path d="M10 0l2.6 7.4L20 10l-7.4 2.6L10 20l-2.6-7.4L0 10l7.4-2.6z"/></svg>';
       // (in the open sky beside her — to her right, or a few to her left — not behind her, where they'd never be seen)
       const x = Math.random() < 0.72 ? 0.75 + Math.random() * 0.23 : 0.02 + Math.random() * 0.13;
-      Object.assign(st.style, { left: `${W * x}px`, top: `${H * (0.08 + Math.random() * 0.8)}px`, width: `${sz}px`, height: `${sz}px` });
+      Object.assign(st.style, { left: `${W * x}px`, top: `${H * (0.22 + Math.random() * 0.66)}px`, width: `${sz}px`, height: `${sz}px` });
       sky.append(st); n++;
       st.animate([{ opacity: 0, transform: 'translate(-50%, -50%) scale(.3) rotate(0deg)' }, { opacity: 1, transform: 'translate(-50%, -50%) scale(1) rotate(45deg)', offset: 0.5 },
         { opacity: 0, transform: 'translate(-50%, -50%) scale(.3) rotate(90deg)' }], { duration: 1800 + Math.random() * 1400, easing: 'ease-in-out' }).onfinish = () => { st.remove(); n--; };
@@ -15692,9 +15700,10 @@ const NeruEggs = {
     el.prepend(back); el.append(front);
     const r = ([a, b]) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
     let n = 0;
+    const box = this.measure(back); // (the layer in front is the same size)
     /** One more, on its way across (`pre`: already part of the way, as if it had been falling a while). */
     const one = (pre = false) => {
-      const near = Math.random() < 0.28, layer = near ? front : back, W = layer.offsetWidth, H = layer.offsetHeight;
+      const near = Math.random() < 0.28, layer = near ? front : back, [W, H] = box();
       if (!W || !H) return;
       const size = r(K.size) * (near ? 1.3 : 1), ms = r(K.ms) * (near ? 0.85 : 1), c = pick(K.colors);
       // three layers: the fall (or flight) across, the sway from side to side, and the turn (or flap, or glow)
@@ -29310,7 +29319,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '152f93c0408d';
+const APP_BUILD = '761e6af7900a';
 
 const App = {
   lastReport: null,
