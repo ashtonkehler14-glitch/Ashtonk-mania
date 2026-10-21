@@ -693,6 +693,24 @@ check('filters read lengths as lazer does (90, 90s, 2m, 1m30s, 1:30) and diff= f
 const only = await page.evaluate(() => { const s = AshtonkMania.SongSelect, n = q => { s.searchInput.value = q; s.query = q; s.rebuild(true); return s.results.length; }; return { all: n(''), word: n('anthem'), loose: n('tsnhm'), none: n('zzqx') }; });
 check('search keeps only the songs it names (lazer: every word must appear; no loose letter matching)', only.all >= 1 && only.word === 1 && only.loose === 0 && only.none === 0, JSON.stringify(only));
 await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.value = ''; s.query = ''; AshtonkMania.Settings.set('songselect.group', 'none'); AshtonkMania.Settings.set('songselect.sort', 'stars'); s.rebuild(); });
+{
+  // her name searched for: Neru peeks up from the bottom of the screen, and ducks back down (not for a word that only
+  // has "neru" in it, nor when the search found nothing — the empty list has her already)
+  const pk = await page.evaluate(async () => {
+    const wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
+    const box = v => { const i = document.body.appendChild(Object.assign(document.createElement('input'), { type: 'search', value: v })); i.dispatchEvent(new Event('input', { bubbles: true })); return i; };
+    const peeking = () => { const p = document.querySelector('.nc-peek'); return p && !p.hidden ? (p.querySelector('.nc-img').src.match(/[^/]+$/) || [''])[0] : null; };
+    NeruEggs._peekAt = -1e9; let i = box('neruals'); await wait(1200); out.word = peeking(); i.remove();
+    NeruEggs._peekAt = -1e9; i = box('Akita Neru'); await wait(1400); out.name = peeking();
+    out.up = (() => { const p = document.querySelector('.nc-peek'); return !!p && p.getBoundingClientRect().top < innerHeight - 40; })();
+    await wait(3200); out.gone = !document.querySelector('.nc-peek'); i.remove();
+    const card = document.body.appendChild(Object.assign(document.createElement('div'), { className: 'neru-cameo nc-card' }));
+    NeruEggs._peekAt = -1e9; i = box('neru'); await wait(1200); out.withEmpty = peeking(); i.remove(); card.remove();
+    return out;
+  });
+  check('her name searched for: Neru peeks up from the bottom and ducks back down (not for "neruals", nor over an empty list that has her)',
+    pk.word === null && pk.name === 'neru-huh.png' && pk.up && pk.gone && pk.withEmpty === null, JSON.stringify(pk));
+}
 check('sorting by difficulty: each difficulty its own panel, easiest first (lazer)', await page.evaluate(() => { const r = AshtonkMania.SongSelect.results; return r.length === 4 && r.every(x => x.std && x.maps.length === 1) && r.every((x, i) => !i || r[i - 1].maps[0].stars <= x.maps[0].stars) && document.querySelectorAll('.std-panel').length === 4; }));
 await page.evaluate(() => { AshtonkMania.Settings.set('songselect.sort', 'title'); AshtonkMania.SongSelect.rebuild(); });
 // lazer's FilterControl: the star range keeps only difficulties inside it; Group puts the sets under group headers,

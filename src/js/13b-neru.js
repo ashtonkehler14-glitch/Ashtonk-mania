@@ -8,7 +8,8 @@
  * knees, and sulking when you come back — in a huff when clicked over and over, cheering through a song's chorus,
  * sunglasses on when you keep the pointer on her, picked up and dropped, a headpat (hearts — then a huff, as if she
  * hadn't liked it), dizzy when flung, shaken or circled round, dancing to a certain code, fishing when a pause goes on (click her and the fish on her line flops about), a glint off her sunglasses, a double take at her
- * own name, the volume turned all the way up or down, songs skipped one after another, and the small Neru on other screens in a huff too when clicked
+ * own name (and peeking up when you search for it), the volume turned all the way up or down, songs skipped one after
+ * another, and the small Neru on other screens in a huff too when clicked
  * over and over. Each screen's own picture of her stays as it is; a click there, now and then, gets a pose of her
  * own instead of her happy face: a dance after a full combo, a snicker after a fail, worried at a song far above
  * anything you've passed. And the time of year drifting around her — autumn leaves, snow, cherry blossom, fireflies on
@@ -386,6 +387,7 @@ const NeruCameo = {
 };
 
 Bus.on('music:changed', m => NeruEggs.skipped(m));
+document.addEventListener('input', e => { if (e.target && e.target.matches && e.target.matches('input[type="search"]')) NeruEggs.searched(e.target); });
 Bus.on('settings:changed', k => {
   if (k === 'audio.master') NeruEggs.volume(Settings.get('audio.master'));
   if (k === 'ui.mascot' && Screens.currentName === 'home') { const old = document.querySelector('.home .neru'); if (old) old.replaceWith(NeruMascot.build()); }
@@ -574,6 +576,32 @@ const NeruEggs = {
     this._skips = (this._skips || []).filter(t => now - t < 12000);
     this._skips.push(now);
     if (this._skips.length >= 3) { this._skips = []; this.act('huh', 1700, { hop: false }); }
+  },
+
+  // ── her name searched for (song select, the beatmap listing): she peeks up from the bottom of the screen — "huh?
+  // you called?" — and ducks back down (not when the search found nothing: the empty list has her already)
+  searched(input) {
+    if (!/(^|[^a-z])neru([^a-z]|$)/i.test(input.value || '') || performance.now() - (this._peekAt || -1e9) < 9000) return;
+    this._peekAt = performance.now();
+    setTimeout(() => { if (input.isConnected && !document.querySelector('.neru-cameo.nc-card, .neru-cameo.nc-empty')) this.peek(); }, 300);
+  },
+  /** A small Neru peeking up from the bottom edge of the screen for a moment — clicks go through her to whatever
+   *  she's in front of (song select's Back button, say). */
+  peek() {
+    if (!Settings.get('ui.animSpeed') || document.querySelector('.nc-peek')) return;
+    const el = NeruCameo.make('list', 'nc-peek');
+    if (!el) return;
+    document.body.append(el);
+    const up = [{ transform: 'translateY(105%)' }, { transform: 'translateY(38%)', offset: 0.55 }, { transform: 'translateY(42%)' }];
+    let done = false;
+    const away = () => {
+      if (done) return; done = true;
+      el.animate([{ transform: 'translateY(42%)' }, { transform: 'translateY(105%)' }], { duration: 420, easing: 'cubic-bezier(.55, 0, .75, .2)', fill: 'forwards' }).onfinish = () => el.remove();
+    };
+    // (once her picture's in: up, a look, and back down)
+    const go = () => { if (el.hidden) { if (el.isConnected) setTimeout(go, 60); return; } el.animate(up, { duration: 650, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' }); setTimeout(away, 3200); };
+    el.style.transform = 'translateY(105%)';
+    go();
   },
 
   // ── the main menu's volume turned all the way up: she cheers; all the way down: the music's gone, she's bored
