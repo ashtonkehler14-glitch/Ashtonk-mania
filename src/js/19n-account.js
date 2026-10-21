@@ -218,7 +218,7 @@ const CodePanel = {
     const signedOut = Account.signedOut();
     const now = !signedOut && Account.linked() ? ProfileManager.profile.name : null;
     p.append(h('p.lp-lead', signedOut ? 'Type your code from your other device.' : 'Type the code from your other device to play as you here.', ' Your settings, skin, collections and scores come along.'), inp, err, go,
-      now ? h('p.lp-note', `Another player's code switches this device to them: ${now}'s plays leave it (they stay with ${now}'s code).`) : null,
+      now ? h('p.lp-note', `Switching to another player takes ${now}'s plays off this device. They stay with ${now}'s code.`) : null,
       signedOut ? h('div.lp-acts', h('button.lp-act', { onclick: () => { Account.fresh(); this.close(); Toast.show('Playing as a new player', 'Scores from this device go online as a new player.'); } }, 'Start over as a new player instead')) : null);
     setTimeout(() => inp.isConnected && inp.focus(), 60);
   },
