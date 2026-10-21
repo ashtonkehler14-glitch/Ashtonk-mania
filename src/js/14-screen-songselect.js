@@ -49,11 +49,11 @@ const SongSelect = {
     this.el = el;
     setTimeout(() => el.classList.remove('entering'), 900);
     this.searchInput = h('input.input', { type: 'search', placeholder: 'type to search', title: 'Filters: keys=7 stars>4 bpm>180 od>8 length<2m30s ln>30 diff=hard', value: this.query, 'aria-label': 'Search beatmaps', spellcheck: 'false' });
-    this.searchInput.addEventListener('input', () => { this.query = this.searchInput.value; this.rebuild(true); });
+    this.searchInput.addEventListener('input', () => { this.query = this.searchInput.value; this.rebuild(true); NeruEggs.search(this.query, this.el); });
     this.searchInput.addEventListener('keydown', e => {
       if (e.isComposing || e.keyCode === 229) { e.stopPropagation(); return; } // (an input method's own keys)
       if (['ArrowUp', 'ArrowDown', 'Enter', 'F1', 'F2', 'F3', 'F4'].includes(e.key) || (e.key === 'Escape')) {
-        if (e.key === 'Escape' && this.searchInput.value) { this.searchInput.value = ''; this.query = ''; this.rebuild(true); e.stopPropagation(); e.preventDefault(); return; }
+        if (e.key === 'Escape' && this.searchInput.value) { this.searchInput.value = ''; this.query = ''; this.rebuild(true); NeruEggs.unpeek(); e.stopPropagation(); e.preventDefault(); return; }
         this.searchInput.blur();
       } else e.stopPropagation();
     });
@@ -237,6 +237,7 @@ const SongSelect = {
     if (beat % f === 0) for (const el of sc.querySelectorAll('.set-panel.expanded')) pulse(el);
   },
   leave() {
+    NeruEggs.unpeek();
     cancelAnimationFrame(this._beatRaf);
     this.closeOptions();
     (this._unsub || []).forEach(f => f());
@@ -621,7 +622,7 @@ const SongSelect = {
       const q = this.query.trim(), lo = +Settings.get('songselect.starsMin') || 0, hi = +Settings.get('songselect.starsMax') || 10.1;
       const link = (text, fn) => h('a.nr-link', { href: '#', onclick: e => { e.preventDefault(); UISounds.click(); fn(); } }, text);
       const tips = [];
-      if (q) tips.push(['Try ', link('clearing', () => { this.query = ''; this.searchInput.value = ''; this.rebuild(true); }), ' your current search criteria.']);
+      if (q) tips.push(['Try ', link('clearing', () => { this.query = ''; this.searchInput.value = ''; this.rebuild(true); NeruEggs.unpeek(); }), ' your current search criteria.']);
       if (lo > 0 || hi < 10.1) tips.push(['Try ', link('removing', () => { Settings.set('songselect.starsMin', 0); Settings.set('songselect.starsMax', 10.1); Screens.go('songselect', { force: true, mpPick: this.mpPick, practice: this.practiceMode }, { replace: true }); }), ` the ${lo.toFixed(1)} - ${hi < 10.1 ? hi.toFixed(1) : '∞'} star difficulty filter.`]);
       if (q) tips.push(['Try ', link('searching online', () => { ExplorerScreen.state.q = q; ExplorerScreen.results = []; Screens.go('explore'); }), ` for "${q}".`]);
       this.emptyEl.append(h('div.nr',
@@ -897,7 +898,7 @@ const SongSelect = {
   /** Mod select; picking a beatmap for a multiplayer room greys out the mods a room doesn't allow (Auto). */
   openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: MODS.filter(x => x.unranked).map(x => x.id), why: 'not available in multiplayer' } : {}); },
   onBack() {
-    if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); return true; }
+    if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); NeruEggs.unpeek(); return true; }
     return false;
   },
 

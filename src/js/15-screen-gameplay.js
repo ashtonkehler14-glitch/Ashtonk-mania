@@ -787,6 +787,8 @@ const GameplayScreen = {
   },
   buildHud() {
     const s = this.s;
+    // (the skin editor shows every component, the ones turned off too — dimmed — so each can be placed before it's on)
+    const all = this._hudAll = !!(this.params.skinEditor || (typeof SkinEditor !== 'undefined' && SkinEditor.on));
     clearEl(this.hud);
     this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = this._hudOff = undefined; this._ctrl = false;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%');
@@ -812,7 +814,7 @@ const GameplayScreen = {
     );
     // osu!lazer's hit error meter, bottom centre (mania's legacy and default layouts both have it)
     this.errMeter = null;
-    if (Settings.get('gameplay.hitErrorMeter') && s.engine) { this.errMeter = new HitErrorMeter(s.engine.W); this.hud.append(this.errMeter.canvas); }
+    if ((Settings.get('gameplay.hitErrorMeter') || all) && s.engine) { this.errMeter = new HitErrorMeter(s.engine.W); this.hud.append(this.errMeter.canvas); }
     // touch screens play as FNF does on phones: the screen split into one full-height hitbox per column, lighting up
     // while it's held
     this.hitbox = null;
@@ -826,7 +828,7 @@ const GameplayScreen = {
     }
     // osu!lazer's judgement counter (off unless turned on): each judgement's count, rolling up, over its name
     this.jc = null;
-    if (Settings.get('gameplay.judgementCounter')) {
+    if (Settings.get('gameplay.judgementCounter') || all) {
       const items = JUDGEMENT_COUNTER.map(([j, name, colour]) => { const n = h('span.jc-n', '0'); return { j, n, shown: 0, el: h('div.jc-item', { style: { '--jc': colour } }, n, h('span.jc-name', name)) }; });
       this.jc = { items, el: h(`div.hud-jc.${Settings.get('gameplay.judgementCounterFlow') === 'horizontal' ? 'h' : 'v'}`, ...items.map(i => i.el)) };
       this.hud.append(this.jc.el);
@@ -834,7 +836,7 @@ const GameplayScreen = {
     if (s.mp) this.buildGpChat(s);
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this.mpTeams = null; this._mpT = 0; this._mpDrawn = 0; }
     else this.buildLeaderboard();
-    this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
+    this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard') && !all);
     // osu!lazer-style health bar (top left): the fill eases to the new value, and a red trail shows what a miss took
     this.hpEl = this._hpQ = this._hpLow = null;
     this.skinHp = null;
@@ -1157,12 +1159,15 @@ const GameplayScreen = {
     const s = this.s;
     this.lbEl = h('div.hud-mp.hud-lb'); this.hud.append(this.lbEl);
     this._lbJudged = -1; this._lbMe = null;
-    if (s.mode === 'auto' || s.practice) return;
+    // (in the skin editor, Auto's board has a few made-up scores to place it by)
+    const sample = this._hudAll && (s.mode === 'auto' || s.practice);
+    if ((s.mode === 'auto' || s.practice) && !sample) return;
     const skip = s.replay && s.replay.scoreId;
     // (as lazer's: the board follows song select's scope — Global / Friends from the server when it has them)
     const scope = Settings.get('songselect.lbScope'), on = typeof SongSelect !== 'undefined' && SongSelect._online;
     const online = (scope === 'global' || scope === 'friends') && on && on.key === s.rec.hash && on.scope === scope && s.mode !== 'replay';
-    const rows = online
+    const rows = sample ? [['Neru', .9921, 1412, 991204], ['Kori', .9803, 1288, 962880], ['Teto', .9655, 1102, 931337]].map(([name, acc, combo, score]) => ({ name, acc, combo, score }))
+      : online
       ? on.scores.slice(0, 6).map(x => ({ name: x.pid === Presence.pid() ? ProfileManager.profile.name : x.name, avatar: x.avatar, own: x.pid === Presence.pid(), acc: x.acc, combo: x.combo, score: x.score }))
       : ScoreManager.forMap(s.rec.hash).filter(x => x.id !== skip && x.passed).slice(0, 6).map(x => ({ name: x.player || ProfileManager.profile.name, own: !x.player || x.player === ProfileManager.profile.name, acc: x.accuracy, combo: x.maxCombo, score: ScoreManager.value(x) }));
     // nothing to climb past on a first play: no board (a lone "#1 you" row is just clutter, and lazer shows none)

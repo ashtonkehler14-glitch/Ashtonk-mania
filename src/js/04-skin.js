@@ -246,7 +246,7 @@ class Skin {
   }
   supportedKeys() { return Object.keys(this.ini.mania).map(Number).sort((a, b) => a - b); }
   /** Key counts this skin has no section for but plays through its 4K one (see _borrowSection). */
-  borrowedKeys() { return Array.from({ length: 10 }, (_, i) => i + 1).filter(k => k !== 4 && this.maniaSection(k) && this.maniaSection(k).__from4K); }
+  borrowedKeys() { return Array.from({ length: MAX_KEYS }, (_, i) => i + 1).filter(k => k !== 4 && this.maniaSection(k) && this.maniaSection(k).__from4K); }
 
   /** Which of a 4K skin's columns (0-3) each of `keys` columns uses. The left half steps outward-in through columns
    *  1-2, the right half through 4-3, and an odd middle column carries on the alternation: 5K plays as 1 2 1 3 4,

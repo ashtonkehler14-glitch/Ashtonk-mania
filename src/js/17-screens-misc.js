@@ -50,16 +50,18 @@ const AccountBeatmaps = {
       go.disabled = !picked.size; go.textContent = picked.size ? `Install ${fmtInt(picked.size)}` : 'Install';
     };
     // (each a little card: its cover, title, artist and mapper; click to pick it — covers load as they come on screen)
-    const io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { io.unobserve(e.target); const id = Number(e.target.dataset.id), th = e.target.querySelector('.ab-thumb'); OnlineBeatmaps.loadCover(th, id, ['list@2x', 'list'], () => th.classList.add('loaded')); } }, { root: grid, rootMargin: '200px' });
+    const io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { io.unobserve(e.target); const id = Number(e.target.dataset.id), img = e.target.querySelector('.ab-img'); OnlineBeatmaps.loadCover(img, id, ['list@2x', 'list'], () => img.classList.add('loaded')); } }, { root: grid, rootMargin: '200px' });
     for (const s of all) {
       const el = h('button.ab-card', { dataset: { id: String(s.id) }, 'aria-pressed': 'false', onclick: () => { UISounds.click(); if (picked.has(s.id)) picked.delete(s.id); else picked.add(s.id); el.setAttribute('aria-pressed', String(picked.has(s.id))); paint(); } },
-        h('span.ab-thumb'), h('span.ab-txt', h('b', s.title || `Beatmap ${s.id}`), h('span', s.artist || ''), s.creator ? h('small', `mapped by ${s.creator}`) : null), h('span.ab-check', icon('check')));
+        // (a tinted square with a note until its cover comes — or for good, offline)
+        h('span.ab-thumb', { style: { '--ab-h': (s.id * 47) % 360 } }, icon('music'), h('i.ab-img')), h('span.ab-txt', h('b', s.title || `Beatmap ${s.id}`), h('span', s.artist || ''), s.creator ? h('small', `mapped by ${s.creator}`) : null), h('span.ab-check', icon('check')));
       cards.set(s.id, el); grid.append(el); io.observe(el);
     }
     q.addEventListener('input', () => { const t = q.value.trim().toLowerCase(); for (const s of all) cards.get(s.id).hidden = !!t && !`${s.title} ${s.artist} ${s.creator}`.toLowerCase().includes(t); paint(); });
     q.addEventListener('keydown', e => e.stopPropagation());
-    const body = h('div.ab', h('p.ab-sub', 'On your other devices and not on this one. Pick the ones you want here.'), h('div.ab-bar', q, allBtn), grid, h('div.ab-foot', count, h('span.grow'), go));
-    const o = Dialog.custom('Your beatmaps', body, [{ label: 'Close' }]);
+    const body = h('div.ab', h('p.ab-sub', 'On your other devices and not on this one. Pick the ones you want here.'), h('div.ab-bar', q, allBtn), grid,
+      h('div.ab-foot', count, h('span.grow'), h('button.btn.ghost', { onclick: () => o.close() }, 'Close'), go));
+    const o = Dialog.custom('Your beatmaps', body);
     const close = o.close; o.close = () => { io.disconnect(); close(); };
     paint();
     setTimeout(() => q.focus({ preventScroll: true }), 60);
@@ -489,7 +491,8 @@ const ProfileScreen = {
           // (plays on beatmaps that aren't ranked on osu! — your own, or from a file — give pp in the results but never count here)
           : ScoreManager.scores.some(x => x.passed) ? 'No performance records yet: only plays on beatmaps ranked on osu! count here — find some in the beatmap listing.' : 'No performance records. Pass a ranked beatmap to earn pp.')),
       pending.length ? sub('Not counted yet', pending.length,
-        h('div.pf-note', pending.some(x => x._s.replayId) ? 'These go to the server with their replays to be checked — they count once it has.' : 'There\'s no replay of these for the server to check. Play them again to count them.'),
+        h('div.pf-note', (n => n === pending.length ? 'On their way to the server to be checked — they count once it has.' : n ? 'On their way to the server to be checked. The ones without a replay count once you play them again.'
+          : 'There\'s no replay of these for the server to check. Play them again to count them.')(pending.filter(x => x._s.replayId).length)),
         more(pending, x => row(x, 0, false))) : null,
       own && d.importedTop && d.importedTop.length ? sub('From imported backups', d.importedTop.length,
         h('div.pf-note', 'Not counted in your pp or on the rankings: there\'s no replay of these for the server to check. Play them again here to count them.'),
@@ -730,7 +733,15 @@ const SkinsScreen = {
     const skin = SkinManager.instance(meta.id);
     clearEl(this.main);
     const supported = skin.supportedKeys(), borrowed = skin.builtin ? [] : skin.borrowedKeys();
-    if (!supported.includes(this.keys) && !borrowed.includes(this.keys)) this.keys = supported.includes(4) ? 4 : supported.includes(7) ? 7 : (supported[0] || 4);
+    // (another skin picked: the key count it's made for if it can't show this one; every skin previews 1K–18K)
+    if (this._kFor !== meta.id) { this._kFor = meta.id; if (!supported.includes(this.keys) && !borrowed.includes(this.keys)) this.keys = supported.includes(4) ? 4 : supported.includes(7) ? 7 : (supported[0] || 4); }
+    const kHint = k => meta.builtin ? '' : borrowed.includes(k) ? 'built from the skin\'s 4K layout' : supported.includes(k) ? 'from the skin\'s skin.ini' : 'default layout';
+    const hint = h('span.muted.sk-khint', kHint(this.keys));
+    // 1K to 18K, one tap each (a dot: set up in the skin itself); the preview changes without the page being rebuilt
+    const chips = h('div.sk-kchips', { role: 'tablist', 'aria-label': 'Key count' }, ...Array.from({ length: MAX_KEYS }, (_, i) => i + 1).map(k =>
+      h(`button.sk-kc${k === this.keys ? '.on' : ''}${!meta.builtin && supported.includes(k) ? '.own' : ''}`, { role: 'tab', 'aria-selected': String(k === this.keys), dataset: { k },
+        onclick: e => { if (k === this.keys) return; UISounds.click(); this.keys = k; for (const b of chips.children) { const on = +b.dataset.k === k; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); }
+          hint.textContent = kHint(k); e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }); if (this.preview) this.preview.show(skin, k); } }, `${k}K`)));
     const canvas = h('canvas');
     const pv = h('div.skin-preview', canvas);
     const inUse = SkinManager.current.id === meta.id;
@@ -741,11 +752,7 @@ const SkinsScreen = {
         h('button.btn.sk-edit', { title: 'Edit this skin\'s layout (Ctrl+Shift+S)', onclick: async () => { if (!inUse) await SkinManager.select(meta.id); SkinEditor.open(); } }, icon('edit'), 'Edit skin'),
         !meta.builtin ? h('button.btn.ghost', { onclick: () => SkinManager.exportOsk(meta.id) }, icon('download'), 'Export') : null,
         !meta.builtin ? h('button.btn.danger', { title: 'Delete skin', 'aria-label': 'Delete skin', onclick: async () => { if (await Dialog.confirm('Delete skin?', `${skin.name} will be removed.`, { ok: 'Delete', danger: true })) { await SkinManager.remove(meta.id); this.sel = SkinManager.current.id; } } }, icon('trash')) : null),
-      h('div.sk-keys', h('span.muted', 'Preview'),
-        h('button.sk-step', { 'aria-label': 'Fewer keys', disabled: this.keys <= 1, onclick: () => { this.keys = Math.max(1, this.keys - 1); this.render(); } }, icon('back')),
-        h('span.sk-k', `${this.keys}K`),
-        h('button.sk-step', { 'aria-label': 'More keys', disabled: this.keys >= MAX_KEYS, onclick: () => { this.keys = Math.min(MAX_KEYS, this.keys + 1); this.render(); } }, icon('chevron')),
-        h('span.muted.sk-khint', meta.builtin ? '' : borrowed.includes(this.keys) ? "built from the skin's 4K layout" : supported.includes(this.keys) ? 'configured in skin.ini' : 'fallback layout')),
+      h('div.sk-keys', h('span.muted.sk-kl', 'Preview'), chips, hint),
       meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel(true)) : pv,
       h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}`));
     // (again once the screen's entrance animation has settled: it moves the page while it plays)
@@ -765,6 +772,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.20c', title: 'Skins update', sections: [
+    { icon: 'brush', title: 'Skins update', items: ['Preview any skin from 1K to 18K', 'A cleaner skin editor that shows hidden parts too', 'A few Neru secrets to find'] },
+  ] },
   { id: '2026.10.20b', title: 'Account update', sections: [
     { icon: 'lock', title: 'Account update', items: ['Changes show on all your devices', 'Install the beatmaps you had on a new device', 'Your profile pp matches the rankings'] },
   ] },
@@ -843,7 +853,8 @@ const WhatsNew = {
         h('button.icon-btn.cl-x', { title: 'Close', 'aria-label': 'Close', onclick: () => o.close() }, icon('x'))),
       h('div.cl-body', ...entries.map(e => h('div.cl-entry',
         h('div.cl-ver', h('span.cl-pill', e.id.replace(/[a-z]$/, '')), h('b', e.title)),
-        ...e.sections.map((sec, si) => h('div.cl-sec', { style: { animationDelay: `${si * 60}ms` } }, h('div.cl-sech', icon(sec.icon), sec.title),
+        // (a section named like its update isn't headed again: just its lines)
+        ...e.sections.map((sec, si) => h(`div.cl-sec${sec.title === e.title ? '.plain' : ''}`, { style: { animationDelay: `${si * 60}ms` } }, sec.title === e.title ? null : h('div.cl-sech', icon(sec.icon), sec.title),
           h('ul', ...sec.items.map(t => h('li', t)))))))),
       h('div.cl-foot', h('button.btn.primary', { onclick: () => o.close() }, 'Let\'s go!')));
     const o = makeOverlay(el);

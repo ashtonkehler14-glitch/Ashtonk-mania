@@ -124,6 +124,31 @@ await shot('01-home-empty');
   });
   check('an empty list has Neru, a blank "huh?" at it, in place of the icon', n.face === n.pose && n.pose === 'neru-huh.png' && !n.icon, JSON.stringify(n));
 }
+// Neru's easter eggs on the main menu: clicked over and over she's in a huff (and won't hop for a moment), the Konami
+// code throws a party, and left alone she gets bored — back to herself at a touch
+{
+  await page.waitForSelector('.home .neru:not([hidden]) .neru-img', { timeout: 8000 }).catch(() => {});
+  const r = await page.evaluate(async () => {
+    const M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
+    {
+      for (let i = 0; i < 8; i++) M.el.click();
+      await wait(500);
+      out.huff = `${M.img.dataset.pose}|${M.el.classList.contains('huff')}|${!!M.el.querySelector('.neru-vein')}`;
+      M.el.click(); out.ignored = M.el.classList.contains('shake') && !M.el.classList.contains('hop');
+      M._huffUntil = 0; clearTimeout(M._back); M.el.classList.remove('huff', 'shake'); await M.show(null);
+      for (const code of NeruEggs.KONAMI) window.dispatchEvent(new KeyboardEvent('keydown', { code, key: code }));
+      await wait(500);
+      out.party = `${M.img.dataset.pose}|${document.querySelectorAll('.neru-confetti i').length > 20}`;
+      M._party = false; clearTimeout(M._back); document.querySelectorAll('.neru-confetti').forEach(e => e.remove()); await M.show(null);
+      NeruEggs._seen = performance.now() - 60000; await wait(3400);
+      out.idle = M.img.dataset.pose;
+      window.dispatchEvent(new PointerEvent('pointerdown')); await wait(500);
+      out.woke = M.img.dataset.pose || 'usual';
+    }
+    return out;
+  });
+  check('Neru\'s easter eggs: a huff when clicked over and over, a party for the Konami code, bored when left alone', r.huff === 'sassy|true|true' && r.ignored && r.party === 'cheer|true' && r.idle === 'bored' && r.woke === 'usual', JSON.stringify(r));
+}
 
 // import via synthetic drop event (exercises the drag & drop pipeline)
 const dropFiles = async (names) => page.evaluate(async (names) => {
@@ -783,7 +808,8 @@ await page.waitForTimeout(500);
     if (!M.img) return { none: true };
     const name = () => M.img.src.split('/').pop();
     const before = name();
-    M.el.click(); await wait(100);
+    M.el.click();
+    for (let i = 0; i < 10 && name() === before; i++) await wait(60);
     const clicked = name(), hop = M.el.classList.contains('hop'), said = !!document.querySelector('.home .neru-say, .home .nc-say');
     await wait(1800);
     return { before, clicked, hop, said, after: name() };
@@ -823,10 +849,15 @@ const four = await page.evaluate(async () => {
 });
 check('UTF-16 skin.ini is read', four.name === 'Four Only', JSON.stringify(four));
 check('4K-only skin plays 7K as 1 2 1 2 4 3 4 and 5K as 1 2 1 3 4, centred where its 4K stage was',
-  four.c7 === '0101323/0101323' && four.c5 === '01023/01023' && four.c2 === '03/03' && four.from4K && four.borrowed === '1,2,3,5,6,7,8,9,10' && four.centred, JSON.stringify(four));
+  four.c7 === '0101323/0101323' && four.c5 === '01023/01023' && four.c2 === '03/03' && four.from4K && four.borrowed === '1,2,3,5,6,7,8,9,10,11,12,13,14,15,16,17,18' && four.centred, JSON.stringify(four));
 await page.evaluate(() => AshtonkMania.Screens.go('skins'));
 await page.waitForTimeout(1500);
 await shot('08-skins');
+{
+  // every skin previews 1K to 18K: a key count past 10 used to snap back to 4K for an imported skin
+  const k = await page.evaluate(async () => { document.querySelector('.sk-kc[data-k="13"]').click(); await new Promise(r => setTimeout(r, 800)); return { on: (document.querySelector('.sk-kc.on') || {}).dataset?.k, keys: SkinsScreen.preview.keys, cols: SkinsScreen.preview.renderer.layout?.keys, chips: document.querySelectorAll('.sk-kc').length }; });
+  check('skins: an imported skin previews at any key count from 1K to 18K (13K shows 13 columns)', k.on === '13' && k.keys === 13 && k.chips === 18, JSON.stringify(k));
+}
 await page.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Settings.set('songselect.mods', ['AT']); AshtonkMania.SongSelect.selectedId = m.id; AshtonkMania.SongSelect.play('play'); });
 await page.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 15000 });
 await page.waitForTimeout(3200);
@@ -2175,6 +2206,10 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await page.keyboard.press('Control+Shift+KeyS');
   await page.waitForSelector('.se-box', { timeout: 20000 });
   await page.waitForTimeout(800);
+  // what's turned off (the judgement counter, by default) is there from the start, dimmed, to be placed before it's on
+  const dim = await page.evaluate(() => { const b = [...document.querySelectorAll('.se-box')].find(x => x.querySelector('.se-label').textContent === 'Judgement counter'), jc = document.querySelector('.hud-jc');
+    return { box: !!b, boxOff: !!b && b.classList.contains('off'), item: document.querySelector('.se-item[data-id="jc"]')?.classList.contains('off'), dimmed: !!jc && jc.classList.contains('hl-off') && getComputedStyle(jc).visibility === 'visible' && +getComputedStyle(jc).opacity < 0.5, setting: AshtonkMania.Settings.get('gameplay.judgementCounter') }; });
+  check('skin editor: a component that\'s turned off shows dimmed from the start (the judgement counter)', dim.box && dim.boxOff && dim.item && dim.dimmed && dim.setting === false, JSON.stringify(dim));
   const boxOf = name => page.evaluate(n => { const b = [...document.querySelectorAll('.se-box')].find(b => b.querySelector('.se-label').textContent === n); if (!b) return null; const r = b.getBoundingClientRect(); const hd = b.querySelector('.se-handle').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, hx: hd.x + hd.width / 2, hy: hd.y + hd.height / 2, scale: +AshtonkMania.GameplayScreen.el.style.scale }; }, name);
   const box = await boxOf('Score');
   await page.mouse.move(box.x, box.y); await page.mouse.down(); await page.mouse.move(box.x - 120, box.y + 90, { steps: 6 }); await page.mouse.up();

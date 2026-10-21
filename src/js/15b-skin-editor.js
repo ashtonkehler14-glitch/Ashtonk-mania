@@ -6,18 +6,18 @@
 
 const HUD_PARTS = [
   // (score, accuracy, pp and mods are placed and sized each on its own, as lazer's separate HUD components)
-  { id: 'sc', name: 'Score', sel: '.hud-score > .sc', origin: 'top right' },
-  { id: 'acc', name: 'Accuracy', sel: '.hud-score > .hud-accrow', origin: 'top right' },
-  { id: 'pp', name: 'Performance (pp)', sel: '.hud-score > .hud-pp', origin: 'top right' },
-  { id: 'mods', name: 'Mods', sel: '.hud-score > .hud-mods', origin: 'top right' },
+  { id: 'sc', name: 'Score', icon: 'trophy', sel: '.hud-score > .sc', origin: 'top right' },
+  { id: 'acc', name: 'Accuracy', icon: 'target', sel: '.hud-score > .hud-accrow', origin: 'top right' },
+  { id: 'pp', name: 'Performance (pp)', icon: 'chart', sel: '.hud-score > .hud-pp', origin: 'top right' },
+  { id: 'mods', name: 'Mods', icon: 'mods', sel: '.hud-score > .hud-mods', origin: 'top right' },
   // (drawn with the stage, on the canvas, at the skin's ComboPosition: moved and sized from there)
-  { id: 'combo', name: 'Combo counter', canvas: true, origin: 'center center' },
-  { id: 'hp', name: 'Health display', sel: '.hud-hp, .hud-skinhp', origin: 'top left' },
-  { id: 'progress', name: 'Song progress', sel: '.hud-sp, .hud-progress', origin: 'bottom center' },
-  { id: 'error', name: 'Hit error meter', sel: '.hud-err', origin: 'bottom center', setting: 'gameplay.hitErrorMeter' },
-  { id: 'jc', name: 'Judgement counter', sel: '.hud-jc', origin: 'center right', setting: 'gameplay.judgementCounter' },
-  { id: 'lb', name: 'Leaderboard', sel: '.hud-lb, .hud-mp', origin: 'center left', setting: 'gameplay.leaderboard' },
-  { id: 'badge', name: 'Auto / replay badge', sel: '.hud-replay', origin: 'top center' },
+  { id: 'combo', name: 'Combo counter', icon: 'bolt', canvas: true, origin: 'center center' },
+  { id: 'hp', name: 'Health display', icon: 'heart', sel: '.hud-hp, .hud-skinhp', origin: 'top left' },
+  { id: 'progress', name: 'Song progress', icon: 'clock', sel: '.hud-sp, .hud-progress', origin: 'bottom center' },
+  { id: 'error', name: 'Hit error meter', icon: 'bars', sel: '.hud-err', origin: 'bottom center', setting: 'gameplay.hitErrorMeter' },
+  { id: 'jc', name: 'Judgement counter', icon: 'list', sel: '.hud-jc', origin: 'center right', setting: 'gameplay.judgementCounter' },
+  { id: 'lb', name: 'Leaderboard', icon: 'crown', sel: '.hud-lb, .hud-mp', origin: 'center left', setting: 'gameplay.leaderboard' },
+  { id: 'badge', name: 'Auto / replay badge', icon: 'film', sel: '.hud-replay', origin: 'top center' },
 ];
 
 const HudLayout = {
@@ -48,16 +48,16 @@ const HudLayout = {
   },
   apply(hud) {
     if (!hud) return;
-    const L = this.get(), W = hud.clientWidth || 1, H = hud.clientHeight || 1;
+    const L = this.get(), W = hud.clientWidth || 1, H = hud.clientHeight || 1, editing = typeof SkinEditor !== 'undefined' && SkinEditor.on;
     for (const p of HUD_PARTS) {
-      const c = L[p.id] || {};
+      const c = L[p.id] || {}, off = !!c.off || (editing && !!p.setting && !Settings.get(p.setting));
       for (const el of this.els(hud, p)) {
         if (el.dataset.hlBase == null) { el.style.translate = ''; el.dataset.hlBase = getComputedStyle(el).translate || 'none'; }
         const [bx, by] = this.split(el.dataset.hlBase), dx = (c.x || 0) * W, dy = (c.y || 0) * H, s = c.s && c.s !== 1 ? c.s : 0;
         el.style.translate = dx || dy ? `calc(${bx} + ${dx.toFixed(1)}px) calc(${by} + ${dy.toFixed(1)}px)` : '';
         el.style.scale = s ? String(s) : '';
         el.style.transformOrigin = s ? p.origin : '';
-        el.classList.toggle('hl-off', !!c.off);
+        el.classList.toggle('hl-off', off);
         el.dataset.hl = p.id;
       }
     }
@@ -89,19 +89,28 @@ const SkinEditor = {
     this.on = true; this.sel = null; this.undo = []; this.boxEls = new Map(); this._hitEl = null;
     { const r = GameplayScreen.renderer; if (r) r.resize(true); } // (the stage uncropped while editing: see ManiaRenderer.resize)
     UISounds.click();
-    const btn = (label, ic, fn, cls = '') => h(`button.se-btn${cls}`, { onclick: () => { UISounds.click(); fn(); } }, icon(ic), h('span', label));
+    const btn = (label, ic, fn, cls = '') => h(`button.se-btn${cls}`, { title: label, onclick: () => { UISounds.click(); fn(); } }, icon(ic), h('span', label));
+    this.stageEl = h('div.se-list');
     this.listEl = h('div.se-list');
+    this.countEl = h('span.se-cnt');
     this.setEl = h('div.se-set');
     this.boxesEl = h('div.se-boxes');
     this.boxesEl.addEventListener('pointerdown', e => { if (e.target === this.boxesEl) this.select(null); });
+    this.undoBtn = btn('Undo', 'back', () => this.undoStep());
     this.el = h('div.se', { role: 'dialog', 'aria-label': 'Skin editor' },
       this.boxesEl,
-      h('div.se-top', h('div.se-title', icon('brush'), h('b', 'Skin editor'), h('span', `Currently editing: ${SkinManager.current ? SkinManager.current.name : 'skin'} — gameplay HUD`)),
-        h('div.se-acts', btn('Undo', 'back', () => this.undoStep()), btn('Reset all', 'retry', () => this.resetAll()), btn('Done', 'check', () => this.close(), '.primary'))),
-      h('div.se-side.se-l', h('div.se-ph', 'Components'), this.listEl, h('p.se-hint', kbHint('Drag a component to move it, its corner to scale it, and the hit position line up or down. Ctrl+Z undoes, Esc closes.', 'Drag a component to move it, its corner to scale it, and the hit position line up or down.'))),
+      h('div.se-top',
+        h('div.se-title', h('span.se-logo', icon('brush')), h('div.se-tt', h('b', 'Skin editor'), h('span', h('i', SkinManager.current ? SkinManager.current.name : 'Skin'), ' · gameplay HUD'))),
+        h('div.se-acts', this.undoBtn, btn('Reset all', 'retry', () => this.resetAll()), btn('Done', 'check', () => this.close(), '.primary'))),
+      h('div.se-side.se-l',
+        h('div.se-ph', 'Stage'), this.stageEl,
+        h('div.se-ph', 'HUD', this.countEl), this.listEl,
+        h('p.se-hint', kbHint('Drag to move · corner to scale · arrow keys nudge (Shift: 10px) · Delete hides · Ctrl+Z undoes · Esc closes', 'Drag to move, the corner to scale. Tap the eye to show or hide.'))),
       h('div.se-side.se-r', h('div.se-ph', 'Settings'), this.setEl));
     document.body.append(this.el);
     document.body.classList.add('se-open');
+    // (every component, the ones turned off too — dimmed — so each can be placed before it's turned on)
+    if (!GameplayScreen._hudAll) GameplayScreen.buildHud(); else HudLayout.apply(GameplayScreen.hud);
     this._key = e => this.onKey(e);
     window.addEventListener('keydown', this._key, true);
     this.paintList(); this.paintSettings();
@@ -123,7 +132,7 @@ const SkinEditor = {
     UISounds.back();
     if (Screens.currentName === 'gameplay' && GameplayScreen.params && GameplayScreen.params.skinEditor) {
       Screens.go(this._from || 'home', {}, { replace: true });
-    }
+    } else if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen._hudAll) GameplayScreen.buildHud(); // (what's turned off goes again)
   },
   onKey(e) {
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && e.key !== 'Escape') return;
@@ -131,11 +140,17 @@ const SkinEditor = {
     // (the browser's own keys still work: reload, fullscreen, a new tab, closing it)
     if (/^F(5|11)$/.test(e.key) || (ctrl && !e.shiftKey && /^Key[RTWL]$/.test(e.code))) return;
     e.preventDefault(); e.stopImmediatePropagation();
-    if (e.repeat) return;
+    if (e.repeat && !/^Arrow/.test(e.key)) return;
     if (e.key === 'Escape') { if (this.sel) this.select(null); else this.close(); return; }
     if (ctrl && e.shiftKey && e.code === 'KeyS') { this.close(); return; }
     if (ctrl && e.code === 'KeyZ') { this.undoStep(); return; }
-    if ((e.code === 'Delete' || e.code === 'Backspace') && this.sel) { this.setPart(this.sel, { off: true }); return; }
+    const p = HUD_PARTS.find(x => x.id === this.sel);
+    if ((e.code === 'Delete' || e.code === 'Backspace') && p) { this.setShown(p, false); return; }
+    // (arrow keys nudge the chosen component a pixel at a time, ten with Shift; the hit position too)
+    const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (d && p) { const hud = GameplayScreen.hud, n = e.shiftKey ? 10 : 1, c = this.layout()[p.id] || {}; this.setPart(p.id, { x: (c.x || 0) + d[0] * n / (hud.clientWidth || 1), y: (c.y || 0) + d[1] * n / (hud.clientHeight || 1) }); return; }
+    const sd = this.stageDef(this.sel);
+    if (d && sd && d[1]) this.setStage(sd, this.stageVal(sd) + d[1] * (e.shiftKey ? 10 : 1));
   },
 
   // ── the layout
@@ -171,9 +186,9 @@ const SkinEditor = {
   // ── the stage: where notes are judged (the hit position — the receptors, from the skin's own HitPosition, moved up
   // or down) and where they're drawn against it (the note offset)
   STAGE: [
-    { id: 'hitpos', key: 'gameplay.hitPositionOffset', name: 'Hit position', min: -120, max: 60, unit: '', redraw: true,
+    { id: 'hitpos', key: 'gameplay.hitPositionOffset', name: 'Hit position', icon: 'keyboard', min: -120, max: 60, unit: '', redraw: true,
       note: 'Where the notes are judged — the receptors. Drag the line on the stage, or slide it here: up is negative, down is positive.' },
-    { id: 'noteoff', key: 'gameplay.noteOffset', name: 'Note offset', min: -40, max: 40, unit: 'px',
+    { id: 'noteoff', key: 'gameplay.noteOffset', name: 'Note offset', icon: 'mania', min: -40, max: 40, unit: 'px',
       note: 'Where the notes are drawn against the receptors (only how they look — the timing stays the same). Negative draws them higher, positive lower.' },
   ],
   get HIT() { return this.STAGE[0]; },
@@ -197,12 +212,14 @@ const SkinEditor = {
     this.paintList(); this.paintSettings();
   },
   setHit(v, before) { this.setStage(this.HIT, v, before); },
+  /** The chosen component's header: its icon and name, and (for one on the HUD) a switch to show or hide it. */
+  head(item, sw = null) { return h('div.se-head', h('span.se-ic', icon(item.icon || 'brush')), h('div.se-name', item.name), sw); },
   stagePanel(d) {
     const fnf = d.redraw && GameplayScreen.renderer && GameplayScreen.renderer.fnf;
     const v0 = this.stageVal(d);
     const fmt = v => `${v > 0 ? '+' : ''}${v}${d.unit}`;
     const val = h('b', fmt(v0));
-    const sl = h('input.slider', { type: 'range', min: d.min, max: d.max, step: 1, value: v0, disabled: fnf });
+    const sl = h('input.slider', { type: 'range', min: d.min, max: d.max, step: 1, value: v0, disabled: fnf, 'aria-label': d.name });
     const paint = () => sl.style.setProperty('--p', ((sl.value - d.min) / (d.max - d.min) * 100) + '%');
     let before = null;
     sl.addEventListener('pointerdown', () => { before = this.snapshot(); });
@@ -210,58 +227,72 @@ const SkinEditor = {
     sl.addEventListener('change', () => { this.setStage(d, +sl.value, before); before = null; });
     paint();
     return [
-      h('div.se-name', d.name),
+      this.head(d),
       h('p.se-note', fnf ? 'This skin style puts its receptors in a fixed place.' : d.note),
-      h('label.se-f', h('span', 'Offset', val), sl),
-      h('div.se-btns', h('button.btn.sm', { disabled: !v0, onclick: () => { UISounds.click(); this.setStage(d, 0); } }, icon('retry'), d.redraw ? 'Reset to the skin\'s' : 'Reset'))];
+      h('label.se-f', h('span', 'Offset', val), sl, h('span.se-scale', h('i', fmt(d.min)), h('i', '0'), h('i', fmt(d.max)))),
+      h('div.se-btns', h('button.btn.sm', { disabled: !v0, onclick: () => { UISounds.click(); this.setStage(d, 0); } }, icon('retry'), d.redraw ? 'Back to the skin\'s' : 'Reset'))];
   },
+  /** Show or hide a component. One with a setting of its own (the hit error meter, judgement counter, leaderboard)
+   *  turns that on when shown; hidden, it stays on with the component hidden. */
   setShown(p, on) {
-    if (p.setting) {
-      if (on && Settings.get(p.setting) && !(this.layout()[p.id] || {}).off) return;
-      if (on) { Settings.set(p.setting, true); this.setPart(p.id, { off: false }); }
-      else this.setPart(p.id, { off: true });
-      if (on && GameplayScreen.s) { GameplayScreen.buildHud(); }
-      return;
-    }
+    if (on && p.setting && !Settings.get(p.setting)) Settings.set(p.setting, true);
     this.setPart(p.id, { off: !on });
   },
   shown(p) { return !(this.layout()[p.id] || {}).off && (!p.setting || !!Settings.get(p.setting)); },
-  select(id) { this.sel = id; this.paintList(); this.paintSettings(); },
+  select(id) {
+    if (this.sel === id) return;
+    this.sel = id; this.paintList(); this.paintSettings();
+    // (the chosen one in view in the list)
+    const it = id && this.el && this.el.querySelector(`.se-item[data-id="${id}"]`); if (it) it.scrollIntoView({ block: 'nearest' });
+  },
 
   paintList() {
-    const stageItems = this.STAGE.map(d => { const v = this.stageVal(d); return h(`div.se-item.se-stage${this.sel === d.id ? '.on' : ''}`, { onclick: () => { UISounds.click(); this.select(d.id); } },
-      h('span', d.name, h('small', v ? `moved ${v > 0 ? '+' : ''}${v}${d.unit}` : 'as the skin has it'))); });
-    clearEl(this.listEl).append(...stageItems, h('div.se-sep'), ...HUD_PARTS.map(p => {
+    if (this.undoBtn) this.undoBtn.disabled = !this.undo.length;
+    clearEl(this.stageEl).append(...this.STAGE.map(d => { const v = this.stageVal(d); return h(`div.se-item.se-stage${this.sel === d.id ? '.on' : ''}`, { dataset: { id: d.id }, onclick: () => { UISounds.click(); this.select(d.id); } },
+      h('span.se-ic', icon(d.icon)), h('span.se-nm', d.name, h('small', v ? `moved ${v > 0 ? '+' : ''}${v}${d.unit}` : 'as the skin has it'))); }));
+    let n = 0;
+    clearEl(this.listEl).append(...HUD_PARTS.map(p => {
       const on = this.shown(p), na = on && this.present && !this.present.has(p.id);
-      return h(`div.se-item${this.sel === p.id ? '.on' : ''}${on ? '' : '.off'}${na ? '.na' : ''}`, { onclick: () => { UISounds.click(); this.select(p.id); } },
-        h('span', p.name, na ? h('small', p.id === 'hp' ? 'drawn by the skin on the stage' : 'not on screen right now') : null),
-        h('button.se-eye', { title: on ? 'Hide' : 'Show', onclick: e => { e.stopPropagation(); UISounds.click(); this.setShown(p, !on); } }, icon(on ? 'check' : 'x')));
+      if (on) n++;
+      return h(`div.se-item${this.sel === p.id ? '.on' : ''}${on ? '' : '.off'}${na ? '.na' : ''}`, { dataset: { id: p.id }, onclick: () => { UISounds.click(); this.select(p.id); } },
+        h('span.se-ic', icon(p.icon)),
+        h('span.se-nm', p.name, !on ? h('small', 'hidden') : na ? h('small', p.id === 'hp' ? 'drawn by the skin on the stage' : 'not on screen right now') : null),
+        h('button.se-eye', { title: on ? 'Hide' : 'Show', 'aria-label': `${on ? 'Hide' : 'Show'} ${p.name}`, 'aria-pressed': String(on), onclick: e => { e.stopPropagation(); UISounds.play(on ? 'check-off' : 'check-on'); this.setShown(p, !on); } }, icon(on ? 'eye' : 'eye-slash')));
     }));
+    this.countEl.textContent = `${n} of ${HUD_PARTS.length} shown`;
   },
   paintSettings() {
     const sd = this.stageDef(this.sel);
     if (sd) { clearEl(this.setEl).append(...this.stagePanel(sd)); return; }
     const p = HUD_PARTS.find(x => x.id === this.sel);
-    if (!p) { clearEl(this.setEl).append(h('p.se-none', 'Pick a component to change it.')); return; }
-    const c = this.layout()[p.id] || {}, s = c.s || 1;
+    if (!p) { clearEl(this.setEl).append(h('div.se-empty', h('span.se-empty-ic', icon('target')), h('b', 'Nothing selected'), h('p', Mobile.touch ? 'Tap a component on the screen or in the list to move, scale or hide it.' : 'Click a component on the screen or in the list to move, scale or hide it.'))); return; }
+    const c = this.layout()[p.id] || {}, s = c.s || 1, on = this.shown(p);
     const val = h('b', `${Math.round(s * 100)}%`);
-    const sl = h('input.slider', { type: 'range', min: 0.3, max: 2.5, step: 0.05, value: s });
+    const sl = h('input.slider', { type: 'range', min: 0.3, max: 2.5, step: 0.05, value: s, 'aria-label': 'Scale' });
     const paint = () => sl.style.setProperty('--p', ((sl.value - 0.3) / 2.2 * 100) + '%');
     sl.addEventListener('input', () => {
       val.textContent = `${Math.round(sl.value * 100)}%`; paint();
       const L = this.layout(); L[p.id] = { ...(L[p.id] || {}), s: +sl.value }; HudLayout.override = L; HudLayout.apply(GameplayScreen.hud);
     });
-    sl.addEventListener('change', () => this.setPart(p.id, { s: +sl.value }));
+    sl.addEventListener('change', () => { HudLayout.override = null; this.setPart(p.id, { s: +sl.value }); });
     paint();
-    const hud = GameplayScreen.hud, W = hud ? hud.clientWidth : 1, H = hud ? hud.clientHeight : 1;
+    const hud = GameplayScreen.hud, W = hud ? hud.clientWidth || 1 : 1, H = hud ? hud.clientHeight || 1 : 1;
+    // (the position as pixels from where the skin puts it: typed, or nudged with the arrow keys)
+    const num = (axis, v, size) => {
+      const inp = h('input.se-num', { type: 'number', step: 1, value: Math.round(v * size), 'aria-label': `${axis} offset` });
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+      inp.addEventListener('change', () => { const n = parseFloat(inp.value); if (isFinite(n)) this.setPart(p.id, { [axis.toLowerCase()]: clamp(n, -size, size) / size }); });
+      return h('label.se-xy-f', h('span', axis), inp, h('i', 'px'));
+    };
+    const sw = h(`button.se-switch${on ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(on), title: on ? 'Hide' : 'Show', onclick: () => { UISounds.play(on ? 'check-off' : 'check-on'); this.setShown(p, !on); } }, h('i'));
     clearEl(this.setEl).append(
-      h('div.se-name', p.name),
-      h('label.se-f', h('span', 'Scale', val), sl),
-      h('div.se-f', h('span', 'Position'), h('div.se-pos', h('span', `X ${Math.round((c.x || 0) * W)}px`), h('span', `Y ${Math.round((c.y || 0) * H)}px`))),
-      h('div.se-btns',
-        h('button.btn.sm', { onclick: () => { UISounds.click(); this.setPart(p.id, { x: 0, y: 0 }); } }, icon('target'), 'Reset position'),
-        h('button.btn.sm', { onclick: () => { UISounds.click(); this.setPart(p.id, { s: 1 }); } }, icon('retry'), 'Reset scale'),
-        h('button.btn.sm', { onclick: () => { UISounds.click(); this.setShown(p, !this.shown(p)); } }, icon(this.shown(p) ? 'x' : 'check'), this.shown(p) ? 'Hide' : 'Show')));
+      this.head(p, sw),
+      on ? null : h('p.se-note.se-hid', icon('eye-slash'), h('span', 'Hidden while you play — it shows dimmed here so you can still place it.')),
+      h('label.se-f', h('span', 'Scale', val), sl, h('span.se-scale', h('i', '30%'), h('i', '100%'), h('i', '250%'))),
+      h('div.se-f', h('span', 'Position'), h('div.se-xy', num('X', c.x || 0, W), num('Y', c.y || 0, H))),
+      h('div.se-btns.se-row',
+        h('button.btn.sm', { disabled: !c.x && !c.y, onclick: () => { UISounds.click(); this.setPart(p.id, { x: 0, y: 0 }); } }, icon('target'), 'Reset position'),
+        h('button.btn.sm', { disabled: !c.s || c.s === 1, onclick: () => { UISounds.click(); this.setPart(p.id, { s: 1 }); } }, icon('retry'), 'Reset scale')));
   },
 
   // ── each frame: the game fits between the side panels, and the boxes follow the components
@@ -271,7 +302,7 @@ const SkinEditor = {
     this._gone = 0;
     // (the panels as the CSS lays them out: beside the game, narrower on a small screen, under it on a narrow one)
     const vw = window.innerWidth, vh = window.innerHeight, narrow = vw < 700, mid = !narrow && vw < 1000;
-    const L = narrow ? 0 : mid ? 170 : 240, R = narrow ? 0 : mid ? 190 : 260, T = narrow || mid ? 48 : 56, B = narrow ? Math.round(vh * 0.42) : 0, pad = narrow ? 8 : 16;
+    const L = narrow ? 0 : mid ? 180 : 248, R = narrow ? 0 : mid ? 196 : 268, T = narrow || mid ? 48 : 56, B = narrow ? Math.round(vh * 0.42) : 0, pad = narrow ? 8 : 16;
     const k = Math.min((vw - L - R - pad * 2) / vw, (vh - T - B - pad * 2) / vh);
     if (k > 0.2) {
       // (in the screen's own pixels: the page itself may be scaled, by z)
@@ -301,10 +332,12 @@ const SkinEditor = {
       let box = this.boxEls.get(p.id);
       if (!box) { box = this.makeBox(p); this.boxEls.set(p.id, box); this.boxesEl.append(box); }
       box.classList.toggle('on', this.sel === p.id);
-      box.classList.toggle('off', !!(HudLayout.get()[p.id] || {}).off);
+      box.classList.toggle('off', !!(HudLayout.get()[p.id] || {}).off || (!!p.setting && !Settings.get(p.setting)));
       const st = `left:${r.l.toFixed(1)}px;top:${r.t.toFixed(1)}px;width:${(r.r - r.l).toFixed(1)}px;height:${(r.b - r.t).toFixed(1)}px`;
       if (box._st !== st) { box._st = st; box.style.cssText = st; }
       box._r = r;
+      // (the name tag on the side facing the middle: one by the right edge was cut off under the Settings panel)
+      box.classList.toggle('lr', r.l + r.r > window.innerWidth);
     }
     for (const [id, box] of this.boxEls) if (!seen.has(id)) { box.remove(); this.boxEls.delete(id); }
     const key = [...seen].join();

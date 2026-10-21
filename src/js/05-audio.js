@@ -529,7 +529,7 @@ const UISounds = {
   /** lazer's HoverClickSounds on everything clickable: a hover sound as the pointer comes onto a button, tab, menu item
    *  or list entry (not for touch, and not in a song). */
   initHover() {
-    const SEL = '.btn, .pm-btn, .menu button, .ov-tab, .sp-nb, .side-item, .mod-p, .lz-back, .sh-btn, .res-ab, .ss-foot button, .icon-btn, .pf-score, .setup-choice, .sk-step';
+    const SEL = '.btn, .pm-btn, .menu button, .ov-tab, .sp-nb, .side-item, .mod-p, .lz-back, .sh-btn, .res-ab, .ss-foot button, .icon-btn, .pf-score, .setup-choice, .sk-step, .sk-kc';
     document.addEventListener('pointerover', e => {
       if (e.pointerType === 'touch') return;
       const b = e.target.closest && e.target.closest(SEL);
