@@ -15051,6 +15051,7 @@ const NeruMascot = {
       NeruEggs.watchCode();
       if (NeruEggs.foolsDay()) el.classList.add('nm-fools');
       NeruEggs.greet();
+      NeruEggs.newYearsEve(el);
       NeruEggs.milestone();
       NeruEggs.breather();
       NeruEggs.drift(el, NeruEggs.anniversary() ? 'confetti' : undefined);
@@ -15746,6 +15747,23 @@ const NeruEggs = {
     this._breatherT = setTimeout(() => { if (!this.act(NeruCameo.EGG.longSession, 2800, { hop: false })) this._breather = false; }, 1400);
   },
 
+  // ── on the main menu as the year turns (New Year's Eve, at midnight): a cheer, sparkles, and confetti falling
+  newYearsEve(el, d = this.today()) {
+    if (d.getMonth() !== 11 || d.getDate() !== 31) return;
+    const ms = new Date(d.getFullYear() + 1, 0, 1) - d;
+    if (ms > 6 * 3600000) return;
+    clearTimeout(this._nyeT);
+    this._nyeT = setTimeout(() => {
+      const M = NeruMascot;
+      if (!el.isConnected || M.el !== el) return;
+      M._actUntil = M._happyUntil = M._huffUntil = 0;
+      if (this.act('cheer', 3600, { sparkle: true })) for (const t of [500, 1000, 1500, 2000, 2500]) setTimeout(() => { if (M.img && M.img.dataset.pose === 'cheer') { M._bob = 1; M.sparkle(); } }, t);
+      UISounds.play('check-on');
+      for (const x of el.querySelectorAll('.neru-drift, .neru-ground')) x.remove();
+      this.drift(el, 'confetti');
+    }, ms);
+  },
+
   // ── a milestone — your 100th play, 250th, 500th, 1000th… — and back on the main menu she cheers, sparkles and all
   MILESTONES: [100, 250, 500, 1000, 2500, 5000, 10000],
   /** On the main menu (each time it's shown): a milestone passed since she last saw it, a cheer. */
@@ -15853,7 +15871,9 @@ const NeruEggs = {
     if (new Set((Settings.get('neru.seasons') || []).filter(k => this.SEASONS.includes(k))).size >= 4) this.found('seasons');
   },
   /** Night (10pm till 5, by the clock here): stars come out. */
-  night(d = this.today()) { const hr = d.getHours(); return hr >= 22 || hr < 5; },
+  night(d = this.today()) { const hr = d.getHours(); return hr >= 22 || hr < 5 || (this.tanabata(d) && hr >= 19); },
+  /** Tanabata (7 July, the star festival): the stars out from the evening, and shooting stars one after another. */
+  tanabata(d = this.today()) { return d.getMonth() === 6 && d.getDate() === 7; },
   /** Stars twinkling high up around the main menu's Neru (`el`) — far off, behind whatever the time of year brings —
    *  for as long as she's there. */
   twinkle(el) {
@@ -15884,8 +15904,9 @@ const NeruEggs = {
     };
     setTimeout(go, 500);
     // (now and then, a shooting star)
-    const shooting = () => { if (!el.isConnected || !sky.isConnected) return; if (!document.hidden && !quiet()) this.shoot(sky, box); setTimeout(shooting, 18000 + Math.random() * 22000); };
-    setTimeout(shooting, 5000 + Math.random() * 7000);
+    const wishes = this.tanabata();
+    const shooting = () => { if (!el.isConnected || !sky.isConnected) return; if (!document.hidden && !quiet()) this.shoot(sky, box); setTimeout(shooting, wishes ? 3500 + Math.random() * 4500 : 18000 + Math.random() * 22000); };
+    setTimeout(shooting, wishes ? 1500 : 5000 + Math.random() * 7000);
   },
   /** A shooting star across `sky` (its size `box()`): a bright streak, down and away, gone in a moment. */
   shoot(sky, box = this.measure(sky)) {
@@ -21824,7 +21845,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.21', title: 'Neru update', sections: [
-    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Her pictures fade out softly where they used to end in a straight line'] },
+    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Secret Neru medals to collect', 'Her pictures fade out softly where they used to end in a straight line'] },
   ] },
   { id: '2026.10.20c', title: 'Skins update', sections: [
     { icon: 'brush', title: 'Skins update', items: ['Preview any skin from 1K to 18K', 'A cleaner skin editor that shows hidden parts too', 'A few Neru secrets to find'] },
@@ -29642,7 +29663,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'e84622ad1956';
+const APP_BUILD = '6e9cacbd27c1';
 
 const App = {
   lastReport: null,
