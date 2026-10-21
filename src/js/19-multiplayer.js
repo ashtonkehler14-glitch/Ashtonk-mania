@@ -77,9 +77,12 @@ const Multiplayer = {
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
         this.onMessage(m);
       };
-      ws.onerror = () => fail('Couldn\'t reach the multiplayer server.');
+      // (a connection that never opened: the server is asked why — it may be turning everyone away for the day)
+      let asked = false;
+      const unreachable = () => { if (settled || asked) return; asked = true; this.whyNot(code).then(why => fail(why || 'Couldn\'t reach the multiplayer server.')); };
+      ws.onerror = unreachable;
       ws.onclose = ev => {
-        fail('Connection closed.');
+        if (!this.room && !(ev && ev.code >= 4000)) unreachable(); else fail('Connection closed.');
         if (this.ws !== ws) return; // left on purpose
         const wasIn = !!this.room;
         this.ws = null; this.stopKeepAlive();
@@ -89,6 +92,15 @@ const Multiplayer = {
         if (wasIn) { this.startReconnect(); Bus.emit('mp:changed'); }
       };
     });
+  },
+  /** Why a room's connection couldn't be made, as the server says (null when it doesn't say). */
+  async whyNot(code) {
+    try {
+      const r = await fetch(Host.api(`api/mp/room/${encodeURIComponent(code)}/status`), { cache: 'no-store', signal: timeoutSignal(5000) });
+      if (r.ok) return null;
+      const d = await r.json().catch(() => null);
+      return d && typeof d.error === 'string' ? d.error : null;
+    } catch { return null; }
   },
   /** Rejoin the room after the connection dropped, retrying with backoff until it works or the player leaves.
    *  The server sees a fresh join, so this player's beatmap, difficulty and mods are sent again afterwards. */
@@ -801,11 +813,20 @@ const MultiplayerScreen = {
 
   // ── lobby (osu!lazer's lounge): create a room or join one by code; every public room is listed underneath
   renderLobby() {
-    const status = h('div.mp-status');
+    // (why the last try to open or join a room didn't work stays up for a while: a room that fails to open redraws
+    // the lounge, which took the message with it — so "Create room" looked like it did nothing)
+    const err = this._lobbyErr && Date.now() - this._lobbyErr.at < 20000 ? this._lobbyErr.text : '';
+    const status = this.statusEl = h('div.mp-status', err ? h('span.mp-err', err) : null);
     const busy = async (label, fn) => {
-      clearEl(status).append(h('span.spinner'), label);
+      this._lobbyErr = null;
+      clearEl(this.statusEl).append(h('span.spinner'), label);
       $$('button', this.body).forEach(b => b.disabled = true);
-      try { await fn(); } catch (e) { clearEl(status).append(h('span.mp-err', friendlyError(e))); $$('button', this.body).forEach(b => b.disabled = false); }
+      try { await fn(); } catch (e) {
+        this._lobbyErr = { text: friendlyError(e), at: Date.now() };
+        clearEl(this.statusEl).append(h('span.mp-err', this._lobbyErr.text));
+        $$('button', this.body).forEach(b => b.disabled = false);
+        if (Multiplayer.available() && !this.statusEl.isConnected) Toast.err(/^Join/.test(label) ? 'Couldn\'t join the room' : 'Couldn\'t open the room', this._lobbyErr.text);
+      }
     };
     this._busy = busy;
     const code = h('input.input.mp-code', { placeholder: 'ROOM CODE', maxlength: 8, spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Room code' });
@@ -875,6 +896,9 @@ const MultiplayerScreen = {
     clearTimeout(this._roomsT);
     const el = this.roomsEl;
     if (!el || !el.isConnected || Multiplayer.inRoom()) return;
+    // (not while the game is in the background: a lounge left open in another tab asked the server every 3 s all day,
+    // which on its own uses up much of what Cloudflare's free plan allows the server in a day)
+    if (document.hidden) { this._roomsT = setTimeout(() => this.pollRooms(), 3000); return; }
     let rooms = null;
     try { const r = await fetch(Host.api('api/mp/rooms'), { cache: 'no-store', signal: timeoutSignal(15000) }); rooms = r.ok ? (await r.json()).rooms : null; } catch { rooms = null; }
     if (!el.isConnected || Multiplayer.inRoom()) return;

@@ -406,12 +406,18 @@ export default {
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: PREFLIGHT });
       let res;
       try { res = await api(request, env, url); }
-      catch (e) { console.error('api', e); res = json({ error: 'The game\'s server had a problem. Try again in a moment.' }, 500); }
+      catch (e) { console.error('api', e); res = overLimit(e) ? json({ error: OVER_LIMIT }, 503) : json({ error: 'The game\'s server had a problem. Try again in a moment.' }, 500); }
       return withCors(res);
     }
     return env.ASSETS.fetch(request);
   },
 };
+
+/** Cloudflare turning the server's Durable Objects (rooms, who's online, your code's data) away for the rest of the day:
+ *  on the free plan they have a daily allowance of requests and of time spent running, and past it every one fails
+ *  until 00:00 UTC. */
+const overLimit = e => /free tier|exceeded allowed|exceeded.{0,40}(limit|quota|duration|requests)/i.test(String(e && e.message || e));
+const OVER_LIMIT = 'The game\'s server has used up today\'s free allowance on Cloudflare, so rooms can\'t open — they will again after midnight UTC.';
 
 /** The game's API (/api/*). */
 async function api(request, env, url) {

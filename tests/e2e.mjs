@@ -374,6 +374,39 @@ await shot('01-home-empty');
   });
   check('Neru\'s secret medals: a twirl, a yawn after midnight, a click after a full combo, and four times of year seen (not three)',
     /neru-night/.test(medals.got) && /neru-seasons/.test(medals.got) && /neru-showoff/.test(medals.got) && /neru-twirl/.test(medals.got) && !medals.three && !medals.again, JSON.stringify(medals));
+  // Teto in your name: Neru can't be turned off (the switch locked, saying why) and she lets you know what she thinks —
+  // a blank look, Teto's French bread over her head crossed out, a snicker, a laugh, a wagging finger; a small Neru
+  // elsewhere snickers when clicked; another name and the setting holds again
+  const teto = await page.evaluate(async () => {
+    const E = NeruEggs, M = NeruMascot, S = AshtonkMania.Settings, P = AshtonkMania.ProfileManager, wait = ms => new Promise(res => setTimeout(res, ms)), out = {}, got = [];
+    const name = P.profile.name, egg = AshtonkMania.Medals.egg, shown = () => { const n = document.querySelector('.home .neru'); return !!n && !n.hidden; };
+    AshtonkMania.Medals.egg = id => got.push(id);
+    try {
+      S.set('ui.mascot', false); await wait(300);
+      out.offBefore = !shown();
+      P.profile.name = 'KasaneTetoFan'; AshtonkMania.Bus.emit('profile:changed');
+      for (let i = 0; i < 40 && !shown(); i++) await wait(100);
+      out.on = shown() && M.on();
+      const poses = [];
+      for (let i = 0; i < 26; i++) { await wait(250); const p = M.img && M.img.dataset.pose; if (p && poses[poses.length - 1] !== p) poses.push(p); if (document.querySelector('.home .neru .neru-bread')) out.bread = true; }
+      out.poses = poses.join();
+      out.medal = got.includes('neru-teto');
+      const c = AshtonkMania.NeruCameo.make('okay', 'nc-results');
+      Object.assign(c.style, { position: 'fixed', right: '20px', bottom: '20px' }); document.body.append(c);
+      for (let i = 0; i < 40 && !c.querySelector('.nc-img'); i++) await wait(100);
+      c.click(); await wait(500); out.cameo = c.querySelector('.nc-img').src.split('/').pop(); c.remove();
+      AshtonkMania.SettingsPanel.open(); await wait(400);
+      const row = [...document.querySelectorAll('.settings-panel .set-row')].find(x => /Show Neru/.test(x.textContent));
+      row.querySelector('.toggle').click(); await wait(100);
+      out.locked = row.querySelector('.toggle').classList.contains('on') && /Teto/.test(row.querySelector('.hint').textContent) && S.get('ui.mascot') === false;
+      AshtonkMania.SettingsPanel.close(); await wait(300);
+      P.profile.name = name; AshtonkMania.Bus.emit('profile:changed'); await wait(400);
+      out.offAfter = !shown();
+    } finally { AshtonkMania.Medals.egg = egg; P.profile.name = name; S.set('ui.mascot', true); for (let i = 0; i < 40 && !(M.img && M.img.complete); i++) await wait(100); await wait(300); }
+    return out;
+  });
+  check('Teto in your name: Neru comes back on (locked on in Settings), and she makes fun of you — a blank look, the bread crossed out, a snicker, a laugh, a wagging finger',
+    teto.offBefore && teto.on && teto.bread && /^huh,snicker,mock,point/.test(teto.poses) && teto.medal && teto.cameo === 'neru-snicker.png' && teto.locked && teto.offAfter, JSON.stringify(teto));
   // on the main menu as the year turns: at midnight on New Year's Eve, a cheer and confetti
   const nye = await page.evaluate(async () => {
     const E = NeruEggs, M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
@@ -2662,7 +2695,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await page.waitForSelector('.medal-ov', { timeout: 5000 }).catch(() => {});
   const egg = await page.evaluate(() => ({ text: (document.querySelector('.medal-ov') || {}).textContent || '', got: !!AshtonkMania.Medals.unlocked()['neru-zako'], queued: AshtonkMania.Medals.queue.length }));
   for (let i = 0; i < 3 && await page.$('.medal-ov'); i++) { await page.click('.medal-ov'); await page.waitForTimeout(1700); }
-  check('medals: Neru\'s secrets show as "???" till found, and finding one unlocks its medal (once)', secret.hidden === 13 && !secret.named && /Zako~/.test(egg.text) && egg.got && egg.queued === 0, JSON.stringify({ secret, egg }));
+  check('medals: Neru\'s secrets show as "???" till found, and finding one unlocks its medal (once)', secret.hidden === 14 && !secret.named && /Zako~/.test(egg.text) && egg.got && egg.queued === 0, JSON.stringify({ secret, egg }));
 }
 
 // dangerous dialog buttons (red): a single press confirms, no holding

@@ -35,7 +35,8 @@ const MEDALS = [
     ['twirl', 'retry', 'Twirl', 'Double-click Neru.'],
     ['night', 'ghost', 'Night Owl', 'Catch Neru yawning after midnight.'],
     ['showoff', 'target', 'Show-off', 'Click Neru after a full combo.'],
-    ['seasons', 'sync', 'Four Seasons', 'See four different times of year around Neru.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),
+    ['seasons', 'sync', 'Four Seasons', 'See four different times of year around Neru.'],
+    ['teto', 'crosscircle', 'Wrong Twin-Tails', 'Put Teto in your name. Neru noticed.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),
 ];
 
 const Medals = {

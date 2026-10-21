@@ -86,6 +86,34 @@ async function holdBtn(page, sel) {
 const alice = await player('Alice');
 const bob = await player('Bob');
 await shot(alice, 'mp-lobby');
+// a room the server can't open (Cloudflare turning it away for the day, say): the lounge says why, and keeps saying it
+// (failing redrew the lounge, which took the message with it — "Create room" looked like it did nothing)
+{
+  const why = 'The game\'s server has used up today\'s free allowance on Cloudflare, so rooms can\'t open — they will again after midnight UTC.';
+  await alice.route(/api\/mp\/room\/[A-Z0-9]+\/status/, r => r.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: why }) }));
+  await alice.evaluate(() => { const W = window.WebSocket; window._W = W; window.WebSocket = function (u, p) { if (!/api\/mp\/room\//.test(String(u))) return new W(u, p); const f = { readyState: 0, close() {}, send() {} }; setTimeout(() => { f.readyState = 3; f.onerror && f.onerror({}); f.onclose && f.onclose({ code: 1006 }); }, 50); return f; }; });
+  await alice.click('.mp-create'); await alice.waitForSelector('.mp-cr');
+  await alice.click('.dialog .actions .btn.primary');
+  await alice.waitForFunction(w => (document.querySelector('.mp-status') || {}).textContent === w, why, { timeout: 8000 }).catch(() => {});
+  await alice.waitForTimeout(600);
+  const r = await alice.evaluate(() => ({ status: (document.querySelector('.mp-status') || {}).textContent, enabled: !document.querySelector('.mp-create').disabled, inRoom: AshtonkMania.Multiplayer.inRoom() }));
+  check('a room the server can\'t open says why in the lounge (and Create room works again)', r.status === why && r.enabled && !r.inRoom, JSON.stringify(r));
+  await alice.evaluate(() => { window.WebSocket = window._W; });
+  await alice.unroute(/api\/mp\/room\/[A-Z0-9]+\/status/);
+}
+// the lounge's room list isn't asked for while the game is in the background (a lounge left open in another tab asked
+// every 3 s all day)
+{
+  let n = 0; const count = r => { if (/api\/mp\/rooms/.test(r.url())) n++; };
+  alice.on('request', count);
+  await alice.evaluate(() => Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }));
+  await alice.waitForTimeout(7000);
+  const hidden = n;
+  await alice.evaluate(() => { delete document.hidden; });
+  await alice.waitForTimeout(4000);
+  alice.off('request', count);
+  check('the lounge stops asking for the room list while the game is in the background, and starts again after', hidden === 0 && n > 0, `${hidden} hidden, ${n - hidden} after`);
+}
 // lazer's chat overlay: #lobby reaches everyone online
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Chat && document.querySelector('#toolbar [data-ov="chat"]') && window.AshtonkMania.Presence && AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1, null, { timeout: 10000 })));
 await alice.keyboard.press('F8');

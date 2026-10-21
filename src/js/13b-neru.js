@@ -35,9 +35,11 @@ const NeruMascot = {
    *  there isn't one) — or null with none. The picture chosen in Settings → Interface is all of them; otherwise the
    *  bundled ones. Looked up once, and shared by every place she shows. */
   pictures() {
+    // (with Teto in your name it's her, never a picture of your own — Teto's, most likely)
+    if (this._pics && this._picsTeto !== NeruEggs.tetoFan()) this._pics = null;
     if (!this._pics) this._pics = (async () => {
       this._picsNow = null;
-      const blob = await DB.kvGet('mascot.image', null).catch(() => null);
+      const blob = (this._picsTeto = NeruEggs.tetoFan()) ? null : await DB.kvGet('mascot.image', null).catch(() => null);
       if (blob instanceof Blob) {
         if (this._blobURL) URL.revokeObjectURL(this._blobURL);
         const u = this._blobURL = URL.createObjectURL(blob);
@@ -53,9 +55,11 @@ const NeruMascot = {
     })();
     return this._pics;
   },
+  /** Whether she shows: Settings → Show Neru — or, with Teto in your name, whatever that says (NeruEggs.tetoFan). */
+  on() { return !!Settings.get('ui.mascot') || NeruEggs.tetoFan(); },
   build() {
     const el = this.el = h('button.neru', { hidden: true, 'aria-label': 'Neru', tabindex: '-1', onclick: e => { e.stopPropagation(); if (this._dragged) { this._dragged = false; return; } this.hop(); } });
-    if (!Settings.get('ui.mascot')) return el;
+    if (!this.on()) return el;
     this.pictures().then(pics => {
       if (!pics || this.el !== el) return;
       this.img = h('img.neru-img', { src: pics.base, alt: '', draggable: 'false' });
@@ -75,6 +79,7 @@ const NeruMascot = {
       NeruEggs._vol = Settings.get('audio.master'); // (where the volume starts: only a change to all the way up or down counts)
       NeruEggs._clicked = 0; // (clicks on her, this visit)
       NeruEggs.namesake();
+      NeruEggs.teto();
       NeruEggs.watchCode();
       if (NeruEggs.foolsDay()) el.classList.add('nm-fools');
       NeruEggs.greet();
@@ -175,7 +180,8 @@ const NeruMascot = {
     NeruEggs.stopStare();
     if (this.happy && this.img) {
       // (April Fools' Day: she laughs instead — got you)
-      this.show(NeruEggs.foolsDay() && this.has('mock') ? 'mock' : 'happy', { pop: false });
+      // (Teto in your name: now and then a snicker instead — she hasn't forgotten)
+      this.show(NeruEggs.foolsDay() && this.has('mock') ? 'mock' : NeruEggs.tetoFan() && Math.random() < 0.35 && this.has('snicker') ? 'snicker' : 'happy', { pop: false });
       if (NeruEggs.valentine()) for (let i = 0; i < 4; i++) setTimeout(() => NeruEggs.heart(), i * 120);
       clearTimeout(this._back);
       this._happyUntil = now + 1600;
@@ -266,7 +272,9 @@ const NeruCameo = {
    *  she's pleased about, sparkles `delay` ms later). `poke`: an easter egg's pose a click brings out for a moment, in
    *  place of her happy face. Null when she's turned off. */
   make(mood, cls, { delay = 450, poke = null } = {}) {
-    if (!Settings.get('ui.mascot')) return null;
+    if (!NeruMascot.on()) return null;
+    // (Teto in your name: clicked, she snickers at you — unless there's an easter egg's pose to show)
+    if (!poke && NeruEggs.tetoFan()) poke = 'snicker';
     const el = h(`button.neru-cameo.${cls}`, { type: 'button', 'aria-label': 'Neru', tabindex: '-1', hidden: true });
     // (sparkles: in a mood she's pleased about)
     const pleased = this.HAPPY.has(mood);
@@ -406,6 +414,14 @@ const NeruCameo = {
 Bus.on('music:changed', m => NeruEggs.skipped(m));
 Bus.on('library:changed', () => { if (NeruMascot.img) NeruEggs.newSongs(); });
 document.addEventListener('input', e => { if (e.target && e.target.matches && e.target.matches('input[type="search"]')) NeruEggs.searched(e.target); });
+// (a new name with Teto in it — or without any more: Neru comes back on, or goes, and she's herself again or your picture)
+Bus.on('profile:changed', () => {
+  const teto = NeruEggs.tetoFan();
+  if (teto === !!NeruEggs._wasTeto) return;
+  NeruEggs._wasTeto = teto; NeruEggs._tetoSeen = false;
+  const old = Screens.currentName === 'home' && document.querySelector('.home .neru');
+  if (old) old.replaceWith(NeruMascot.build());
+});
 Bus.on('settings:changed', k => {
   if (k === 'audio.master') NeruEggs.volume(Settings.get('audio.master'));
   if (k === 'ui.mascot' && Screens.currentName === 'home') { const old = document.querySelector('.home .neru'); if (old) old.replaceWith(NeruMascot.build()); }
@@ -556,6 +572,63 @@ const NeruEggs = {
       const M = NeruMascot; if (M.el) { M.el.classList.remove('startle'); void M.el.offsetWidth; M.el.classList.add('startle'); }
       setTimeout(() => { M._actUntil = 0; this.act('point', 1500); }, 1500);
     }, 1400);
+  },
+
+  // ── Teto in your name: there's no turning her off (or swapping her for a picture of your own), and the first time she
+  // sees it (once a session) she lets you know what she thinks of that — a blank look at your name, Teto's French bread
+  // in a thought bubble over her head, crossed out, a snicker, laughing at you, then a wagging finger
+  /** Whether "teto" is in your name. */
+  tetoFan(name = typeof ProfileManager !== 'undefined' && ProfileManager.profile ? ProfileManager.profile.name : '') { return /teto/i.test(String(name || '')); },
+  teto() {
+    this._wasTeto = this.tetoFan(); // (what a change of name is told apart from)
+    if (this._tetoSeen || !this._wasTeto) return;
+    this._tetoSeen = true;
+    clearTimeout(this._tetoT);
+    // (each step only if she's still in the one before: a click, a drag or leaving the menu ends it there)
+    const M = NeruMascot, then = (pose, ms, fn) => { this._tetoT = setTimeout(() => { if (M.img && M.img.dataset.pose === pose) { M._actUntil = 0; fn(); } }, ms); };
+    this._tetoT = setTimeout(() => {
+      if (!this.act('huh', 1500, { hop: false })) { this._tetoSeen = false; return; }
+      if (M.el) { M.el.classList.remove('startle'); void M.el.offsetWidth; M.el.classList.add('startle'); }
+      this.found('teto');
+      setTimeout(() => this.bread(), 350);
+      then('huh', 1500, () => {
+        if (!this.act('snicker', 1300, { hop: false })) return;
+        if (M.el) { M.el.classList.remove('giggle'); void M.el.offsetWidth; M.el.classList.add('giggle'); }
+        UISounds.play('click-short');
+        then('snicker', 1300, () => {
+          if (!this.act('mock', 1600, { hop: false })) return;
+          if (M.el) { M.el.classList.remove('giggle'); void M.el.offsetWidth; M.el.classList.add('giggle'); }
+          then('mock', 1600, () => this.act('point', 1800));
+        });
+      });
+    }, 1400);
+  },
+  /** Teto's French bread in a thought bubble beside her head — then struck out, the bubble shaking its head with her. */
+  bread(box = NeruMascot.el, img = NeruMascot.img) {
+    if (!box || !img || !box.isConnected) return;
+    const er = box.getBoundingClientRect(), ir = img.getBoundingClientRect(), k = box.offsetWidth ? er.width / box.offsetWidth : 1;
+    const el = h('span.neru-bread');
+    // (beside her face, on the side away from the screen's edge — over her head it would be under the menu's bar)
+    Object.assign(el.style, { left: `${(ir.left - er.left + ir.width * 0.86) / k}px`, top: `${(ir.top - er.top + ir.height * 0.04) / k}px` });
+    el.innerHTML = '<svg viewBox="0 0 120 84">'
+      // the bubble: a cloud, and two small puffs trailing down to her
+      + '<g fill="#fff" stroke="rgba(0,0,0,.18)" stroke-width="1.5"><circle cx="8" cy="78" r="4.5"/><circle cx="19" cy="66" r="7"/>'
+      + '<path d="M38 56c-12 2-18-9-11-17-6-10 5-21 15-15 4-11 20-13 26-3 8-8 23-4 23 7 11 0 15 14 7 20 5 9-4 18-13 14-5 9-19 9-24 2-7 6-19 3-23-8z"/></g>'
+      // the loaf, slashed on top, and a highlight
+      + '<g transform="rotate(-14 66 38)"><rect x="34" y="29" width="66" height="19" rx="9.5" fill="#d79a52" stroke="#9c6428" stroke-width="2"/>'
+      + '<path d="M40 33q34-5 56 0" stroke="#f3cf93" stroke-width="3" fill="none" stroke-linecap="round" opacity=".8"/>'
+      + '<g stroke="#9c6428" stroke-width="2.4" stroke-linecap="round" fill="none"><path d="M46 44l7-11M58 44l7-11M70 44l7-11M82 44l7-11"/></g></g>'
+      // struck out
+      + '<g class="nb-x" stroke="#ff3b5c" stroke-width="7" stroke-linecap="round"><path d="M44 18l46 42" pathLength="1"/><path d="M90 18L44 60" pathLength="1"/></g></svg>';
+    box.append(el);
+    const anim = !!Settings.get('ui.animSpeed');
+    if (!anim) { setTimeout(() => el.remove(), 2600); return; }
+    el.animate([{ transform: 'translate(-12%, -50%) scale(.2)', opacity: 0 }, { transform: 'translate(-12%, -50%) scale(1.08)', opacity: 1, offset: 0.6 }, { transform: 'translate(-12%, -50%) scale(1)', opacity: 1 }],
+      { duration: 380, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' });
+    // (the cross drawn on, stroke by stroke)
+    el.querySelectorAll('.nb-x path').forEach((pa, i) => pa.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: 170, delay: 900 + i * 190, easing: 'ease-in', fill: 'both' }));
+    setTimeout(() => { if (el.isConnected) el.animate([{ rotate: '0deg' }, { rotate: '-7deg' }, { rotate: '6deg' }, { rotate: '-4deg' }, { rotate: '0deg' }], { duration: 420, easing: 'ease-in-out' }); }, 1300);
+    setTimeout(() => { if (el.isConnected) el.animate([{ opacity: 1 }, { opacity: 0, transform: 'translate(-12%, -62%) scale(.9)' }], { duration: 420, easing: 'ease-in', fill: 'forwards' }).onfinish = () => el.remove(); }, 2700);
   },
 
   // ── the Konami code on the main menu (↑ ↑ ↓ ↓ ← → ← → B A): she dances, a burst of sparkles on every beat of it
