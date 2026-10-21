@@ -542,7 +542,7 @@ html.touch .settings-panel .set-row .reset::after { content: ""; position: absol
 .wd-name { display: flex; align-items: center; gap: 6px; height: 20px; margin: 5px 0; min-width: 0; font-size: .875rem; white-space: nowrap; color: var(--ink); }
 .wd-name .wd-v { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .wd-name .wd-by { flex: none; white-space: pre; }
-.wd-name .wd-mapper { font-weight: 600; color: var(--l2); flex: none; }
+.wd-name .wd-mapper { font-weight: 600; color: var(--l2); flex: 0 1 auto; min-width: 3em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* (a very long name is cut short, not run past the panel) */
 .wd-box { position: relative; isolation: isolate; display: grid; grid-template-columns: 1fr auto; gap: 30px; margin-left: -72px; padding: 7.5px 26px 7.5px 72px; }
 .wd-box::before { transform-origin: top left; border-radius: 0 0 8px 0; background: hsl(var(--ss-h) 10% 15% / .8); }
 .wd-counts, .wd-diffs { display: flex; gap: 14px; min-width: 0; }
