@@ -77,6 +77,8 @@ const MpResults = {
     }
     const map = (res && res.map) || (Multiplayer.room && Multiplayer.room.map);
     clearEl(this.head).append(h(`div.mpr-verdict.${cls}`, verdict), map ? h('div.mpr-map', `${map.artist} - ${map.title}`, map.version ? h('span', ` [${map.version}]`) : null) : null);
+    // (the match decided: Neru peeks up — sunglasses on for a win, laughing at a loss, a blank look at a draw)
+    if (res && first && typeof NeruEggs !== 'undefined') NeruEggs.matchOver(cls);
     let at = rows.findIndex(r => r.id === this.focus);
     if (at < 0) { this.focus = me; at = rows.findIndex(r => r.id === me); }
     // (any other panel can be picked: it becomes the big one in the middle, as lazer's results do)

@@ -828,6 +828,7 @@ const RankedMatch = {
     const me = Multiplayer.me, opp = this.oppId(), u = g.users[me], o = opp && g.users[opp];
     const res = g.round === 0 ? 'none' : g.winner === me ? 'win' : g.winner ? 'loss' : 'draw';
     const title = { win: 'VICTORY', loss: 'DEFEAT', draw: 'DRAW', none: 'MATCH OVER' }[res];
+    if (res !== 'none' && typeof NeruEggs !== 'undefined') NeruEggs.matchOver(res === 'win' ? 'won' : res === 'loss' ? 'lost' : 'draw', `rp${g.id || ''}`);
     const delta = x => { const d = x.ratingAfter - x.rating; return h(`span.rke-d${d > 0 ? '.up' : d < 0 ? '.down' : ''}`, d > 0 ? `+${d}` : d < 0 ? `−${-d}` : '±0'); };
     const rating = (label, x) => x ? h('div.rke-rating', h('span', label), h('b', fmtInt(x.ratingAfter)), g.rated ? delta(x) : null) : null;
     const lifeRow = (id, x) => x ? h('div.rke-row', this.avatar(id, 32), h('b', this.name(id)), h('span', `${fmtInt(x.life)} life`), h('span', `${x.won} round${x.won === 1 ? '' : 's'} won`)) : null;

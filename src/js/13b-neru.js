@@ -755,7 +755,9 @@ const NeruEggs = {
   /** Whether Neru's on screen already — the main menu's, or a small one on another screen, a dialog or a medal: a peek
    *  then would make two of her. */
   onScreen() {
-    return [...document.querySelectorAll('.home .neru, .neru-cameo:not(.nc-peek)')].some(n => !n.hidden && n.getClientRects().length && getComputedStyle(n).opacity !== '0');
+    // (one scrolled out of sight — at the foot of the settings, say — doesn't count)
+    const seen = n => { const r = n.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth; };
+    return [...document.querySelectorAll('.home .neru, .neru-cameo:not(.nc-peek)')].some(n => !n.hidden && seen(n) && getComputedStyle(n).opacity !== '0');
   },
   /** A small Neru peeking up from the bottom edge of the screen for a moment, in `mood`'s pose — clicks go through her
    *  to whatever she's in front of (song select's Back button, say). `found`: her name searched for (a medal). */
@@ -796,11 +798,19 @@ const NeruEggs = {
     io.observe(el);
   },
 
-  // ── first place on the rankings: she peeks up, sunglasses on (once a session)
-  topOfTheBoard() {
-    if (this._topSeen) return;
-    this._topSeen = true;
-    setTimeout(() => { if (Screens.currentName === 'rankings') this.peek('perfect', { found: false }); }, 700);
+  // ── first on the rankings, or on today's daily challenge: she peeks up, sunglasses on (once a session for each — a
+  // new day's challenge counts again)
+  topOfTheBoard(key = 'rankings', screen = 'rankings') {
+    if ((this._tops ||= new Set()).has(key)) return;
+    this._tops.add(key);
+    setTimeout(() => { if (Screens.currentName === screen) this.peek('perfect', { found: false }); }, 700);
+  },
+  // ── a multiplayer match (or a Ranked Play duel) decided: she peeks up — sunglasses on for a win, laughing at a loss, a
+  // blank look at a draw. Once a match (`id`: a duel's, redrawn as it's shown)
+  matchOver(how, id = null) {
+    if (id && this._matchSeen === id) return;
+    this._matchSeen = id;
+    setTimeout(() => this.peek(how === 'won' ? 'perfect' : how === 'lost' ? 'failed' : 'list', { found: false }), 900);
   },
   // ── her name said in the chat: she peeks up to see who's talking about her (her taunt said back: she laughs)
   mentioned(text) {

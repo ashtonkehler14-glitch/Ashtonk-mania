@@ -906,6 +906,17 @@ await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.val
   });
   check('her name said in the chat: Neru peeks up (a laugh for her taunt)', ch.word === null && ch.name === 'neru-huh.png' && ch.taunt === 'neru-mock.png', JSON.stringify(ch));
 }
+{
+  // a multiplayer match decided: she peeks up — sunglasses for a win, a laugh at a loss (once a match)
+  const mo = await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms)), pk = () => ((document.querySelector('.nc-peek .nc-img') || {}).src || '').split('/').pop() || null;
+    NeruEggs.matchOver('won', 'm1'); await wait(1700); const won = pk(); await wait(3600);
+    NeruEggs.matchOver('lost', 'm2'); await wait(1700); const lost = pk(); await wait(3600);
+    NeruEggs.matchOver('lost', 'm2'); await wait(1700); const again = pk(); await wait(500);
+    return { won, lost, again };
+  });
+  check('a multiplayer match decided: Neru peeks up, sunglasses on for a win, laughing at a loss (once a match)', mo.won === 'neru-cool.png' && mo.lost === 'neru-mock.png' && mo.again === null, JSON.stringify(mo));
+}
 check('sorting by difficulty: each difficulty its own panel, easiest first (lazer)', await page.evaluate(() => { const r = AshtonkMania.SongSelect.results; return r.length === 4 && r.every(x => x.std && x.maps.length === 1) && r.every((x, i) => !i || r[i - 1].maps[0].stars <= x.maps[0].stars) && document.querySelectorAll('.std-panel').length === 4; }));
 await page.evaluate(() => { AshtonkMania.Settings.set('songselect.sort', 'title'); AshtonkMania.SongSelect.rebuild(); });
 // lazer's FilterControl: the star range keeps only difficulties inside it; Group puts the sets under group headers,

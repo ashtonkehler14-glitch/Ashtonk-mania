@@ -70,6 +70,8 @@ const DailyScreen = {
     if (this.cardEl.parentNode === this.page) { while (this.cardEl.nextSibling) this.cardEl.nextSibling.remove(); this.page.append(cols); }
     else clearEl(this.page).append(this.cardEl, cols);
     this.tickTime();
+    // (you're first today: Neru peeks up, sunglasses on)
+    if (d.scores[0] && d.scores[0].pid === me && d.total > 1 && typeof NeruEggs !== 'undefined') NeruEggs.topOfTheBoard(`daily${d.day || ''}`, Screens.currentName);
   },
   /** lazer's daily challenge side panels: total passes, the score breakdown (scores per 100,000, yours lit) and the
    *  event feed (the newest scores and where they placed). */

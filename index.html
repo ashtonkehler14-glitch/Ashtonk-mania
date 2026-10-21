@@ -15796,7 +15796,9 @@ const NeruEggs = {
   /** Whether Neru's on screen already — the main menu's, or a small one on another screen, a dialog or a medal: a peek
    *  then would make two of her. */
   onScreen() {
-    return [...document.querySelectorAll('.home .neru, .neru-cameo:not(.nc-peek)')].some(n => !n.hidden && n.getClientRects().length && getComputedStyle(n).opacity !== '0');
+    // (one scrolled out of sight — at the foot of the settings, say — doesn't count)
+    const seen = n => { const r = n.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth; };
+    return [...document.querySelectorAll('.home .neru, .neru-cameo:not(.nc-peek)')].some(n => !n.hidden && seen(n) && getComputedStyle(n).opacity !== '0');
   },
   /** A small Neru peeking up from the bottom edge of the screen for a moment, in `mood`'s pose — clicks go through her
    *  to whatever she's in front of (song select's Back button, say). `found`: her name searched for (a medal). */
@@ -15837,11 +15839,19 @@ const NeruEggs = {
     io.observe(el);
   },
 
-  // ── first place on the rankings: she peeks up, sunglasses on (once a session)
-  topOfTheBoard() {
-    if (this._topSeen) return;
-    this._topSeen = true;
-    setTimeout(() => { if (Screens.currentName === 'rankings') this.peek('perfect', { found: false }); }, 700);
+  // ── first on the rankings, or on today's daily challenge: she peeks up, sunglasses on (once a session for each — a
+  // new day's challenge counts again)
+  topOfTheBoard(key = 'rankings', screen = 'rankings') {
+    if ((this._tops ||= new Set()).has(key)) return;
+    this._tops.add(key);
+    setTimeout(() => { if (Screens.currentName === screen) this.peek('perfect', { found: false }); }, 700);
+  },
+  // ── a multiplayer match (or a Ranked Play duel) decided: she peeks up — sunglasses on for a win, laughing at a loss, a
+  // blank look at a draw. Once a match (`id`: a duel's, redrawn as it's shown)
+  matchOver(how, id = null) {
+    if (id && this._matchSeen === id) return;
+    this._matchSeen = id;
+    setTimeout(() => this.peek(how === 'won' ? 'perfect' : how === 'lost' ? 'failed' : 'list', { found: false }), 900);
   },
   // ── her name said in the chat: she peeks up to see who's talking about her (her taunt said back: she laughs)
   mentioned(text) {
@@ -22076,7 +22086,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.21', title: 'Neru update', sections: [
-    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Secret Neru medals to collect', 'Her pictures are sharp again', 'Teto in your name, spelled any way? Neru has thoughts about that', 'Neru on medals, What\'s new and the first-run setup', 'Don\'t keep her waiting in song select', 'Say her name in the chat', 'Read the settings to the very end'] },
+    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Secret Neru medals to collect', 'Her pictures are sharp again', 'Teto in your name, spelled any way? Neru has thoughts about that', 'Neru on medals, What\'s new and the first-run setup', 'Don\'t keep her waiting in song select', 'Say her name in the chat', 'Read the settings to the very end', 'She has something to say about how your matches go'] },
     { icon: 'multi', title: 'Multiplayer', items: ['When a room can\'t be created, the lounge says why'] },
     { icon: 'trophy', title: 'Online', items: ['Your plays count online straight away', 'Medals: only the hard ones are left (and Neru\'s secrets)'] },
   ] },
@@ -26826,6 +26836,7 @@ const RankedMatch = {
     const me = Multiplayer.me, opp = this.oppId(), u = g.users[me], o = opp && g.users[opp];
     const res = g.round === 0 ? 'none' : g.winner === me ? 'win' : g.winner ? 'loss' : 'draw';
     const title = { win: 'VICTORY', loss: 'DEFEAT', draw: 'DRAW', none: 'MATCH OVER' }[res];
+    if (res !== 'none' && typeof NeruEggs !== 'undefined') NeruEggs.matchOver(res === 'win' ? 'won' : res === 'loss' ? 'lost' : 'draw', `rp${g.id || ''}`);
     const delta = x => { const d = x.ratingAfter - x.rating; return h(`span.rke-d${d > 0 ? '.up' : d < 0 ? '.down' : ''}`, d > 0 ? `+${d}` : d < 0 ? `−${-d}` : '±0'); };
     const rating = (label, x) => x ? h('div.rke-rating', h('span', label), h('b', fmtInt(x.ratingAfter)), g.rated ? delta(x) : null) : null;
     const lifeRow = (id, x) => x ? h('div.rke-row', this.avatar(id, 32), h('b', this.name(id)), h('span', `${fmtInt(x.life)} life`), h('span', `${x.won} round${x.won === 1 ? '' : 's'} won`)) : null;
@@ -28266,6 +28277,8 @@ const MpResults = {
     }
     const map = (res && res.map) || (Multiplayer.room && Multiplayer.room.map);
     clearEl(this.head).append(h(`div.mpr-verdict.${cls}`, verdict), map ? h('div.mpr-map', `${map.artist} - ${map.title}`, map.version ? h('span', ` [${map.version}]`) : null) : null);
+    // (the match decided: Neru peeks up — sunglasses on for a win, laughing at a loss, a blank look at a draw)
+    if (res && first && typeof NeruEggs !== 'undefined') NeruEggs.matchOver(cls);
     let at = rows.findIndex(r => r.id === this.focus);
     if (at < 0) { this.focus = me; at = rows.findIndex(r => r.id === me); }
     // (any other panel can be picked: it becomes the big one in the middle, as lazer's results do)
@@ -28788,6 +28801,8 @@ const DailyScreen = {
     if (this.cardEl.parentNode === this.page) { while (this.cardEl.nextSibling) this.cardEl.nextSibling.remove(); this.page.append(cols); }
     else clearEl(this.page).append(this.cardEl, cols);
     this.tickTime();
+    // (you're first today: Neru peeks up, sunglasses on)
+    if (d.scores[0] && d.scores[0].pid === me && d.total > 1 && typeof NeruEggs !== 'undefined') NeruEggs.topOfTheBoard(`daily${d.day || ''}`, Screens.currentName);
   },
   /** lazer's daily challenge side panels: total passes, the score breakdown (scores per 100,000, yours lit) and the
    *  event feed (the newest scores and where they placed). */
@@ -29955,7 +29970,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'd6acf0bfff44';
+const APP_BUILD = '6e4cd9393160';
 
 const App = {
   lastReport: null,
