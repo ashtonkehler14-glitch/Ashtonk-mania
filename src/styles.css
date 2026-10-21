@@ -1695,6 +1695,13 @@ div.res-calib .i { color: var(--good); }
 .nd-snow.nd-front .nd { filter: blur(1.2px); }
 .nd-bubbles .nd-dot { background: radial-gradient(circle at 32% 30%, rgba(255, 255, 255, .95) 0 10%, rgba(255, 255, 255, .2) 24%, transparent 44%), radial-gradient(circle, rgba(255, 255, 255, .06) 52%, var(--c) 68%, rgba(255, 255, 255, .75) 76%, transparent 79%); }
 .nd-bubbles .nd, .nd-bubbles.nd-front .nd { filter: none; }
+.neru-drift.nd-bubbles:not(.nd-front) .nd { pointer-events: auto; cursor: pointer; }
+/* (the ground at her feet: leaves and petals lying where they fell, a drift of snow) */
+.neru-ground { position: absolute; left: -30%; right: -45%; bottom: -2px; height: 40px; pointer-events: none; z-index: 1; }
+.nd-rest { position: absolute; display: block; opacity: .92; filter: brightness(.82) drop-shadow(0 1px 1px rgba(0, 0, 0, .35)); }
+.nd-rest svg { display: block; width: 100%; height: 100%; }
+.nd-pile { position: absolute; left: 4%; right: 4%; bottom: 0; height: 0; border-radius: 50% 50% 0 0 / 100% 100% 0 0; transition: height 1.2s ease-out;
+  background: radial-gradient(ellipse at 50% 100%, #fff 0 45%, #eef4ff 70%, rgba(238, 244, 255, 0) 100%); filter: drop-shadow(0 -1px 2px rgba(180, 200, 255, .5)); -webkit-mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); }
 .nd-dragonflies .nd svg { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)); }
 .nd-fireflies .nd-dot { box-shadow: 0 0 6px 2px rgba(214, 255, 120, .75), 0 0 16px 5px rgba(214, 255, 120, .3); }
 .nd-fireflies .nd, .nd-fireflies.nd-front .nd { filter: none; }

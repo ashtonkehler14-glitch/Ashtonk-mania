@@ -14,7 +14,7 @@
  * own instead of her happy face: a dance after a full combo, a sulk after a poor play, a snicker after a fail, her
  * phone out while you pause, worried at a song far above
  * anything you've passed. And the time of year drifting around her — autumn leaves, snow, cherry blossom, fireflies on
- * a summer night, bubbles on a summer day, red dragonflies in September, bats at Halloween, hearts on Valentine's Day (and twice the snow at Christmas; on April Fools' Day
+ * a summer night, bubbles on a summer day (pop one), what falls settling at her feet, red dragonflies in September, bats at Halloween, hearts on Valentine's Day (and twice the snow at Christmas; on April Fools' Day
  * she's the other way round), stars twinkling at night (and a shooting star now and then), confetti a year on from your first play — a yawn after midnight, a cheer on New Year's Day and at a milestone play, a
  * cheer for five new songs or more, little z's when she's left alone at night, a sulk when you're back after a week away, a worried look after an hour's playing without a break, and her
  * sunglasses still on after an SS. */
@@ -816,6 +816,30 @@ const NeruEggs = {
     let w = 0, hh = 0, at = -1e9;
     return () => { const t = performance.now(); if (t - at > 4000 || !w) { w = el.offsetWidth; hh = el.offsetHeight; at = t; } return [w, hh]; };
   },
+  /** Something come down to rest on the ground at her feet (`ground`): a leaf or a petal lying where it fell (nine at
+   *  most — the oldest fades as another lands), or a little more snow on the drift there. */
+  settle(ground, kind, x, c) {
+    if (kind === 'snow') {
+      let pile = ground.querySelector('.nd-pile');
+      if (!pile) ground.append(pile = h('span.nd-pile'));
+      pile.style.height = `${Math.min(18, (parseFloat(pile.style.height) || 0) + 0.35).toFixed(2)}px`;
+      return;
+    }
+    const lying = ground.querySelectorAll('.nd-rest:not(.going)');
+    if (lying.length >= 9) { const old = lying[0]; old.classList.add('going'); old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 900, fill: 'forwards' }).onfinish = () => old.remove(); }
+    const sz = this.DRIFT[kind].size[1] * (0.7 + Math.random() * 0.25), leaf = h('span.nd-rest');
+    leaf.innerHTML = this.driftShape(kind, c);
+    Object.assign(leaf.style, { left: `${x}px`, width: `${sz}px`, height: `${sz}px`, bottom: `${(Math.random() * 6).toFixed(1)}px`, transform: `translateX(-50%) rotate(${(Math.random() * 360).toFixed(0)}deg) scaleY(.55)` });
+    ground.append(leaf);
+    leaf.animate([{ opacity: 0, translate: '0 -6px' }, { opacity: 1, translate: '0 0' }], { duration: 500, easing: 'ease-out' });
+  },
+  /** A bubble popped: a little burst, and gone. */
+  pop(p) {
+    for (const a of p.getAnimations({ subtree: true })) a.pause();
+    p.style.pointerEvents = 'none';
+    UISounds.play('click-short');
+    p.animate([{ scale: 1, opacity: 1 }, { scale: 1.6, opacity: 0 }], { duration: 180, easing: 'ease-out', fill: 'forwards' }).onfinish = () => p.remove();
+  },
   /** Night (10pm till 5, by the clock here): stars come out. */
   night(d = this.today()) { const hr = d.getHours(); return hr >= 22 || hr < 5; },
   /** Stars twinkling high up around the main menu's Neru (`el`) — far off, behind whatever the time of year brings —
@@ -870,7 +894,10 @@ const NeruEggs = {
     const quiet = () => !Settings.get('ui.animSpeed') || still.matches || html.classList.contains('slow') || html.classList.contains('perf');
     if (quiet()) return;
     const back = h(`span.neru-drift.nd-${kind}`, { 'aria-hidden': 'true' }), front = h(`span.neru-drift.nd-${kind}.nd-front`, { 'aria-hidden': 'true' });
+    // (and the ground at her feet, where what falls can settle)
+    const ground = ['leaves', 'petals', 'snow'].includes(kind) ? h(`span.neru-ground.nd-${kind}`, { 'aria-hidden': 'true' }) : null;
     el.prepend(back); el.append(front);
+    if (ground) el.append(ground);
     const r = ([a, b]) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
     let n = 0;
     const box = this.measure(back); // (the layer in front is the same size)
@@ -929,10 +956,17 @@ const NeruEggs = {
       // (a bat bobs up and down as it flies instead)
       const ax = kind === 'bats' ? 'translateY' : 'translateX';
       sway.animate([{ transform: `${ax}(${-amp}px) rotate(${-tilt}deg)` }, { transform: `${ax}(${amp}px) rotate(${tilt}deg)` }], { duration: r(K.swayMs), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out', delay: -Math.random() * 2000 });
-      p.animate(path, { duration: ms, easing: 'linear', delay: pre ? -ms * r([0.15, 0.75]) : 0 }).onfinish = () => { p.remove(); n--; };
+      // (a bubble behind her can be popped: a click on one)
+      if (kind === 'bubbles' && !near) p.addEventListener('pointerdown', e => { e.stopPropagation(); this.pop(p); n--; });
+      const fell = p.animate(path, { duration: ms, easing: 'linear', delay: pre ? -ms * r([0.15, 0.75]) : 0 });
+      fell.onfinish = () => {
+        p.remove(); n--;
+        // (now and then one that's come down settles at her feet)
+        if (ground && ground.isConnected && Math.random() < (kind === 'snow' ? 0.5 : 0.35)) this.settle(ground, kind, W * r([0.08, 0.92]), c); // (the ground's as wide as the drift)
+      };
     };
     const spawn = () => {
-      if (!el.isConnected || !back.isConnected) { back.remove(); front.remove(); return; }
+      if (!el.isConnected || !back.isConnected) { back.remove(); front.remove(); if (ground) ground.remove(); return; }
       setTimeout(spawn, r(K.every));
       if (!document.hidden && n < K.most && !quiet()) one();
     };

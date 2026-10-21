@@ -426,6 +426,22 @@ await shot('01-home-empty');
       out.kinds[kind] = { n: parts.length, layers: M.el.querySelectorAll(`.neru-drift.nd-${kind}`).length, shape: parts.length > 0 && !!(parts[0].querySelector('svg') || parts[0].querySelector('.nd-dot')), moving: parts.length > 0 && parts[0].getAnimations({ subtree: true }).length >= 2 };
       for (const d of M.el.querySelectorAll('.neru-drift')) d.remove();
     }
+    // (what falls settles at her feet — nine leaves at most — and snow piles up; a bubble behind her pops when clicked)
+    E.drift(M.el, 'leaves'); await wait(300);
+    const gl = M.el.querySelector('.neru-ground.nd-leaves');
+    for (let i = 0; i < 12; i++) E.settle(gl, 'leaves', 20 + i * 15, '#f08c3c');
+    await wait(1100); out.lying = gl.querySelectorAll('.nd-rest').length;
+    for (const d of M.el.querySelectorAll('.neru-drift, .neru-ground')) d.remove();
+    E.drift(M.el, 'snow'); await wait(300);
+    const gs = M.el.querySelector('.neru-ground.nd-snow');
+    for (let i = 0; i < 10; i++) E.settle(gs, 'snow', 0, '#fff');
+    out.pile = parseFloat(gs.querySelector('.nd-pile').style.height);
+    for (const d of M.el.querySelectorAll('.neru-drift, .neru-ground')) d.remove();
+    E.drift(M.el, 'bubbles'); await wait(1200);
+    const bub = M.el.querySelector('.neru-drift.nd-bubbles:not(.nd-front) .nd');
+    out.poppable = !!bub && getComputedStyle(bub).pointerEvents === 'auto';
+    if (bub) { bub.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); await wait(350); out.popped = !bub.isConnected; }
+    for (const d of M.el.querySelectorAll('.neru-drift, .neru-ground')) d.remove();
     // (never in the way: clicks go through to what's under them)
     E.drift(M.el, 'snow'); await wait(1200);
     out.through = [...M.el.querySelectorAll('.neru-drift')].every(d => getComputedStyle(d).pointerEvents === 'none');
@@ -476,6 +492,8 @@ await shot('01-home-empty');
     season.days === 'hearts,hearts,snow,snow|true,false,true,true,false', season.days);
   check('Neru through the year: leaves, Halloween bats, snow, blossom, summer-day bubbles, summer-night fireflies, September dragonflies — the other way round in the south',
     season.north === 'leaves,bats,snow,snow,petals,bubbles,fireflies,bubbles,dragonflies,snow,-' && season.south === 'petals,leaves,snow,fireflies,bats', JSON.stringify(season));
+  check('…what falls settles at her feet (nine leaves at most), snow piles up, and a bubble behind her pops when clicked',
+    season.lying === 9 && season.pile > 3 && season.poppable && season.popped, JSON.stringify(season));
   check('…each drifts around her a few at a time, behind and in front, never in the way of a click, and not with the animations off',
     Object.values(season.kinds).every(k => k.n > 0 && k.layers === 2 && k.shape && k.moving) && season.through && season.offNone, JSON.stringify(season.kinds));
   check('…a year on from your first play, a cheer (not the day after, nor in the first year)', season.anniv === '2,0,0' && season.annivGreet === 'cheer', JSON.stringify(season));
