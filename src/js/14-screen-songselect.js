@@ -607,7 +607,7 @@ const SongSelect = {
     // (Neru, shrugging at an empty library — gone once there's something in it)
     const none = !BeatmapManager.sets.length;
     if (!none && this._neru) { this._neru.remove(); this._neru = null; }
-    if (none && !(this._neru && this._neru.isConnected)) { this._neru = NeruCameo.make('empty', 'nc-empty'); if (this._neru) this.el.append(this._neru); }
+    if (none && !(this._neru && this._neru.isConnected)) { this._neru = NeruCameo.make('empty', 'nc-empty', { poke: NeruCameo.EGG.noSongs }); if (this._neru) this.el.append(this._neru); }
     if (any) return;
     if (!BeatmapManager.sets.length) {
       this.emptyEl.append(h('div.box', h('h2', 'Your library is empty'),

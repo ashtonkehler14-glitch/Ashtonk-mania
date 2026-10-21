@@ -11,10 +11,11 @@
  * own name (and peeking up when you search for it), the volume turned all the way up or down, songs skipped one after
  * another, and the small Neru on other screens in a huff too when clicked
  * over and over. Each screen's own picture of her stays as it is; a click there, now and then, gets a pose of her
- * own instead of her happy face: a dance after a full combo, a snicker after a fail, worried at a song far above
+ * own instead of her happy face: a dance after a full combo, a sulk after a poor play, a snicker after a fail, her
+ * phone out while you pause, worried at a song far above
  * anything you've passed. And the time of year drifting around her — autumn leaves, snow, cherry blossom, fireflies on
  * a summer night, bats at Halloween, hearts on Valentine's Day (and twice the snow at Christmas; on April Fools' Day
- * she's the other way round), stars twinkling at night, confetti a year on from your first play — a yawn after midnight, a cheer on New Year's Day and at a milestone play, a
+ * she's the other way round), stars twinkling at night (and a shooting star now and then), confetti a year on from your first play — a yawn after midnight, a cheer on New Year's Day and at a milestone play, a
  * cheer for five new songs or more, little z's when she's left alone at night, a sulk when you're back after a week away, a worried look after an hour's playing without a break, and her
  * sunglasses still on after an SS. */
 
@@ -223,11 +224,12 @@ const NeruCameo = {
   },
   /** The poses only easter eggs bring out (NeruEggs): a dance for the Konami code (or tapping along to the music), her
    *  phone and then her knees when left alone longer, and a sulk when you come back after that (or after a week away); and on other screens, clicked, a dance after a full
-   *  combo, a snicker after a fail, worried while a song far above anything you've passed loads (and after an hour's
-   *  playing without a break). */
+   *  combo, a sulk after a poor play, a snicker after a fail, her phone out while you pause, a wagging finger at an
+   *  empty library, worried while a song far
+   *  above anything you've passed loads (and after an hour's playing without a break). */
   EGG: {
     code: 'dance', aloneLonger: 'phone', aloneLongest: 'knees', back: 'sulk', fullCombo: 'dance', failed: 'snicker',
-    farAbove: 'worried', longSession: 'worried',
+    farAbove: 'worried', longSession: 'worried', poorPlay: 'sulk', paused: 'phone', noSongs: 'point',
   },
   /** How much of each pose's picture her head takes up (top of her hair to her chin, against its height): a close-up
    *  is shown smaller, so that her head comes out no bigger than in her default picture (HEAD_SIZE) — the same Neru
@@ -840,6 +842,20 @@ const NeruEggs = {
       if (!document.hidden && n < 8 && !quiet()) one();
     };
     setTimeout(go, 500);
+    // (now and then, a shooting star)
+    const shooting = () => { if (!el.isConnected || !sky.isConnected) return; if (!document.hidden && !quiet()) this.shoot(sky, box); setTimeout(shooting, 18000 + Math.random() * 22000); };
+    setTimeout(shooting, 5000 + Math.random() * 7000);
+  },
+  /** A shooting star across `sky` (its size `box()`): a bright streak, down and away, gone in a moment. */
+  shoot(sky, box = this.measure(sky)) {
+    const [W, H] = box();
+    if (!W || !H) return;
+    // (in the open sky to her right, down and away from her — not behind her, where it'd never be seen)
+    const s = h('span.nd-shoot'), x0 = W * (0.76 + Math.random() * 0.08), y0 = H * (0.25 + Math.random() * 0.2), dx = W * (0.12 + Math.random() * 0.08), dy = H * (0.2 + Math.random() * 0.12);
+    const a = Math.atan2(dy, dx) * 180 / Math.PI;
+    sky.append(s);
+    s.animate([{ transform: `translate(${x0}px, ${y0}px) rotate(${a}deg) scaleX(.2)`, opacity: 0 }, { opacity: 1, offset: 0.2 }, { transform: `translate(${x0 + dx * 0.6}px, ${y0 + dy * 0.6}px) rotate(${a}deg) scaleX(1)`, opacity: 1, offset: 0.6 },
+      { transform: `translate(${x0 + dx}px, ${y0 + dy}px) rotate(${a}deg) scaleX(.6)`, opacity: 0 }], { duration: 900, easing: 'cubic-bezier(.3, .1, .5, 1)' }).onfinish = () => s.remove();
   },
   /** Starts the time of year drifting around the main menu's Neru (`el`), for as long as she's there. */
   drift(el, kind = this.seasonOf()) {
@@ -989,8 +1005,13 @@ const NeruEggs = {
     for (const sc of ScoreManager.scores) if (sc.passed && !(sc.mods || []).includes('AT') && sc.stars > 0) { n++; if (sc.stars > best) best = sc.stars; }
     return n >= 3 && stars >= Math.max(best + 1.5, best * 1.35);
   },
-  /** A play's results: a full combo — not one miss — gets a little dance (with sparkles). */
-  resultsPoke(s) { const c = (s && s.passed && s.counts) || []; return c.length > 5 && c[5] === 0 ? NeruCameo.EGG.fullCombo : null; },
+  /** A play's results: a full combo — not one miss — gets a little dance (with sparkles); a poor one (a C or a D) a
+   *  disappointed sulk. */
+  resultsPoke(s) {
+    const c = (s && s.passed && s.counts) || [];
+    if (c.length > 5 && c[5] === 0) return NeruCameo.EGG.fullCombo;
+    return s && s.passed && NeruCameo.moodOf(s) === 'bad' ? NeruCameo.EGG.poorPlay : null;
+  },
 
   // ── the menu music's chorus (kiai): she cheers through it, bouncing harder on each beat, and stops when it ends
   chorus(on) {
