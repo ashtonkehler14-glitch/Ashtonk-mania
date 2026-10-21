@@ -4,8 +4,10 @@
  * She's alive: she breathes, bobs to the music's beat (harder in kiai), leans towards the cursor, perks up when
  * hovered, and clicking her makes her hop — her excited face for a moment, and a few sparkles.
  * And a few things to find just by playing (NeruEggs): bored when left alone, in a huff when clicked over and over,
- * cheering through a song's chorus, sunglasses on when you keep the pointer on her, picked up and dropped, and fishing
- * when a pause goes on. */
+ * cheering through a song's chorus, sunglasses on when you keep the pointer on her, picked up and dropped, fishing when
+ * a pause goes on — and small ones all over: a double take at her own name, the volume turned all the way up or down,
+ * a look for the mods a song is played with, a fifth pause, a fail right at the end, one miss from a full combo, a pass
+ * after ten retries, and the small Neru in a huff too when clicked over and over. */
 
 const NeruMascot = {
   FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
@@ -53,6 +55,8 @@ const NeruMascot = {
       // (the bundled Neru has a second, excited picture she switches to when clicked — loaded now, so it's there at once)
       this.base = pics.base; this.happy = pics.happy;
       if (pics.happy) new Image().src = pics.happy;
+      NeruEggs._vol = Settings.get('audio.master'); // (where the volume starts: only a change to all the way up or down counts)
+      NeruEggs.namesake();
     });
     return el;
   },
@@ -60,24 +64,23 @@ const NeruMascot = {
    *  her usual picture otherwise. */
   rest() { return this._idle && this.has('bored') ? 'bored' : this._kiai && this.has('cheer') ? 'cheer' : null; },
   /** In the middle of something (a huff, being held, a stare, her happy face after a click): poses wait for it. */
-  busy() { const t = performance.now(); return t < (this._huffUntil || 0) || t < (this._happyUntil || 0) || !!this._drag || !!this._drop || !!this._staring; },
+  busy() { const t = performance.now(); return t < (this._huffUntil || 0) || t < (this._happyUntil || 0) || t < (this._actUntil || 0) || !!this._drag || !!this._drop || !!this._staring; },
   /** Whether a pose of hers is there (the bundled pictures — not a picture of the player's own). */
   has(name) { return !!(this._picsNow && this._picsNow.poses && this._picsNow.poses[name]); },
-  /** Show a pose (null: her usual picture), at the size that keeps her head the same as in the others; `pop`: a quick
-   *  fade-in, so the change isn't a jump. */
+  /** Show a pose (null: her usual picture), at the size that keeps her head the same as in the others — crossfaded from
+   *  the one before, never a jump; `pop`: a little flash of light as it changes, for the bigger moments. */
   async show(name, { pop = true } = {}) {
     const pics = await this.pictures(), img = this.img;
     if (!pics || !img) return;
     const f = name ? NeruCameo.pose(pics, name) : { src: pics.base, scale: 1 };
     if (img.dataset.pose === (name || '')) return;
     img.dataset.pose = name || '';
-    const pre = new Image(); pre.src = f.src;
-    try { await pre.decode(); } catch { /* shown anyway */ }
-    if (this.img !== img || img.dataset.pose !== (name || '')) return;
-    img.src = f.src; img.style.height = f.scale < 1 ? `${(f.scale * 100).toFixed(1)}%` : '';
-    // (where her head is now, for what floats over it — the cross mark, the steam)
-    if (this.el) this.el.style.setProperty('--nm-top', `${((1 - f.scale) * 100).toFixed(1)}%`);
-    if (pop && Settings.get('ui.animSpeed')) img.animate([{ opacity: 0.3, filter: 'brightness(1.4) drop-shadow(0 10px 24px rgba(0, 0, 0, .5))' }, { opacity: 1 }], { duration: 240, easing: 'ease-out' });
+    await NeruCameo.swap(img, f.src, () => {
+      img.style.height = f.scale < 1 ? `${(f.scale * 100).toFixed(1)}%` : '';
+      // (where her head is now, for what floats over it — the cross mark, the steam)
+      if (this.el) this.el.style.setProperty('--nm-top', `${((1 - f.scale) * 100).toFixed(1)}%`);
+    }, () => this.img === img && img.dataset.pose === (name || ''));
+    if (pop && this.img === img && Settings.get('ui.animSpeed')) img.animate([{ filter: 'brightness(1.35) drop-shadow(0 10px 24px rgba(0, 0, 0, .5))' }, { filter: 'drop-shadow(0 10px 24px rgba(0, 0, 0, .5))' }], { duration: 320, easing: 'ease-out' });
   },
   /** Per frame: the lean towards the pointer (eased) and the beat's bob decaying, written as one transform. */
   start() {
@@ -207,25 +210,26 @@ const NeruCameo = {
   },
   /** Neru in `mood`, for a screen to put where `cls` places her; she comes in once her picture is ready (and in a mood
    *  she's pleased about, sparkles `delay` ms later). Null when she's turned off. */
-  make(mood, cls, { delay = 450 } = {}) {
+  make(mood, cls, { delay = 450, pose = null, sparkle = false } = {}) {
     if (!Settings.get('ui.mascot')) return null;
     const el = h(`button.neru-cameo.${cls}`, { type: 'button', 'aria-label': 'Neru', tabindex: '-1', hidden: true });
+    // (sparkles: in a mood she's pleased about, or when an easter egg says so)
+    const pleased = sparkle || this.HAPPY.has(mood);
     NeruMascot.pictures().then(async pics => {
       if (!pics) { el.remove(); return; }
-      let face = this.face(pics, mood);
+      // (`pose`: an easter egg's own pose in place of the mood's — when that picture is there)
+      let face = pose && pics.poses && pics.poses[pose] ? this.pose(pics, pose) : this.face(pics, mood);
       const happy = pics.happy && this.pose(pics, 'happy');
+      if (happy) new Image().src = happy.src; // (ready before the first click)
       const img = h('img.nc-img', { src: face.src, alt: '', draggable: 'false' });
-      // (her place's height, times how big she's shown in this pose)
-      const show = f => { img.src = f.src; el.style.setProperty('--nc-s', f.scale); };
+      // (her place's height, times how big she's shown in this pose — crossfaded from the one before)
+      const show = f => this.swap(img, f.src, () => el.style.setProperty('--nc-s', f.scale));
       el.style.setProperty('--nc-s', face.scale);
-      // (another pose later on — NeruEggs.fishLater — faded in, and the one she goes back to after a click)
-      el._pose = async name => {
+      // (another pose later on — NeruEggs.fishLater — and the one she goes back to after a click)
+      el._pose = name => {
         if (!pics.poses || !pics.poses[name]) return;
         face = this.pose(pics, name);
-        const pre = new Image(); pre.src = face.src; try { await pre.decode(); } catch { /* shown anyway */ }
-        if (!el.isConnected) return;
-        show(face);
-        if (Settings.get('ui.animSpeed')) img.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+        if (el.isConnected) show(face);
       };
       // (shown once it can be drawn, never as an empty box that pops)
       try { await img.decode(); } catch { /* shown anyway */ }
@@ -234,21 +238,54 @@ const NeruCameo = {
       el.hidden = false;
       const anim = !!Settings.get('ui.animSpeed');
       if (anim) el.classList.add('in');
-      setTimeout(() => { if (el.isConnected) this.burst(el, mood); }, anim ? delay : 0);
+      setTimeout(() => { if (el.isConnected && pleased) this.burst(el); }, anim ? delay : 0);
       el.addEventListener('click', e => {
         e.stopPropagation();
+        const now = performance.now();
+        // (in a huff — clicked over and over, like the main menu's Neru — a click only gets a shake of her head)
+        if (now < (el._huffUntil || 0)) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); UISounds.play('click-short'); return; }
+        el._clicks = (el._clicks || []).filter(t => now - t < 2600); el._clicks.push(now);
+        if (el._clicks.length >= 6 && pics.poses && pics.poses.sassy) {
+          el._clicks = []; el._huffUntil = now + 3000; clearTimeout(el._back);
+          show(this.pose(pics, 'sassy'));
+          el.classList.remove('hop', 'shake'); void el.offsetWidth; el.classList.add('shake');
+          UISounds.play('dialog-dangerous-tick');
+          NeruEggs.fume(el);
+          el._back = setTimeout(() => { el.classList.remove('shake'); show(face); }, 3000);
+          return;
+        }
         UISounds.click();
         el.classList.remove('hop'); void el.offsetWidth; el.classList.add('hop');
         // (her happy face for a moment, whatever her mood)
         if (happy && face.src !== happy.src) { show(happy); clearTimeout(el._back); el._back = setTimeout(() => show(face), 1600); }
-        this.burst(el, mood);
+        if (pleased) this.burst(el);
       });
     });
     return el;
   },
+  /** A picture changed for another without a jump: the one before fades out over the new one fading in. `apply`
+   *  makes any other change that goes with it (its size) at the moment it swaps; `still()` says whether it's still wanted
+   *  once the new picture is ready. */
+  async swap(img, src, apply = null, still = () => true) {
+    const pre = new Image(); pre.src = src;
+    try { await pre.decode(); } catch { /* shown anyway */ }
+    if (!still()) return;
+    const box = img.parentElement, anim = Settings.get('ui.animSpeed') && !document.documentElement.classList.contains('slow');
+    if (anim && box && img.isConnected && img.complete && img.naturalWidth && img.getAttribute('src') !== src) {
+      // (the old picture, where it was — held to the bottom, as she stands — fading away over the new one)
+      const ghost = img.cloneNode(); ghost.classList.add('neru-ghost'); ghost.removeAttribute('data-pose');
+      Object.assign(ghost.style, { left: `${img.offsetLeft}px`, bottom: `${Math.max(0, box.clientHeight - img.offsetTop - img.offsetHeight)}px`, width: `${img.offsetWidth}px`, height: `${img.offsetHeight}px` });
+      box.append(ghost);
+      ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: 'ease-out' }).onfinish = () => ghost.remove();
+      img.src = src; if (apply) apply();
+      img.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: 'ease-in' });
+      return;
+    }
+    img.src = src; if (apply) apply();
+  },
   /** A few sparkles that burst out around her head and fade — when she's pleased (not that she'd say so). */
-  burst(el, mood) {
-    if (!this.HAPPY.has(mood) || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
+  burst(el) {
+    if (!Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
     const colors = ['#ffd54a', '#ff8cc0', '#ffffff', '#8fd3ff'];
     for (let i = 0; i < 6; i++) {
       const sp = h('span.neru-spark');
@@ -274,6 +311,7 @@ const NeruCameo = {
 };
 
 Bus.on('settings:changed', k => {
+  if (k === 'audio.master') NeruEggs.volume(Settings.get('audio.master'));
   if (k === 'ui.mascot' && Screens.currentName === 'home') { const old = document.querySelector('.home .neru'); if (old) old.replaceWith(NeruMascot.build()); }
 });
 
@@ -319,28 +357,92 @@ const NeruEggs = {
     M.show('sassy', { pop: false });
     el.classList.remove('hop', 'huff'); void el.offsetWidth; el.classList.add('huff');
     UISounds.play('dialog-dangerous-tick');
-    if (Settings.get('ui.animSpeed')) {
-      // (the cross-shaped anger mark of anime: four curved strokes)
-      const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), g = document.createElementNS(NS, 'g');
-      svg.setAttribute('viewBox', '0 0 40 40');
-      for (const [k, v] of [['fill', 'none'], ['stroke', '#ff3b5c'], ['stroke-width', '5'], ['stroke-linecap', 'round']]) g.setAttribute(k, v);
-      for (const d of ['M16 4c0 7-5 12-12 12', 'M24 4c0 7 5 12 12 12', 'M16 36c0-7-5-12-12-12', 'M24 36c0-7 5-12 12-12']) { const pa = document.createElementNS(NS, 'path'); pa.setAttribute('d', d); g.append(pa); }
-      svg.append(g);
-      const vein = h('span.neru-vein', svg);
-      el.append(vein);
-      vein.animate([{ transform: 'scale(0) rotate(-30deg)', opacity: 0 }, { transform: 'scale(1.25) rotate(8deg)', opacity: 1, offset: 0.18 }, { transform: 'scale(.9)', offset: 0.3 },
-        { transform: 'scale(1.1)', offset: 0.45 }, { transform: 'scale(.95)', offset: 0.6 }, { transform: 'scale(1.05)', opacity: 1, offset: 0.85 }, { transform: 'scale(1.2)', opacity: 0 }],
-        { duration: 2400, easing: 'ease-out' }).onfinish = () => vein.remove();
-      for (let i = 0; i < 3; i++) setTimeout(() => {
-        if (!el.isConnected) return;
-        const p = h('span.neru-puff'); p.style.left = `${30 + i * 14}%`;
-        el.append(p);
-        p.animate([{ transform: 'translate(-50%, 0) scale(.3)', opacity: 0 }, { transform: 'translate(-50%, -18px) scale(1)', opacity: 0.85, offset: 0.25 },
-          { transform: `translate(calc(-50% + ${(i - 1) * 22}px), -60px) scale(1.6)`, opacity: 0 }], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)' }).onfinish = () => p.remove();
-      }, 120 + i * 160);
-    }
+    this.fume(el);
     M._back = setTimeout(() => { el.classList.remove('huff'); if (!M.busy()) M.show(M.rest()); }, 3400);
   },
+
+  /** The anger mark — the cross of four curved strokes over her head, pulsing — and a few puffs of steam: a huff,
+   *  wherever she is (`el`: her element; what's over her head is placed by --nm-top). */
+  fume(el) {
+    if (!Settings.get('ui.animSpeed')) return;
+    const light = document.documentElement.classList.contains('slow'); // (lighter: the mark alone, no steam)
+    const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), g = document.createElementNS(NS, 'g');
+    svg.setAttribute('viewBox', '0 0 40 40');
+    for (const [k, v] of [['fill', 'none'], ['stroke', '#ff3b5c'], ['stroke-width', '5'], ['stroke-linecap', 'round']]) g.setAttribute(k, v);
+    for (const d of ['M16 4c0 7-5 12-12 12', 'M24 4c0 7 5 12 12 12', 'M16 36c0-7-5-12-12-12', 'M24 36c0-7 5-12 12-12']) { const pa = document.createElementNS(NS, 'path'); pa.setAttribute('d', d); g.append(pa); }
+    svg.append(g);
+    const vein = h('span.neru-vein', svg);
+    el.append(vein);
+    vein.animate([{ transform: 'scale(0) rotate(-30deg)', opacity: 0 }, { transform: 'scale(1.25) rotate(8deg)', opacity: 1, offset: 0.18 }, { transform: 'scale(.9)', offset: 0.3 },
+      { transform: 'scale(1.1)', offset: 0.45 }, { transform: 'scale(.95)', offset: 0.6 }, { transform: 'scale(1.05)', opacity: 1, offset: 0.85 }, { transform: 'scale(1.2)', opacity: 0 }],
+      { duration: 2400, easing: 'ease-out' }).onfinish = () => vein.remove();
+    if (!light) for (let i = 0; i < 3; i++) setTimeout(() => {
+      if (!el.isConnected) return;
+      const p = h('span.neru-puff'); p.style.left = `${30 + i * 14}%`;
+      el.append(p);
+      p.animate([{ transform: 'translate(-50%, 0) scale(.3)', opacity: 0 }, { transform: 'translate(-50%, -18px) scale(1)', opacity: 0.85, offset: 0.25 },
+        { transform: `translate(calc(-50% + ${(i - 1) * 22}px), -60px) scale(1.6)`, opacity: 0 }], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)' }).onfinish = () => p.remove();
+    }, 120 + i * 160);
+  },
+  /** A short act of the main menu's Neru: `pose` for `ms`, then back to herself — unless she's in the middle of
+   *  something else (a huff, being held…), which goes first. */
+  act(pose, ms = 1600, { hop = true, sparkle = false } = {}) {
+    const M = NeruMascot;
+    if (!M.img || M.busy() || !M.has(pose)) return false;
+    M._actUntil = performance.now() + ms; M._idle = false;
+    M.show(pose, { pop: false });
+    if (hop && M.el) { M.el.classList.remove('hop'); void M.el.offsetWidth; M.el.classList.add('hop'); }
+    if (sparkle) M.sparkle();
+    clearTimeout(this._actT);
+    this._actT = setTimeout(() => { if (!M.busy()) M.show(M.rest()); }, ms + 30);
+    return true;
+  },
+
+  // ── your name is hers: the first time she sees it (once a session), a double take — "huh?" — then a wagging finger
+  namesake() {
+    if (this._named || !/^\s*neru\s*$/i.test(ProfileManager.profile.name || '')) return;
+    this._named = true;
+    setTimeout(() => {
+      if (!this.act('huh', 1500, { hop: false })) { this._named = false; return; }
+      const M = NeruMascot; if (M.el) { M.el.classList.remove('startle'); void M.el.offsetWidth; M.el.classList.add('startle'); }
+      setTimeout(() => { M._actUntil = 0; this.act('point', 1500); }, 1500);
+    }, 1400);
+  },
+
+  // ── the main menu's volume turned all the way up: she cheers; all the way down: "huh?"
+  volume(v) {
+    const was = this._vol; this._vol = v;
+    if (was == null || Screens.currentName !== 'home') return;
+    if (v >= 1 && was < 1) this.act('cheer', 1500, { sparkle: true });
+    else if (v <= 0 && was > 0) this.act('huh', 1500, { hop: false });
+  },
+
+  // ── the small Neru on other screens: a pose of her own now and then
+  /** While a song loads, by its mods: Auto — she's bored (you're not even playing); an easier mod — she laughs; a
+   *  harder one — sunglasses on. */
+  loaderPose(mods = []) {
+    const m = new Set(mods);
+    if (m.has('AT') || m.has('CN')) return 'bored';
+    if (['EZ', 'NF', 'HT', 'DC', 'NR'].some(x => m.has(x))) return 'mock';
+    if (['HR', 'DT', 'NC', 'HD', 'FI', 'FL', 'SD', 'PF', 'PSS'].some(x => m.has(x))) return 'cool';
+    return null;
+  },
+  /** The pause screen: the fifth pause in one song wears her out; a fail in the last tenth of it — "huh?" — instead of
+   *  the laugh. */
+  pausePose(failed, progress, pauses) {
+    if (failed) return progress != null && progress >= 90 ? 'huh' : null;
+    return pauses >= 5 ? 'tired' : null;
+  },
+  /** A play's results: a pass after ten retries or more — she cheers (with sparkles); one miss away from a full combo
+   *  on a good play — a blank "huh?". */
+  resultsPose(s, retries = 0) {
+    if (!s || !s.passed) return null;
+    if (retries >= 10) return 'cheer';
+    const c = s.counts || [];
+    return c[5] === 1 && (s.accuracy || 0) >= 0.95 ? 'huh' : null;
+  },
+  /** An empty list: now and then (every sixth one you come across) she's fishing in it. */
+  cardPose() { this._cards = (this._cards || 0) + 1; return this._cards % 6 === 0 ? 'fishing' : null; },
 
   // ── the menu music's chorus (kiai): she cheers through it, bouncing harder on each beat, and stops when it ends
   chorus(on) {

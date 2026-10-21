@@ -162,6 +162,22 @@ await shot('01-home-empty');
   check('Neru\'s easter eggs: a huff when clicked over and over, a cheer in the chorus, sunglasses when stared at, bored when left alone, picked up and dropped',
     r.huff === 'sassy|true|true' && r.ignored && r.chorus === 'cheer' && r.after === 'usual' && r.idle === 'bored' && r.woke === 'usual' && r.stare === 'cool' && r.wink === 'wink'
     && r.held === 'point|true|true' && r.landed === 'sassy|false|true|true', JSON.stringify(r));
+  // the small ones: the volume all the way up (a cheer) or down ("huh?"), and the poses other screens pick
+  const small = await page.evaluate(async () => {
+    const S = AshtonkMania.Settings, M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', v0 = S.get('audio.master'), out = {};
+    M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; await M.show(null);
+    S.set('audio.master', 1); await wait(400); out.up = p(); await wait(1700);
+    S.set('audio.master', 0); await wait(400); out.down = p(); await wait(1700);
+    S.set('audio.master', v0);
+    const E = NeruEggs, x = v => v || '-';
+    out.loader = [['AT'], ['EZ'], ['HR', 'DT'], []].map(m => x(E.loaderPose(m))).join();
+    out.pause = [E.pausePose(false, 30, 1), E.pausePose(false, 30, 5), E.pausePose(true, 40, 0), E.pausePose(true, 95, 0)].map(x).join();
+    const play = (extra = {}) => ({ passed: true, accuracy: 0.97, counts: [50, 5, 1, 0, 0, 0], ...extra });
+    out.results = [E.resultsPose(play(), 0), E.resultsPose(play(), 12), E.resultsPose(play({ counts: [50, 5, 1, 0, 0, 1] }), 0), E.resultsPose(play({ passed: false }), 12)].map(x).join();
+    return out;
+  });
+  check('Neru\'s small easter eggs: the volume all the way up or down, and her poses for mods, a fifth pause, a fail at the end, ten retries and one miss',
+    small.up === 'cheer' && small.down === 'huh' && small.loader === 'bored,mock,cool,-' && small.pause === '-,tired,-,huh' && small.results === '-,cheer,huh,-', JSON.stringify(small));
 }
 // import via synthetic drop event (exercises the drag & drop pipeline)
 const dropFiles = async (names) => page.evaluate(async (names) => {

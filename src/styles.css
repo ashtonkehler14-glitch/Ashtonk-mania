@@ -1663,6 +1663,13 @@ div.res-calib .i { color: var(--good); }
 .neru { touch-action: none; }
 .neru.held { cursor: grabbing; z-index: 50; }
 .neru.held .neru-img { animation: none; translate: 0 0; scale: 1; filter: drop-shadow(0 22px 30px rgba(0, 0, 0, .45)); }
+/* (a pose changing: the one before fades out over the new one — NeruCameo.swap) */
+.neru-ghost { position: absolute; margin: 0; max-width: none; pointer-events: none; animation: none !important; transition: none !important; translate: none !important; scale: none !important; }
+.nc-body { position: relative; }
+.neru-body { position: relative; }
+.neru-cameo.shake .nc-img { animation: neruShake 420ms cubic-bezier(.36, .07, .19, .97); }
+.neru-cameo .neru-vein { top: 2%; }
+.neru-cameo .neru-puff { top: 6%; }
 .neru-dust { position: absolute; z-index: 2; left: 50%; bottom: -2px; width: 34px; height: 16px; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 255, 255, .55), transparent); }
 @media (prefers-reduced-motion: reduce) { .neru.huff .neru-img, .neru.shake .neru-img, .neru.startle .neru-img { animation: none; } }
 .slow .neru-cameo.hop .nc-img { animation: neruHop 620ms linear; }
