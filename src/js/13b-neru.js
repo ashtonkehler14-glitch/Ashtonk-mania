@@ -227,7 +227,7 @@ const NeruMascot = {
  *  Screens place her with a class of their own (`.nc-results`, `.nc-pause`…). */
 const NeruCameo = {
   /** The moods she's pleased about (not that she'd say so): sparkles. */
-  HAPPY: new Set(['perfect', 'great', 'medal', 'secret', 'allFound']),
+  HAPPY: new Set(['perfect', 'great', 'medal', 'secret', 'allFound', 'herSong', 'herSongPass']),
   /** Her pose on each screen (her shrug, neru.png, if it isn't there) — all from the song's video: sunglasses on for a
    *  perfect play, a wagging finger at an S, a wink for an A or B, worn out at a C or D, laughing at a fail; bored at her
    *  desk while you pause, fists up — "I'm not cheering for you" — while a song loads, hand on hip at an empty library,
@@ -237,7 +237,9 @@ const NeruCameo = {
     paused: 'bored', loading: 'cheer', empty: 'sassy', list: 'huh', boot: 'fishing',
     // (a medal: a wag of her finger at a hard one — not bad — and a wink when it's one of her own secrets you found;
     // on her phone, reading what's new)
-    medal: 'point', secret: 'wink', news: 'phone', waiting: 'bored', asleep: 'tired',
+    medal: 'point', secret: 'wink', news: 'phone', waiting: 'bored', asleep: 'tired', herSong: 'dance',
+    // (the results of one of her songs: delighted you passed it, sulking if you failed it)
+    herSongPass: 'happy', herSongFail: 'sulk',
     // (every one of her secrets found: cheering beside them on your profile)
     allFound: 'cheer',
     // (beside the first-run setup, sizing you up: Onboarding.NERU has her pose for each page)
@@ -1286,6 +1288,13 @@ const NeruEggs = {
   // own for a moment instead of her happy face (NeruCameo.make's `poke`)
   /** While a song loads: one far above anything you've passed — she's worried for you (not on Auto: you're not even
    *  playing). */
+  // ── one of her songs — Neru (or ネル) in its title, artist or source: she dances on its loading screen
+  herSong(rec) {
+    if (!rec) return false;
+    const set = typeof BeatmapManager !== 'undefined' && BeatmapManager.sets ? BeatmapManager.sets.find(x => x.id === rec.setId) : null;
+    const text = [rec.title, rec.artist, set && set.titleUnicode, set && set.artistUnicode, set && set.source].filter(Boolean).join(' ');
+    return /(^|[^a-z])neru([^a-z]|$)|ネル/i.test(text);
+  },
   loaderPoke(mods = [], rec = null) { return rec && !mods.includes('AT') && this.outOfReach(rec.stars) ? NeruCameo.EGG.farAbove : null; },
   /** A star rating well past the hardest you've passed (by a star and a half, and a third again): only once you've
    *  passed a few, so a new player isn't met with it every time. */

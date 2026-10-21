@@ -779,7 +779,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.21', title: 'Neru update', sections: [
-    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Secret Neru medals to collect', 'Her pictures are sharp again', 'Teto in your name, spelled any way? Neru has thoughts about that', 'Neru on medals, What\'s new and the first-run setup', 'Don\'t keep her waiting in song select', 'Say her name in the chat', 'Read the settings to the very end', 'She has something to say about how your matches go'] },
+    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Secret Neru medals to collect', 'Her pictures are sharp again', 'Teto in your name, spelled any way? Neru has thoughts about that', 'Neru on medals, What\'s new and the first-run setup', 'Don\'t keep her waiting in song select', 'Say her name in the chat', 'Read the settings to the very end', 'She has something to say about how your matches go', 'Play one of her songs'] },
     { icon: 'multi', title: 'Multiplayer', items: ['When a room can\'t be created, the lounge says why'] },
     { icon: 'trophy', title: 'Online', items: ['Your plays count online straight away', 'Medals: only the hard ones are left (and Neru\'s secrets)'] },
   ] },

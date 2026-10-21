@@ -31,7 +31,9 @@ const ResultsScreen = {
     el.append(body, actions);
     // (Neru's reaction to the play you've just finished — not to a replay, someone else's play or a match)
     if (!this._swapping) {
-      this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(NeruCameo.moodOf(s), 'nc-results', { delay: 1500, poke: NeruEggs.resultsPoke(s) }) : null;
+      // (one of her own songs: delighted you passed it — sunglasses still for an SS — and sulking if you failed it)
+      const mood = NeruCameo.moodOf(s), hers = NeruEggs.herSong(map);
+      this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(hers && mood === 'failed' ? 'herSongFail' : hers && mood !== 'perfect' ? 'herSongPass' : mood, 'nc-results', { delay: 1500, poke: NeruEggs.resultsPoke(s) }) : null;
       if (this._neru) el.append(this._neru);
     }
     this.fitToScreen(body, grid);

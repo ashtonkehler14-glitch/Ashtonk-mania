@@ -525,11 +525,14 @@ const GameplayScreen = {
     // sit where the panel appears (Watch on the Replays page is right under it) kept the loader up forever
     const settings = h('div.pl-settings', { onpointermove: () => { if (!this.loaderHold) { this.loaderHold = true; this.applyBackground(); } }, onpointerleave: () => { this.loaderHold = false; this.applyBackground(); } },
       ...this.playerSettings(rec, !p.replay));
+    const hers = !p.replay && !p.skinEditor && NeruEggs.herSong(rec);
+    if (hers) NeruEggs.found('song');
     const el = h('div.gp-loader', card, settings,
       p.mp ? h('div.pl-hint', 'Get ready!') : null,
       // (Neru wishing you luck — or something like it — while it loads; not when watching a replay or someone playing,
       // nor for the skin editor's preview)
-      p.replay || p.skinEditor ? null : NeruCameo.make('loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
+      // (one of her own songs: she dances — NeruEggs.herSong)
+      p.replay || p.skinEditor ? null : NeruCameo.make(hers ? 'herSong' : 'loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
     this.loaderT0 = performance.now(); this.loaderExtra = 0;
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked

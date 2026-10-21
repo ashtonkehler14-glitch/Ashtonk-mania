@@ -28,7 +28,8 @@ const MEDALS = [
     ['showoff', 'target', 'Show-off', 'Click Neru after a full combo.'],
     ['seasons', 'sync', 'Four Seasons', 'See four different times of year around Neru.'],
     ['teto', 'crosscircle', 'Wrong Twin-Tails', 'Put Teto in your name. Neru noticed.'],
-    ['fine', 'book', 'The Fine Print', 'Scroll all the way down the settings.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),
+    ['fine', 'book', 'The Fine Print', 'Scroll all the way down the settings.'],
+    ['song', 'music', 'Her Song', 'Play one of Neru\'s songs.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),
 ];
 
 const Medals = {
