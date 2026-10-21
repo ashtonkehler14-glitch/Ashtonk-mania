@@ -352,6 +352,28 @@ await shot('01-home-empty');
     out.after = NeruMascot.el.classList.contains('nm-fools');
     return out;
   });
+  // her secret medals, found: a twirl, a yawn after midnight, a click after a full combo, four times of year seen
+  const medals = await page.evaluate(async () => {
+    const E = NeruEggs, M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), got = [], egg = AshtonkMania.Medals.egg, seasons = AshtonkMania.Settings.get('neru.seasons');
+    AshtonkMania.Medals.egg = id => got.push(id);
+    try {
+      M._actUntil = M._happyUntil = M._huffUntil = 0; M._clicks = []; M._lastClick = -1e9; await M.show(null); await wait(400);
+      M.el.click(); await wait(120); M.el.click(); await wait(800);
+      M._actUntil = M._happyUntil = 0; await M.show(null); E._greeted = false; E.greet(new Date(2026, 9, 21, 2, 30)); await wait(1900); E._greeted = true; await wait(2600);
+      const c = AshtonkMania.NeruCameo.make('great', 'nc-results', { poke: AshtonkMania.NeruCameo.EGG.fullCombo });
+      Object.assign(c.style, { position: 'fixed', right: '20px', bottom: '20px' }); document.body.append(c);
+      for (let i = 0; i < 40 && !c.querySelector('.nc-img'); i++) await wait(100);
+      c.click(); await wait(200); c.remove();
+      AshtonkMania.Settings.set('neru.seasons', []);
+      for (const k of ['snow', 'leaves', 'petals']) E.seen(k);
+      const three = got.includes('neru-seasons');
+      E.seen('leaves'); const again = got.includes('neru-seasons');
+      E.seen('fireflies');
+      return { got: [...new Set(got)].sort().join(), three, again };
+    } finally { AshtonkMania.Medals.egg = egg; AshtonkMania.Settings.set('neru.seasons', seasons || []); }
+  });
+  check('Neru\'s secret medals: a twirl, a yawn after midnight, a click after a full combo, and four times of year seen (not three)',
+    /neru-night/.test(medals.got) && /neru-seasons/.test(medals.got) && /neru-showoff/.test(medals.got) && /neru-twirl/.test(medals.got) && !medals.three && !medals.again, JSON.stringify(medals));
   check('Neru on April Fools\' Day: the other way round, and a click gets a laugh; on Valentine\'s Day a click brings hearts',
     days.mirrored && days.foolsClick === 'mock' && days.notMirrored && days.valClick === 'happy' && days.hearts && !days.after, JSON.stringify(days));
   // night: stars twinkling around her (not in the daytime, nor with the animations off); and a headpat for a small Neru
@@ -363,7 +385,7 @@ await shot('01-home-empty');
     for (const x of M.el.querySelectorAll('.neru-sky')) x.remove();
     E.twinkle(M.el); await wait(1600);
     out.stars = M.el.querySelectorAll('.neru-sky .nd-star').length;
-    E.shoot(M.el.querySelector('.neru-sky')); await wait(300); out.shooting = M.el.querySelectorAll('.neru-sky .nd-shoot').length; await wait(800); out.shot = M.el.querySelectorAll('.neru-sky .nd-shoot').length;
+    E.shoot(M.el.querySelector('.neru-sky')); await wait(300); out.shooting = M.el.querySelectorAll('.neru-sky .nd-shoot').length; await wait(1700); out.shot = M.el.querySelectorAll('.neru-sky .nd-shoot').length;
     for (const x of M.el.querySelectorAll('.neru-sky')) x.remove();
     const anim = S.get('ui.animSpeed'); S.set('ui.animSpeed', 0); E.twinkle(M.el); S.set('ui.animSpeed', anim);
     out.offNone = !M.el.querySelector('.neru-sky');
@@ -477,6 +499,11 @@ await shot('01-home-empty');
     E.milestone(); await wait(1500); out.afterS = p();
     E._plays = ScoreManager.scores.length; ScoreManager.scores = ScoreManager.scores.concat([{ passed: true, own: true, grade: 'X', stars: 2, mods: [], date: Date.now() }]);
     E.milestone(); await wait(1500); out.afterSS = p(); M._actUntil = 0; await M.show(null);
+    // (three fails in a row since: a snicker; a new best at an S: a wag of her finger; a plain pass: nothing)
+    const played = (...xs) => { E._plays = ScoreManager.scores.length; ScoreManager.scores = ScoreManager.scores.concat(xs.map(x => ({ own: true, stars: 2, mods: [], date: Date.now(), ...x }))); E.milestone(); };
+    await wait(600); played({ passed: false }, { passed: false }, { passed: false }); await wait(1500); out.fails = p(); await wait(1900);
+    played({ passed: true, grade: 'S', isPB: true }); await wait(1500); out.best = p(); await wait(1900);
+    played({ passed: true, grade: 'A' }); await wait(1500); out.plain = p();
     // an hour's playing since the game was opened: worried, once (not for the plays before it was opened)
     const since = E.SINCE;
     ScoreManager.scores = Array.from({ length: 20 }, (_, i) => ({ passed: true, stars: 2, mods: [], own: true, date: since - 1000 + i, duration: 240000 }));
@@ -502,6 +529,7 @@ await shot('01-home-empty');
   check('…back after a week away she sulks, then she\'s glad after all (not after a day, nor with hardly any plays); a milestone play gets a cheer, once',
     season.back === 'sulk' && season.glad === 'happy' && season.notAway === 'usual' && season.milestone === 'cheer' && season.again === 'usual', JSON.stringify(season));
   check('…after an SS, back on the main menu her sunglasses are still on (not after an S)', season.afterS === 'usual' && season.afterSS === 'cool', JSON.stringify(season));
+  check('…and back on the main menu: a snicker after three fails in a row, a wagging finger after a new best (nothing for a plain pass)', season.fails === 'snicker' && season.best === 'point' && season.plain === 'usual', JSON.stringify(season));
   check('…and after an hour\'s playing at a stretch (since the game was opened), a worried look, once',
     season.shortSession === 'usual' && season.longSession === 'worried' && season.longAgain === 'usual', JSON.stringify(season));
 }
@@ -2612,6 +2640,14 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   for (let i = 0; i < 8 && await page.$('.medal-ov'); i++) { await page.click('.medal-ov'); await page.waitForTimeout(1700); }
   await page.evaluate(() => AshtonkMania.Screens.go('profile')); await page.waitForTimeout(700);
   check('medals: the profile shows earned medals lit and the rest dimmed', await page.evaluate(() => document.querySelectorAll('.md-badge.on').length >= 6 && document.querySelectorAll('.md-badge:not(.on)').length > 0));
+  // (Neru's secrets: "???" till found; finding one — "zako" said back to her — unlocks its medal, once)
+  const secret = await page.evaluate(() => ({ hidden: [...document.querySelectorAll('.md-badge.secret')].length, named: [...document.querySelectorAll('.md-badge')].some(b => /Zako~/.test(b.textContent)) }));
+  await page.evaluate(() => AshtonkMania.Screens.go('home')); await page.waitForTimeout(600);
+  await page.evaluate(() => { NeruEggs.found('zako'); NeruEggs.found('zako'); });
+  await page.waitForSelector('.medal-ov', { timeout: 5000 }).catch(() => {});
+  const egg = await page.evaluate(() => ({ text: (document.querySelector('.medal-ov') || {}).textContent || '', got: !!AshtonkMania.Medals.unlocked()['neru-zako'], queued: AshtonkMania.Medals.queue.length }));
+  for (let i = 0; i < 3 && await page.$('.medal-ov'); i++) { await page.click('.medal-ov'); await page.waitForTimeout(1700); }
+  check('medals: Neru\'s secrets show as "???" till found, and finding one unlocks its medal (once)', secret.hidden === 13 && !secret.named && /Zako~/.test(egg.text) && egg.got && egg.queued === 0, JSON.stringify({ secret, egg }));
 }
 
 // dangerous dialog buttons (red): a single press confirms, no holding

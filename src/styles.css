@@ -3939,6 +3939,7 @@ html.touch .ch-item.on .ch-x { display: grid; place-items: center; width: 26px; 
 .md-mini { display: grid; place-items: center; width: 56px; height: 56px; border: 3px solid hsl(var(--o-h) 10% 30%); border-radius: 50%; background: hsl(var(--o-h) 10% 15%); }
 .md-mini .i { width: 24px; height: 24px; opacity: .35; }
 .md-badge.on { color: #fff; }
+.md-badge.secret { opacity: .55; font-style: italic; }
 .md-badge.on .md-mini { border-color: #fff; background: #05262f; box-shadow: 0 0 14px rgba(102, 204, 255, .45); }
 .md-badge.on .md-mini .i { opacity: 1; color: #fff; }
 

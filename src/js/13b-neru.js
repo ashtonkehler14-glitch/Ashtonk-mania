@@ -2,22 +2,28 @@
  * Settings → Interface, otherwise neru.png / neru.webp / neru.gif / neru.jpg placed next to index.html (the
  * public/ folder). With no picture nothing is shown.
  * She's alive: she breathes, bobs to the music's beat (harder in kiai), leans towards the cursor, perks up when
- * hovered, and clicking her makes her hop — her excited face for a moment, and a few sparkles (tapped in time with the
- * music, eight beats running, she dances).
- * And a few things to find just by playing (NeruEggs): bored when left alone — then on her phone, then hugging her
- * knees, and sulking when you come back — in a huff when clicked over and over, cheering through a song's chorus,
- * sunglasses on when you keep the pointer on her, picked up and dropped, a headpat (hearts — then a huff, as if she
- * hadn't liked it), a taunt of her own typed back at her, a twirl when double-clicked, won over by a hundred clicks, dizzy when flung, shaken or circled round, dancing to a certain code, fishing when a pause goes on (click her and the fish on her line flops about), a glint off her sunglasses, a double take at her
- * own name (and peeking up when you search for it), the volume turned all the way up or down, songs skipped one after
- * another, and the small Neru on other screens in a huff too when clicked
- * over and over. Each screen's own picture of her stays as it is; a click there, now and then, gets a pose of her
- * own instead of her happy face: a dance after a full combo, a sulk after a poor play, a snicker after a fail, her
- * phone out while you pause, worried at a song far above
- * anything you've passed. And the time of year drifting around her — autumn leaves, snow, cherry blossom, fireflies on
- * a summer night, bubbles on a summer day (pop one), what falls settling at her feet, red dragonflies in September, bats at Halloween, hearts on Valentine's Day (and twice the snow at Christmas; on April Fools' Day
- * she's the other way round), stars twinkling at night (and a shooting star now and then), confetti a year on from your first play — a yawn after midnight, a cheer on New Year's Day and at a milestone play, a
- * cheer for five new songs or more, little z's when she's left alone at night, a sulk when you're back after a week away, a worried look after an hour's playing without a break, and her
- * sunglasses still on after an SS. */
+ * hovered, and clicking her makes her hop — her excited face for a moment, and a few sparkles.
+ * And things to find just by playing (NeruEggs) — each only pictures and motion, she never says anything:
+ * - on the main menu: bored when left alone, then on her phone, then hugging her knees (sulking when you come back,
+ *   nodding off at night); in a huff when clicked over and over, won over by a hundred clicks, a twirl when
+ *   double-clicked; cheering through a song's chorus; dancing when tapped in time with the music, or to a certain
+ *   code; sunglasses on when you keep the pointer on her (a glint off them); picked up and dropped, dizzy when flung,
+ *   shaken or circled round; a headpat (hearts — then a huff, as if she hadn't liked it); her own taunt typed back at
+ *   her; a double take at her own name; the volume turned all the way up or down; songs skipped one after another;
+ * - when she sees you: a yawn after midnight, a cheer on New Year's Day, a year on from your first play and at a
+ *   milestone play, a cheer for five new songs or more, a sulk when you're back after a week away, a worried look
+ *   after an hour's playing without a break; and from the plays since she last saw you, her sunglasses still on after
+ *   an SS, a snicker after three fails in a row, a wagging finger after a new best;
+ * - the time of year drifting around her: snow, cherry blossom, bubbles on summer days, fireflies on summer nights,
+ *   red dragonflies in September, autumn leaves, bats across a harvest moon at Halloween, hearts on Valentine's Day,
+ *   confetti a year on from your first play (what falls settling at her feet; pop a bubble); stars at night, and a
+ *   shooting star now and then; on April Fools' Day she's the other way round;
+ * - elsewhere: peeking up when her name's searched for; the small Neru on other screens keeps its own picture, but a
+ *   click there gets a pose of her own now and then — a dance after a full combo, a sulk after a poor play, a snicker
+ *   after a fail, her phone out while you pause, a wagging finger at an empty library, worried at a song far above
+ *   anything you've passed — fishing when a pause goes on (click her and the fish flops), a headpat, a huff too when
+ *   clicked over and over.
+ * Finding some unlocks secret medals (Medals' "Neru" group). */
 
 const NeruMascot = {
   FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
@@ -161,6 +167,7 @@ const NeruMascot = {
     }
     // (clicked twice, quickly: a twirl — once round — instead of a hop)
     const twirl = now - (this._lastClick || -1e9) < 330 && Settings.get('ui.animSpeed');
+    if (twirl) NeruEggs.found('twirl');
     this._lastClick = twirl ? -1e9 : now;
     this.el.classList.remove('hop', 'twirl'); void this.el.offsetWidth; this.el.classList.add(twirl ? 'twirl' : 'hop');
     UISounds.click();
@@ -342,6 +349,7 @@ const NeruCameo = {
         // (her happy face for a moment, whatever her mood — or the easter egg's pose, held a little longer)
         if (react && face.src !== react.src) { show(react); clearTimeout(el._back); el._back = setTimeout(() => show(face), react === happy ? 1600 : 2200); }
         if (pleased || (react !== happy && poke === this.EGG.fullCombo)) this.burst(el);
+        if (react !== happy && poke === this.EGG.fullCombo) NeruEggs.found('showoff');
       });
     });
     return el;
@@ -439,6 +447,7 @@ const NeruEggs = {
       for (const [ms, name] of this.IDLE_STAGES) if (away >= ms && M.has(name)) pose = name;
       if (!pose || (M._idle && M._idlePose === pose)) return;
       M._idle = true; M._idlePose = pose; M.show(pose);
+      if (pose === NeruCameo.EGG.aloneLongest) this.found('alone');
     }, 3000);
   },
   unwatchIdle() {
@@ -487,7 +496,10 @@ const NeruEggs = {
   // ── a hundred clicks on her in one visit to the main menu: whatever her mood, she gives up — her happy face, a
   // shower of hearts and sparkles
   HUNDRED: 100,
+  /** One of her secrets found: its medal (Medals.egg), the first time. */
+  found(what) { if (typeof Medals !== 'undefined') Medals.egg(`neru-${what}`); },
   hundred() {
+    this.found('hundred');
     const M = NeruMascot;
     M._huffUntil = M._happyUntil = M._actUntil = 0; clearTimeout(M._back); this.stopStare();
     if (M.el) M.el.classList.remove('huff', 'shake');
@@ -565,12 +577,13 @@ const NeruEggs = {
       if (e.code !== this.CODE[at]) { at = e.code === this.CODE[0] ? 1 : 0; return; }
       at++;
       if (at > 8) { e.preventDefault(); e.stopImmediatePropagation(); }
-      if (at === this.CODE.length) { at = 0; this.dance(); }
+      if (at === this.CODE.length) { at = 0; this.dance(); this.found('code'); }
     }, true);
   },
   // ── "zako" typed on the main menu — her song's taunt — and she laughs, then wags her finger at you, a heart and all
   WORD: ['KeyZ', 'KeyA', 'KeyK', 'KeyO'],
   zako() {
+    this.found('zako');
     const M = NeruMascot;
     if (!this.act('mock', 1400, { hop: false })) return;
     UISounds.play('click-short');
@@ -617,7 +630,7 @@ const NeruEggs = {
     if (this._onBeat) this._tapBeat = n;
     // (dancing already: on the beat, she keeps going — and the count starts over for the next time)
     if (this.dancing()) { this._taps = 0; if (this._onBeat) this.keepDancing(len); return; }
-    if (this._taps >= this.TAPS) { this._taps = 0; this.dance({ ms: Math.max(2400, len * 6) }); }
+    if (this._taps >= this.TAPS) { this._taps = 0; this.dance({ ms: Math.max(2400, len * 6) }); this.found('beat'); }
   },
   /** Whether she's dancing now (to the code, or to the beat). */
   dancing() { const now = performance.now(); return now < (this._danceUntil || 0) && now < (NeruMascot._actUntil || 0); },
@@ -655,6 +668,7 @@ const NeruEggs = {
     const el = NeruCameo.make('list', 'nc-peek');
     if (!el) return;
     document.body.append(el);
+    this.found('peek');
     const up = [{ transform: 'translateY(105%)' }, { transform: 'translateY(38%)', offset: 0.55 }, { transform: 'translateY(42%)' }];
     let done = false;
     const away = () => {
@@ -710,19 +724,36 @@ const NeruEggs = {
         clearTimeout(this._greetT);
         this._greetT = setTimeout(() => { if (M.img && M.img.dataset.pose === NeruCameo.EGG.back) { M._actUntil = 0; this.act('happy', 1500, { sparkle: true }); } }, 2600);
       } else if (!this.act('tired', 2400, { hop: false })) this._greeted = false;
+      else this.found('night');
     }, 1600);
   },
 
   // ── an SS since she last saw you: back on the main menu, her sunglasses are still on for a while, catching the light
   /** The plays from `from` on (the ones since she last saw you): one an SS, and on go the sunglasses. */
   shades(from) {
-    const perfect = ScoreManager.scores.slice(from).some(sc => sc.passed && sc.own !== false && ['XH', 'X', 'SS'].includes(sc.grade));
-    if (!perfect) return;
+    const since = ScoreManager.scores.slice(from).filter(sc => sc.own !== false);
+    const perfect = since.some(sc => sc.passed && ['XH', 'X', 'SS'].includes(sc.grade));
+    if (!perfect) { this.remember(since); return; }
     clearTimeout(this._mileT);
     this._mileT = setTimeout(() => {
       const M = NeruMascot;
       if (!this.act('cool', 6000, { hop: false })) return;
       for (const t of [700, 3200]) setTimeout(() => { if (M.img && M.img.dataset.pose === 'cool') this.glint(M.body, M.img); }, t);
+    }, 1200);
+  },
+
+  // ── she saw that: back on the main menu after three fails in a row (and no pass since), a snicker; after a new
+  // personal best at an S or better, a wag of her finger — not bad, not that she'd say so
+  /** The plays since she last saw you (`since`, oldest first). */
+  remember(since) {
+    if (!since.length) return;
+    const fails = since.length >= 3 && since.slice(-3).every(sc => !sc.passed);
+    const best = !fails && since.some(sc => sc.passed && sc.isPB && ['SH', 'S'].includes(sc.grade));
+    if (!fails && !best) return;
+    clearTimeout(this._mileT);
+    this._mileT = setTimeout(() => {
+      if (fails) { if (this.act(NeruCameo.EGG.failed, 1800, { hop: false })) UISounds.play('click-short'); }
+      else this.act('point', 1800, { sparkle: true });
     }, 1200);
   },
 
@@ -840,6 +871,14 @@ const NeruEggs = {
     UISounds.play('click-short');
     p.animate([{ scale: 1, opacity: 1 }, { scale: 1.6, opacity: 0 }], { duration: 180, easing: 'ease-out', fill: 'forwards' }).onfinish = () => p.remove();
   },
+  /** A time of year seen around her (kept, as a setting: on every device of yours) — four different, and a medal. */
+  SEASONS: ['snow', 'petals', 'bubbles', 'fireflies', 'dragonflies', 'leaves', 'bats', 'hearts'],
+  seen(kind) {
+    if (!this.SEASONS.includes(kind)) return;
+    const had = Settings.get('neru.seasons') || [];
+    if (!had.includes(kind)) Settings.set('neru.seasons', had.concat(kind));
+    if (new Set((Settings.get('neru.seasons') || []).filter(k => this.SEASONS.includes(k))).size >= 4) this.found('seasons');
+  },
   /** Night (10pm till 5, by the clock here): stars come out. */
   night(d = this.today()) { const hr = d.getHours(); return hr >= 22 || hr < 5; },
   /** Stars twinkling high up around the main menu's Neru (`el`) — far off, behind whatever the time of year brings —
@@ -898,6 +937,8 @@ const NeruEggs = {
     const ground = ['leaves', 'petals', 'snow'].includes(kind) ? h(`span.neru-ground.nd-${kind}`, { 'aria-hidden': 'true' }) : null;
     el.prepend(back); el.append(front);
     if (ground) el.append(ground);
+    // (seen, once it's been there a while — not a glimpse)
+    setTimeout(() => { if (back.isConnected) this.seen(kind); }, 20000);
     const r = ([a, b]) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
     let n = 0;
     const box = this.measure(back); // (the layer in front is the same size)
@@ -1005,6 +1046,7 @@ const NeruEggs = {
   /** Where the fish on her line is in neru-fishing.png (fractions of the picture), and its mouth, where it hangs. */
   FISH: { l: 0.866, t: 0.636, r: 0.996, b: 0.906, mx: 0.935, my: 0.642, tx: 0.93, ty: 0.9 },
   flopFish(box, img) {
+    this.found('fish');
     UISounds.play('check-on');
     if (!box || !img || img._flopEnd || !Settings.get('ui.animSpeed') || !img.offsetWidth) return;
     if (!(CSS.supports('mask-composite', 'exclude') || CSS.supports('-webkit-mask-composite', 'xor'))) return;
@@ -1188,7 +1230,7 @@ const NeruEggs = {
       // (dizzy, from a fling or a shake: a blank, dazed look, stars going round her head)
       const dizzy = f.dizzy && M.has('huh'), ms = dizzy ? 2400 : 1400;
       M.show(dizzy ? 'huh' : M.has('sassy') ? 'sassy' : null, { pop: false });
-      if (dizzy) this.daze();
+      if (dizzy) { this.daze(); this.found('dizzy'); }
       M._happyUntil = now + ms;
       clearTimeout(M._back); M._back = setTimeout(() => { if (!M.busy()) M.show(M.rest()); }, ms);
       return null;
@@ -1216,6 +1258,7 @@ const NeruEggs = {
     if (Math.abs(t.sum) >= 6 * Math.PI) { this._turn = null; this.dizzy(); }
   },
   dizzy() {
+    this.found('dizzy');
     const M = NeruMascot;
     if (!M.has('huh') || !this.act('huh', 2400, { hop: false })) return;
     if (M.el) { M.el.classList.remove('wobble'); void M.el.offsetWidth; M.el.classList.add('wobble'); setTimeout(() => { if (M.el) M.el.classList.remove('wobble'); }, 2400); }
@@ -1252,7 +1295,7 @@ const NeruEggs = {
     const M = NeruMascot;
     if (on) {
       if (!M.img || M._drag || M._drop || this._patting) return;
-      this._patting = true; this._patFrom = performance.now();
+      this._patting = true; this._patFrom = performance.now(); this.found('pat');
       this.stopStare(); clearTimeout(M._back); clearTimeout(this._actT); M._huffUntil = M._happyUntil = 0; M._idle = false; M._idlePose = null;
       if (M.el) M.el.classList.remove('huff', 'shake', 'hop');
       M._actUntil = Infinity; // (busy for as long as it goes on)

@@ -22,6 +22,20 @@ const MEDALS = [
   { id: 'plays1000', group: 'Dedication', icon: 'play', name: 'Devoted', desc: 'Play 1,000 times.', count: 1000 },
   { id: 'multi', group: 'Hush-Hush', icon: 'multi', name: 'Better Together', desc: 'Finish a multiplayer match.', ctx: 'mp' },
   { id: 'daily', group: 'Hush-Hush', icon: 'calendar', name: 'Daily Dose', desc: 'Set a score in the daily challenge.', ctx: 'daily' },
+  // Neru's secrets: each unlocked by finding one of her easter eggs (NeruEggs.found) — "???" on the profile till then
+  ...[['code', 'keyboard', 'Up Up Down Down', 'Get Neru dancing with a certain code.'],
+    ['beat', 'music', 'On Beat', 'Tap along to the menu music until Neru dances.'],
+    ['pat', 'heart', 'Headpat', 'Give Neru a headpat. She definitely didn\'t like it.'],
+    ['dizzy', 'star', 'Round and Round', 'Make Neru dizzy.'],
+    ['zako', 'chat', 'Zako~', 'Say her line back to her.'],
+    ['hundred', 'heart-fill', 'Persistence', 'Click Neru a hundred times in one go.'],
+    ['alone', 'clock', 'Left Alone', 'Leave Neru alone until she\'s hugging her knees.'],
+    ['fish', 'magic', 'Gone Fishing', 'Pause so long she goes fishing — then bother the fish.'],
+    ['peek', 'eye', 'You Called?', 'Search for her name.'],
+    ['twirl', 'retry', 'Twirl', 'Double-click Neru.'],
+    ['night', 'ghost', 'Night Owl', 'Catch Neru yawning after midnight.'],
+    ['showoff', 'target', 'Show-off', 'Click Neru after a full combo.'],
+    ['seasons', 'sync', 'Four Seasons', 'See four different times of year around Neru.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),
 ];
 
 const Medals = {
@@ -33,7 +47,7 @@ const Medals = {
     if (!score) return;
     const got = { ...this.unlocked() }, fresh = [], plays = ScoreManager.scores.length;
     for (const m of MEDALS) {
-      if (got[m.id]) continue;
+      if (got[m.id] || m.egg) continue;
       const ok = m.count ? plays >= m.count : m.ctx ? !!ctx[m.ctx] && !(score.mods || []).includes('AT') : m.test(score);
       if (ok) { got[m.id] = Date.now(); fresh.push(m); }
     }
@@ -47,12 +61,20 @@ const Medals = {
     if (Settings.get('medals.backfilled')) return;
     const got = { ...this.unlocked() }, plays = ScoreManager.scores.length;
     for (const m of MEDALS) {
-      if (got[m.id] || m.ctx) continue;
+      if (got[m.id] || m.ctx || m.egg) continue;
       const s = m.count ? (plays >= m.count ? ScoreManager.scores[m.count - 1] : null) : ScoreManager.scores.find(x => m.test(x));
       if (s) got[m.id] = s.date || Date.now();
     }
     Settings.set('medals.unlocked', got);
     Settings.set('medals.backfilled', true);
+  },
+  /** One of Neru's secrets found (`id`, a medal with `egg`): unlocked, once, with the medal animation. */
+  egg(id) {
+    const m = MEDALS.find(x => x.id === id && x.egg);
+    if (!m || this.has(id)) return;
+    Settings.set('medals.unlocked', { ...this.unlocked(), [id]: Date.now() });
+    this.queue.push(m);
+    this.later();
   },
   /** Show the queue one at a time, never over gameplay (lazer holds them for the results screen). */
   later() {
@@ -80,6 +102,8 @@ const Medals = {
   section(got = this.unlocked()) {
     const groups = [...new Set(MEDALS.map(m => m.group))];
     return groups.map(g => h('div.md-group', h('h4', g), h('div.md-grid', ...MEDALS.filter(m => m.group === g).map(m =>
+      // (one of Neru's secrets not found yet: only that there is one)
+      m.egg && !got[m.id] ? h('div.md-badge.secret', { title: '??? — A secret. Keep an eye on Neru.' }, h('div.md-mini', icon('question')), h('span', '???')) :
       h(`div.md-badge${got[m.id] ? '.on' : ''}`, { title: `${m.name} — ${m.desc}${got[m.id] ? `\nUnlocked ${new Date(got[m.id]).toLocaleDateString()}` : ''}` },
         h('div.md-mini', icon(m.icon)), h('span', m.name))))));
   },
