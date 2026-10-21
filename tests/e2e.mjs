@@ -286,6 +286,36 @@ await shot('01-home-empty');
   });
   check('Neru on April Fools\' Day: the other way round, and a click gets a laugh; on Valentine\'s Day a click brings hearts',
     days.mirrored && days.foolsClick === 'mock' && days.notMirrored && days.valClick === 'happy' && days.hearts && !days.after, JSON.stringify(days));
+  // night: stars twinkling around her (not in the daytime, nor with the animations off); and a headpat for a small Neru
+  // on another screen too — held, her happy face and hearts; let go, a huff and no click's hop
+  const night = await page.evaluate(async () => {
+    const E = NeruEggs, M = NeruMascot, S = AshtonkMania.Settings, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
+    const slow = document.documentElement.classList.contains('slow'); document.documentElement.classList.remove('slow');
+    out.when = [E.night(new Date(2026, 9, 21, 23)), E.night(new Date(2026, 9, 21, 3)), E.night(new Date(2026, 9, 21, 12))].join();
+    for (const x of M.el.querySelectorAll('.neru-sky')) x.remove();
+    E.twinkle(M.el); await wait(1600);
+    out.stars = M.el.querySelectorAll('.neru-sky .nd-star').length;
+    for (const x of M.el.querySelectorAll('.neru-sky')) x.remove();
+    const anim = S.get('ui.animSpeed'); S.set('ui.animSpeed', 0); E.twinkle(M.el); S.set('ui.animSpeed', anim);
+    out.offNone = !M.el.querySelector('.neru-sky');
+    const c = AshtonkMania.NeruCameo.make('perfect', 'nc-results');
+    Object.assign(c.style, { position: 'fixed', right: '20px', bottom: '20px' }); document.body.append(c);
+    for (let i = 0; i < 40 && !c.querySelector('.nc-img'); i++) await wait(100);
+    await wait(900);
+    const face = () => c.querySelector('.nc-img').src.split('/').pop();
+    out.before = face();
+    c.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 11 })); await wait(1500);
+    out.pat = `${face()}|${c.querySelectorAll('.neru-heart').length > 0 || document.documentElement.classList.contains('slow')}`;
+    window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 11 })); c.click(); await wait(350);
+    out.after = `${face()}|${c.classList.contains('hop')}`;
+    await wait(1600); out.back = face();
+    c.remove();
+    if (slow) document.documentElement.classList.add('slow');
+    return out;
+  });
+  check('Neru at night: stars twinkle around her (10pm till 5; not with the animations off)', night.when === 'true,true,false' && night.stars > 0 && night.offNone, JSON.stringify(night));
+  check('…and a small Neru on another screen takes a headpat too: happy, hearts, then a huff (no hop), and back to her picture',
+    night.pat === 'neru-happy.png|true' && night.after === 'neru-sassy.png|false' && night.back === night.before, JSON.stringify(night));
   // the time of year around her on the main menu: leaves in autumn, snow in winter, blossom in spring, fireflies on a
   // summer night, bats at Halloween (the other way round in the south); a few at a time, never in the way of a click;
   // after midnight a yawn, and on New Year's Day a cheer

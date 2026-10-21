@@ -1714,6 +1714,10 @@ div.res-calib .i { color: var(--good); }
 .nd-snow.nd-front .nd { filter: blur(1.2px); }
 .nd-fireflies .nd-dot { box-shadow: 0 0 6px 2px rgba(214, 255, 120, .75), 0 0 16px 5px rgba(214, 255, 120, .3); }
 .nd-fireflies .nd, .nd-fireflies.nd-front .nd { filter: none; }
+/* (night: stars high up around her, far off — behind the time of year's drift) */
+.neru-sky { position: absolute; left: -30%; right: -45%; top: -6%; bottom: 40%; pointer-events: none; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 10%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 10%, #000 70%, transparent); }
+.nd-star { position: absolute; }
+.nd-star svg { display: block; width: 100%; height: 100%; fill: #fff6dc; filter: drop-shadow(0 0 3px rgba(255, 244, 210, .9)) drop-shadow(0 0 8px rgba(190, 200, 255, .45)); }
 /* (April Fools' Day: the other way round) */
 .neru.nm-fools .neru-body { scale: -1 1; }
 .nd-hearts .nd svg { filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, .8)) drop-shadow(0 1px 2px rgba(0, 0, 0, .3)); }
@@ -14957,7 +14961,7 @@ Bus.on('library:changed', () => MenuMusic.removed());
  * own instead of her happy face: a dance after a full combo, a snicker after a fail, worried at a song far above
  * anything you've passed. And the time of year drifting around her — autumn leaves, snow, cherry blossom, fireflies on
  * a summer night, bats at Halloween, hearts on Valentine's Day (and twice the snow at Christmas; on April Fools' Day
- * she's the other way round) — a yawn after midnight, a cheer on New Year's Day and at a milestone play, a
+ * she's the other way round), stars twinkling at night — a yawn after midnight, a cheer on New Year's Day and at a milestone play, a
  * sulk when you're back after a week away, a worried look after an hour's playing without a break, and her
  * sunglasses still on after an SS. */
 
@@ -15015,6 +15019,7 @@ const NeruMascot = {
       NeruEggs.greet();
       NeruEggs.milestone();
       NeruEggs.breather();
+      if (NeruEggs.night()) NeruEggs.twinkle(el);
       NeruEggs.drift(el);
     });
     return el;
@@ -15222,8 +15227,39 @@ const NeruCameo = {
       setTimeout(() => { if (el.isConnected && pleased) this.burst(el); }, anim ? delay : 0);
       // (her sunglasses on — an SS — catch the light now and then)
       if (pics.poses && pics.poses.cool) NeruEggs.glintLoop(img.parentElement, img, () => el.isConnected && img.getAttribute('src') === pics.poses.cool);
+      // (pressed and held: a headpat, like the main menu's Neru — her happy face, hearts; let go, a huff, and no click
+      // besides)
+      el.addEventListener('pointerdown', e => {
+        if (e.button || el._patT || el._patting) return;
+        const up = () => {
+          clearTimeout(el._patT); el._patT = null;
+          window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+          if (!el._patting) return;
+          el._patting = false; clearInterval(el._hearts);
+          el._noClick = true; setTimeout(() => { el._noClick = false; }, 400);
+          clearTimeout(el._back);
+          if (performance.now() - el._patFrom > 900 && pics.poses && pics.poses.sassy) {
+            show(this.pose(pics, 'sassy'));
+            el.classList.remove('hop', 'shake'); void el.offsetWidth; el.classList.add('shake');
+            UISounds.play('click-short');
+            el._back = setTimeout(() => { el.classList.remove('shake'); show(face); }, 1500);
+          } else show(face);
+        };
+        window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+        el._patT = setTimeout(() => {
+          el._patT = null;
+          if (!el.isConnected || performance.now() < (el._huffUntil || 0)) return;
+          el._patting = true; el._patFrom = performance.now(); clearTimeout(el._back);
+          if (happy) show(happy);
+          UISounds.play('check-on');
+          const heart = () => { if (!el.isConnected) { clearInterval(el._hearts); return; } NeruEggs.heart(el, img); };
+          heart(); el._hearts = setInterval(heart, 230);
+        }, NeruEggs.PAT_MS);
+      });
+      el.addEventListener('contextmenu', e => e.preventDefault());
       el.addEventListener('click', e => {
         e.stopPropagation();
+        if (el._noClick) { el._noClick = false; return; } // (let go after a headpat)
         const now = performance.now();
         // (in a huff — clicked over and over, like the main menu's Neru — a click only gets a shake of her head)
         if (now < (el._huffUntil || 0)) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); UISounds.play('click-short'); return; }
@@ -15614,6 +15650,37 @@ const NeruEggs = {
     if (kind === 'bats') return `<svg viewBox="0 0 32 16"><path fill="${c}" d="M16 5.2c.7-1.6 1.4-2.6 1.4-2.6l.6 2.4c3.4-2.6 8.6-3.8 13-2.4-1.8 1-3 2.8-3.4 5.4-1.8-1.2-4-1.2-5.6.4-1-1.2-2.8-1.4-4-.2-.4 1.4-1.2 2.6-2 3.4-.8-.8-1.6-2-2-3.4-1.2-1.2-3-1-4 .2-1.6-1.6-3.8-1.6-5.6-.4C4 5.6 2.8 3.8 1 2.8c4.4-1.4 9.6-.2 13 2.4l.6-2.4s.7 1 1.4 2.6z"/></svg>`;
     return ''; // (snow, fireflies: a soft dot — its colour from CSS)
   },
+  /** Night (10pm till 5, by the clock here): stars come out. */
+  night(d = this.today()) { const hr = d.getHours(); return hr >= 22 || hr < 5; },
+  /** Stars twinkling high up around the main menu's Neru (`el`) — far off, behind whatever the time of year brings —
+   *  for as long as she's there. */
+  twinkle(el) {
+    if (!el) return;
+    const html = document.documentElement, still = matchMedia('(prefers-reduced-motion: reduce)');
+    const quiet = () => !Settings.get('ui.animSpeed') || still.matches || html.classList.contains('slow') || html.classList.contains('perf');
+    if (quiet()) return;
+    const sky = h('span.neru-sky', { 'aria-hidden': 'true' });
+    el.prepend(sky);
+    let n = 0;
+    const one = () => {
+      const W = sky.offsetWidth, H = sky.offsetHeight;
+      if (!W || !H) return;
+      const st = h('span.nd-star'), sz = 13 + Math.random() * 9;
+      st.innerHTML = '<svg viewBox="0 0 20 20"><path d="M10 0l2.6 7.4L20 10l-7.4 2.6L10 20l-2.6-7.4L0 10l7.4-2.6z"/></svg>';
+      // (in the open sky beside her — to her right, or a few to her left — not behind her, where they'd never be seen)
+      const x = Math.random() < 0.72 ? 0.75 + Math.random() * 0.23 : 0.02 + Math.random() * 0.13;
+      Object.assign(st.style, { left: `${W * x}px`, top: `${H * (0.08 + Math.random() * 0.8)}px`, width: `${sz}px`, height: `${sz}px` });
+      sky.append(st); n++;
+      st.animate([{ opacity: 0, transform: 'translate(-50%, -50%) scale(.3) rotate(0deg)' }, { opacity: 1, transform: 'translate(-50%, -50%) scale(1) rotate(45deg)', offset: 0.5 },
+        { opacity: 0, transform: 'translate(-50%, -50%) scale(.3) rotate(90deg)' }], { duration: 1800 + Math.random() * 1400, easing: 'ease-in-out' }).onfinish = () => { st.remove(); n--; };
+    };
+    const go = () => {
+      if (!el.isConnected || !sky.isConnected) { sky.remove(); return; }
+      setTimeout(go, 350 + Math.random() * 650);
+      if (!document.hidden && n < 8 && !quiet()) one();
+    };
+    setTimeout(go, 500);
+  },
   /** Starts the time of year drifting around the main menu's Neru (`el`), for as long as she's there. */
   drift(el, kind = this.seasonOf()) {
     const K = kind === 'snow' && this.christmas() ? { ...this.DRIFT.snow, every: [150, 360], most: 34 } : this.DRIFT[kind];
@@ -15915,18 +15982,18 @@ const NeruEggs = {
       UISounds.play('click-short');
     } else M.show(M.rest(), { pop: false });
   },
-  /** A little heart floating up from her head (and fading). */
-  heart() {
-    const M = NeruMascot;
-    if (!M.el || !M.img || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
-    const er = M.el.getBoundingClientRect(), ir = M.img.getBoundingClientRect(), k = M.el.offsetWidth ? er.width / M.el.offsetWidth : 1;
+  /** A little heart floating up beside her face (and fading): the main menu's Neru, or `box` with her picture `img` —
+   *  a small Neru on another screen. */
+  heart(box = NeruMascot.el, img = NeruMascot.img) {
+    if (!box || !img || !box.isConnected || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
+    const er = box.getBoundingClientRect(), ir = img.getBoundingClientRect(), k = box.offsetWidth ? er.width / box.offsetWidth : 1;
     // (from beside her face, not the top of her head: on the main menu that's under its bar of buttons)
     const side = Math.random() < 0.5 ? -1 : 1, x = (ir.left - er.left + ir.width * (0.5 + side * (0.2 + Math.random() * 0.22))) / k, y = (ir.top - er.top + ir.height * (0.2 + Math.random() * 0.12)) / k;
     const c = ['#ff6fa8', '#ff8fc0', '#ff4d8d'][Math.floor(Math.random() * 3)], sz = 20 + Math.random() * 9;
     const el = h('span.neru-heart');
     el.innerHTML = `<svg viewBox="0 0 24 22"><path fill="${c}" d="M12 21.4l-1.4-1.3C5.4 15.4 2 12.3 2 8.5 2 5.4 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1C13.1 3.8 14.8 3 16.5 3 19.6 3 22 5.4 22 8.5c0 3.8-3.4 6.9-8.6 11.6L12 21.4z"/></svg>`;
     Object.assign(el.style, { left: `${x}px`, top: `${y}px`, width: `${sz}px`, height: `${sz}px` });
-    M.el.append(el);
+    box.append(el);
     const dx = side * (8 + Math.random() * 22), up = 40 + Math.random() * 30, tilt = side * (5 + Math.random() * 15);
     el.animate([{ transform: 'translate(-50%, -50%) scale(.3)', opacity: 0 },
       { transform: `translate(calc(-50% + ${dx * 0.3}px), calc(-50% - ${up * 0.3}px)) scale(1.1) rotate(${tilt * 0.5}deg)`, opacity: 1, offset: 0.25 },
@@ -29243,7 +29310,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '16ee9934d563';
+const APP_BUILD = '152f93c0408d';
 
 const App = {
   lastReport: null,
