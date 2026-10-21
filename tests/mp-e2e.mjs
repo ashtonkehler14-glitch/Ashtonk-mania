@@ -114,6 +114,16 @@ await shot(alice, 'mp-lobby');
   alice.off('request', count);
   check('the lounge stops asking for the room list while the game is in the background, and starts again after', hidden === 0 && n > 0, `${hidden} hidden, ${n - hidden} after`);
 }
+// alone in a room a while, nobody joining: Neru peeks up, bored (once a room)
+{
+  await alice.evaluate(() => { NeruEggs.ROOM_ALONE_MS = 400; });
+  await createRoom(alice, false, false);
+  await alice.waitForFunction(() => document.querySelector('.nc-peek .nc-img'), null, { timeout: 5000 }).catch(() => {});
+  const pose = await alice.evaluate(() => ((document.querySelector('.nc-peek .nc-img') || {}).src || '').split('/').pop());
+  await alice.evaluate(() => { NeruEggs.ROOM_ALONE_MS = 60000; AshtonkMania.Multiplayer.leave(); document.querySelectorAll('.nc-peek').forEach(x => x.remove()); });
+  await alice.waitForSelector('.mp-create', { timeout: 10000 });
+  check('alone in a room a while: Neru peeks up, bored', pose === 'neru-bored.png', pose);
+}
 // lazer's chat overlay: #lobby reaches everyone online
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Chat && document.querySelector('#toolbar [data-ov="chat"]') && window.AshtonkMania.Presence && AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1, null, { timeout: 10000 })));
 await alice.keyboard.press('F8');

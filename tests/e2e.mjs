@@ -917,6 +917,20 @@ await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.val
   });
   check('a multiplayer match decided: Neru peeks up, sunglasses on for a win, laughing at a loss (once a match)', mo.won === 'neru-cool.png' && mo.lost === 'neru-mock.png' && mo.again === null, JSON.stringify(mo));
 }
+{
+  // one of her songs just added: she peeks up, delighted (once); alone in a room a while: a bored peek (once a room)
+  const ns = await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms)), pk = () => ((document.querySelector('.nc-peek .nc-img') || {}).src || '').split('/').pop() || null;
+    const fake = { id: 'set-neru-test', title: 'Zako', artist: 'Akita Neru', added: Date.now(), maps: [], mapIds: [] };
+    AshtonkMania.BeatmapManager.sets.push(fake);
+    try {
+      NeruEggs.newSet(); await wait(1400); const added = pk(); await wait(3600);
+      NeruEggs.newSet(); await wait(1400); const again = pk();
+      return { added, again };
+    } finally { AshtonkMania.BeatmapManager.sets.splice(AshtonkMania.BeatmapManager.sets.indexOf(fake), 1); }
+  });
+  check('one of Neru\'s songs just added to the library: she peeks up, delighted (once)', ns.added === 'neru-happy.png' && ns.again === null, JSON.stringify(ns));
+}
 check('one of Neru\'s songs — her name (or ネル) in its title, artist or source — and not just any with "neru" in it', await page.evaluate(() =>
   NeruEggs.herSong({ title: 'Zako', artist: 'Akita Neru' }) && NeruEggs.herSong({ title: 'ネルの歌', artist: 'x' }) && !NeruEggs.herSong({ title: 'Nerual Network', artist: 'x' }) && !NeruEggs.herSong({ title: 'Test', artist: 'Suite' })));
 check('sorting by difficulty: each difficulty its own panel, easiest first (lazer)', await page.evaluate(() => { const r = AshtonkMania.SongSelect.results; return r.length === 4 && r.every(x => x.std && x.maps.length === 1) && r.every((x, i) => !i || r[i - 1].maps[0].stars <= x.maps[0].stars) && document.querySelectorAll('.std-panel').length === 4; }));

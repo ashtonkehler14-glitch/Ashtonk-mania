@@ -423,7 +423,8 @@ const NeruCameo = {
 Bus.on('music:changed', m => NeruEggs.skipped(m));
 Bus.on('screen:changed', () => { NeruEggs._selPeeked = false; NeruEggs.selectIdle(); });
 for (const ev of ['pointerdown', 'keydown', 'wheel']) addEventListener(ev, () => { if (Screens.currentName === 'songselect') NeruEggs.selectIdle(); }, { capture: true, passive: true });
-Bus.on('library:changed', () => { if (NeruMascot.img) NeruEggs.newSongs(); });
+Bus.on('library:changed', () => { if (NeruMascot.img) NeruEggs.newSongs(); NeruEggs.newSet(); });
+Bus.on('mp:changed', () => NeruEggs.roomAlone());
 document.addEventListener('input', e => { if (e.target && e.target.matches && e.target.matches('input[type="search"]')) NeruEggs.searched(e.target); });
 // (a new name with Teto in it — or without any more: Neru comes back on, or goes, and she's herself again or your picture)
 Bus.on('profile:changed', () => {
@@ -813,6 +814,31 @@ const NeruEggs = {
     if (id && this._matchSeen === id) return;
     this._matchSeen = id;
     setTimeout(() => this.peek(how === 'won' ? 'perfect' : how === 'lost' ? 'failed' : 'list', { found: false }), 900);
+  },
+  // ── alone in a multiplayer room for a minute, nobody joining: she peeks up, bored — keeping you company (once a room)
+  ROOM_ALONE_MS: 60000,
+  roomAlone() {
+    const r = typeof Multiplayer !== 'undefined' && Multiplayer.inRoom() ? Multiplayer.room : null;
+    const alone = !!r && !r.qp && !r.rp && r.state === 'lobby' && r.players.length === 1;
+    if (!alone) { clearTimeout(this._aloneT); this._aloneT = 0; return; }
+    if (this._aloneT || (this._aloneSeen ||= new Set()).has(r.code)) return;
+    this._aloneT = setTimeout(() => {
+      this._aloneT = 0;
+      const now = Multiplayer.inRoom() && Multiplayer.room;
+      if (!now || now.code !== r.code || now.players.length !== 1 || Screens.currentName !== 'multiplayer') return;
+      this._aloneSeen.add(r.code);
+      this.peek('waiting', { found: false });
+    }, this.ROOM_ALONE_MS);
+  },
+  // ── one of her songs just added to the library: she peeks up, delighted (once a beatmap set)
+  /** (sets added since the game started are new: one imported again keeps when it was first added) */
+  NEW_SINCE: Date.now(),
+  newSet() {
+    if (typeof BeatmapManager === 'undefined' || !BeatmapManager.sets) return;
+    const told = this._toldSets ||= new Set();
+    const fresh = BeatmapManager.sets.filter(x => (x.added || 0) >= this.NEW_SINCE && !told.has(x.id));
+    for (const x of fresh) told.add(x.id);
+    if (fresh.some(x => this.herSong({ title: x.title, artist: x.artist, setId: x.id }))) setTimeout(() => this.peek('herSongPass', { found: false }), 600);
   },
   // ── her name said in the chat: she peeks up to see who's talking about her (her taunt said back: she laughs)
   mentioned(text) {
