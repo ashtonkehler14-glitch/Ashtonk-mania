@@ -779,7 +779,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.21', title: 'Neru update', sections: [
-    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Secret Neru medals to collect', 'Her pictures are sharp again', 'Teto in your name, spelled any way? Neru has thoughts about that'] },
+    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Secret Neru medals to collect', 'Her pictures are sharp again', 'Teto in your name, spelled any way? Neru has thoughts about that', 'Neru on medals, What\'s new and the first-run setup', 'Don\'t keep her waiting in song select', 'Say her name in the chat', 'Read the settings to the very end'] },
     { icon: 'multi', title: 'Multiplayer', items: ['When a room can\'t be created, the lounge says why'] },
     { icon: 'trophy', title: 'Online', items: ['Your plays count online straight away', 'Medals: only the hard ones are left (and Neru\'s secrets)'] },
   ] },
@@ -869,6 +869,9 @@ const WhatsNew = {
           h('ul', ...sec.items.map(t => h('li', t)))))))),
       h('div.cl-foot', h('button.btn.primary', { onclick: () => o.close() }, 'Let\'s go!')));
     const o = makeOverlay(el);
+    // (Neru beside it, on her phone — reading it too; behind the dialog, so she never covers a line of it)
+    const neru = typeof NeruCameo !== 'undefined' && NeruCameo.make('news', 'nc-news', { delay: 0 });
+    if (neru) o.el.insertBefore(neru, el);
     UISounds.play('check-on');
     return o;
   },

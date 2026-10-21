@@ -94,6 +94,9 @@ const SettingsPanel = {
     }
     if (!bySec.size) scroll.append(h('div.empty', 'No settings match your search.'));
     scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION} · ${WhatsNew.latest()}`, h('button.btn.sm.ghost', { onclick: () => WhatsNew.show() }, icon('sparkle'), 'What\'s new')));
+    // (and past everything, at the very bottom: Neru, fast asleep at her desk — NeruEggs.finePrint)
+    const neru = !q && typeof NeruCameo !== 'undefined' ? NeruCameo.make('asleep', 'nc-fine', { delay: 0 }) : null;
+    if (neru) { scroll.append(neru); NeruEggs.finePrint(neru, scroll); }
     clearEl(this.nav).append(...[...bySec.keys()].map(sec => h('button.sp-nb', { 'aria-label': sec, dataset: { sec }, onclick: () => { UISounds.click(); this.scrollTo(sec); } }, h('span.sp-nb-ind'), icon(SECTION_ICONS[sec] || 'gear'), h('span', sec.toLowerCase()))));
     this.syncNav();
   },

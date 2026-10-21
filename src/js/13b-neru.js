@@ -227,7 +227,7 @@ const NeruMascot = {
  *  Screens place her with a class of their own (`.nc-results`, `.nc-pause`…). */
 const NeruCameo = {
   /** The moods she's pleased about (not that she'd say so): sparkles. */
-  HAPPY: new Set(['perfect', 'great']),
+  HAPPY: new Set(['perfect', 'great', 'medal', 'secret', 'allFound']),
   /** Her pose on each screen (her shrug, neru.png, if it isn't there) — all from the song's video: sunglasses on for a
    *  perfect play, a wagging finger at an S, a wink for an A or B, worn out at a C or D, laughing at a fail; bored at her
    *  desk while you pause, fists up — "I'm not cheering for you" — while a song loads, hand on hip at an empty library,
@@ -235,6 +235,13 @@ const NeruCameo = {
   POSE: {
     perfect: 'cool', great: 'point', okay: 'wink', bad: 'tired', failed: 'mock',
     paused: 'bored', loading: 'cheer', empty: 'sassy', list: 'huh', boot: 'fishing',
+    // (a medal: a wag of her finger at a hard one — not bad — and a wink when it's one of her own secrets you found;
+    // on her phone, reading what's new)
+    medal: 'point', secret: 'wink', news: 'phone', waiting: 'bored', asleep: 'tired',
+    // (every one of her secrets found: cheering beside them on your profile)
+    allFound: 'cheer',
+    // (beside the first-run setup, sizing you up: Onboarding.NERU has her pose for each page)
+    setup: 'sassy',
   },
   /** The poses only easter eggs bring out (NeruEggs): a dance for the Konami code (or tapping along to the music), her
    *  phone and then her knees when left alone longer, and a sulk when you come back after that (or after a week away); and on other screens, clicked, a dance after a full
@@ -412,6 +419,8 @@ const NeruCameo = {
 };
 
 Bus.on('music:changed', m => NeruEggs.skipped(m));
+Bus.on('screen:changed', () => { NeruEggs._selPeeked = false; NeruEggs.selectIdle(); });
+for (const ev of ['pointerdown', 'keydown', 'wheel']) addEventListener(ev, () => { if (Screens.currentName === 'songselect') NeruEggs.selectIdle(); }, { capture: true, passive: true });
 Bus.on('library:changed', () => { if (NeruMascot.img) NeruEggs.newSongs(); });
 document.addEventListener('input', e => { if (e.target && e.target.matches && e.target.matches('input[type="search"]')) NeruEggs.searched(e.target); });
 // (a new name with Teto in it — or without any more: Neru comes back on, or goes, and she's herself again or your picture)
@@ -488,14 +497,13 @@ const NeruEggs = {
   },
 
   /** A little "z" floating up from beside her head, drifting and fading — nodding off. */
-  snooze() {
-    const M = NeruMascot;
-    if (!M.el || !M.img || !M.el.isConnected || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
-    const er = M.el.getBoundingClientRect(), ir = M.img.getBoundingClientRect(), k = M.el.offsetWidth ? er.width / M.el.offsetWidth : 1;
+  snooze(box = NeruMascot.el, img = NeruMascot.img, { size = 15 } = {}) {
+    if (!box || !img || !box.isConnected || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
+    const er = box.getBoundingClientRect(), ir = img.getBoundingClientRect(), k = box.offsetWidth ? er.width / box.offsetWidth : 1;
     const x = (ir.left - er.left + ir.width * 0.72) / k, y = (ir.top - er.top + ir.height * 0.12) / k;
     this._zn = ((this._zn || 0) + 1) % 3;
-    const z = h('span.neru-z', 'z'); z.style.left = `${x}px`; z.style.top = `${y}px`; z.style.fontSize = `${15 + this._zn * 5}px`;
-    M.el.append(z);
+    const z = h('span.neru-z', 'z'); z.style.left = `${x}px`; z.style.top = `${y}px`; z.style.fontSize = `${size + this._zn * size / 3}px`;
+    box.append(z);
     z.animate([{ transform: 'translate(-50%, -50%) rotate(-12deg) scale(.6)', opacity: 0 }, { transform: 'translate(calc(-50% + 10px), calc(-50% - 18px)) rotate(4deg) scale(1)', opacity: 1, offset: 0.3 },
       { transform: 'translate(calc(-50% + 34px), calc(-50% - 62px)) rotate(14deg) scale(1.1)', opacity: 0 }], { duration: 2400, easing: 'ease-out' }).onfinish = () => z.remove();
   },
@@ -742,16 +750,24 @@ const NeruEggs = {
   searched(input) {
     if (!/(^|[^a-z])neru([^a-z]|$)/i.test(input.value || '') || performance.now() - (this._peekAt || -1e9) < 9000) return;
     this._peekAt = performance.now();
-    setTimeout(() => { if (input.isConnected && !document.querySelector('.neru-cameo.nc-card, .neru-cameo.nc-empty')) this.peek(); }, 300);
+    setTimeout(() => { if (input.isConnected) this.peek(); }, 300);
   },
-  /** A small Neru peeking up from the bottom edge of the screen for a moment — clicks go through her to whatever
-   *  she's in front of (song select's Back button, say). */
-  peek() {
-    if (!Settings.get('ui.animSpeed') || document.querySelector('.nc-peek')) return;
-    const el = NeruCameo.make('list', 'nc-peek');
+  /** Whether Neru's on screen already — the main menu's, or a small one on another screen, a dialog or a medal: a peek
+   *  then would make two of her. */
+  onScreen() {
+    return [...document.querySelectorAll('.home .neru, .neru-cameo:not(.nc-peek)')].some(n => !n.hidden && n.getClientRects().length && getComputedStyle(n).opacity !== '0');
+  },
+  /** A small Neru peeking up from the bottom edge of the screen for a moment, in `mood`'s pose — clicks go through her
+   *  to whatever she's in front of (song select's Back button, say). `found`: her name searched for (a medal). */
+  peek(mood = 'list', { found = true } = {}) {
+    if (!Settings.get('ui.animSpeed') || document.querySelector('.nc-peek') || this.onScreen()) return;
+    const el = NeruCameo.make(mood, 'nc-peek');
     if (!el) return;
+    // (the chat open: up from behind its top edge, never over what's being said)
+    const chat = document.querySelector('.chat:not(.out)');
+    if (chat) { el.classList.add('behind'); el.style.bottom = `${((1 - chat.getBoundingClientRect().top / innerHeight) * 100).toFixed(2)}%`; }
     document.body.append(el);
-    this.found('peek');
+    if (found) this.found('peek');
     const up = [{ transform: 'translateY(105%)' }, { transform: 'translateY(38%)', offset: 0.55 }, { transform: 'translateY(42%)' }];
     let done = false;
     const away = () => {
@@ -762,6 +778,53 @@ const NeruEggs = {
     const go = () => { if (el.hidden) { if (el.isConnected) setTimeout(go, 60); return; } el.animate(up, { duration: 650, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' }); setTimeout(away, 3200); };
     el.style.transform = 'translateY(105%)';
     go();
+  },
+
+  // ── the very bottom of the settings, past everything: Neru, fast asleep at her desk (a click wakes her for a moment)
+  /** `el`: her, at the foot of the settings' `scroll`; once she's scrolled into view, her medal and her z's. */
+  finePrint(el, scroll) {
+    if (typeof IntersectionObserver === 'undefined') return;
+    let t = 0;
+    const io = new IntersectionObserver(([e]) => {
+      clearInterval(t);
+      if (!el.isConnected) { io.disconnect(); return; }
+      if (!e.isIntersecting || el.hidden) return;
+      this.found('fine');
+      const img = () => el.querySelector('.nc-img');
+      t = setInterval(() => { if (!el.isConnected) { clearInterval(t); io.disconnect(); return; } if (img() && /neru-tired/.test(img().src)) this.snooze(el, img(), { size: 11 }); }, 1500);
+    }, { root: scroll, threshold: 0.6 });
+    io.observe(el);
+  },
+
+  // ── first place on the rankings: she peeks up, sunglasses on (once a session)
+  topOfTheBoard() {
+    if (this._topSeen) return;
+    this._topSeen = true;
+    setTimeout(() => { if (Screens.currentName === 'rankings') this.peek('perfect', { found: false }); }, 700);
+  },
+  // ── her name said in the chat: she peeks up to see who's talking about her (her taunt said back: she laughs)
+  mentioned(text) {
+    const t = String(text || '');
+    const taunt = /(^|[^a-z])zako([^a-z]|$)/i.test(t), name = /(^|[^a-z])neru([^a-z]|$)/i.test(t);
+    if (!(taunt || name) || performance.now() - (this._chatPeekAt || -1e9) < 20000) return;
+    this._chatPeekAt = performance.now();
+    // (on the main menu she's there already: she looks round herself)
+    setTimeout(() => { if (Screens.currentName === 'home' && NeruMascot.img) this.act(taunt ? 'mock' : 'huh', 1600, { hop: false }); else this.peek(taunt ? 'failed' : 'list', { found: false }); }, 400);
+  },
+
+  // ── left sitting in song select — no key, click or scroll for a while — she peeks up, bored: pick something already.
+  // Once a visit to song select.
+  SELECT_IDLE_MS: 45000,
+  selectIdle() {
+    clearTimeout(this._selT);
+    if (Screens.currentName !== 'songselect' || this._selPeeked) return;
+    this._selT = setTimeout(() => {
+      if (Screens.currentName !== 'songselect') return;
+      // (not over a dialog, or while the game's in the background: she waits)
+      if (Overlays.top() || document.hidden || document.querySelector('.nc-peek') || this.onScreen()) { this.selectIdle(); return; }
+      this._selPeeked = true;
+      this.peek('waiting', { found: false });
+    }, this.SELECT_IDLE_MS);
   },
 
   // ── the main menu's volume turned all the way up: she cheers; all the way down: the music's gone, she's bored

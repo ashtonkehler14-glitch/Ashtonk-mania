@@ -154,5 +154,7 @@ const RankingsScreen = {
     const mine = d.you && d.you.rank > 50 ? [h('div.rk-sep', '…'), row(d.you)] : [];
     clearEl(this.page).append(h('div.rk-table', head, ...d.list.map(row), ...mine),
       h('div.rk-foot', `${fmtInt(d.total)} ranked player${d.total === 1 ? '' : 's'}`));
+    // (you're #1: Neru peeks up, sunglasses on — once a session)
+    if (d.list[0] && d.list[0].pid === me && d.total > 1 && typeof NeruEggs !== 'undefined') NeruEggs.topOfTheBoard();
   },
 };

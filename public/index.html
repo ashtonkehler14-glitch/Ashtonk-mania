@@ -1673,6 +1673,30 @@ div.res-calib .i { color: var(--good); }
 .nc-empty { left: clamp(16px, calc(12 * var(--vw)), 220px); bottom: 70px; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 .nc-boot { left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 #loading-screen.done .nc-boot { opacity: 0; transition: opacity 120ms ease; } /* (gone before the main menu's Neru comes in: never two of her) */
+/* a medal unlocked: bottom right, coming in once the disc is up (clicks go through to close it, as before); the Neru on
+   the screen behind steps out meanwhile */
+.neru-cameo.nc-medal { right: clamp(8px, calc(5 * var(--vw)), 80px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); pointer-events: none; }
+.neru-cameo.nc-medal.in .nc-body { animation-delay: 1100ms; }
+.medal-ov.out .nc-medal { opacity: 0; translate: 0 30px; transition: opacity 260ms ease, translate 260ms ease; }
+body:has(.medal-ov, .nc-news, .nc-setup) :is(.home .neru, .nc-results) { opacity: 0; transition: opacity 300ms ease; }
+/* the first-run setup: beside it, a pose for each page (behind it, like What's new) */
+.neru-cameo.nc-setup { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
+.neru-cameo.nc-setup.in .nc-body { animation-delay: 300ms; }
+div:has(> .onboarding.out) > .nc-setup { opacity: 0; transition: opacity 200ms ease; }
+.home .neru { transition: opacity 300ms ease; }
+/* What's new: beside the dialog, on her phone — behind it, so on a narrow screen she's covered rather than covering */
+.neru-cameo.nc-news { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
+.neru-cameo.nc-news.in .nc-body { animation-delay: 250ms; }
+div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
+/* every one of her secrets found: cheering beside them on your profile (floated beside the Neru medals) */
+.md-group:has(> .nc-medals) { display: flow-root; }
+.neru-cameo.nc-medals { position: relative; z-index: auto; float: right; height: 150px; margin: -10px 4px 0 12px; }
+.neru-cameo.nc-medals[hidden] { display: block; visibility: hidden; }
+/* the very bottom of the settings: asleep at her desk, breathing slowly */
+.neru-cameo.nc-fine { position: relative; z-index: auto; height: 150px; margin: 22px auto 6px; }
+.neru-cameo.nc-fine[hidden] { display: block; visibility: hidden; }
+.neru-cameo.nc-fine.in .nc-body { animation: none; }
+.nc-fine .nc-img { animation-duration: 7s; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .4)); }
 /* (in a page's "nothing here" card, in place of its icon) */
 .neru-cameo.nc-card { position: relative; z-index: auto; height: clamp(170px, calc(26 * var(--vh)), 240px); margin: 0 auto 6px; }
 .neru-cameo.nc-card[hidden] { display: block; visibility: hidden; } /* (her room kept while her picture loads: no jump) */
@@ -1753,6 +1777,8 @@ div.res-calib .i { color: var(--good); }
 /* (her name searched for: peeking up from the bottom edge of the screen) */
 .neru-cameo.nc-peek { position: fixed; z-index: 60; pointer-events: none; left: clamp(12px, calc(4 * var(--vw)), 64px); bottom: 0; height: calc(clamp(150px, calc(30 * var(--vh)), 250px) * var(--nc-s, 1)); }
 .neru-cameo.nc-peek.in .nc-body { animation: none; }
+/* (over the open chat: what's below its top edge is cut away, so she comes up from behind it) */
+.neru-cameo.nc-peek.behind { clip-path: inset(0 0 42% 0); }
 /* (double-clicked: a twirl, once round) */
 .neru.twirl .neru-img { animation: neruTwirl 720ms cubic-bezier(.45, 0, .2, 1); }
 @keyframes neruTwirl { 0% { transform: perspective(700px) translateY(0) rotateY(0) scale(1, 1); } 18% { transform: perspective(700px) translateY(4px) rotateY(0) scale(1.03, .96); }
@@ -15242,7 +15268,7 @@ const NeruMascot = {
  *  Screens place her with a class of their own (`.nc-results`, `.nc-pause`…). */
 const NeruCameo = {
   /** The moods she's pleased about (not that she'd say so): sparkles. */
-  HAPPY: new Set(['perfect', 'great']),
+  HAPPY: new Set(['perfect', 'great', 'medal', 'secret', 'allFound']),
   /** Her pose on each screen (her shrug, neru.png, if it isn't there) — all from the song's video: sunglasses on for a
    *  perfect play, a wagging finger at an S, a wink for an A or B, worn out at a C or D, laughing at a fail; bored at her
    *  desk while you pause, fists up — "I'm not cheering for you" — while a song loads, hand on hip at an empty library,
@@ -15250,6 +15276,13 @@ const NeruCameo = {
   POSE: {
     perfect: 'cool', great: 'point', okay: 'wink', bad: 'tired', failed: 'mock',
     paused: 'bored', loading: 'cheer', empty: 'sassy', list: 'huh', boot: 'fishing',
+    // (a medal: a wag of her finger at a hard one — not bad — and a wink when it's one of her own secrets you found;
+    // on her phone, reading what's new)
+    medal: 'point', secret: 'wink', news: 'phone', waiting: 'bored', asleep: 'tired',
+    // (every one of her secrets found: cheering beside them on your profile)
+    allFound: 'cheer',
+    // (beside the first-run setup, sizing you up: Onboarding.NERU has her pose for each page)
+    setup: 'sassy',
   },
   /** The poses only easter eggs bring out (NeruEggs): a dance for the Konami code (or tapping along to the music), her
    *  phone and then her knees when left alone longer, and a sulk when you come back after that (or after a week away); and on other screens, clicked, a dance after a full
@@ -15427,6 +15460,8 @@ const NeruCameo = {
 };
 
 Bus.on('music:changed', m => NeruEggs.skipped(m));
+Bus.on('screen:changed', () => { NeruEggs._selPeeked = false; NeruEggs.selectIdle(); });
+for (const ev of ['pointerdown', 'keydown', 'wheel']) addEventListener(ev, () => { if (Screens.currentName === 'songselect') NeruEggs.selectIdle(); }, { capture: true, passive: true });
 Bus.on('library:changed', () => { if (NeruMascot.img) NeruEggs.newSongs(); });
 document.addEventListener('input', e => { if (e.target && e.target.matches && e.target.matches('input[type="search"]')) NeruEggs.searched(e.target); });
 // (a new name with Teto in it — or without any more: Neru comes back on, or goes, and she's herself again or your picture)
@@ -15503,14 +15538,13 @@ const NeruEggs = {
   },
 
   /** A little "z" floating up from beside her head, drifting and fading — nodding off. */
-  snooze() {
-    const M = NeruMascot;
-    if (!M.el || !M.img || !M.el.isConnected || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
-    const er = M.el.getBoundingClientRect(), ir = M.img.getBoundingClientRect(), k = M.el.offsetWidth ? er.width / M.el.offsetWidth : 1;
+  snooze(box = NeruMascot.el, img = NeruMascot.img, { size = 15 } = {}) {
+    if (!box || !img || !box.isConnected || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
+    const er = box.getBoundingClientRect(), ir = img.getBoundingClientRect(), k = box.offsetWidth ? er.width / box.offsetWidth : 1;
     const x = (ir.left - er.left + ir.width * 0.72) / k, y = (ir.top - er.top + ir.height * 0.12) / k;
     this._zn = ((this._zn || 0) + 1) % 3;
-    const z = h('span.neru-z', 'z'); z.style.left = `${x}px`; z.style.top = `${y}px`; z.style.fontSize = `${15 + this._zn * 5}px`;
-    M.el.append(z);
+    const z = h('span.neru-z', 'z'); z.style.left = `${x}px`; z.style.top = `${y}px`; z.style.fontSize = `${size + this._zn * size / 3}px`;
+    box.append(z);
     z.animate([{ transform: 'translate(-50%, -50%) rotate(-12deg) scale(.6)', opacity: 0 }, { transform: 'translate(calc(-50% + 10px), calc(-50% - 18px)) rotate(4deg) scale(1)', opacity: 1, offset: 0.3 },
       { transform: 'translate(calc(-50% + 34px), calc(-50% - 62px)) rotate(14deg) scale(1.1)', opacity: 0 }], { duration: 2400, easing: 'ease-out' }).onfinish = () => z.remove();
   },
@@ -15757,16 +15791,24 @@ const NeruEggs = {
   searched(input) {
     if (!/(^|[^a-z])neru([^a-z]|$)/i.test(input.value || '') || performance.now() - (this._peekAt || -1e9) < 9000) return;
     this._peekAt = performance.now();
-    setTimeout(() => { if (input.isConnected && !document.querySelector('.neru-cameo.nc-card, .neru-cameo.nc-empty')) this.peek(); }, 300);
+    setTimeout(() => { if (input.isConnected) this.peek(); }, 300);
   },
-  /** A small Neru peeking up from the bottom edge of the screen for a moment — clicks go through her to whatever
-   *  she's in front of (song select's Back button, say). */
-  peek() {
-    if (!Settings.get('ui.animSpeed') || document.querySelector('.nc-peek')) return;
-    const el = NeruCameo.make('list', 'nc-peek');
+  /** Whether Neru's on screen already — the main menu's, or a small one on another screen, a dialog or a medal: a peek
+   *  then would make two of her. */
+  onScreen() {
+    return [...document.querySelectorAll('.home .neru, .neru-cameo:not(.nc-peek)')].some(n => !n.hidden && n.getClientRects().length && getComputedStyle(n).opacity !== '0');
+  },
+  /** A small Neru peeking up from the bottom edge of the screen for a moment, in `mood`'s pose — clicks go through her
+   *  to whatever she's in front of (song select's Back button, say). `found`: her name searched for (a medal). */
+  peek(mood = 'list', { found = true } = {}) {
+    if (!Settings.get('ui.animSpeed') || document.querySelector('.nc-peek') || this.onScreen()) return;
+    const el = NeruCameo.make(mood, 'nc-peek');
     if (!el) return;
+    // (the chat open: up from behind its top edge, never over what's being said)
+    const chat = document.querySelector('.chat:not(.out)');
+    if (chat) { el.classList.add('behind'); el.style.bottom = `${((1 - chat.getBoundingClientRect().top / innerHeight) * 100).toFixed(2)}%`; }
     document.body.append(el);
-    this.found('peek');
+    if (found) this.found('peek');
     const up = [{ transform: 'translateY(105%)' }, { transform: 'translateY(38%)', offset: 0.55 }, { transform: 'translateY(42%)' }];
     let done = false;
     const away = () => {
@@ -15777,6 +15819,53 @@ const NeruEggs = {
     const go = () => { if (el.hidden) { if (el.isConnected) setTimeout(go, 60); return; } el.animate(up, { duration: 650, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' }); setTimeout(away, 3200); };
     el.style.transform = 'translateY(105%)';
     go();
+  },
+
+  // ── the very bottom of the settings, past everything: Neru, fast asleep at her desk (a click wakes her for a moment)
+  /** `el`: her, at the foot of the settings' `scroll`; once she's scrolled into view, her medal and her z's. */
+  finePrint(el, scroll) {
+    if (typeof IntersectionObserver === 'undefined') return;
+    let t = 0;
+    const io = new IntersectionObserver(([e]) => {
+      clearInterval(t);
+      if (!el.isConnected) { io.disconnect(); return; }
+      if (!e.isIntersecting || el.hidden) return;
+      this.found('fine');
+      const img = () => el.querySelector('.nc-img');
+      t = setInterval(() => { if (!el.isConnected) { clearInterval(t); io.disconnect(); return; } if (img() && /neru-tired/.test(img().src)) this.snooze(el, img(), { size: 11 }); }, 1500);
+    }, { root: scroll, threshold: 0.6 });
+    io.observe(el);
+  },
+
+  // ── first place on the rankings: she peeks up, sunglasses on (once a session)
+  topOfTheBoard() {
+    if (this._topSeen) return;
+    this._topSeen = true;
+    setTimeout(() => { if (Screens.currentName === 'rankings') this.peek('perfect', { found: false }); }, 700);
+  },
+  // ── her name said in the chat: she peeks up to see who's talking about her (her taunt said back: she laughs)
+  mentioned(text) {
+    const t = String(text || '');
+    const taunt = /(^|[^a-z])zako([^a-z]|$)/i.test(t), name = /(^|[^a-z])neru([^a-z]|$)/i.test(t);
+    if (!(taunt || name) || performance.now() - (this._chatPeekAt || -1e9) < 20000) return;
+    this._chatPeekAt = performance.now();
+    // (on the main menu she's there already: she looks round herself)
+    setTimeout(() => { if (Screens.currentName === 'home' && NeruMascot.img) this.act(taunt ? 'mock' : 'huh', 1600, { hop: false }); else this.peek(taunt ? 'failed' : 'list', { found: false }); }, 400);
+  },
+
+  // ── left sitting in song select — no key, click or scroll for a while — she peeks up, bored: pick something already.
+  // Once a visit to song select.
+  SELECT_IDLE_MS: 45000,
+  selectIdle() {
+    clearTimeout(this._selT);
+    if (Screens.currentName !== 'songselect' || this._selPeeked) return;
+    this._selT = setTimeout(() => {
+      if (Screens.currentName !== 'songselect') return;
+      // (not over a dialog, or while the game's in the background: she waits)
+      if (Overlays.top() || document.hidden || document.querySelector('.nc-peek') || this.onScreen()) { this.selectIdle(); return; }
+      this._selPeeked = true;
+      this.peek('waiting', { found: false });
+    }, this.SELECT_IDLE_MS);
   },
 
   // ── the main menu's volume turned all the way up: she cheers; all the way down: the music's gone, she's bored
@@ -21987,7 +22076,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.21', title: 'Neru update', sections: [
-    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Secret Neru medals to collect', 'Her pictures are sharp again', 'Teto in your name, spelled any way? Neru has thoughts about that'] },
+    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Secret Neru medals to collect', 'Her pictures are sharp again', 'Teto in your name, spelled any way? Neru has thoughts about that', 'Neru on medals, What\'s new and the first-run setup', 'Don\'t keep her waiting in song select', 'Say her name in the chat', 'Read the settings to the very end'] },
     { icon: 'multi', title: 'Multiplayer', items: ['When a room can\'t be created, the lounge says why'] },
     { icon: 'trophy', title: 'Online', items: ['Your plays count online straight away', 'Medals: only the hard ones are left (and Neru\'s secrets)'] },
   ] },
@@ -22077,6 +22166,9 @@ const WhatsNew = {
           h('ul', ...sec.items.map(t => h('li', t)))))))),
       h('div.cl-foot', h('button.btn.primary', { onclick: () => o.close() }, 'Let\'s go!')));
     const o = makeOverlay(el);
+    // (Neru beside it, on her phone — reading it too; behind the dialog, so she never covers a line of it)
+    const neru = typeof NeruCameo !== 'undefined' && NeruCameo.make('news', 'nc-news', { delay: 0 });
+    if (neru) o.el.insertBefore(neru, el);
     UISounds.play('check-on');
     return o;
   },
@@ -23246,6 +23338,9 @@ const SettingsPanel = {
     }
     if (!bySec.size) scroll.append(h('div.empty', 'No settings match your search.'));
     scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION} · ${WhatsNew.latest()}`, h('button.btn.sm.ghost', { onclick: () => WhatsNew.show() }, icon('sparkle'), 'What\'s new')));
+    // (and past everything, at the very bottom: Neru, fast asleep at her desk — NeruEggs.finePrint)
+    const neru = !q && typeof NeruCameo !== 'undefined' ? NeruCameo.make('asleep', 'nc-fine', { delay: 0 }) : null;
+    if (neru) { scroll.append(neru); NeruEggs.finePrint(neru, scroll); }
     clearEl(this.nav).append(...[...bySec.keys()].map(sec => h('button.sp-nb', { 'aria-label': sec, dataset: { sec }, onclick: () => { UISounds.click(); this.scrollTo(sec); } }, h('span.sp-nb-ind'), icon(SECTION_ICONS[sec] || 'gear'), h('span', sec.toLowerCase()))));
     this.syncNav();
   },
@@ -23840,6 +23935,9 @@ const Onboarding = {
           return false;
         },
       });
+      // (Neru beside it, sizing you up — a pose for each page — while the main menu's steps out: never two of her)
+      this.neru = typeof NeruCameo !== 'undefined' ? NeruCameo.make('setup', 'nc-setup', { delay: 0 }) : null;
+      if (this.neru) this.o.el.insertBefore(this.neru, this.el);
       this.render();
       if (already) this.bringBack({ pause: false }).then(() => { if (this.o && this.step.id === 'account') { this.animate = false; this.render(); } });
     });
@@ -23891,6 +23989,21 @@ const Onboarding = {
         this.nextBtn));
     this.afterRender && this.afterRender();
     this.afterRender = null;
+    this.neruPose();
+  },
+  /** Neru's pose for each page: hand on hip at the start, glad to see you back (a code) or a wag of her finger at a
+   *  newcomer, a blank look at Web-Osu-Mania, on her phone while you pick performance or graphics, a wink at your
+   *  colours, fists up for the gameplay, sunglasses on for the skin. */
+  NERU: { welcome: 'sassy', wom: 'huh', device: 'phone', look: 'wink', gameplay: 'cheer', skin: 'cool' },
+  neruPose() {
+    const st = this.step, n = this.neru;
+    if (!n || !st) return;
+    const pose = st.id === 'account' ? (this.acct === 'have' ? 'happy' : 'point') : this.NERU[st.id] || 'sassy';
+    if (n._want === pose) return;
+    n._want = pose;
+    // (her pictures may still be loading: the pose waits for them)
+    const go = () => { if (n._want === pose && n._pose) n._pose(pose); else if (n.isConnected && n._want === pose) setTimeout(go, 150); };
+    go();
   },
 
   async go(k) {
@@ -28375,6 +28488,7 @@ const Chat = {
       else if (!rest.trim()) return false;
     }
     if (c.pm) Presence.send({ t: 'pm', to: c.pid, text }); else Presence.send({ t: 'say', text });
+    if (typeof NeruEggs !== 'undefined') NeruEggs.mentioned(text);
     return true;
   },
   /** A line only you see (a command's answer). */
@@ -28596,6 +28710,8 @@ const RankingsScreen = {
     const mine = d.you && d.you.rank > 50 ? [h('div.rk-sep', '…'), row(d.you)] : [];
     clearEl(this.page).append(h('div.rk-table', head, ...d.list.map(row), ...mine),
       h('div.rk-foot', `${fmtInt(d.total)} ranked player${d.total === 1 ? '' : 's'}`));
+    // (you're #1: Neru peeks up, sunglasses on — once a session)
+    if (d.list[0] && d.list[0].pid === me && d.total > 1 && typeof NeruEggs !== 'undefined') NeruEggs.topOfTheBoard();
   },
 };
 
@@ -28757,7 +28873,8 @@ const MEDALS = [
     ['night', 'ghost', 'Night Owl', 'Catch Neru yawning after midnight.'],
     ['showoff', 'target', 'Show-off', 'Click Neru after a full combo.'],
     ['seasons', 'sync', 'Four Seasons', 'See four different times of year around Neru.'],
-    ['teto', 'crosscircle', 'Wrong Twin-Tails', 'Put Teto in your name. Neru noticed.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),
+    ['teto', 'crosscircle', 'Wrong Twin-Tails', 'Put Teto in your name. Neru noticed.'],
+    ['fine', 'book', 'The Fine Print', 'Scroll all the way down the settings.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),
 ];
 
 const Medals = {
@@ -28814,6 +28931,9 @@ const Medals = {
       h('div.md-strip.l'), h('div.md-strip.r'),
       h('div.md-disc', h('div.md-tri'), h('div.md-icon', icon(m.icon))),
       h('div.md-text', h('div.md-unlocked', 'MEDAL UNLOCKED'), h('div.md-name', m.name), h('div.md-desc', m.desc)));
+    // (Neru, in the corner once the medal's up — the one on the screen behind steps out meanwhile: never two of her)
+    const neru = typeof NeruCameo !== 'undefined' && NeruCameo.make(m.egg ? 'secret' : 'medal', 'nc-medal', { delay: 1700 });
+    if (neru) el.append(neru);
     let done = false;
     const close = () => { if (done) return; done = true; o.close(); };
     const o = makeOverlay(el, { onClose: () => { this.showing = false; this.later(); }, onKey: e => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { close(); return true; } return false; } });
@@ -28823,7 +28943,10 @@ const Medals = {
   /** The profile's Medals section: every medal, the ones not yet earned dimmed. */
   section(got = this.unlocked()) {
     const groups = [...new Set(MEDALS.map(m => m.group))];
-    return groups.map(g => h('div.md-group', h('h4', g), h('div.md-grid', ...MEDALS.filter(m => m.group === g).map(m =>
+    // (every one of Neru's secrets found: there she is beside them, cheering)
+    const allNeru = MEDALS.filter(m => m.egg).every(m => got[m.id]);
+    const neru = g => g === 'Neru' && allNeru && typeof NeruCameo !== 'undefined' ? NeruCameo.make('allFound', 'nc-medals', { delay: 300 }) : null;
+    return groups.map(g => h('div.md-group', h('h4', g), neru(g), h('div.md-grid', ...MEDALS.filter(m => m.group === g).map(m =>
       // (one of Neru's secrets not found yet: only that there is one)
       m.egg && !got[m.id] ? h('div.md-badge.secret', { title: '??? — A secret. Keep an eye on Neru.' }, h('div.md-mini', icon('question')), h('span', '???')) :
       h(`div.md-badge${got[m.id] ? '.on' : ''}`, { title: `${m.name} — ${m.desc}${got[m.id] ? `\nUnlocked ${new Date(got[m.id]).toLocaleDateString()}` : ''}` },
@@ -29832,7 +29955,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '40db2158e62b';
+const APP_BUILD = 'd6acf0bfff44';
 
 const App = {
   lastReport: null,

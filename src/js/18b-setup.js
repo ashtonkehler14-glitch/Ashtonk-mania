@@ -59,6 +59,9 @@ const Onboarding = {
           return false;
         },
       });
+      // (Neru beside it, sizing you up — a pose for each page — while the main menu's steps out: never two of her)
+      this.neru = typeof NeruCameo !== 'undefined' ? NeruCameo.make('setup', 'nc-setup', { delay: 0 }) : null;
+      if (this.neru) this.o.el.insertBefore(this.neru, this.el);
       this.render();
       if (already) this.bringBack({ pause: false }).then(() => { if (this.o && this.step.id === 'account') { this.animate = false; this.render(); } });
     });
@@ -110,6 +113,21 @@ const Onboarding = {
         this.nextBtn));
     this.afterRender && this.afterRender();
     this.afterRender = null;
+    this.neruPose();
+  },
+  /** Neru's pose for each page: hand on hip at the start, glad to see you back (a code) or a wag of her finger at a
+   *  newcomer, a blank look at Web-Osu-Mania, on her phone while you pick performance or graphics, a wink at your
+   *  colours, fists up for the gameplay, sunglasses on for the skin. */
+  NERU: { welcome: 'sassy', wom: 'huh', device: 'phone', look: 'wink', gameplay: 'cheer', skin: 'cool' },
+  neruPose() {
+    const st = this.step, n = this.neru;
+    if (!n || !st) return;
+    const pose = st.id === 'account' ? (this.acct === 'have' ? 'happy' : 'point') : this.NERU[st.id] || 'sassy';
+    if (n._want === pose) return;
+    n._want = pose;
+    // (her pictures may still be loading: the pose waits for them)
+    const go = () => { if (n._want === pose && n._pose) n._pose(pose); else if (n.isConnected && n._want === pose) setTimeout(go, 150); };
+    go();
   },
 
   async go(k) {

@@ -1654,6 +1654,30 @@ div.res-calib .i { color: var(--good); }
 .nc-empty { left: clamp(16px, calc(12 * var(--vw)), 220px); bottom: 70px; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 .nc-boot { left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 #loading-screen.done .nc-boot { opacity: 0; transition: opacity 120ms ease; } /* (gone before the main menu's Neru comes in: never two of her) */
+/* a medal unlocked: bottom right, coming in once the disc is up (clicks go through to close it, as before); the Neru on
+   the screen behind steps out meanwhile */
+.neru-cameo.nc-medal { right: clamp(8px, calc(5 * var(--vw)), 80px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); pointer-events: none; }
+.neru-cameo.nc-medal.in .nc-body { animation-delay: 1100ms; }
+.medal-ov.out .nc-medal { opacity: 0; translate: 0 30px; transition: opacity 260ms ease, translate 260ms ease; }
+body:has(.medal-ov, .nc-news, .nc-setup) :is(.home .neru, .nc-results) { opacity: 0; transition: opacity 300ms ease; }
+/* the first-run setup: beside it, a pose for each page (behind it, like What's new) */
+.neru-cameo.nc-setup { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
+.neru-cameo.nc-setup.in .nc-body { animation-delay: 300ms; }
+div:has(> .onboarding.out) > .nc-setup { opacity: 0; transition: opacity 200ms ease; }
+.home .neru { transition: opacity 300ms ease; }
+/* What's new: beside the dialog, on her phone — behind it, so on a narrow screen she's covered rather than covering */
+.neru-cameo.nc-news { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
+.neru-cameo.nc-news.in .nc-body { animation-delay: 250ms; }
+div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
+/* every one of her secrets found: cheering beside them on your profile (floated beside the Neru medals) */
+.md-group:has(> .nc-medals) { display: flow-root; }
+.neru-cameo.nc-medals { position: relative; z-index: auto; float: right; height: 150px; margin: -10px 4px 0 12px; }
+.neru-cameo.nc-medals[hidden] { display: block; visibility: hidden; }
+/* the very bottom of the settings: asleep at her desk, breathing slowly */
+.neru-cameo.nc-fine { position: relative; z-index: auto; height: 150px; margin: 22px auto 6px; }
+.neru-cameo.nc-fine[hidden] { display: block; visibility: hidden; }
+.neru-cameo.nc-fine.in .nc-body { animation: none; }
+.nc-fine .nc-img { animation-duration: 7s; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .4)); }
 /* (in a page's "nothing here" card, in place of its icon) */
 .neru-cameo.nc-card { position: relative; z-index: auto; height: clamp(170px, calc(26 * var(--vh)), 240px); margin: 0 auto 6px; }
 .neru-cameo.nc-card[hidden] { display: block; visibility: hidden; } /* (her room kept while her picture loads: no jump) */
@@ -1734,6 +1758,8 @@ div.res-calib .i { color: var(--good); }
 /* (her name searched for: peeking up from the bottom edge of the screen) */
 .neru-cameo.nc-peek { position: fixed; z-index: 60; pointer-events: none; left: clamp(12px, calc(4 * var(--vw)), 64px); bottom: 0; height: calc(clamp(150px, calc(30 * var(--vh)), 250px) * var(--nc-s, 1)); }
 .neru-cameo.nc-peek.in .nc-body { animation: none; }
+/* (over the open chat: what's below its top edge is cut away, so she comes up from behind it) */
+.neru-cameo.nc-peek.behind { clip-path: inset(0 0 42% 0); }
 /* (double-clicked: a twirl, once round) */
 .neru.twirl .neru-img { animation: neruTwirl 720ms cubic-bezier(.45, 0, .2, 1); }
 @keyframes neruTwirl { 0% { transform: perspective(700px) translateY(0) rotateY(0) scale(1, 1); } 18% { transform: perspective(700px) translateY(4px) rotateY(0) scale(1.03, .96); }

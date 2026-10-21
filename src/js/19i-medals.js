@@ -27,7 +27,8 @@ const MEDALS = [
     ['night', 'ghost', 'Night Owl', 'Catch Neru yawning after midnight.'],
     ['showoff', 'target', 'Show-off', 'Click Neru after a full combo.'],
     ['seasons', 'sync', 'Four Seasons', 'See four different times of year around Neru.'],
-    ['teto', 'crosscircle', 'Wrong Twin-Tails', 'Put Teto in your name. Neru noticed.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),
+    ['teto', 'crosscircle', 'Wrong Twin-Tails', 'Put Teto in your name. Neru noticed.'],
+    ['fine', 'book', 'The Fine Print', 'Scroll all the way down the settings.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),
 ];
 
 const Medals = {
@@ -84,6 +85,9 @@ const Medals = {
       h('div.md-strip.l'), h('div.md-strip.r'),
       h('div.md-disc', h('div.md-tri'), h('div.md-icon', icon(m.icon))),
       h('div.md-text', h('div.md-unlocked', 'MEDAL UNLOCKED'), h('div.md-name', m.name), h('div.md-desc', m.desc)));
+    // (Neru, in the corner once the medal's up — the one on the screen behind steps out meanwhile: never two of her)
+    const neru = typeof NeruCameo !== 'undefined' && NeruCameo.make(m.egg ? 'secret' : 'medal', 'nc-medal', { delay: 1700 });
+    if (neru) el.append(neru);
     let done = false;
     const close = () => { if (done) return; done = true; o.close(); };
     const o = makeOverlay(el, { onClose: () => { this.showing = false; this.later(); }, onKey: e => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { close(); return true; } return false; } });
@@ -93,7 +97,10 @@ const Medals = {
   /** The profile's Medals section: every medal, the ones not yet earned dimmed. */
   section(got = this.unlocked()) {
     const groups = [...new Set(MEDALS.map(m => m.group))];
-    return groups.map(g => h('div.md-group', h('h4', g), h('div.md-grid', ...MEDALS.filter(m => m.group === g).map(m =>
+    // (every one of Neru's secrets found: there she is beside them, cheering)
+    const allNeru = MEDALS.filter(m => m.egg).every(m => got[m.id]);
+    const neru = g => g === 'Neru' && allNeru && typeof NeruCameo !== 'undefined' ? NeruCameo.make('allFound', 'nc-medals', { delay: 300 }) : null;
+    return groups.map(g => h('div.md-group', h('h4', g), neru(g), h('div.md-grid', ...MEDALS.filter(m => m.group === g).map(m =>
       // (one of Neru's secrets not found yet: only that there is one)
       m.egg && !got[m.id] ? h('div.md-badge.secret', { title: '??? — A secret. Keep an eye on Neru.' }, h('div.md-mini', icon('question')), h('span', '???')) :
       h(`div.md-badge${got[m.id] ? '.on' : ''}`, { title: `${m.name} — ${m.desc}${got[m.id] ? `\nUnlocked ${new Date(got[m.id]).toLocaleDateString()}` : ''}` },

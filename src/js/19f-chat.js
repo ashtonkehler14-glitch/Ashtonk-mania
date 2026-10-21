@@ -144,6 +144,7 @@ const Chat = {
       else if (!rest.trim()) return false;
     }
     if (c.pm) Presence.send({ t: 'pm', to: c.pid, text }); else Presence.send({ t: 'say', text });
+    if (typeof NeruEggs !== 'undefined') NeruEggs.mentioned(text);
     return true;
   },
   /** A line only you see (a command's answer). */

@@ -57,6 +57,8 @@ const waitBoot = async () => {
   }
   // (every medal already earned: their pop-ups would cover what the tests click; the medal test resets them)
   await page.evaluate(() => AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(AshtonkMania.Medals.all.map(m => [m.id, 1]))));
+  // (the tests sit in song select without touching anything: Neru's bored peek there is tested on its own)
+  await page.evaluate(() => { NeruEggs.SELECT_IDLE_MS = 1e9; NeruEggs.selectIdle(); });
 };
 
 await page.goto(url);
@@ -408,6 +410,21 @@ await shot('01-home-empty');
   });
   check('Teto in your name: Neru comes back on (locked on in Settings), and she makes fun of you — a blank look, the bread crossed out, a snicker, a laugh, a wagging finger',
     teto.spellings && teto.offBefore && teto.on && teto.bread && /^huh,snicker,mock,point/.test(teto.poses) && teto.medal && teto.cameo === 'neru-snicker.png' && teto.locked && teto.offAfter, JSON.stringify(teto));
+  // the very bottom of the settings: Neru asleep at her desk — found, a secret medal (not before she's scrolled to)
+  const fine = await page.evaluate(async () => {
+    const wait = ms => new Promise(res => setTimeout(res, ms)), got = [], egg = AshtonkMania.Medals.egg;
+    AshtonkMania.Medals.egg = id => got.push(id);
+    try {
+      AshtonkMania.SettingsPanel.open(); await wait(600);
+      const n = document.querySelector('.settings-panel .nc-fine'), sc = AshtonkMania.SettingsPanel.scrollEl;
+      const before = got.includes('neru-fine');
+      for (let i = 0; i < 10; i++) { sc.scrollTop = sc.scrollHeight; await wait(120); } await wait(900); // (it grows as it's drawn)
+      const out = { there: !!n, pose: ((n && n.querySelector('.nc-img')) || {}).src?.split('/').pop(), before, after: got.includes('neru-fine') };
+      AshtonkMania.SettingsPanel.close(); await wait(300);
+      return out;
+    } finally { AshtonkMania.Medals.egg = egg; }
+  });
+  check('the very bottom of the settings: Neru asleep at her desk, a secret medal once she\'s scrolled to', fine.there && fine.pose === 'neru-tired.png' && !fine.before && fine.after, JSON.stringify(fine));
   // on the main menu as the year turns: at midnight on New Year's Eve, a cheer and confetti
   const nye = await page.evaluate(async () => {
     const E = NeruEggs, M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
@@ -861,6 +878,33 @@ await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.val
   });
   check('her name searched for: Neru peeks up from the bottom and ducks back down (not for "neruals", nor over an empty list that has her)',
     pk.word === null && pk.name === 'neru-huh.png' && pk.up && pk.gone && pk.withEmpty === null, JSON.stringify(pk));
+}
+{
+  // left sitting in song select: she peeks up, bored — once a visit
+  const idle = await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    try {
+      NeruEggs.SELECT_IDLE_MS = 600; NeruEggs._selPeeked = false; NeruEggs.selectIdle();
+      await wait(1500);
+      const p = document.querySelector('.nc-peek .nc-img'), pose = p ? p.src.split('/').pop() : null;
+      await wait(4200); const gone = !document.querySelector('.nc-peek');
+      NeruEggs.selectIdle(); await wait(1200); const again = !!document.querySelector('.nc-peek');
+      return { pose, gone, again };
+    } finally { NeruEggs.SELECT_IDLE_MS = 1e9; NeruEggs.selectIdle(); }
+  });
+  check('left sitting in song select, Neru peeks up bored — once a visit', idle.pose === 'neru-bored.png' && idle.gone && !idle.again, JSON.stringify(idle));
+}
+{
+  // her name said in the chat: she peeks up to see who's talking about her; her taunt said: a laugh (not a word that
+  // only has "neru" in it)
+  const ch = await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms)), pk = () => ((document.querySelector('.nc-peek .nc-img') || {}).src || '').split('/').pop() || null;
+    NeruEggs._chatPeekAt = -1e9; NeruEggs.mentioned('neruals are cool'); await wait(1200); const word = pk();
+    NeruEggs._chatPeekAt = -1e9; NeruEggs.mentioned('hi Neru!'); await wait(1200); const name = pk(); await wait(4200);
+    NeruEggs._chatPeekAt = -1e9; NeruEggs.mentioned('zako~'); await wait(1200); const taunt = pk(); await wait(4200);
+    return { word, name, taunt };
+  });
+  check('her name said in the chat: Neru peeks up (a laugh for her taunt)', ch.word === null && ch.name === 'neru-huh.png' && ch.taunt === 'neru-mock.png', JSON.stringify(ch));
 }
 check('sorting by difficulty: each difficulty its own panel, easiest first (lazer)', await page.evaluate(() => { const r = AshtonkMania.SongSelect.results; return r.length === 4 && r.every(x => x.std && x.maps.length === 1) && r.every((x, i) => !i || r[i - 1].maps[0].stars <= x.maps[0].stars) && document.querySelectorAll('.std-panel').length === 4; }));
 await page.evaluate(() => { AshtonkMania.Settings.set('songselect.sort', 'title'); AshtonkMania.SongSelect.rebuild(); });
@@ -1752,9 +1796,13 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   check('What\'s new comes back when the latest update gains lines after you\'ve seen it (and only then)', !wn.same && wn.grew && !wn.again, JSON.stringify(wn));
   const wn2 = await page.evaluate(async () => {
     await DB.kvSet('changelog.seen', CHANGELOG[2].id); await WhatsNew.maybeShow();
-    const n = document.querySelectorAll('.cl .cl-entry').length; Overlays.closeAll(); return n;
+    const n = document.querySelectorAll('.cl .cl-entry').length;
+    for (let i = 0; i < 30 && !document.querySelector('.nc-news .nc-img'); i++) await new Promise(r => setTimeout(r, 100));
+    const img = document.querySelector('.nc-news .nc-img'), menu = document.querySelector('.home .neru');
+    const neru = (img ? img.src.split('/').pop() : 'none') + '|' + (!menu || getComputedStyle(menu).opacity === '0' || document.documentElement.classList.contains('slow'));
+    Overlays.closeAll(); return { n, neru };
   });
-  check('What\'s new shows every update since the one you last saw (two missed: both)', wn2 === 2, String(wn2));
+  check('What\'s new shows every update since the one you last saw (two missed: both), Neru beside it on her phone', wn2.n === 2 && wn2.neru === 'neru-phone.png|true', JSON.stringify(wn2));
   await page.waitForTimeout(400);
 }
 {
@@ -2174,6 +2222,8 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   check('setup: the first page asks whether you\'ve played before (yes, with a code / no, new)', /played Ashtonk!mania before/.test(await sp.textContent('.setup-step-welcome')) && (await sp.$$('.setup-step-welcome .setup-choice')).length === 2);
   await sp.click('.setup-next');
   check('setup: you have to answer it', /Pick one/.test(await sp.textContent('.ob-err')) && !!(await sp.$('.setup-step-welcome')));
+  await sp.waitForFunction(() => document.querySelector('.nc-setup .nc-img'), null, { timeout: 8000 }).catch(() => {});
+  check('setup: Neru beside it, hand on hip', await sp.evaluate(() => ((document.querySelector('.nc-setup .nc-img') || {}).src || '').endsWith('neru-sassy.png')));
   // "Yes": a page of its own — the code box, and how to find your code
   await sp.click('.setup-choice[data-id="have"]');
   await sp.waitForSelector('.setup-step-account .setup-code-in');
@@ -2684,19 +2734,36 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
 {
   await page.evaluate(() => { AshtonkMania.Screens.go('home'); AshtonkMania.Settings.set('medals.unlocked', {}); AshtonkMania.Medals.check({ passed: true, mods: [], rate: 1, stars: 4.4, keys: 4, counts: [80, 0, 0, 0, 0, 0], grade: 'SS', maxCombo: 80 }); });
   await page.waitForSelector('.medal-ov', { timeout: 5000 });
+  await page.waitForFunction(() => document.querySelector('.medal-ov .nc-medal .nc-img'), null, { timeout: 5000 }).catch(() => {});
+  const medalNeru = await page.evaluate(() => ((document.querySelector('.medal-ov .nc-medal .nc-img') || {}).src || '').split('/').pop());
+  check('medals: Neru in the corner, wagging her finger at a hard one', medalNeru === 'neru-point.png', medalNeru);
   const got = await page.evaluate(() => Object.keys(AshtonkMania.Medals.unlocked()).sort().join());
   check('medals: only hard ones — a 4.4★ SS full combo unlocks the 4★ full combo and SS medals (not 5★ ones), with the medal animation', got === 'fc4,ss4' && await page.evaluate(() => /MEDAL UNLOCKED/.test(document.querySelector('.medal-ov').textContent)), got);
   for (let i = 0; i < 8 && await page.$('.medal-ov'); i++) { await page.click('.medal-ov'); await page.waitForTimeout(1700); }
   await page.evaluate(() => AshtonkMania.Screens.go('profile')); await page.waitForTimeout(700);
   check('medals: the profile shows earned medals lit and the rest dimmed', await page.evaluate(() => document.querySelectorAll('.md-badge.on').length === 2 && document.querySelectorAll('.md-badge:not(.on)').length > 0 && !/First Steps|Warming Up|Better Together/.test(document.querySelector('.screen-body').textContent)));
+  // (every one of Neru's secrets found: there she is beside them, cheering — not before)
+  const allNeru = await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms)), was = AshtonkMania.Settings.get('medals.unlocked');
+    const before = !!document.querySelector('.nc-medals');
+    AshtonkMania.Settings.set('medals.unlocked', { ...was, ...Object.fromEntries(AshtonkMania.Medals.all.filter(m => m.egg).map(m => [m.id, 1])) });
+    AshtonkMania.Screens.go('home'); await wait(500); AshtonkMania.Screens.go('profile'); await wait(900);
+    for (let i = 0; i < 20 && !document.querySelector('.nc-medals .nc-img'); i++) await wait(100);
+    const pose = ((document.querySelector('.nc-medals .nc-img') || {}).src || '').split('/').pop();
+    AshtonkMania.Settings.set('medals.unlocked', was);
+    AshtonkMania.Screens.go('home'); await wait(500); AshtonkMania.Screens.go('profile'); await wait(900); // (the profile as it was, for what's next)
+    return { before, pose };
+  });
+  check('medals: every one of Neru\'s secrets found, she\'s on your profile beside them, cheering', !allNeru.before && allNeru.pose === 'neru-cheer.png', JSON.stringify(allNeru));
   // (Neru's secrets: "???" till found; finding one — "zako" said back to her — unlocks its medal, once)
   const secret = await page.evaluate(() => ({ hidden: [...document.querySelectorAll('.md-badge.secret')].length, named: [...document.querySelectorAll('.md-badge')].some(b => /Zako~/.test(b.textContent)) }));
   await page.evaluate(() => AshtonkMania.Screens.go('home')); await page.waitForTimeout(600);
   await page.evaluate(() => { NeruEggs.found('zako'); NeruEggs.found('zako'); });
   await page.waitForSelector('.medal-ov', { timeout: 5000 }).catch(() => {});
-  const egg = await page.evaluate(() => ({ text: (document.querySelector('.medal-ov') || {}).textContent || '', got: !!AshtonkMania.Medals.unlocked()['neru-zako'], queued: AshtonkMania.Medals.queue.length }));
+  await page.waitForFunction(() => document.querySelector('.medal-ov .nc-medal .nc-img'), null, { timeout: 5000 }).catch(() => {});
+  const egg = await page.evaluate(() => ({ text: (document.querySelector('.medal-ov') || {}).textContent || '', got: !!AshtonkMania.Medals.unlocked()['neru-zako'], queued: AshtonkMania.Medals.queue.length, neru: ((document.querySelector('.medal-ov .nc-medal .nc-img') || {}).src || '').split('/').pop() }));
   for (let i = 0; i < 3 && await page.$('.medal-ov'); i++) { await page.click('.medal-ov'); await page.waitForTimeout(1700); }
-  check('medals: Neru\'s secrets show as "???" till found, and finding one unlocks its medal (once)', secret.hidden === 14 && !secret.named && /Zako~/.test(egg.text) && egg.got && egg.queued === 0, JSON.stringify({ secret, egg }));
+  check('medals: Neru\'s secrets show as "???" till found, and finding one unlocks its medal (once) — and a wink from her', secret.hidden === 15 && !secret.named && /Zako~/.test(egg.text) && egg.got && egg.queued === 0 && egg.neru === 'neru-wink.png', JSON.stringify({ secret, egg }));
 }
 
 // dangerous dialog buttons (red): a single press confirms, no holding
