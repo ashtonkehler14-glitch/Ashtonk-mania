@@ -207,6 +207,19 @@ await shot('01-home-empty');
     await wait(2600); out.over = p();
     return out;
   });
+  // "zako" typed on the main menu: she laughs, then wags her finger — and its O doesn't open the settings; slowly, a
+  // letter at a time, it's only the menu's keys
+  const zk = await page.evaluate(async () => {
+    const M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', out = {};
+    M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; await M.show(null); await wait(300);
+    const key = code => (document.activeElement || document.body).dispatchEvent(new KeyboardEvent('keydown', { code, key: code.replace(/^Key/, '').toLowerCase(), bubbles: true }));
+    for (const code of NeruEggs.WORD) { key(code); await wait(60); }
+    await wait(300); out.laugh = p(); out.settings = !!(AshtonkMania.SettingsPanel && AshtonkMania.SettingsPanel.o);
+    await wait(1500); out.wag = p(); await wait(1900); out.after = p();
+    return out;
+  });
+  check('Neru: "zako" typed back at her — a laugh, then a wagging finger (and its O doesn\'t open the settings)',
+    zk.laugh === 'mock' && !zk.settings && zk.wag === 'point' && zk.after === 'usual', JSON.stringify(zk));
   check('Neru dances to the Konami code (staying on the main menu); left alone longer she gets her phone out, then hugs her knees, and sulks a moment when you\'re back',
     more.code === 'dance' && more.screen === 'home' && more.after === 'usual' && more.phone === 'phone' && more.knees === 'knees' && more.woke === 'sulk' && more.over === 'usual', JSON.stringify(more));
   // tapped in time with the menu music, eight beats in a row: she dances — on for as long as the beat's kept, and taps

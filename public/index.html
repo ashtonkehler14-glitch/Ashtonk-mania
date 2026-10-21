@@ -14968,7 +14968,7 @@ Bus.on('library:changed', () => MenuMusic.removed());
  * And a few things to find just by playing (NeruEggs): bored when left alone — then on her phone, then hugging her
  * knees, and sulking when you come back — in a huff when clicked over and over, cheering through a song's chorus,
  * sunglasses on when you keep the pointer on her, picked up and dropped, a headpat (hearts — then a huff, as if she
- * hadn't liked it), a twirl when double-clicked, won over by a hundred clicks, dizzy when flung, shaken or circled round, dancing to a certain code, fishing when a pause goes on (click her and the fish on her line flops about), a glint off her sunglasses, a double take at her
+ * hadn't liked it), a taunt of her own typed back at her, a twirl when double-clicked, won over by a hundred clicks, dizzy when flung, shaken or circled round, dancing to a certain code, fishing when a pause goes on (click her and the fish on her line flops about), a glint off her sunglasses, a double take at her
  * own name (and peeking up when you search for it), the volume turned all the way up or down, songs skipped one after
  * another, and the small Neru on other screens in a huff too when clicked
  * over and over. Each screen's own picture of her stays as it is; a click there, now and then, gets a pose of her
@@ -15509,16 +15509,32 @@ const NeruEggs = {
   watchCode() {
     if (this._codeOn) return;
     this._codeOn = true;
-    let at = 0;
+    let at = 0, w = 0, wAt = 0;
     // (ahead of the main menu's own keys: B and A — Browse… — aren't pressed for the menu when they finish the code)
     window.addEventListener('keydown', e => {
-      if (Screens.currentName !== 'home' || !NeruMascot.img || e.ctrlKey || e.altKey || e.metaKey) { at = 0; return; }
+      if (Screens.currentName !== 'home' || !NeruMascot.img || e.ctrlKey || e.altKey || e.metaKey) { at = w = 0; return; }
       if (e.repeat || (e.target && e.target.closest && e.target.closest('input, textarea, select'))) return;
+      // (her word, typed quickly: its last letter — O, settings — isn't the menu's when it finishes it)
+      const now = performance.now();
+      if (now - wAt > 1500) w = 0;
+      wAt = now;
+      if (e.code === this.WORD[w]) {
+        if (++w === this.WORD.length) { w = 0; at = 0; e.preventDefault(); e.stopImmediatePropagation(); this.zako(); return; }
+      } else w = e.code === this.WORD[0] ? 1 : 0;
       if (e.code !== this.CODE[at]) { at = e.code === this.CODE[0] ? 1 : 0; return; }
       at++;
       if (at > 8) { e.preventDefault(); e.stopImmediatePropagation(); }
       if (at === this.CODE.length) { at = 0; this.dance(); }
     }, true);
+  },
+  // ── "zako" typed on the main menu — her song's taunt — and she laughs, then wags her finger at you, a heart and all
+  WORD: ['KeyZ', 'KeyA', 'KeyK', 'KeyO'],
+  zako() {
+    const M = NeruMascot;
+    if (!this.act('mock', 1400, { hop: false })) return;
+    UISounds.play('click-short');
+    clearTimeout(this._zakoT);
+    this._zakoT = setTimeout(() => { M._actUntil = 0; if (this.act('point', 1700)) for (const t of [0, 260]) setTimeout(() => this.heart(), t); }, 1400);
   },
   dance({ ms = 4600 } = {}) {
     const M = NeruMascot;
@@ -29472,7 +29488,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '55c1955663df';
+const APP_BUILD = '7574522b3d36';
 
 const App = {
   lastReport: null,
