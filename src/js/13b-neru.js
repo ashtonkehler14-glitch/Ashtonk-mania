@@ -35,11 +35,11 @@ const NeruMascot = {
    *  there isn't one) — or null with none. The picture chosen in Settings → Interface is all of them; otherwise the
    *  bundled ones. Looked up once, and shared by every place she shows. */
   pictures() {
-    // (a Teto or Miku fan gets her, never a picture of your own — theirs, most likely)
-    if (this._pics && this._picsTeto !== !!NeruEggs.fanOf()) this._pics = null;
+    // (a Teto, Miku or Neru fan gets her, never a picture of your own — theirs, most likely)
+    if (this._pics && this._picsTeto !== NeruEggs.stays()) this._pics = null;
     if (!this._pics) this._pics = (async () => {
       this._picsNow = null;
-      const blob = (this._picsTeto = !!NeruEggs.fanOf()) ? null : await DB.kvGet('mascot.image', null).catch(() => null);
+      const blob = (this._picsTeto = NeruEggs.stays()) ? null : await DB.kvGet('mascot.image', null).catch(() => null);
       if (blob instanceof Blob) {
         if (this._blobURL) URL.revokeObjectURL(this._blobURL);
         const u = this._blobURL = URL.createObjectURL(blob);
@@ -55,8 +55,8 @@ const NeruMascot = {
     })();
     return this._pics;
   },
-  /** Whether she shows: Settings → Show Neru — or, for a Teto or Miku fan, whatever that says (NeruEggs.fanOf). */
-  on() { return !!Settings.get('ui.mascot') || !!NeruEggs.fanOf(); },
+  /** Whether she shows: Settings → Show Neru — or, for a Teto, Miku or Neru fan, whatever that says (NeruEggs.stays). */
+  on() { return !!Settings.get('ui.mascot') || NeruEggs.stays(); },
   build() {
     const el = this.el = h('button.neru', { hidden: true, 'aria-label': 'Neru', tabindex: '-1', onclick: e => { e.stopPropagation(); if (this._dragged) { this._dragged = false; return; } this.hop(); } });
     if (!this.on()) return el;
@@ -180,8 +180,10 @@ const NeruMascot = {
     NeruEggs.stopStare();
     if (this.happy && this.img) {
       // (April Fools' Day: she laughs instead — got you)
-      // (a Teto or Miku fan: now and then a snicker instead — she hasn't forgotten)
-      this.show(NeruEggs.foolsDay() && this.has('mock') ? 'mock' : NeruEggs.fanOf() && Math.random() < 0.35 && this.has('snicker') ? 'snicker' : 'happy', { pop: false });
+      // (a Teto or Miku fan: now and then a snicker instead — their thing crossed out over her head; she hasn't forgotten)
+      const fan = NeruEggs.fanOf(), sn = fan && Math.random() < 0.35 && this.has('snicker');
+      this.show(NeruEggs.foolsDay() && this.has('mock') ? 'mock' : sn ? 'snicker' : 'happy', { pop: false });
+      if (sn) setTimeout(() => NeruEggs.jab(fan.who), 450);
       if (NeruEggs.valentine()) for (let i = 0; i < 4; i++) setTimeout(() => NeruEggs.heart(), i * 120);
       clearTimeout(this._back);
       this._happyUntil = now + 1600;
@@ -242,6 +244,8 @@ const NeruCameo = {
     herSongPass: 'happy', herSongFail: 'sulk',
     // (the same song again and again: worn out; 727 on the results: pointing it out)
     again: 'tired', wysi: 'point',
+    // (turning her off as one of her own: offended; a Teto or Miku song, for their fan: laughing at it)
+    refused: 'sassy', theirSong: 'mock',
     // (every one of her secrets found: cheering beside them on your profile)
     allFound: 'cheer',
     // (beside the first-run setup, sizing you up: Onboarding.NERU has her pose for each page)
@@ -284,8 +288,9 @@ const NeruCameo = {
    *  place of her happy face. Null when she's turned off. */
   make(mood, cls, { delay = 450, poke = null } = {}) {
     if (!NeruMascot.on()) return null;
-    // (a Teto or Miku fan: clicked, she snickers at you — unless there's an easter egg's pose to show)
-    if (!poke && NeruEggs.fanOf()) poke = 'snicker';
+    // (a Teto or Miku fan: clicked, she snickers at you, their thing crossed out — unless there's an easter egg's pose)
+    const fan = !poke && NeruEggs.fanOf();
+    if (fan) poke = 'snicker';
     const el = h(`button.neru-cameo.${cls}`, { type: 'button', 'aria-label': 'Neru', tabindex: '-1', hidden: true });
     // (sparkles: in a mood she's pleased about)
     const pleased = this.HAPPY.has(mood);
@@ -368,6 +373,7 @@ const NeruCameo = {
         UISounds.click();
         // (her happy face for a moment, whatever her mood — or the easter egg's pose, held a little longer)
         if (react && face.src !== react.src) { show(react); clearTimeout(el._back); el._back = setTimeout(() => show(face), react === happy ? 1600 : 2200); }
+        if (fan) NeruEggs.prop(fan.who, el, img);
         if (pleased || (react !== happy && poke === this.EGG.fullCombo)) this.burst(el);
         if (react !== happy && poke === this.EGG.fullCombo) NeruEggs.found('showoff');
       });
@@ -431,8 +437,8 @@ document.addEventListener('input', e => { if (e.target && e.target.matches && e.
 // (a new name or picture that makes you a Teto or Miku fan — or no longer: Neru comes back on, or goes, and she's herself
 // again or your picture)
 Bus.on('profile:changed', () => {
-  const fan = JSON.stringify(NeruEggs.fanOf());
-  if (fan === (NeruEggs._wasFan || 'null')) return;
+  const fan = JSON.stringify([NeruEggs.fanOf(), NeruEggs.neruFan()]);
+  if (fan === (NeruEggs._wasFan || JSON.stringify([null, false]))) return;
   NeruEggs._wasFan = fan; NeruEggs._fanSeen = false;
   const old = Screens.currentName === 'home' && document.querySelector('.home .neru');
   if (old) old.replaceWith(NeruMascot.build());
@@ -591,21 +597,22 @@ const NeruEggs = {
   // ── a Teto or Miku fan — her name in yours, written any way at all, or the bundled Teto or Miku picture as yours:
   // there's no turning Neru off (or swapping her for a picture of your own), and the first time she sees it (once a
   // session) she lets you know what she thinks of that — a blank look, their thing in a thought bubble over her head
-  // (Teto's French bread, Miku's leek), crossed out, a snicker, laughing at you, then a wagging finger. Neru's own
-  // picture as yours: she's pleased.
-  /** Whether `name` has `who` ('teto' or 'miku') in it, written any way at all: TeTo, t3t0, T.e.t.o, Тето, テト, 重音…;
-   *  M1KU, m i k u, Мику, ミク, 初音… */
+  // (Teto's French bread, Miku's leek), crossed out, a snicker, laughing at you, then a wagging finger. Her own name in
+  // yours, or her picture as yours: she's pleased.
+  /** Whether `name` has `who` ('teto', 'miku' or 'neru') in it, written any way at all: TeTo, t3t0, T.e.t.o, Тето, テト,
+   *  重音…; M1KU, m i k u, Мику, ミク, 初音…; N3RU, n e r u, ネル, 亞北… */
   named(who, name) {
     let n = String(name || '').normalize('NFKC').toLowerCase();
-    if (who === 'teto' ? /テト|てと|ﾃﾄ|重音|kasane/.test(n) : /ミク|みく|ﾐｸ|初音|hatsune/.test(n)) return true;
+    const JP = { teto: /テト|てと|ﾃﾄ|重音|kasane/, miku: /ミク|みく|ﾐｸ|初音|hatsune/, neru: /ネル|ねる|ﾈﾙ|亞北|亜北|akita/ };
+    if (JP[who] && JP[who].test(n)) return true;
     // (look-alike letters and numbers as the letters they pass for, then everything that isn't a letter dropped)
     const LIKE = { '3': 'e', '€': 'e', 'е': 'e', 'ε': 'e', '0': 'o', 'о': 'o', 'ο': 'o', 'ø': 'o', '°': 'o', '7': 't', '+': 't', 'т': 't', 'τ': 't',
       '1': 'i', '!': 'i', '|': 'i', 'і': 'i', 'ι': 'i', 'и': 'i', 'м': 'm', 'к': 'k', 'κ': 'k', 'у': 'u', 'μ': 'u', 'υ': 'u' };
     n = [...n].map(c => LIKE[c] || c).join('').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
     // (and doubled letters as one: "tettooo", "miiikuu")
     n = n.replace(/(.)\1+/g, '$1');
-    const w = who === 'teto' ? 'teto' : 'miku';
-    return n.includes(w) || n.includes([...w].reverse().join(''));
+    // (Teto and Miku backwards too: "otet", "ukim")
+    return n.includes(who) || (who !== 'neru' && n.includes([...who].reverse().join('')));
   },
   /** Whether Teto is in your name (written any way). */
   tetoFan(name = this.myName()) { return this.named('teto', name); },
@@ -617,17 +624,25 @@ const NeruEggs = {
     for (const who of ['teto', 'miku']) if (avatar === `preset:${who}`) return { who, by: 'picture' };
     return null;
   },
-  /** How the settings put it, while she won't be turned off: "with Teto in your name", "with Miku as your picture". */
-  fanWhy(f = this.fanOf()) { const W = f.who === 'teto' ? 'Teto' : 'Miku'; return f.by === 'name' ? `with ${W} in your name` : `with ${W} as your picture`; },
+  /** Whether she stays on whatever Settings says — for a Teto or Miku fan (to make fun of them) and one of her own. */
+  stays() { return !!this.fanOf() || this.neruFan(); },
+  /** Turning her off (or swapping her for a picture of your own) while she stays: she won't have it — up she peeks,
+   *  laughing at a Teto or Miku fan with their thing crossed out over her head, offended at one of her own. */
+  refuse() {
+    const f = this.fanOf(), side = document.querySelector('.settings-panel:not(.out)') ? 'right' : null;
+    this.peek(f ? 'failed' : 'refused', { found: false, side, then: el => { if (f) this.prop(f.who, el, el.querySelector('.nc-img')); else this.fume(el); } });
+    return true;
+  },
   fan() {
     const f = this.fanOf();
-    this._wasFan = JSON.stringify(f); // (what a change of name or picture is told apart from)
+    this._wasFan = JSON.stringify([f, this.neruFan()]); // (what a change of name or picture is told apart from)
     if (!f) { this.ownPicture(); return; }
     if (this._fanSeen) return;
     this._fanSeen = true;
     clearTimeout(this._fanT);
     // (each step only if she's still in the one before: a click, a drag or leaving the menu ends it there)
     const M = NeruMascot, then = (pose, ms, fn) => { this._fanT = setTimeout(() => { if (M.img && M.img.dataset.pose === pose) { M._actUntil = 0; fn(); } }, ms); };
+    for (const f2 of this.PHOTOS[f.who] || []) new Image().src = Host.asset(`neru-photos/${f2}`); // (ready before she shows one)
     this._fanT = setTimeout(() => {
       if (!this.act('huh', 1500, { hop: false })) { this._fanSeen = false; return; }
       if (M.el) { M.el.classList.remove('startle'); void M.el.offsetWidth; M.el.classList.add('startle'); }
@@ -638,17 +653,79 @@ const NeruEggs = {
         if (M.el) { M.el.classList.remove('giggle'); void M.el.offsetWidth; M.el.classList.add('giggle'); }
         UISounds.play('click-short');
         then('snicker', 1300, () => {
-          if (!this.act('mock', 1600, { hop: false })) return;
+          // (laughing, she holds up a photo of their character — one nobody asked to see)
+          if (!this.act('mock', 2700, { hop: false })) return;
           if (M.el) { M.el.classList.remove('giggle'); void M.el.offsetWidth; M.el.classList.add('giggle'); }
-          then('mock', 1600, () => this.act('point', 1800));
+          // (one time in ten with a photo of their character; placed once her new pose is in, beside it)
+          if (Math.random() < this.PHOTO_CHANCE) setTimeout(() => this.photo(f.who), 450);
+          then('mock', 2700, () => this.act('point', 1800));
         });
       });
     }, 1400);
+    // (and every couple of minutes on the main menu after that, another laugh at them)
+    clearInterval(this._fanAgain);
+    this._fanAgain = setInterval(() => {
+      const g = this.fanOf();
+      if (!g || !M.el || !M.el.isConnected) { clearInterval(this._fanAgain); return; }
+      // (one time in ten a photo of their character, laughing — else their thing crossed out, with a snicker)
+      const pic = Math.random() < this.PHOTO_CHANCE;
+      if (document.hidden || M._idle || !this.act(pic ? 'mock' : 'snicker', pic ? 2700 : 1600, { hop: false })) return;
+      if (M.el) { M.el.classList.remove('giggle'); void M.el.offsetWidth; M.el.classList.add('giggle'); }
+      setTimeout(() => pic ? this.photo(g.who) : this.prop(g.who), 450);
+    }, this.FAN_AGAIN_MS);
   },
-  /** Neru's own picture as yours: the first time she sees it (once a session), she's pleased — not that she'd say so. */
+  FAN_AGAIN_MS: 150000,
+  /** Their character as nobody wants to see them — bald, round, smug — on photos she pulls out to laugh at
+   *  (public/neru-photos/). */
+  PHOTOS: {
+    miku: ['miku-bald.jpg', 'miku-bald-2.jpg', 'miku-round.jpg', 'miku-lollipop.jpg', 'miku-fried.jpg', 'miku-plank.jpg', 'miku-derp.jpg', 'miku-aaa.jpg', 'miku-scream.jpg', 'miku-skibidi.jpg'],
+    teto: ['teto-smug.jpg', 'teto-chibi.jpg', 'teto-fried.jpg', 'teto-pear.jpg', 'teto-hood.jpg', 'teto-bread.jpg', 'teto-mcd.jpg', 'teto-toilet.jpg'],
+  },
+  /** How often a laugh at them comes with a photo (else their thing crossed out): one in ten — a rare treat. */
+  PHOTO_CHANCE: 0.1,
+  /** A laugh at them: now and then a photo, else their thing crossed out (on the main menu's Neru, or `box`/`img`). */
+  jab(who, box, img) { if (Math.random() < this.PHOTO_CHANCE) this.photo(who, box, img); else this.prop(who, box, img); },
+  /** One of them as a polaroid, taped up beside her for a moment (`ms`) — a different one from last time. */
+  photo(who, box = NeruMascot.el, img = NeruMascot.img, ms = 2500) {
+    const list = this.PHOTOS[who] || [];
+    if (!list.length || !box || !img || !box.isConnected || box.querySelector(':scope > .neru-photo')) return;
+    let i = Math.floor(Math.random() * list.length);
+    if (list.length > 1 && i === this._lastPhoto) i = (i + 1) % list.length;
+    this._lastPhoto = i;
+    const er = box.getBoundingClientRect(), ir = img.getBoundingClientRect(), k = box.offsetWidth ? er.width / box.offsetWidth : 1;
+    const el = h('span.neru-photo', h('img', { src: Host.asset(`neru-photos/${list[i]}`), alt: '', draggable: 'false' }), h('i.np-tape'));
+    // (beside her, a little below her face: clear of the menu's bar of buttons)
+    Object.assign(el.style, { left: `${(ir.left - er.left + ir.width * 0.88) / k}px`, top: `${(ir.top - er.top + ir.height * 0.2) / k}px` });
+    box.append(el);
+    const tilt = (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 4);
+    el.style.rotate = `${tilt}deg`;
+    const away = () => el.remove();
+    if (!Settings.get('ui.animSpeed')) { setTimeout(away, ms); return; }
+    // (flicked up into place with a little overshoot, and dropped away again)
+    el.animate([{ transform: 'translateY(46px) scale(.55)', rotate: `${tilt * 3}deg`, opacity: 0 }, { transform: 'translateY(-6px) scale(1.04)', rotate: `${tilt * 0.5}deg`, opacity: 1, offset: 0.62 }, { transform: 'none', rotate: `${tilt}deg`, opacity: 1 }],
+      { duration: 560, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+    setTimeout(() => { if (el.isConnected) el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(34px) scale(.92)' }], { duration: 380, easing: 'ease-in', fill: 'forwards' }).onfinish = away; }, ms);
+  },
+  /** Their thing crossed out beside a small Neru `el` (a screen's), once her picture's in. */
+  propOn(el, who, delay = 600) {
+    if (!el || !who) return;
+    const go = (n = 0) => { const img = el.querySelector('.nc-img'); if (!el.isConnected && n > 3) return; if (!img || el.hidden) { if (n < 60) setTimeout(() => go(n + 1), 100); return; } setTimeout(() => this.prop(who, el, img), delay); };
+    go();
+  },
+  /** Whether `rec` (a beatmap) is Teto's or Miku's — their name in its title, artist or source: who, or null. */
+  theirSong(rec) {
+    if (!rec) return null;
+    const set = typeof BeatmapManager !== 'undefined' && BeatmapManager.sets ? BeatmapManager.sets.find(x => x.id === rec.setId) : null;
+    const text = [rec.title, rec.artist, set && set.titleUnicode, set && set.artistUnicode, set && set.source].filter(Boolean).join(' ');
+    return ['teto', 'miku'].find(w => this.named(w, text)) || null;
+  },
+  /** A Neru fan — her name in yours (written any way; just "Neru" gets the namesake's tease instead), or her picture as
+   *  yours: the first time she sees it (once a session), she's pleased — not that she'd say so. */
+  neruFan(name = this.myName(), avatar = typeof ProfileManager !== 'undefined' && ProfileManager.profile ? ProfileManager.profile.avatar : '') {
+    return avatar === 'preset:neru' || (this.named('neru', name) && !/^\s*neru\s*$/i.test(String(name || '')));
+  },
   ownPicture() {
-    const av = typeof ProfileManager !== 'undefined' && ProfileManager.profile ? ProfileManager.profile.avatar : '';
-    if (av !== 'preset:neru' || this._ownSeen) return;
+    if (!this.neruFan() || this._ownSeen) return;
     this._ownSeen = true;
     setTimeout(() => { if (!this.act('happy', 1700, { sparkle: true })) { this._ownSeen = false; return; } for (const t of [150, 450]) setTimeout(() => this.heart(), t); }, 2800);
   },
@@ -668,11 +745,13 @@ const NeruEggs = {
       + '<path d="M36 36.5h30" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".9"/></g>',
   },
   prop(who = 'teto', box = NeruMascot.el, img = NeruMascot.img) {
-    if (!box || !img || !box.isConnected) return;
+    if (!box || !img || !box.isConnected || box.querySelector(':scope > .neru-bread')) return;
     const er = box.getBoundingClientRect(), ir = img.getBoundingClientRect(), k = box.offsetWidth ? er.width / box.offsetWidth : 1;
-    const el = h(`span.neru-bread.nb-${who}`);
-    // (beside her face, on the side away from the screen's edge — over her head it would be under the menu's bar)
-    Object.assign(el.style, { left: `${(ir.left - er.left + ir.width * 0.86) / k}px`, top: `${(ir.top - er.top + ir.height * 0.04) / k}px` });
+    // (beside her face, on the side away from the screen's edge — over her head it would be under the menu's bar; one
+    // peeking up on the right has it on her left, the other way round)
+    const flip = box.classList.contains('right'), tx = flip ? '-88%' : '-12%';
+    const el = h(`span.neru-bread.nb-${who}${flip ? '.flip' : ''}`);
+    Object.assign(el.style, { left: `${(ir.left - er.left + ir.width * (flip ? 0.14 : 0.86)) / k}px`, top: `${(ir.top - er.top + ir.height * 0.04) / k}px` });
     el.innerHTML = '<svg viewBox="0 0 120 84">'
       // the bubble: a cloud, and two small puffs trailing down to her
       + '<g fill="#fff" stroke="rgba(0,0,0,.18)" stroke-width="1.5"><circle cx="8" cy="78" r="4.5"/><circle cx="19" cy="66" r="7"/>'
@@ -683,12 +762,12 @@ const NeruEggs = {
     box.append(el);
     const anim = !!Settings.get('ui.animSpeed');
     if (!anim) { setTimeout(() => el.remove(), 2600); return; }
-    el.animate([{ transform: 'translate(-12%, -50%) scale(.2)', opacity: 0 }, { transform: 'translate(-12%, -50%) scale(1.08)', opacity: 1, offset: 0.6 }, { transform: 'translate(-12%, -50%) scale(1)', opacity: 1 }],
+    el.animate([{ transform: `translate(${tx}, -50%) scale(.2)`, opacity: 0 }, { transform: `translate(${tx}, -50%) scale(1.08)`, opacity: 1, offset: 0.6 }, { transform: `translate(${tx}, -50%) scale(1)`, opacity: 1 }],
       { duration: 380, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' });
     // (the cross drawn on, stroke by stroke)
     el.querySelectorAll('.nb-x path').forEach((pa, i) => pa.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: 170, delay: 900 + i * 190, easing: 'ease-in', fill: 'both' }));
     setTimeout(() => { if (el.isConnected) el.animate([{ rotate: '0deg' }, { rotate: '-7deg' }, { rotate: '6deg' }, { rotate: '-4deg' }, { rotate: '0deg' }], { duration: 420, easing: 'ease-in-out' }); }, 1300);
-    setTimeout(() => { if (el.isConnected) el.animate([{ opacity: 1 }, { opacity: 0, transform: 'translate(-12%, -62%) scale(.9)' }], { duration: 420, easing: 'ease-in', fill: 'forwards' }).onfinish = () => el.remove(); }, 2700);
+    setTimeout(() => { if (el.isConnected) el.animate([{ opacity: 1 }, { opacity: 0, transform: `translate(${tx}, -62%) scale(.9)` }], { duration: 420, easing: 'ease-in', fill: 'forwards' }).onfinish = () => el.remove(); }, 2700);
   },
 
   // ── the Konami code on the main menu (↑ ↑ ↓ ↓ ← → ← → B A): she dances, a burst of sparkles on every beat of it
@@ -791,23 +870,29 @@ const NeruEggs = {
   // ── her name searched for (song select, the beatmap listing): she peeks up from the bottom of the screen — "huh?
   // you called?" — and ducks back down (not when the search found nothing: the empty list has her already)
   searched(input) {
-    if (!/(^|[^a-z])neru([^a-z]|$)/i.test(input.value || '') || performance.now() - (this._peekAt || -1e9) < 9000) return;
+    const v = input.value || '', them = /(^|[^a-z])(teto|miku)([^a-z]|$)/i.exec(v);
+    if (!(them || /(^|[^a-z])neru([^a-z]|$)/i.test(v)) || performance.now() - (this._peekAt || -1e9) < 9000) return;
     this._peekAt = performance.now();
-    setTimeout(() => { if (input.isConnected) this.peek(); }, 300);
+    // (Teto or Miku searched for: she peeks up laughing, their thing crossed out)
+    const who = them && them[2].toLowerCase();
+    setTimeout(() => { if (input.isConnected) who ? this.peek('failed', { found: false, then: el => this.prop(who, el, el.querySelector('.nc-img')) }) : this.peek(); }, 300);
   },
   /** Whether Neru's on screen already — the main menu's, or a small one on another screen, a dialog or a medal: a peek
    *  then would make two of her. */
   onScreen() {
     // (one scrolled out of sight — at the foot of the settings, say — doesn't count)
-    const seen = n => { const r = n.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth; };
+    // (nor one the settings panel is over)
+    const sp = document.querySelector('.settings-panel:not(.out)'), cover = sp && sp.getBoundingClientRect();
+    const seen = n => { const r = n.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth && !(cover && !n.closest('.settings-panel') && r.left + r.width / 2 < cover.right); };
     return [...document.querySelectorAll('.home .neru, .neru-cameo:not(.nc-peek)')].some(n => !n.hidden && seen(n) && getComputedStyle(n).opacity !== '0');
   },
   /** A small Neru peeking up from the bottom edge of the screen for a moment, in `mood`'s pose — clicks go through her
    *  to whatever she's in front of (song select's Back button, say). `found`: her name searched for (a medal). */
-  peek(mood = 'list', { found = true } = {}) {
-    if (!Settings.get('ui.animSpeed') || document.querySelector('.nc-peek') || this.onScreen()) return;
+  peek(mood = 'list', { found = true, side = null, then = null } = {}) {
+    if (!Settings.get('ui.animSpeed') || document.querySelector('.nc-peek') || this.onScreen()) return null;
     const el = NeruCameo.make(mood, 'nc-peek');
-    if (!el) return;
+    if (!el) return null;
+    if (side === 'right') el.classList.add('right');
     // (the chat open: up from behind its top edge, never over what's being said)
     const chat = document.querySelector('.chat:not(.out)');
     if (chat) { el.classList.add('behind'); el.style.bottom = `${((1 - chat.getBoundingClientRect().top / innerHeight) * 100).toFixed(2)}%`; }
@@ -820,9 +905,10 @@ const NeruEggs = {
       el.animate([{ transform: 'translateY(42%)' }, { transform: 'translateY(105%)' }], { duration: 420, easing: 'cubic-bezier(.55, 0, .75, .2)', fill: 'forwards' }).onfinish = () => el.remove();
     };
     // (once her picture's in: up, a look, and back down)
-    const go = () => { if (el.hidden) { if (el.isConnected) setTimeout(go, 60); return; } el.animate(up, { duration: 650, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' }); setTimeout(away, 3200); };
+    const go = () => { if (el.hidden) { if (el.isConnected) setTimeout(go, 60); return; } el.animate(up, { duration: 650, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' }); setTimeout(away, 3200); if (then) setTimeout(() => el.isConnected && then(el), 520); };
     el.style.transform = 'translateY(105%)';
     go();
+    return el;
   },
 
   // ── the very bottom of the settings, past everything: Neru, fast asleep at her desk (a click wakes her for a moment)
@@ -883,11 +969,15 @@ const NeruEggs = {
   // ── her name said in the chat: she peeks up to see who's talking about her (her taunt said back: she laughs)
   mentioned(text) {
     const t = String(text || '');
-    const taunt = /(^|[^a-z])zako([^a-z]|$)/i.test(t), name = /(^|[^a-z])neru([^a-z]|$)/i.test(t);
-    if (!(taunt || name) || performance.now() - (this._chatPeekAt || -1e9) < 20000) return;
+    const taunt = /(^|[^a-z])zako([^a-z]|$)/i.test(t), name = /(^|[^a-z])neru([^a-z]|$)/i.test(t), them = ['teto', 'miku'].find(w => this.named(w, t));
+    if (!(taunt || name || them) || performance.now() - (this._chatPeekAt || -1e9) < 20000) return;
     this._chatPeekAt = performance.now();
-    // (on the main menu she's there already: she looks round herself)
-    setTimeout(() => { if (Screens.currentName === 'home' && NeruMascot.img) this.act(taunt ? 'mock' : 'huh', 1600, { hop: false }); else this.peek(taunt ? 'failed' : 'list', { found: false }); }, 400);
+    // (Teto or Miku: she laughs, their thing crossed out over her head; on the main menu she's there already: she looks
+    // round herself)
+    setTimeout(() => {
+      if (Screens.currentName === 'home' && NeruMascot.img) { if (this.act(them || taunt ? 'mock' : 'huh', 1600, { hop: false }) && them) setTimeout(() => this.prop(them), 250); }
+      else this.peek(them || taunt ? 'failed' : 'list', { found: false, then: them ? el => this.prop(them, el, el.querySelector('.nc-img')) : null });
+    }, 400);
   },
 
   // ── left sitting in song select — no key, click or scroll for a while — she peeks up, bored: pick something already.

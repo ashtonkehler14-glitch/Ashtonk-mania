@@ -55,3 +55,4 @@ python3 tools/neru-art.py IN.png --out public/ # Neru's pictures: upscaled and c
 - Formulas and the Web-Osu-Mania skins (arrows, judgement sets, Roboto Mono) are from [Web-Osu-Mania](https://github.com/hectickiwi/Web-Osu-Mania) by Danny Duong, MIT License. Its judgement sets credit their skin authors in `public/wom/CREDITS.txt`.
 - The menu cursor and its sound are from [osu-resources](https://github.com/ppy/osu-resources) by ppy, CC BY-NC 4.0.
 - 《NM》 Kori 3.0 skin by Kori.
+- The photos Neru laughs at (`public/neru-photos/`) are fan art and memes by their artists, among them @Koebiiiii and @1_ain.

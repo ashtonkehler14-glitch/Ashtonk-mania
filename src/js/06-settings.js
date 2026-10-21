@@ -143,10 +143,10 @@ const SETTINGS_SCHEMA = [
   { s: 'User Interface', g: 'General', k: 'ui.parallax', l: 'Parallax', t: 'bool', d: true },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.menuBackground', l: 'Background source', t: 'select', d: 'skin', o: [['skin', 'Skin'], ['beatmap', 'Beatmap']], hint: 'lazer\'s: the menu\'s triangle picture (in the playing song\'s colour), or the playing song\'s own background.' },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.mascot', l: 'Show Neru', t: 'bool', d: true, hint: 'On the main menu, and around the game: she reacts to your results, teases you when you fail and keeps you company while things load.',
-    // (a Teto or Miku fan: Neru stays — see NeruEggs.fanOf)
-    locked: () => typeof NeruEggs !== 'undefined' && NeruEggs.fanOf() ? `Not ${NeruEggs.fanWhy()}. Neru isn't going anywhere.` : '' },
+    // (a Teto, Miku or Neru fan: she stays — it looks as always, but try turning her off and she won't have it)
+    stays: () => typeof NeruEggs !== 'undefined' && NeruEggs.stays(), refuse: () => NeruEggs.refuse() },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.mascotImage', l: 'Main menu character image', t: 'mascot', hint: 'Any picture (PNG with a transparent background looks best).',
-    locked: () => typeof NeruEggs !== 'undefined' && NeruEggs.fanOf() ? `Not ${NeruEggs.fanWhy()}. It's Neru, and that's that.` : '' },
+    stays: () => typeof NeruEggs !== 'undefined' && NeruEggs.stays(), refuse: () => NeruEggs.refuse() },
   { s: 'User Interface', g: 'General', k: 'ui.unicodeMetadata', l: 'Prefer metadata in original language', t: 'bool', d: false },
   { s: 'User Interface', g: 'Song Select', k: 'songselect.converts', l: 'Show converted beatmaps', t: 'bool', d: true, hint: 'osu! (standard) difficulties, played as osu!mania the way lazer converts them.' },
   // ── Skin

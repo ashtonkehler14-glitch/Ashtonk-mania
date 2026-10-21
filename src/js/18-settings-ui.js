@@ -108,9 +108,10 @@ const SettingsPanel = {
     const isDefault = () => JSON.stringify(Settings.get(it.k)) === JSON.stringify(it.d);
     const reset = h('button.reset', { title: 'Revert to default', 'aria-label': `Revert ${it.l} to default`, onclick: e => { e.stopPropagation(); Settings.set(it.k, copyData(it.d)); UISounds.click(); rebuild(); } });
     const updReset = () => reset.classList.toggle('show', !isDefault());
-    // (a setting that can't be changed right now — and why, in place of its hint)
-    const locked = it.locked ? it.locked() : '';
-    const cap = h('div.lbl', it.l, locked ? h('div.hint.locked', icon('lock'), locked) : it.hint ? h('div.hint', it.hint) : null);
+    // (a setting that won't be changed right now: it looks as it always does, but trying gets refused — it.refuse)
+    const stays = it.stays ? it.stays() : false;
+    const nope = () => { it.refuse && it.refuse(); row.classList.remove('nope'); void row.offsetWidth; row.classList.add('nope'); };
+    const cap = h('div.lbl', it.l, it.hint ? h('div.hint', it.hint) : null);
     let row;
     const rebuild = () => { const n = this.row(it); row.replaceWith(n); };
     const form = (cls, ...kids) => h(`div.set-row.form.${cls}`, ...kids, reset);
@@ -119,9 +120,10 @@ const SettingsPanel = {
     if (it.when && !it.when()) return h('div', { hidden: true });
     switch (it.t) {
       case 'bool': {
-        const t = h(`button.toggle${val() || locked ? '.on' : ''}${locked ? '.locked' : ''}`, { role: 'switch', 'aria-checked': String(!!(val() || locked)), 'aria-label': it.l, 'aria-disabled': locked ? 'true' : null, onclick: e => {
+        const t = h(`button.toggle${val() || stays ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!(val() || stays)), 'aria-label': it.l, onclick: e => {
           e.stopPropagation();
-          if (locked) { UISounds.play('check-off'); row.classList.remove('nope'); void row.offsetWidth; row.classList.add('nope'); return; }
+          // (switched off, and straight back on again)
+          if (stays) { t.classList.remove('on'); UISounds.play('check-off'); clearTimeout(t._back); t._back = setTimeout(() => { t.classList.add('on'); UISounds.play('check-on'); nope(); }, 280); return; }
           const v = !val(); Settings.set(it.k, v); t.classList.toggle('on', v); t.setAttribute('aria-checked', String(v)); UISounds.play(v ? 'check-on' : 'check-off'); updReset(); flash();
         } });
         row = form('fbool', cap, t);
@@ -167,12 +169,12 @@ const SettingsPanel = {
       case 'data': row = form('fwide', cap, DataPanel.build()); break;
       case 'shortcuts': row = form('fbool', cap, h('button.btn.sm', { onclick: () => Shortcuts.open() }, icon('keyboard'), 'Show all')); break;
       case 'mascot': row = form('fwide', cap, h('div.fline',
-        h('button.btn.sm', { disabled: !!locked, onclick: async () => { const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) { await NeruMascot.setImage(f); Toast.ok('Main menu character updated'); } } }, icon('upload'), 'Choose image'),
-        h('button.btn.sm.ghost', { disabled: !!locked, onclick: async () => { await NeruMascot.setImage(null); Toast.show('Main menu character reset'); } }, 'Reset'))); break;
+        h('button.btn.sm', { onclick: async () => { if (stays) { nope(); return; } const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) { await NeruMascot.setImage(f); Toast.ok('Main menu character updated'); } } }, icon('upload'), 'Choose image'),
+        h('button.btn.sm.ghost', { onclick: async () => { if (stays) { nope(); return; } await NeruMascot.setImage(null); Toast.show('Main menu character reset'); } }, 'Reset'))); break;
       default: row = h('div');
     }
     updReset();
-    if (locked) { reset.remove(); row.classList.add('locked'); }
+    if (stays) reset.remove();
     return row;
   },
 };

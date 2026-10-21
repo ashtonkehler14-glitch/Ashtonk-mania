@@ -385,45 +385,58 @@ await shot('01-home-empty');
     AshtonkMania.Medals.egg = id => got.push(id);
     try {
       out.spellings = ['TETO', 't3t0', 'T.e.t.o', 't e t o', 'Тето', 'テト', 'Kasane'].every(n => E.tetoFan(n)) && !['Ash', 'Tetsuo', 'toto'].some(n => E.tetoFan(n));
+      E.PHOTO_CHANCE = 1; // (one time in ten, as it plays: every time here)
       S.set('ui.mascot', false); await wait(300);
       out.offBefore = !shown();
       P.profile.name = 'KasaneTetoFan'; AshtonkMania.Bus.emit('profile:changed');
       for (let i = 0; i < 40 && !shown(); i++) await wait(100);
       out.on = shown() && M.on();
       const poses = [];
-      for (let i = 0; i < 26; i++) { await wait(250); const p = M.img && M.img.dataset.pose; if (p && poses[poses.length - 1] !== p) poses.push(p); if (document.querySelector('.home .neru .neru-bread.nb-teto')) out.bread = true; }
+      for (let i = 0; i < 34; i++) { await wait(250); const p = M.img && M.img.dataset.pose; if (p && poses[poses.length - 1] !== p) poses.push(p); if (document.querySelector('.home .neru .neru-bread.nb-teto')) out.bread = true; if (document.querySelector('.home .neru .neru-photo img[src*="neru-photos/teto-"]')) out.photo = true; }
       out.poses = poses.join();
       out.medal = got.includes('neru-teto');
       const c = AshtonkMania.NeruCameo.make('okay', 'nc-results');
       Object.assign(c.style, { position: 'fixed', right: '20px', bottom: '20px' }); document.body.append(c);
       for (let i = 0; i < 40 && !c.querySelector('.nc-img'); i++) await wait(100);
       c.click(); await wait(500); out.cameo = c.querySelector('.nc-img').src.split('/').pop(); c.remove();
+      // (nothing in Settings says so — but turned off, the switch springs back on and she peeks up laughing, Teto's bread
+      // crossed out)
+      document.querySelectorAll('.nc-peek').forEach(x => x.remove());
       AshtonkMania.SettingsPanel.open(); await wait(400);
       const row = [...document.querySelectorAll('.settings-panel .set-row')].find(x => /Show Neru/.test(x.textContent));
-      row.querySelector('.toggle').click(); await wait(100);
-      out.locked = row.querySelector('.toggle').classList.contains('on') && /Teto/.test(row.querySelector('.hint').textContent) && S.get('ui.mascot') === false;
-      AshtonkMania.SettingsPanel.close(); await wait(300);
+      const plain = row.querySelector('.toggle').classList.contains('on') && !/Teto|Not with/.test(row.textContent);
+      row.querySelector('.toggle').click(); await wait(120); const off = !row.querySelector('.toggle').classList.contains('on');
+      await wait(1500);
+      const pk = document.querySelector('.nc-peek.right');
+      out.locked = plain && off && row.querySelector('.toggle').classList.contains('on') && S.get('ui.mascot') === false && !!pk && /neru-mock/.test((pk.querySelector('.nc-img') || {}).src || '') && !!pk.querySelector('.neru-bread.nb-teto');
+      AshtonkMania.SettingsPanel.close(); await wait(300); document.querySelectorAll('.nc-peek').forEach(x => x.remove());
       P.profile.name = name; AshtonkMania.Bus.emit('profile:changed'); await wait(400);
       out.offAfter = !shown();
       // Miku the same — in your name (any spelling), or her picture as yours (Teto's too) — with Miku's leek this time
       out.miku = ['Miku', 'M1KU', 'm i k u', 'Мику', 'ミク', 'Hatsune'].every(n => E.named('miku', n)) && !['Mike', 'Mikey', 'Kumi'].some(n => E.named('miku', n));
       out.pictures = [E.fanOf('Ash', 'preset:miku'), E.fanOf('Ash', 'preset:teto'), E.fanOf('Ash', 'preset:neru'), E.fanOf('MikuFan', 'preset:teto')].map(f => f ? f.who + '/' + f.by : '-').join();
+      // (her own name in yours, or her picture: a fan of hers — pleased; just "Neru" is the namesake's tease)
+      out.photos = E.PHOTO_CHANCE === 1 && E.PHOTOS.miku.length === 10 && E.PHOTOS.teto.length === 8;
+      out.neru = ['NeruFan', 'N3RU', 'n e r u', 'ネル', 'Akita'].every(n => E.neruFan(n, 'default')) && E.neruFan('Ash', 'preset:neru') && !E.neruFan('Neru', 'default') && !E.neruFan('Ash', 'default');
+      // (one of her own stays on too: turned off, she's offended — hand on hip, a cross mark)
+      const nm = P.profile.name; P.profile.name = 'NeruFan'; out.neruStays = E.stays(); P.profile.name = nm;
       const av = P.profile.avatar; P.profile.avatar = 'preset:miku'; AshtonkMania.Bus.emit('profile:changed');
       for (let i = 0; i < 40 && !shown(); i++) await wait(100);
       for (let i = 0; i < 14 && !out.leek; i++) { await wait(250); if (document.querySelector('.home .neru .neru-bread.nb-miku')) out.leek = true; }
       AshtonkMania.SettingsPanel.open(); await wait(400);
       const row2 = [...document.querySelectorAll('.settings-panel .set-row')].find(x => /Show Neru/.test(x.textContent));
-      out.lockedMiku = /Miku as your picture/.test(row2.querySelector('.hint').textContent);
-      AshtonkMania.SettingsPanel.close(); await wait(300);
+      row2.querySelector('.toggle').click(); await wait(1600);
+      out.lockedMiku = row2.querySelector('.toggle').classList.contains('on') && !!document.querySelector('.nc-peek.right .neru-bread.nb-miku');
+      AshtonkMania.SettingsPanel.close(); await wait(300); document.querySelectorAll('.nc-peek').forEach(x => x.remove());
       P.profile.avatar = av; AshtonkMania.Bus.emit('profile:changed'); await wait(400);
       out.offAfterMiku = !shown();
-    } finally { AshtonkMania.Medals.egg = egg; P.profile.name = name; S.set('ui.mascot', true); for (let i = 0; i < 40 && !(M.img && M.img.complete); i++) await wait(100); await wait(300); }
+    } finally { E.PHOTO_CHANCE = 0.1; AshtonkMania.Medals.egg = egg; P.profile.name = name; S.set('ui.mascot', true); for (let i = 0; i < 40 && !(M.img && M.img.complete); i++) await wait(100); await wait(300); }
     return out;
   });
-  check('Teto in your name: Neru comes back on (locked on in Settings), and she makes fun of you — a blank look, the bread crossed out, a snicker, a laugh, a wagging finger',
-    teto.spellings && teto.offBefore && teto.on && teto.bread && /^huh,snicker,mock,point/.test(teto.poses) && teto.medal && teto.cameo === 'neru-snicker.png' && teto.locked && teto.offAfter, JSON.stringify(teto));
+  check('Teto in your name: Neru comes back on and won\'t be turned off (nothing says so — turned off, she springs back on and laughs at you), and she makes fun of you — a blank look, the bread crossed out, a snicker, a laugh with a photo of Teto at her worst, a wagging finger',
+    teto.spellings && teto.offBefore && teto.on && teto.bread && teto.photo && /^huh,snicker,mock,point/.test(teto.poses) && teto.medal && teto.cameo === 'neru-snicker.png' && teto.locked && teto.offAfter, JSON.stringify(teto));
   check('…and Miku the same — in your name, or Teto\'s or Miku\'s picture as yours (her leek crossed out, locked on saying why); Neru\'s own picture doesn\'t count',
-    teto.miku && teto.pictures === 'miku/picture,teto/picture,-,miku/name' && teto.leek && teto.lockedMiku && teto.offAfterMiku, JSON.stringify(teto));
+    teto.miku && teto.pictures === 'miku/picture,teto/picture,-,miku/name' && teto.leek && teto.lockedMiku && teto.offAfterMiku && teto.neru && teto.neruStays && teto.photos, JSON.stringify(teto));
   // the very bottom of the settings: Neru asleep at her desk — found, a secret medal (not before she's scrolled to)
   const fine = await page.evaluate(async () => {
     const wait = ms => new Promise(res => setTimeout(res, ms)), got = [], egg = AshtonkMania.Medals.egg;
@@ -916,9 +929,15 @@ await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.val
     NeruEggs._chatPeekAt = -1e9; NeruEggs.mentioned('neruals are cool'); await wait(1200); const word = pk();
     NeruEggs._chatPeekAt = -1e9; NeruEggs.mentioned('hi Neru!'); await wait(1200); const name = pk(); await wait(4200);
     NeruEggs._chatPeekAt = -1e9; NeruEggs.mentioned('zako~'); await wait(1200); const taunt = pk(); await wait(4200);
-    return { word, name, taunt };
+    // (Miku said: she laughs, Miku's leek crossed out over her head; Teto searched for: the same with Teto's bread)
+    NeruEggs._chatPeekAt = -1e9; NeruEggs.mentioned('miku is better'); await wait(1700); const them = pk() + '|' + !!document.querySelector('.nc-peek .neru-bread.nb-miku'); await wait(4000);
+    const box = document.body.appendChild(Object.assign(document.createElement('input'), { type: 'search', value: 'kasane teto' }));
+    NeruEggs._peekAt = -1e9; box.dispatchEvent(new Event('input', { bubbles: true })); await wait(2000);
+    const searched = pk() + '|' + !!document.querySelector('.nc-peek .neru-bread.nb-teto'); box.remove(); await wait(3800);
+    return { word, name, taunt, them, searched };
   });
-  check('her name said in the chat: Neru peeks up (a laugh for her taunt)', ch.word === null && ch.name === 'neru-huh.png' && ch.taunt === 'neru-mock.png', JSON.stringify(ch));
+  check('her name said in the chat: Neru peeks up (a laugh for her taunt); Miku or Teto said or searched for: she laughs, their thing crossed out',
+    ch.word === null && ch.name === 'neru-huh.png' && ch.taunt === 'neru-mock.png' && ch.them === 'neru-mock.png|true' && ch.searched === 'neru-mock.png|true', JSON.stringify(ch));
 }
 {
   // a multiplayer match decided: she peeks up — sunglasses for a win, a laugh at a loss (once a match)
@@ -1361,6 +1380,10 @@ await page.waitForTimeout(500);
     // (sparkles: not where the menus run lighter — a slow device — as everywhere)
     out.fc = { before: fcBefore, face: face(fc), sparks: fc.querySelectorAll('.neru-spark').length > 0 || document.documentElement.classList.contains('slow') };
     await wait(2300); out.fc.after = face(fc);
+    // a Miku fan's fail: she laughs, Miku's leek crossed out beside her
+    const pname = A.ProfileManager.profile.name; A.ProfileManager.profile.name = 'MikuFan';
+    try { await look(play('D', false)); await wait(3000); out.fanFail = !!(A.Screens.current._el.querySelector('.nc-results .neru-bread.nb-miku') || document.querySelector('.nc-results .neru-bread.nb-miku')); }
+    finally { A.ProfileManager.profile.name = pname; }
     // 727 — when you see it: she points it out (a 727x combo, or a score of 727,xxx)
     out.wysi = [await look(play('A', true, { maxCombo: 727 })), await look(play('B', true, { score: 727123, scoreStd: 727123 }))].map(x => x && x.face).join();
     // one of her songs: delighted at a pass (sunglasses still for an SS), sulking at a fail
@@ -1384,6 +1407,7 @@ await page.waitForTimeout(500);
   check('results: her mood follows the grade (SS perfect, S great, A/B okay, C/D bad) — a new best too — and a fail', r.moods === 'perfect,perfect,great,great,okay,okay,bad,bad|okay|failed', r.moods);
   check('results of one of her songs: Neru delighted at a pass (sunglasses still for an SS), sulking at a fail', r.hers === 'neru-happy.png,neru-sulk.png,neru-cool.png', r.hers);
   check('results with 727 in them (combo or score): Neru points it out', r.wysi === 'neru-point.png,neru-point.png', r.wysi);
+  check('results of a Miku fan\'s fail: Neru laughs, Miku\'s leek crossed out beside her', r.fanFail, JSON.stringify(r.fanFail));
 }
 
 // the main menu: clicking Neru makes her hop with her excited face for a moment, then back — no speech bubble

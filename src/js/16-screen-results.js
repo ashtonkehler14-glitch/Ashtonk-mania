@@ -37,6 +37,9 @@ const ResultsScreen = {
       if (wysi) NeruEggs.found('wysi');
       this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(wysi ? 'wysi' : hers && mood === 'failed' ? 'herSongFail' : hers && mood !== 'perfect' ? 'herSongPass' : mood, 'nc-results', { delay: 1500, poke: NeruEggs.resultsPoke(s) }) : null;
       if (this._neru) el.append(this._neru);
+      // (a Teto or Miku fan's fail or poor play: she laughs, their thing crossed out — they won't save you)
+      const fan = this._neru && !wysi && !hers && (mood === 'failed' || mood === 'bad') && NeruEggs.fanOf();
+      if (fan) NeruEggs.propOn(this._neru, fan.who, 2200);
     }
     this.fitToScreen(body, grid);
     if (!this._swapping) this._origP = p; // (the results as they opened: switching back to that score restores them)
