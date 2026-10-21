@@ -125,8 +125,8 @@ await shot('01-home-empty');
   check('an empty list has Neru, a blank "huh?" at it, in place of the icon', n.face === n.pose && n.pose === 'neru-huh.png' && !n.icon, JSON.stringify(n));
 }
 // Neru's easter eggs on the main menu: clicked over and over she's in a huff (and won't hop for a moment); she cheers
-// through the music's chorus; the pointer kept on her, sunglasses on, then a wink; left alone she gets bored — back to
-// herself at a touch; picked up she hangs from the pointer, and let go she drops back to her place
+// through the music's chorus; the pointer kept on her, the lights down and sunglasses on, then a wink; left alone she
+// gets bored — back to herself at a touch; picked up she hangs from the pointer, and let go she drops back to her place
 {
   await page.waitForSelector('.home .neru:not([hidden]) .neru-img', { timeout: 8000 }).catch(() => {});
   const pose = () => page.evaluate(() => NeruMascot.img.dataset.pose || 'usual');
@@ -150,8 +150,10 @@ await shot('01-home-empty');
     return out;
   });
   const nb = await (await page.$('.home .neru')).boundingBox();
-  await page.mouse.move(nb.x + nb.width / 2, nb.y + nb.height * 0.6); await page.waitForTimeout(700);
-  r.stare = await pose(); await page.waitForTimeout(1600); r.wink = await pose();
+  await page.mouse.move(nb.x + nb.width / 2, nb.y + nb.height * 0.6); await page.waitForTimeout(600);
+  r.lights = await page.evaluate(() => `${NeruMascot.img.dataset.pose}|${!!document.querySelector('.home .neru-dim')}`);
+  await page.waitForTimeout(800); r.stare = await pose(); await page.waitForTimeout(1700); r.wink = await pose();
+  r.lightsUp = await page.evaluate(() => !NeruEggs._dim);
   await page.waitForTimeout(1600);
   const gx = nb.x + nb.width / 2, gy = nb.y + nb.height * 0.4;
   await page.mouse.move(gx, gy); await page.mouse.down(); await page.mouse.move(gx + 200, gy - 150, { steps: 8 }); await page.waitForTimeout(100);
@@ -160,7 +162,7 @@ await shot('01-home-empty');
   r.landed = await page.evaluate(() => `${NeruMascot.img.dataset.pose}|${NeruMascot.el.classList.contains('held')}|${!/translate\(/.test(NeruMascot.body.style.transform)}|${!NeruMascot.el.classList.contains('hop')}`);
   await page.mouse.move(5, 300); await page.waitForTimeout(1800);
   check('Neru\'s easter eggs: a huff when clicked over and over, a cheer in the chorus, sunglasses when stared at, bored when left alone, picked up and dropped',
-    r.huff === 'sassy|true|true' && r.ignored && r.chorus === 'cheer' && r.after === 'usual' && r.idle === 'bored' && r.woke === 'usual' && r.stare === 'cool' && r.wink === 'wink'
+    r.huff === 'sassy|true|true' && r.ignored && r.chorus === 'cheer' && r.after === 'usual' && r.idle === 'bored' && r.woke === 'usual' && r.lights === 'switch|true' && r.stare === 'cool' && r.wink === 'wink' && r.lightsUp
     && r.held === 'point|true|true' && r.landed === 'sassy|false|true|true', JSON.stringify(r));
   // the volume all the way up (a cheer) or down (bored): the music's gone
   const small = await page.evaluate(async () => {
@@ -172,6 +174,57 @@ await shot('01-home-empty');
     return out;
   });
   check('Neru\'s small easter eggs: the volume all the way up (a cheer) or down (bored)', small.up === 'cheer' && small.down === 'bored', JSON.stringify(small));
+  // clicked in time with the music (a stand-in beat, 150 BPM): she keeps time — notes, no huff — and dances on the
+  // eighth click; her head patted: flustered, hugging her knees, hearts; left alone a good while longer: fishing
+  const more = await page.evaluate(async () => {
+    const M = NeruMascot, E = NeruEggs, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', out = {};
+    M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; M._clicks = []; await M.show(null);
+    const real = E.beatPhase, t0 = performance.now();
+    E.beatPhase = () => ({ len: 400, phase: ((performance.now() - t0) % 400) / 400 });
+    const kept = [];
+    for (let i = 0; i < 8; i++) { await wait(400 - (performance.now() - t0) % 400 + 20); M.el.click(); kept.push(E._rhythm ? E._rhythm.n : 'over'); }
+    await wait(300);
+    out.dance = `${kept.join()}|${p()}|${!M.el.classList.contains('huff')}`;
+    // (clicks out of time: no streak)
+    E._rhythm = null; E.keepTime(performance.now()); await wait(130); out.offbeat = E.keepTime(performance.now());
+    E.beatPhase = real; E._rhythm = null;
+    M._danceUntil = M._actUntil = M._happyUntil = 0; clearTimeout(E._actT); await M.show(null);
+    E._pattedAt = -1e9; E.patted(); await wait(300);
+    out.pat = `${p()}|${M.el.querySelectorAll('.neru-heart').length > 0}`;
+    await wait(2600);
+    M._actUntil = 0; M._idle = true; await M.show('bored');
+    E._seen = performance.now() - (E.IDLE_MS + E.FISH_IDLE_MS + 1000); await wait(3400);
+    out.fishing = p();
+    window.dispatchEvent(new PointerEvent('pointerdown')); await wait(500);
+    out.woke = p();
+    return out;
+  });
+  // dropped a third time in a little while: she sulks at her desk, a cloud of gloom over her
+  await page.evaluate(() => { NeruEggs._drops = [performance.now() - 5000, performance.now() - 2000]; });
+  const db = await (await page.$('.home .neru')).boundingBox(), dx = db.x + db.width / 2, dy = db.y + db.height * 0.5;
+  await page.mouse.move(dx, dy); await page.mouse.down(); await page.mouse.move(dx + 120, dy - 140, { steps: 8 }); await page.waitForTimeout(100); await page.mouse.up();
+  await page.waitForTimeout(1000);
+  more.sulk = await page.evaluate(() => `${NeruMascot.img.dataset.pose}|${!!NeruMascot.el.querySelector('.neru-gloom')}`);
+  await page.mouse.move(5, 300); await page.waitForTimeout(2600);
+  // shaken about while held: she comes down dizzy (stars round her head); back from an SS: still in her sunglasses
+  Object.assign(more, await page.evaluate(async () => {
+    const M = NeruMascot, E = NeruEggs, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', out = {};
+    M._actUntil = M._happyUntil = M._huffUntil = 0; E._drops = []; await M.show(null);
+    M._drag = { dx: 0, dy: -60, vx: 0, ang: 0, shaken: true }; E.letGo(); await wait(900);
+    out.dizzy = `${p()}|${M.el.querySelectorAll('.neru-dizzy i').length}`;
+    await wait(2400);
+    const S = AshtonkMania.ScoreManager; S.scores.push({ id: 'e2e-ss', grade: 'X', passed: true, date: Date.now(), mapHash: 'e2e-ss' });
+    E._ssSeen = null; E.afterSS(); await wait(1200); out.ss = p();
+    S.scores.pop(); await wait(2600);
+    // (the internet gone: worried, a bead of sweat; back: a cheer)
+    E.signal(false); await wait(500); out.offline = `${p()}|${!!M.el.querySelector('.neru-sweat')}`;
+    await wait(3000); E.signal(true); await wait(500); out.online = p();
+    await wait(1500);
+    return out;
+  }));
+  check('Neru\'s easter eggs: clicked in time with the music she dances (no huff), patted she\'s flustered, dropped once too often she sulks (shaken, dizzy), left alone a while she goes fishing, back from an SS still cool, worried when the internet goes',
+    more.dance === '1,2,3,4,5,6,7,over|dance|true' && more.offbeat === 1 && more.pat === 'knees|true' && more.fishing === 'fishing' && more.woke === 'usual' && more.sulk === 'sulk|true'
+    && more.dizzy === 'meh|3' && more.ss === 'cool' && more.offline === 'worried|true' && more.online === 'cheer', JSON.stringify(more));
 }
 // import via synthetic drop event (exercises the drag & drop pipeline)
 const dropFiles = async (names) => page.evaluate(async (names) => {
@@ -819,6 +872,8 @@ await page.waitForTimeout(500);
     await look(play('A', true));
     const el = A.Screens.current._el.querySelector('.nc-results'), before = face(el);
     el.click(); await wait(50);
+    // (her new face once its picture's decoded)
+    for (let i = 0; i < 20 && face(el) === before; i++) await wait(50);
     out.clicked = { hop: el.classList.contains('hop'), before, face: face(el) };
     // she steps aside while the statistics are open
     A.Screens.current._el.querySelector('.res-grid > .rs').click(); await wait(500);

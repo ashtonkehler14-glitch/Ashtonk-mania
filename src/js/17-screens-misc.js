@@ -778,6 +778,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.21', title: 'Neru secrets', sections: [
+    { icon: 'heart', title: 'Neru secrets', items: ['More Neru secrets to find on the main menu', 'Your profile picture and background show on every device', 'On phones, the typing bar waits for the keyboard'] },
+  ] },
   { id: '2026.10.20c', title: 'Skins update', sections: [
     { icon: 'brush', title: 'Skins update', items: ['Preview any skin from 1K to 18K', 'A cleaner skin editor that shows hidden parts too', 'A few Neru secrets to find'] },
   ] },
