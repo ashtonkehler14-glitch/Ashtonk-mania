@@ -1758,7 +1758,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (s.mode === 'play') {
       const { score } = await this.saveScore(false, { store: false }); // (not kept: only a play you finish is recorded)
       this.failedScore = score; this.failedReplay = this._unsavedReplay;
-      if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
+      if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, score }); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
     }
     // (watching someone: their fail screen is theirs — you see it as they do, with their pointer, and can't press it)
     if (s.spectate) { setTimeout(() => { if (this.s === s) Spectate.failed(this, s); }, 900); return; }
@@ -1787,10 +1787,10 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, sd: (summary.unstableRate || 0) / 10, hits: s.engine.hitErrors.filter(e => !e.tail).length };
       // (a multiplayer play that ran out of health is a failed score: shown to the room, not recorded)
       const { score, replay } = await this.saveScore(!s.mpFailed, { store: !s.mpFailed });
-      try { Medals.check(score, { mp: !!s.mp, daily: !!(this.params.daily && score.passed) }); } catch (e) { console.warn('medals', e); }
+      try { Medals.check(score); } catch (e) { console.warn('medals', e); }
       // lazer's global leaderboard: a passed play goes up (the server keeps your best)
-      if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null });
-      if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
+      if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, score, daily: this.params.daily ? { day: this.params.daily.day } : null });
+      if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, score }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, back: this.params.back || null, daily: this.params.daily || null }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       // (watching someone in your multiplayer room: when their song ends, so does watching — back to the room)

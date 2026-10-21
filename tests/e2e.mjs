@@ -382,6 +382,7 @@ await shot('01-home-empty');
     const name = P.profile.name, egg = AshtonkMania.Medals.egg, shown = () => { const n = document.querySelector('.home .neru'); return !!n && !n.hidden; };
     AshtonkMania.Medals.egg = id => got.push(id);
     try {
+      out.spellings = ['TETO', 't3t0', 'T.e.t.o', 't e t o', 'Тето', 'テト', 'Kasane'].every(n => E.tetoFan(n)) && !['Ash', 'Tetsuo', 'toto'].some(n => E.tetoFan(n));
       S.set('ui.mascot', false); await wait(300);
       out.offBefore = !shown();
       P.profile.name = 'KasaneTetoFan'; AshtonkMania.Bus.emit('profile:changed');
@@ -406,7 +407,7 @@ await shot('01-home-empty');
     return out;
   });
   check('Teto in your name: Neru comes back on (locked on in Settings), and she makes fun of you — a blank look, the bread crossed out, a snicker, a laugh, a wagging finger',
-    teto.offBefore && teto.on && teto.bread && /^huh,snicker,mock,point/.test(teto.poses) && teto.medal && teto.cameo === 'neru-snicker.png' && teto.locked && teto.offAfter, JSON.stringify(teto));
+    teto.spellings && teto.offBefore && teto.on && teto.bread && /^huh,snicker,mock,point/.test(teto.poses) && teto.medal && teto.cameo === 'neru-snicker.png' && teto.locked && teto.offAfter, JSON.stringify(teto));
   // on the main menu as the year turns: at midnight on New Year's Eve, a cheer and confetti
   const nye = await page.evaluate(async () => {
     const E = NeruEggs, M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
@@ -2681,13 +2682,13 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
 
 // medals: a play unlocks what it earned, shown with lazer's medal animation once off gameplay; the profile lists them
 {
-  await page.evaluate(() => { AshtonkMania.Screens.go('home'); AshtonkMania.Settings.set('medals.unlocked', {}); AshtonkMania.Medals.check({ passed: true, mods: [], rate: 1, stars: 2.4, keys: 4, counts: [80, 0, 0, 0, 0, 0], grade: 'SS', maxCombo: 80 }); });
+  await page.evaluate(() => { AshtonkMania.Screens.go('home'); AshtonkMania.Settings.set('medals.unlocked', {}); AshtonkMania.Medals.check({ passed: true, mods: [], rate: 1, stars: 4.4, keys: 4, counts: [80, 0, 0, 0, 0, 0], grade: 'SS', maxCombo: 80 }); });
   await page.waitForSelector('.medal-ov', { timeout: 5000 });
   const got = await page.evaluate(() => Object.keys(AshtonkMania.Medals.unlocked()).sort().join());
-  check('medals: a play unlocks the ones it earned (pass, full combo, SS by stars) with the medal animation', /first/.test(got) && /pass2/.test(got) && !/pass3/.test(got) && /fc2/.test(got) && /\bss\b/.test(got) && await page.evaluate(() => /MEDAL UNLOCKED/.test(document.querySelector('.medal-ov').textContent)), got);
+  check('medals: only hard ones — a 4.4★ SS full combo unlocks the 4★ full combo and SS medals (not 5★ ones), with the medal animation', got === 'fc4,ss4' && await page.evaluate(() => /MEDAL UNLOCKED/.test(document.querySelector('.medal-ov').textContent)), got);
   for (let i = 0; i < 8 && await page.$('.medal-ov'); i++) { await page.click('.medal-ov'); await page.waitForTimeout(1700); }
   await page.evaluate(() => AshtonkMania.Screens.go('profile')); await page.waitForTimeout(700);
-  check('medals: the profile shows earned medals lit and the rest dimmed', await page.evaluate(() => document.querySelectorAll('.md-badge.on').length >= 6 && document.querySelectorAll('.md-badge:not(.on)').length > 0));
+  check('medals: the profile shows earned medals lit and the rest dimmed', await page.evaluate(() => document.querySelectorAll('.md-badge.on').length === 2 && document.querySelectorAll('.md-badge:not(.on)').length > 0 && !/First Steps|Warming Up|Better Together/.test(document.querySelector('.screen-body').textContent)));
   // (Neru's secrets: "???" till found; finding one — "zako" said back to her — unlocks its medal, once)
   const secret = await page.evaluate(() => ({ hidden: [...document.querySelectorAll('.md-badge.secret')].length, named: [...document.querySelectorAll('.md-badge')].some(b => /Zako~/.test(b.textContent)) }));
   await page.evaluate(() => AshtonkMania.Screens.go('home')); await page.waitForTimeout(600);

@@ -544,6 +544,20 @@ test('score verification: the server judges a play from its key presses — not 
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000, 0, 1] }).error, 'impossible input');
 });
 
+test('plays go up as the game reports them (acceptPlay): taken as they are, with the beatmap\'s details from its file', () => {
+  const V = load(['00-util.js', '03-beatmap-parser.js', '03b-mania-convert.js', '08-mods.js', '09-gameplay.js', '09a-osu-math.js', '09c-verify.js']);
+  const text = osu([note(0, 1000), note(1, 1500), ln(2, 2000, 2600), note(3, 3000)]);
+  const r = V.acceptPlay(text, { score: 812345, accuracy: 0.9712, maxCombo: 4, counts: [3, 1, 0, 0, 0, 1], grade: 'A', stars: 3.21, pp: 87.5, mods: ['HD'], keys: 4, rate: 1, failed: false });
+  assert.ok(!r.error, r.error);
+  assert.deepEqual([r.score, r.accuracy, r.maxCombo, r.grade, r.stars, r.pp, r.mods.join(), r.counts.join()], [812345, 0.9712, 4, 'A', 3.21, 87.5, 'HD', '3,1,0,0,0,1']);
+  // tidied: numbers kept in range, a fail only counts in multiplayer (an F, 0pp), Auto's plays never
+  assert.equal(V.acceptPlay(text, { accuracy: 7, pp: -5, grade: 'Z' }).accuracy, 1);
+  assert.equal(V.acceptPlay(text, { accuracy: 0.5, failed: true }).error, 'the play failed');
+  const f = V.acceptPlay(text, { accuracy: 0.5, pp: 40, grade: 'C', failed: true }, { noFail: true });
+  assert.deepEqual([f.grade, f.pp, f.failed], ['F', 0, true]);
+  assert.ok(V.acceptPlay(text, { mods: ['AT'] }).error);
+});
+
 test('bar lines: one per bar from each timing point, every fourth major, "omit first bar line" honoured', () => {
   const red = [{ time: 0, beatLength: 500, meter: 4 }, { time: 8000, beatLength: 250, meter: 3, effects: 8 }];
   const bars = BeatmapParser.barLines(red, 10000);

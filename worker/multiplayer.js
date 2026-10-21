@@ -1982,7 +1982,7 @@ const cleanStatus = s => ['menu', 'room', 'ranked', 'playing', 'watching'].inclu
  *  The same (single) instance also runs presence — who's online — for invites. */
 import { officialGet, osuApi, osuLoginState, osuStatus, beatmapListing, beatmapInfo } from './index.js';
 import { sha256hex } from './sha256.js';
-import { verifyPlay } from './verify-bundle.js';
+import { verifyPlay, acceptPlay } from './verify-bundle.js';
 
 export class Matchmaker {
   constructor(state, env) { this.state = state; this.env = env; this.waiting = null; this.qp = {}; this.rooms = new Map(); this.presence = new PresenceLogic(); this.socks = new Map(); this.rq = new RankedQueue(Date.now, Math.random, () => makeCode()); }
@@ -2723,7 +2723,9 @@ async function judgePlay(request, { noFail = false } = {}) {
   // (the file's MD5 is how osu! itself knows a beatmap: it finds the set of a file that doesn't say which it's from)
   let md5 = ''; try { md5 = hex(await crypto.subtle.digest('MD5', bytes)); } catch { md5 = ''; }
   let r;
-  try { r = verifyPlay(new TextDecoder().decode(bytes), body.play, { noFail }); } catch { r = { error: 'The play could not be judged.' }; }
+  // (the game's own result, taken as it is; a play sent as its key presses only — an older game — is judged)
+  try { const text = new TextDecoder().decode(bytes); r = body.result && typeof body.result === 'object' ? acceptPlay(text, body.result, { noFail }) : verifyPlay(text, body.play, { noFail }); }
+  catch { r = { error: 'The play could not be judged.' }; }
   return { body, hash, md5, r };
 }
 

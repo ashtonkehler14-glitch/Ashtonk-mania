@@ -2,26 +2,17 @@
  * (a 5px white rim, Blue glow, dark teal with triangles) pops in with an elastic bounce, light strips sweep out to
  * the sides, then "MEDAL UNLOCKED", the medal's name and what it was for. The profile lists them all. */
 
-// stars → [name, …] for the pass and full combo medals
-const MEDAL_PASS = ['Opening Act', 'Finding the Beat', 'In the Groove', 'Keyboard Warrior', 'Five-Star Fury', 'Beyond Reason', 'Seventh Heaven', 'Into the Abyss'];
-const MEDAL_FC = ['Unbroken', 'Steady Hands', 'Flawless Flow', 'Iron Focus', 'Untouchable', 'Perfect Storm'];
+// Only the hard ones (and Neru's secrets): passes from 5★, full combos from 4★ — [stars, name]
+const MEDAL_PASS = [[5, 'Five-Star Fury'], [6, 'Beyond Reason'], [7, 'Seventh Heaven'], [8, 'Into the Abyss']];
+const MEDAL_FC = [[4, 'Iron Focus'], [5, 'Untouchable'], [6, 'Perfect Storm']];
 // (lazer's skill medals don't count plays made easier)
 const medalEasy = s => (s.mods || []).some(m => ['AT', 'NF', 'EZ', 'HT', 'DC'].includes(m)) || (s.rate || 1) < 1;
 const MEDALS = [
-  { id: 'first', group: 'Skill', icon: 'star', name: 'First Steps', desc: 'Pass your first beatmap.', test: s => s.passed && !(s.mods || []).includes('AT') },
-  ...MEDAL_PASS.map((name, i) => ({ id: `pass${i + 1}`, group: 'Skill', icon: 'star', stars: i + 1, name, desc: `Pass a ${i + 1}★ beatmap without mods that make it easier.`, test: s => s.passed && !medalEasy(s) && s.stars >= i + 1 })),
-  ...MEDAL_FC.map((name, i) => ({ id: `fc${i + 1}`, group: 'Skill', icon: 'target', stars: i + 1, name, desc: `Full combo a ${i + 1}★ beatmap without mods that make it easier.`, test: s => s.passed && !medalEasy(s) && s.stars >= i + 1 && s.counts && s.counts[5] === 0 })),
-  { id: 'ss', group: 'Skill', icon: 'magic', name: 'Perfectionist', desc: 'Get an SS: nothing below a 300.', test: s => s.passed && !medalEasy(s) && (s.grade === 'SS' || s.grade === 'XH') },
-  { id: 'combo500', group: 'Skill', icon: 'bolt', name: 'Combo Chain', desc: 'Reach a 500x combo.', test: s => !(s.mods || []).includes('AT') && s.maxCombo >= 500 },
+  ...MEDAL_PASS.map(([stars, name]) => ({ id: `pass${stars}`, group: 'Skill', icon: 'star', stars, name, desc: `Pass a ${stars}★ beatmap without mods that make it easier.`, test: s => s.passed && !medalEasy(s) && s.stars >= stars })),
+  ...MEDAL_FC.map(([stars, name]) => ({ id: `fc${stars}`, group: 'Skill', icon: 'target', stars, name, desc: `Full combo a ${stars}★ beatmap without mods that make it easier.`, test: s => s.passed && !medalEasy(s) && s.stars >= stars && s.counts && s.counts[5] === 0 })),
+  { id: 'ss4', group: 'Skill', icon: 'magic', name: 'Perfectionist', desc: 'Get an SS on a 4★ beatmap: nothing below a 300.', test: s => s.passed && !medalEasy(s) && s.stars >= 4 && (s.grade === 'SS' || s.grade === 'XH') },
   { id: 'combo1000', group: 'Skill', icon: 'bolt', name: 'Thousand Strong', desc: 'Reach a 1,000x combo.', test: s => !(s.mods || []).includes('AT') && s.maxCombo >= 1000 },
-  { id: 'hidden', group: 'Mod Introduction', icon: 'ghost', name: 'In the Dark', desc: 'Pass a 3★ beatmap with Hidden or Fade In.', test: s => s.passed && !medalEasy(s) && s.stars >= 3 && (s.mods || []).some(m => m === 'HD' || m === 'FI') },
-  { id: 'speed', group: 'Mod Introduction', icon: 'shuffle', name: 'Need for Speed', desc: 'Pass a 3★ beatmap with Double Time or Nightcore.', test: s => s.passed && !medalEasy(s) && s.stars >= 3 && (s.mods || []).some(m => m === 'DT' || m === 'NC') },
-  { id: 'keys7', group: 'Mod Introduction', icon: 'keyboard', name: 'Seven Keys', desc: 'Pass a 7K beatmap.', test: s => s.passed && !(s.mods || []).includes('AT') && s.keys === 7 },
-  { id: 'plays10', group: 'Dedication', icon: 'play', name: 'Warming Up', desc: 'Play 10 times.', count: 10 },
-  { id: 'plays100', group: 'Dedication', icon: 'play', name: 'Regular', desc: 'Play 100 times.', count: 100 },
   { id: 'plays1000', group: 'Dedication', icon: 'play', name: 'Devoted', desc: 'Play 1,000 times.', count: 1000 },
-  { id: 'multi', group: 'Hush-Hush', icon: 'multi', name: 'Better Together', desc: 'Finish a multiplayer match.', ctx: 'mp' },
-  { id: 'daily', group: 'Hush-Hush', icon: 'calendar', name: 'Daily Dose', desc: 'Set a score in the daily challenge.', ctx: 'daily' },
   // Neru's secrets: each unlocked by finding one of her easter eggs (NeruEggs.found) — "???" on the profile till then
   ...[['code', 'keyboard', 'Up Up Down Down', 'Get Neru dancing with a certain code.'],
     ['beat', 'music', 'On Beat', 'Tap along to the menu music until Neru dances.'],
@@ -44,12 +35,12 @@ const Medals = {
   unlocked() { return Settings.get('medals.unlocked') || {}; },
   has(id) { return !!this.unlocked()[id]; },
   /** After a play: unlock what it earned (shown once the results are up). */
-  check(score, ctx = {}) {
+  check(score) {
     if (!score) return;
     const got = { ...this.unlocked() }, fresh = [], plays = ScoreManager.scores.length;
     for (const m of MEDALS) {
       if (got[m.id] || m.egg) continue;
-      const ok = m.count ? plays >= m.count : m.ctx ? !!ctx[m.ctx] && !(score.mods || []).includes('AT') : m.test(score);
+      const ok = m.count ? plays >= m.count : m.test(score);
       if (ok) { got[m.id] = Date.now(); fresh.push(m); }
     }
     if (!fresh.length) return;
@@ -59,15 +50,15 @@ const Medals = {
   },
   /** Medals earned before there were medals: unlocked quietly, once. */
   backfill() {
-    if (Settings.get('medals.backfilled')) return;
+    if (Settings.get('medals.backfilled2')) return; // (again for the medals there are now)
     const got = { ...this.unlocked() }, plays = ScoreManager.scores.length;
     for (const m of MEDALS) {
-      if (got[m.id] || m.ctx || m.egg) continue;
+      if (got[m.id] || m.egg) continue;
       const s = m.count ? (plays >= m.count ? ScoreManager.scores[m.count - 1] : null) : ScoreManager.scores.find(x => m.test(x));
       if (s) got[m.id] = s.date || Date.now();
     }
     Settings.set('medals.unlocked', got);
-    Settings.set('medals.backfilled', true);
+    Settings.set('medals.backfilled2', true);
   },
   /** One of Neru's secrets found (`id`, a medal with `egg`): unlocked, once, with the medal animation. */
   egg(id) {

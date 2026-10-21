@@ -577,8 +577,17 @@ const NeruEggs = {
   // ── Teto in your name: there's no turning her off (or swapping her for a picture of your own), and the first time she
   // sees it (once a session) she lets you know what she thinks of that — a blank look at your name, Teto's French bread
   // in a thought bubble over her head, crossed out, a snicker, laughing at you, then a wagging finger
-  /** Whether "teto" is in your name. */
-  tetoFan(name = typeof ProfileManager !== 'undefined' && ProfileManager.profile ? ProfileManager.profile.name : '') { return /teto/i.test(String(name || '')); },
+  /** Whether Teto is in your name, written any way at all: TeTo, t3t0, T.e.t.o, t e t o, ｔｅｔｏ, Тето, テト, 重音… */
+  tetoFan(name = typeof ProfileManager !== 'undefined' && ProfileManager.profile ? ProfileManager.profile.name : '') {
+    let n = String(name || '').normalize('NFKC').toLowerCase();
+    if (/テト|てと|ﾃﾄ|重音|kasane/.test(n)) return true;
+    // (look-alike letters and numbers as the letters they pass for, then everything that isn't a letter dropped)
+    const LIKE = { '3': 'e', '€': 'e', 'е': 'e', 'ε': 'e', 'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e', 'ē': 'e', '0': 'o', 'о': 'o', 'ο': 'o', 'ø': 'o', 'ö': 'o', 'ó': 'o', 'ò': 'o', 'ô': 'o', 'õ': 'o', '°': 'o', '7': 't', '+': 't', 'т': 't', 'τ': 't', 'ť': 't', 'ţ': 't' };
+    n = [...n].map(c => LIKE[c] || c).join('').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
+    // (and doubled letters as one: "tettooo")
+    n = n.replace(/(.)\1+/g, '$1');
+    return n.includes('teto') || n.includes('otet');
+  },
   teto() {
     this._wasTeto = this.tetoFan(); // (what a change of name is told apart from)
     if (this._tetoSeen || !this._wasTeto) return;
