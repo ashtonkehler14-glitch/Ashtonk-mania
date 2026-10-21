@@ -1680,6 +1680,8 @@ div.res-calib .i { color: var(--good); }
 .neru-flop { position: absolute; z-index: 2; pointer-events: none; }
 .neru-flop i { position: absolute; display: block; background-repeat: no-repeat; }
 .neru-drop { position: absolute; z-index: 3; width: 7px; height: 7px; border-radius: 50%; pointer-events: none; background: #bfe6f7; box-shadow: 0 0 0 1.5px rgba(59, 42, 53, .55); }
+.neru-heart { position: absolute; z-index: 3; pointer-events: none; filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 2px 4px rgba(0, 0, 0, .35)); }
+.neru-heart svg { display: block; width: 100%; height: 100%; }
 /* (the time of year drifting around her: behind her, and — nearer, bigger, a little out of focus — in front) */
 .neru-drift { position: absolute; left: -30%; right: -45%; top: -6%; bottom: 0; pointer-events: none; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 22%, #000 88%, transparent); mask-image: linear-gradient(transparent, #000 22%, #000 88%, transparent); }
 .neru-drift.nd-front { z-index: 1; }

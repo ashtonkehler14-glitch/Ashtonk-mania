@@ -204,6 +204,64 @@ await shot('01-home-empty');
   });
   check('Neru dances to the Konami code (staying on the main menu); left alone longer she gets her phone out, then hugs her knees, and sulks a moment when you\'re back',
     more.code === 'dance' && more.screen === 'home' && more.after === 'usual' && more.phone === 'phone' && more.knees === 'knees' && more.woke === 'sulk' && more.over === 'usual', JSON.stringify(more));
+  // tapped in time with the menu music, eight beats in a row: she dances — on for as long as the beat's kept, and taps
+  // on the beat never add up to a huff; off the beat, nothing
+  const beat = await page.evaluate(async () => {
+    const M = NeruMascot, E = NeruEggs, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', out = {};
+    M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; M._clicks = []; await M.show(null);
+    // (the music's clock held where each tap says: a song at 120 BPM)
+    const saved = { playing: Music.playing, meta: Music.meta, timeAt: Music.timeAt };
+    let T = 0;
+    Music.playing = true; Music.meta = { ...(Music.meta || {}), timing: [{ time: 0, beatLength: 500 }] }; Music.timeAt = () => T;
+    const tap = async t => { T = t; M.el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 7 })); window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7 })); await wait(40); M.el.click(); await wait(40); };
+    try {
+      for (let k = 1; k <= 7; k++) await tap(k * 500 + (k % 2 ? 25 : -30));
+      out.seven = `${p()}|${M.el.classList.contains('huff')}`;
+      await tap(4000 + 10); await wait(300);
+      out.eight = `${p()}|${M.el.classList.contains('huff')}`;
+      // (kept up — tapping along while she dances — she keeps going past where she'd have stopped)
+      for (let k = 9; k <= 13; k++) { await tap(k * 500); await wait(520); }
+      out.kept = p();
+      await wait(3600); out.stopped = p();
+      // (off the beat: a quarter of the way between beats, every time)
+      M._clicks = []; M._happyUntil = 0; await M.show(null); await wait(200);
+      for (let k = 20; k < 28; k++) { await tap(k * 500 + 250); M._huffUntil = 0; M._clicks = []; }
+      await wait(300); out.offBeat = `${p()}|${E._taps}`;
+      // (a missed beat or two in the middle: the count starts over)
+      M._happyUntil = 0; await M.show(null);
+      for (const k of [40, 41, 42, 43, 47, 48, 49, 50]) await tap(k * 500);
+      await wait(300); out.gap = `${p()}|${E._taps}`;
+    } finally { Object.assign(Music, saved); }
+    M._happyUntil = M._actUntil = 0; await M.show(null);
+    return out;
+  });
+  check('Neru dances to eight taps in time with the music (never a huff), keeps going while you keep the beat, and not off the beat or with beats missed',
+    beat.seven.split('|')[0] !== 'dance' && beat.seven.endsWith('|false') && beat.eight === 'dance|false' && beat.kept === 'dance' && beat.stopped !== 'dance'
+    && !beat.offBeat.startsWith('dance') && beat.offBeat.endsWith('|0') && !beat.gap.startsWith('dance') && beat.gap.endsWith('|4'), JSON.stringify(beat));
+  // a headpat: press and hold on her head — her happy face, hearts floating up (stroking it, still a pat, never picked
+  // up); let go and she huffs, with no click's hop; held on her middle, no pat
+  {
+    await page.mouse.move(5, 300);
+    await page.evaluate(async () => { const M = NeruMascot; M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; M._clicks = []; await M.show(null); });
+    await page.waitForTimeout(400);
+    const ib = await page.evaluate(() => { const r = NeruMascot.img.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+    const lite = await page.evaluate(() => !AshtonkMania.Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow'));
+    const hearts = () => page.evaluate(() => document.querySelectorAll('.home .neru .neru-heart').length);
+    await page.mouse.move(ib.x + ib.w * 0.5, ib.y + ib.h * 0.15); await page.mouse.down();
+    await page.waitForTimeout(1600);
+    const pat = { during: await page.evaluate(() => NeruMascot.img.dataset.pose), hearts: lite || await hearts() > 0 };
+    await page.mouse.move(ib.x + ib.w * 0.6, ib.y + ib.h * 0.18, { steps: 5 }); await page.mouse.move(ib.x + ib.w * 0.4, ib.y + ib.h * 0.14, { steps: 5 });
+    pat.stroked = await page.evaluate(() => `${NeruMascot.img.dataset.pose}|${NeruMascot.el.classList.contains('held')}`);
+    await page.mouse.up(); await page.waitForTimeout(300);
+    pat.after = await page.evaluate(() => `${NeruMascot.img.dataset.pose}|${NeruMascot.el.classList.contains('hop')}`);
+    await page.mouse.move(5, 300); await page.waitForTimeout(2600);
+    await page.evaluate(() => document.querySelectorAll('.home .neru .neru-heart').forEach(x => x.remove()));
+    await page.mouse.move(ib.x + ib.w * 0.5, ib.y + ib.h * 0.75); await page.mouse.down(); await page.waitForTimeout(900);
+    pat.body = `${await page.evaluate(() => NeruMascot.img.dataset.pose)}|${await hearts()}`;
+    await page.mouse.up(); await page.mouse.move(5, 300); await page.waitForTimeout(1800);
+    check('Neru: a headpat — her happy face and hearts, stroking it still a pat — then a huff when let go (no hop); not held lower down',
+      pat.during === 'happy' && pat.hearts && pat.stroked === 'happy|false' && pat.after === 'sassy|false' && !/^happy/.test(pat.body) && pat.body.endsWith('|0'), JSON.stringify(pat));
+  }
   // the time of year around her on the main menu: leaves in autumn, snow in winter, blossom in spring, fireflies on a
   // summer night, bats at Halloween (the other way round in the south); a few at a time, never in the way of a click;
   // after midnight a yawn, and on New Year's Day a cheer
@@ -236,6 +294,23 @@ await shot('01-home-empty');
     E.greet(new Date(2026, 9, 21, 3, 30)); await wait(2600); out.lateAfter = p();
     E._greeted = false; E.greet(new Date(2027, 0, 1, 15)); await wait(1900); out.newYear = p(); await wait(2400);
     E._greeted = false; E.greet(new Date(2026, 9, 21, 15)); await wait(1900); out.day = p();
+    // back after a week away: a sulk, then glad after all; a milestone play: a cheer (once)
+    const saved = ScoreManager.scores, old = +new Date(2026, 9, 12, 12);
+    ScoreManager.scores = [1, 2, 3, 4, 5].map(i => ({ passed: true, stars: 2, mods: [], date: old - i * 1000 }));
+    E._greeted = false; E.greet(new Date(2026, 9, 21, 15)); await wait(1900); out.back = p(); await wait(2900); out.glad = p(); await wait(1800);
+    ScoreManager.scores = saved.slice(0, 3);
+    E._greeted = false; E.greet(new Date(2026, 9, 21, 15)); await wait(1900); out.notAway = p();
+    E._plays = 99; ScoreManager.scores = Array.from({ length: 100 }, (_, i) => ({ passed: true, stars: 2, mods: [], date: Date.now() - i }));
+    E.milestone(); await wait(1500); out.milestone = p(); await wait(3000);
+    E.milestone(); await wait(1500); out.again = p(); await wait(1800);
+    // an hour's playing since the game was opened: worried, once (not for the plays before it was opened)
+    const since = E.SINCE;
+    ScoreManager.scores = Array.from({ length: 20 }, (_, i) => ({ passed: true, stars: 2, mods: [], own: true, date: since - 1000 + i, duration: 240000 }));
+    E._breather = false; E.breather(); await wait(1700); out.shortSession = p();
+    ScoreManager.scores = Array.from({ length: 20 }, (_, i) => ({ passed: true, stars: 2, mods: [], own: true, date: since + 1000 + i, duration: 200000 }));
+    E.breather(); await wait(1700); out.longSession = p(); await wait(2800);
+    E.breather(); await wait(1700); out.longAgain = p();
+    ScoreManager.scores = saved; E._plays = saved.length;
     E._greeted = true;
     return out;
   });
@@ -245,6 +320,10 @@ await shot('01-home-empty');
     Object.values(season.kinds).every(k => k.n > 0 && k.layers === 2 && k.shape && k.moving) && season.through && season.offNone, JSON.stringify(season.kinds));
   check('…a yawn the first time she sees you after midnight (once), and a cheer on New Year\'s Day — nothing in the daytime',
     season.late === 'tired' && season.lateAfter === 'usual' && season.newYear === 'cheer' && season.day === 'usual', JSON.stringify(season));
+  check('…back after a week away she sulks, then she\'s glad after all (not after a day, nor with hardly any plays); a milestone play gets a cheer, once',
+    season.back === 'sulk' && season.glad === 'happy' && season.notAway === 'usual' && season.milestone === 'cheer' && season.again === 'usual', JSON.stringify(season));
+  check('…and after an hour\'s playing at a stretch (since the game was opened), a worried look, once',
+    season.shortSession === 'usual' && season.longSession === 'worried' && season.longAgain === 'usual', JSON.stringify(season));
 }
 // import via synthetic drop event (exercises the drag & drop pipeline)
 const dropFiles = async (names) => page.evaluate(async (names) => {
