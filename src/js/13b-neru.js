@@ -246,8 +246,8 @@ const NeruCameo = {
     again: 'tired', wysi: 'point',
     // (turning her off as one of her own: offended; a Teto or Miku song, for their fan: laughing at it)
     refused: 'sassy', theirSong: 'mock',
-    // (her marker on your Teto or Miku picture: snickering at her handiwork)
-    doodle: 'snicker',
+    // (her marker on your Teto or Miku picture: snickering at her handiwork; a crown on her own: a wink)
+    doodle: 'snicker', crowned: 'wink',
     // (every one of her secrets found: cheering beside them on your profile)
     allFound: 'cheer',
     // (beside the first-run setup, sizing you up: Onboarding.NERU has her pose for each page)
@@ -715,33 +715,46 @@ const NeruEggs = {
     go();
   },
   // ── the Teto or Miku picture as yours: Neru's been at it with a marker — glasses and a moustache drawn on, wherever
-  // it's big enough to see (your profile, your results); the first time this session, drawn before your eyes
+  // it's big enough to see (your profile, your results); the first time this session, drawn before your eyes. Her own
+  // picture as yours gets a crown instead.
   /** Where on their picture (256 × 256) her marker goes: their eyes, and the middle of the moustache (over their
-   *  mouth, clear of the glasses). */
+   *  mouth, clear of the glasses); on hers, the crown (on top of her head) and a sparkle either side. */
   DOODLE: {
     teto: { eyes: [[85, 134], [155, 125]], lip: [120, 152] },
     miku: { eyes: [[94, 101], [151, 112]], lip: [124, 138] },
+    neru: { crown: [118, 40], sparkles: [[44, 70], [170, 22]] },
   },
-  /** The doodle over `el` (an avatar showing `avatar`), if it's Teto's or Miku's picture. */
+  /** The doodle over `el` (an avatar showing `avatar`), if it's Teto's, Miku's or Neru's picture. */
   doodle(el, avatar) {
-    const m = /^preset:(teto|miku)(-\d+)?$/.exec(avatar || ''), at = m && this.DOODLE[m[1]];
+    const m = /^preset:(teto|miku|neru)(-\d+)?$/.exec(avatar || ''), at = m && this.DOODLE[m[1]];
     if (!at) return;
-    const [[x1, y1], [x2, y2]] = at.eyes, [mx, my] = at.lip;
-    const d = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / d, uy = (y2 - y1) / d, r = Math.min(24, d * 0.36);
-    const deg = Math.atan2(uy, ux) * 180 / Math.PI, f = n => n.toFixed(1);
-    // (lens, bridge, lens, the arms off the sides; then a handlebar moustache, outlined a curl at a time and filled
-    // in) — [path, when, how long, its transform, filled]
-    const lens = (x, y, from) => `M${f(x + r * Math.cos(from))} ${f(y + r * Math.sin(from))}a${r} ${r} 0 1 1 ${f(-2 * r * Math.cos(from))} ${f(-2 * r * Math.sin(from))}a${r} ${r} 0 1 1 ${f(2 * r * Math.cos(from))} ${f(2 * r * Math.sin(from))}`;
-    const curl = 'M0 -4C-5 -9 -14 -10 -20 -6C-25 -2 -28 0 -31 -2C-34 -4 -35 -8 -33 -11C-38 -8 -38 -1 -33 2C-27 6 -16 7 -8 4C-4 3 -1 1 0 1Z';
-    const lip = `translate(${mx} ${my}) rotate(${f(deg)}) scale(.9)`;
-    const strokes = [
-      [lens(x1, y1, -2.4), 0, 300],
-      [`M${f(x1 + r * ux)} ${f(y1 + r * uy)}Q${f((x1 + x2) / 2 + 9 * uy)} ${f((y1 + y2) / 2 - 9 * ux)} ${f(x2 - r * ux)} ${f(y2 - r * uy)}`, 300, 110],
-      [lens(x2, y2, -0.8), 410, 300],
-      [`M${f(x1 - r * ux)} ${f(y1 - r * uy)}l${f(-16 * ux + 4 * uy)} ${f(-16 * uy - 4 * ux)}M${f(x2 + r * ux)} ${f(y2 + r * uy)}l${f(16 * ux + 4 * uy)} ${f(16 * uy - 4 * ux)}`, 720, 140],
-      [curl, 930, 220, lip, true],
-      [curl, 1110, 220, `${lip} scale(-1 1)`, true],
-    ];
+    const f = n => n.toFixed(1);
+    // [path, when, how long, its transform, filled ('gold' for hers)]
+    let strokes;
+    if (at.crown) {
+      // (a crown, set at a jaunty angle and coloured in gold; then a sparkle each side)
+      const [cx, cy] = at.crown, star = 'M0 -9Q1 -1 9 0Q1 1 0 9Q-1 1 -9 0Q-1 -1 0 -9Z';
+      strokes = [
+        ['M-24 0L-28 -26L-13 -12L0 -30L13 -12L28 -26L24 0Z', 0, 520, `translate(${cx} ${cy}) rotate(-12) scale(1.15)`, 'gold'],
+        ...at.sparkles.map(([x, y], i) => [star, 600 + i * 140, 170, `translate(${x} ${y}) rotate(${i ? 12 : -8}) scale(1.25)`, 'gold']),
+      ];
+    } else {
+      const [[x1, y1], [x2, y2]] = at.eyes, [mx, my] = at.lip;
+      const d = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / d, uy = (y2 - y1) / d, r = Math.min(24, d * 0.36);
+      const deg = Math.atan2(uy, ux) * 180 / Math.PI;
+      // (lens, bridge, lens, the arms off the sides; then a handlebar moustache, outlined a curl at a time and filled in)
+      const lens = (x, y, from) => `M${f(x + r * Math.cos(from))} ${f(y + r * Math.sin(from))}a${r} ${r} 0 1 1 ${f(-2 * r * Math.cos(from))} ${f(-2 * r * Math.sin(from))}a${r} ${r} 0 1 1 ${f(2 * r * Math.cos(from))} ${f(2 * r * Math.sin(from))}`;
+      const curl = 'M0 -4C-5 -9 -14 -10 -20 -6C-25 -2 -28 0 -31 -2C-34 -4 -35 -8 -33 -11C-38 -8 -38 -1 -33 2C-27 6 -16 7 -8 4C-4 3 -1 1 0 1Z';
+      const lip = `translate(${mx} ${my}) rotate(${f(deg)}) scale(.9)`;
+      strokes = [
+        [lens(x1, y1, -2.4), 0, 300],
+        [`M${f(x1 + r * ux)} ${f(y1 + r * uy)}Q${f((x1 + x2) / 2 + 9 * uy)} ${f((y1 + y2) / 2 - 9 * ux)} ${f(x2 - r * ux)} ${f(y2 - r * uy)}`, 300, 110],
+        [lens(x2, y2, -0.8), 410, 300],
+        [`M${f(x1 - r * ux)} ${f(y1 - r * uy)}l${f(-16 * ux + 4 * uy)} ${f(-16 * uy - 4 * ux)}M${f(x2 + r * ux)} ${f(y2 + r * uy)}l${f(16 * ux + 4 * uy)} ${f(16 * uy - 4 * ux)}`, 720, 140],
+        [curl, 930, 220, lip, true],
+        [curl, 1110, 220, `${lip} scale(-1 1)`, true],
+      ];
+    }
     const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
     svg.setAttribute('viewBox', '0 0 256 256'); svg.setAttribute('class', 'neru-doodle'); svg.setAttribute('aria-hidden', 'true');
     const paths = [];
@@ -752,6 +765,7 @@ const NeruEggs = {
         p.setAttribute('d', dd); p.setAttribute('pathLength', '1');
         if (tf) p.setAttribute('transform', tf);
         if (filled) p.classList.add('nd-fill');
+        if (filled === 'gold') p.classList.add('nd-gold');
         g.append(p); paths.push({ p, at: at2, ms, filled });
       }
       svg.append(g);
@@ -764,7 +778,7 @@ const NeruEggs = {
     const now = performance.now();
     if (this._doodleAt == null) {
       this._doodleAt = now;
-      setTimeout(() => { if (document.querySelector('.neru-doodle')) this.peek('doodle', { found: false }); }, 250);
+      setTimeout(() => { if (document.querySelector('.neru-doodle')) this.peek(at.crown ? 'crowned' : 'doodle', { found: false }); }, 250);
     }
     const ago = now - this._doodleAt;
     if (ago > 1600) return;
