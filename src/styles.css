@@ -1695,6 +1695,9 @@ div.res-calib .i { color: var(--good); }
 .nd-snow.nd-front .nd { filter: blur(1.2px); }
 .nd-fireflies .nd-dot { box-shadow: 0 0 6px 2px rgba(214, 255, 120, .75), 0 0 16px 5px rgba(214, 255, 120, .3); }
 .nd-fireflies .nd, .nd-fireflies.nd-front .nd { filter: none; }
+/* (April Fools' Day: the other way round) */
+.neru.nm-fools .neru-body { scale: -1 1; }
+.nd-hearts .nd svg { filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, .8)) drop-shadow(0 1px 2px rgba(0, 0, 0, .3)); }
 .nd-bats .nd svg { filter: drop-shadow(0 0 1px rgba(255, 196, 140, .9)) drop-shadow(0 0 7px rgba(255, 140, 70, .35)); }
 .neru-drift.nd-bats .nd { opacity: 1; }
 /* (Halloween: a harvest moon low behind her for the bats to cross) */

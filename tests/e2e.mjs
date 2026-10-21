@@ -171,6 +171,10 @@ await shot('01-home-empty');
     S.set('audio.master', 1); await wait(400); out.up = p(); await wait(1700);
     S.set('audio.master', 0); await wait(400); out.down = p(); await wait(2000);
     S.set('audio.master', v0);
+    // (songs skipped one after another: three in a few seconds; two aren't enough, nor the same one again)
+    const E0 = NeruEggs; E0._song = null; E0._skips = [];
+    for (const id of ['s1', 's2', 's2']) E0.skipped({ id }); await wait(400); out.twoSkips = p();
+    E0.skipped({ id: 's3' }); await wait(400); out.threeSkips = p(); await wait(1600);
     const E = NeruEggs, x = v => v || '-';
     // (clicked on other screens: a dance after a full combo — not one miss, not a fail —, worried while a song far above
     // anything passed loads, once a few have been passed, and not on Auto)
@@ -184,7 +188,8 @@ await shot('01-home-empty');
     ScoreManager.scores = saved;
     return out;
   });
-  check('Neru\'s small easter eggs: the volume all the way up (a cheer) or down (bored)', small.up === 'cheer' && small.down === 'bored', JSON.stringify(small));
+  check('Neru\'s small easter eggs: the volume all the way up (a cheer) or down (bored); three songs skipped in a row, a blank "huh?"',
+    small.up === 'cheer' && small.down === 'bored' && small.twoSkips === 'usual' && small.threeSkips === 'huh', JSON.stringify(small));
   check('…and clicked on other screens: a dance after a full combo, worried at a song far above anything passed (not for a newcomer, nor on Auto)',
     small.results === 'dance,dance,-,-' && small.worried === 'worried,-,worried,-' && small.newcomer === '-', JSON.stringify(small));
   // the Konami code on the main menu: she dances (and its B doesn't open Browse); left alone longer: her phone, then her
@@ -262,13 +267,35 @@ await shot('01-home-empty');
     check('Neru: a headpat — her happy face and hearts, stroking it still a pat — then a huff when let go (no hop); not held lower down',
       pat.during === 'happy' && pat.hearts && pat.stroked === 'happy|false' && pat.after === 'sassy|false' && !/^happy/.test(pat.body) && pat.body.endsWith('|0'), JSON.stringify(pat));
   }
+  // April Fools' Day: she's the other way round, and a click gets a laugh; Valentine's Day: a click brings hearts
+  const days = await page.evaluate(async () => {
+    const E = NeruEggs, S = AshtonkMania.Settings, wait = ms => new Promise(res => setTimeout(res, ms)), today = E.today, out = {};
+    const rebuild = async () => { S.set('ui.mascot', false); S.set('ui.mascot', true); for (let i = 0; i < 40 && !(NeruMascot.img && NeruMascot.img.complete); i++) await wait(100); await wait(300); };
+    const click = async () => { const M = NeruMascot; M._actUntil = M._happyUntil = M._huffUntil = 0; M._clicks = []; M.el.click(); await wait(300); return M.img.dataset.pose; };
+    try {
+      E.today = () => new Date(2027, 3, 1, 12); await rebuild();
+      out.mirrored = NeruMascot.el.classList.contains('nm-fools') && /^-1/.test(getComputedStyle(NeruMascot.body).scale);
+      out.foolsClick = await click();
+      E.today = () => new Date(2027, 1, 14, 12); await rebuild();
+      out.notMirrored = !NeruMascot.el.classList.contains('nm-fools');
+      out.valClick = await click();
+      out.hearts = NeruMascot.el.querySelectorAll('.neru-heart').length > 0 || document.documentElement.classList.contains('slow');
+    } finally { E.today = today; await rebuild(); }
+    out.after = NeruMascot.el.classList.contains('nm-fools');
+    return out;
+  });
+  check('Neru on April Fools\' Day: the other way round, and a click gets a laugh; on Valentine\'s Day a click brings hearts',
+    days.mirrored && days.foolsClick === 'mock' && days.notMirrored && days.valClick === 'happy' && days.hearts && !days.after, JSON.stringify(days));
   // the time of year around her on the main menu: leaves in autumn, snow in winter, blossom in spring, fireflies on a
   // summer night, bats at Halloween (the other way round in the south); a few at a time, never in the way of a click;
   // after midnight a yawn, and on New Year's Day a cheer
   const season = await page.evaluate(async () => {
     const E = NeruEggs, M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', out = {};
+    // (a long while with no key or pointer press, this: not one that leaves her alone — bored — meanwhile)
+    E._seen = performance.now() + 600000;
     const at = (m, d, hr = 12, zone = 'Europe/London') => E.seasonOf(new Date(2026, m - 1, d, hr), zone) || '-';
     out.north = [at(10, 21), at(10, 30), at(12, 25), at(2, 10), at(3, 25), at(5, 10), at(7, 4, 21), at(7, 4, 12), at(9, 1)].join();
+    out.days = [at(2, 14), at(2, 14, 12, 'Australia/Sydney'), at(2, 15), at(12, 24)].join() + '|' + [E.christmas(new Date(2026, 11, 24)), E.christmas(new Date(2026, 11, 26)), E.foolsDay(new Date(2027, 3, 1)), E.valentine(new Date(2027, 1, 14)), E.valentine(new Date(2027, 1, 13))].join();
     out.south = [at(10, 21, 12, 'Australia/Sydney'), at(4, 20, 12, 'Australia/Sydney'), at(7, 4, 12, 'America/Argentina/Buenos_Aires'), at(1, 10, 22, 'Pacific/Auckland'), at(10, 30, 12, 'Australia/Sydney')].join();
     // (the menu's own drift — today's — out of the way, and one of each in turn; as where the menus run at full speed)
     for (const d of M.el.querySelectorAll('.neru-drift')) d.remove();
@@ -303,6 +330,12 @@ await shot('01-home-empty');
     E._plays = 99; ScoreManager.scores = Array.from({ length: 100 }, (_, i) => ({ passed: true, stars: 2, mods: [], date: Date.now() - i }));
     E.milestone(); await wait(1500); out.milestone = p(); await wait(3000);
     E.milestone(); await wait(1500); out.again = p(); await wait(1800);
+    // an SS since she last saw you: sunglasses still on, back on the main menu (not for an S)
+    const sc0 = ScoreManager.scores;
+    E._plays = sc0.length; ScoreManager.scores = sc0.concat([{ passed: true, own: true, grade: 'S', stars: 2, mods: [], date: Date.now() }]);
+    E.milestone(); await wait(1500); out.afterS = p();
+    E._plays = ScoreManager.scores.length; ScoreManager.scores = ScoreManager.scores.concat([{ passed: true, own: true, grade: 'X', stars: 2, mods: [], date: Date.now() }]);
+    E.milestone(); await wait(1500); out.afterSS = p(); M._actUntil = 0; await M.show(null);
     // an hour's playing since the game was opened: worried, once (not for the plays before it was opened)
     const since = E.SINCE;
     ScoreManager.scores = Array.from({ length: 20 }, (_, i) => ({ passed: true, stars: 2, mods: [], own: true, date: since - 1000 + i, duration: 240000 }));
@@ -311,9 +344,11 @@ await shot('01-home-empty');
     E.breather(); await wait(1700); out.longSession = p(); await wait(2800);
     E.breather(); await wait(1700); out.longAgain = p();
     ScoreManager.scores = saved; E._plays = saved.length;
-    E._greeted = true;
+    E._greeted = true; E._seen = performance.now();
     return out;
   });
+  check('…and on the days: hearts on Valentine\'s Day (wherever you are), twice the snow at Christmas, April Fools\' Day',
+    season.days === 'hearts,hearts,snow,snow|true,false,true,true,false', season.days);
   check('Neru through the year: leaves, Halloween bats, snow, blossom, summer-night fireflies — the other way round in the south',
     season.north === 'leaves,bats,snow,snow,petals,-,fireflies,-,-' && season.south === 'petals,leaves,snow,fireflies,bats', JSON.stringify(season));
   check('…each drifts around her a few at a time, behind and in front, never in the way of a click, and not with the animations off',
@@ -322,6 +357,7 @@ await shot('01-home-empty');
     season.late === 'tired' && season.lateAfter === 'usual' && season.newYear === 'cheer' && season.day === 'usual', JSON.stringify(season));
   check('…back after a week away she sulks, then she\'s glad after all (not after a day, nor with hardly any plays); a milestone play gets a cheer, once',
     season.back === 'sulk' && season.glad === 'happy' && season.notAway === 'usual' && season.milestone === 'cheer' && season.again === 'usual', JSON.stringify(season));
+  check('…after an SS, back on the main menu her sunglasses are still on (not after an S)', season.afterS === 'usual' && season.afterSS === 'cool', JSON.stringify(season));
   check('…and after an hour\'s playing at a stretch (since the game was opened), a worried look, once',
     season.shortSession === 'usual' && season.longSession === 'worried' && season.longAgain === 'usual', JSON.stringify(season));
 }
