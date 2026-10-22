@@ -339,12 +339,25 @@ try {
       score: 1e6, scoreStd: 1e6, accuracy: 1, maxCombo: 100, counts: [100, 0, 0, 0, 0, 0], grade: 'X', passed: true, date: Date.now(), duration: 30000, player: A.ProfileManager.profile.name, own: true, srVersion: SR_VERSION });
     await ReplayManager.save(rep);
     while (Verified._catching) await new Promise(r => setTimeout(r, 200));
+    // (an older game noted plays as "sent" when the server took them — at 0pp from a server that couldn't ask osu! — and
+    // never sent them again, so they stayed "not counted yet" for good: a note like that mustn't hold this one back)
+    const mine = A.ScoreManager.bestPpPerMap().find(x => x.score.mapHash === m.hash);
+    localStorage.setItem('am.ppSent', JSON.stringify({ [m.hash]: mine.pp }));
     Verified._lastOwn = 0;
     await Verified.catchUp();
-    return { had, has: (await bests()).includes(m.hash), local: A.ScoreManager.bestPpPerMap().some(x => x.score.mapHash === m.hash) };
+    return { had, has: (await bests()).includes(m.hash), local: A.ScoreManager.bestPpPerMap().some(x => x.score.mapHash === m.hash), noted: localStorage.getItem('am.ppSent') };
   });
   a.off('request', onReq);
-  check('a play the server never got (offline, multiplayer) goes straight up, together with any others: the rankings have the best plays your profile has', !caught.had && caught.has && caught.local && lots >= 1, JSON.stringify({ ...caught, lots }));
+  check('a play the server never got (offline, multiplayer) goes straight up, together with any others — an old "already sent" note doesn\'t hold it back: the rankings have the best plays your profile has', !caught.had && caught.has && caught.local && lots >= 1 && caught.noted === null, JSON.stringify({ ...caught, lots }));
+  // a play the server didn't count says why, beside it on your profile
+  const why = await a.evaluate(() => {
+    const V = AshtonkMania.Verified || Verified, h = 'f'.repeat(64);
+    localStorage.setItem(V.VERDICT_KEY, JSON.stringify({ [h]: { pp: 50, got: 0, at: Date.now() }, ['e'.repeat(64)]: { pp: 20, err: 'Bad beatmap file.', at: Date.now() } }));
+    const r = [V.why(h, 50), V.why('e'.repeat(64), 20), V.why(h, 51), V.why('d'.repeat(64), 5)];
+    localStorage.removeItem(V.VERDICT_KEY);
+    return r;
+  });
+  check('a play the server didn\'t count says why (not ranked on osu!, or what it turned down)', why[0] === 'not ranked on osu!' && why[1] === 'turned down: bad beatmap file' && why[2] === null && why[3] === null, JSON.stringify(why));
   // your own profile shows the server's pp and best plays: the same numbers everyone else sees
   const own = await a.evaluate(async () => {
     const A = AshtonkMania, srv = await new Promise(r => { const off = A.Bus.on('profile:remote', m => { if (m.pid !== A.Presence.pid()) return; off(); r(m); }); A.Screens.go('profile'); });

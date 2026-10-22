@@ -323,9 +323,10 @@ const ProfileScreen = {
     const other = params.pid && params.pid !== (typeof Presence !== 'undefined' && Presence.pid());
     // (coming back from one of their scores: what was already loaded shows straight away, then is brought up to date)
     this.remote = other ? (params.cache && params.cache.pid === params.pid ? params.cache : { pid: params.pid, name: params.name, avatar: params.avatar, data: null }) : null;
-    const { el, page } = pageShell(other ? `${params.name || 'player'}'s profile` : 'Profile', null, [], { icon: 'user', hue: 'pink', wide: true });
+    const { el, page } = pageShell(other ? [h('span.ov-name', params.name || 'player'), '\'s profile'] : 'Profile', null, [], { icon: 'user', hue: 'pink', wide: true }); // (their name as they spell it: the title's lowercase is lazer's style, not theirs)
     this.page = page;
     this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
+      Bus.on('verified:verdicts', () => { if (!this.remote) this.render(); }), // (the catch-up's answers: why a play wasn't counted)
       Bus.on('profile:remote', m => {
         // (your own profile: the server's list of your first places)
         if (!this.remote && m.pid === Presence.pid()) {
@@ -499,8 +500,11 @@ const ProfileScreen = {
           // (plays on beatmaps that aren't ranked on osu! — your own, or from a file — give pp in the results but never count here)
           : ScoreManager.scores.some(x => x.passed) ? 'No performance records yet: only plays on beatmaps ranked on osu! count here — find some in the beatmap listing.' : 'No performance records. Pass a ranked beatmap to earn pp.')),
       pending.length ? sub('Not counted yet', pending.length,
-        h('div.pf-note', Presence.ws ? 'Going up to the server now — they count in a moment.' : 'These go up to the server as soon as you\'re online.'),
-        more(pending, x => row(x, 0, false))) : null,
+        // (each says why the server hasn't got it — turned down, or not ranked on osu! — once it's been asked)
+        h('div.pf-note', !Presence.ws ? 'These go up to the server as soon as you\'re online.'
+          : !Verified.busy() && pending.every(x => Verified.why(x._s.mapHash, x.pp)) ? 'The server didn\'t count these — why is beside each one.'
+          : 'Going up to the server now — they count in a moment.'),
+        more(pending, x => this.scoreRow(x._s, fmtInt(x.pp), null, null, Verified.why(x._s.mapHash, x.pp)))) : null,
       own && d.importedTop && d.importedTop.length ? sub('From imported backups', d.importedTop.length,
         h('div.pf-note', 'Not counted in your pp or on the rankings: there\'s no replay of these for the server to check. Play them again here to count them.'),
         more(d.importedTop, x => row(x, 0, false))) : null);
@@ -546,7 +550,7 @@ const ProfileScreen = {
   },
   /** lazer's DrawableProfileScore: rank pill, title / artist, difficulty and date, mods, accuracy, and the pp in a
    *  sheared block on the right (with the weighting for best performance). */
-  scoreRow(s, pp, weight = null, weighted = null) {
+  scoreRow(s, pp, weight = null, weighted = null, note = null) {
     return h(`button.pf-score${s.remote ? '.remote' : ''}`, { onclick: () => {
       UISounds.click();
       // (back from the score comes back here — this profile, scrolled where it was — not to song select)
@@ -559,7 +563,7 @@ const ProfileScreen = {
       h('div.main', h('div.t', s.title, h('span.a', ` by ${s.artist || ''}`)), h('div.s', h('span.v', s.version), h('span.d', fmtDate(s.date)))),
       h('span.pf-mods', ...(s.mods || []).map(m => ModSystem.badge(m, true))),
       // (no accuracy here: next to the weighting it read as the play's weight)
-      weight ? h('div.pf-weight', h('b', `${weighted}pp`), h('span', weight)) : null,
+      weight ? h('div.pf-weight', h('b', `${weighted}pp`), h('span', weight)) : note ? h('div.pf-weight.pf-why', h('span', note)) : null,
       h(`div.pf-ppblock${pp == null ? '.failed' : ''}`, pp == null ? h('span', 'failed') : h('span', pp, h('small', 'pp'))));
   },
 };

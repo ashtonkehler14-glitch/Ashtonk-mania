@@ -1155,6 +1155,8 @@ html.touch .practice-bar .kbd { display: none; }
 .pf-acc { min-width: 64px; text-align: right; color: #ffcc22; font-weight: 600; font-size: .9rem; }
 .pf-weight { min-width: 90px; display: flex; flex-direction: column; align-items: flex-end; font-size: .72rem; color: var(--oc2); }
 .pf-weight b { font-size: .85rem; color: #fff; font-weight: 600; }
+.pf-weight.pf-why { min-width: 0; max-width: 260px; text-align: right; } /* (a play the server didn't count: why) */
+.pf-weight.pf-why span { font-size: .75rem; color: hsl(var(--o-h) 30% 78%); }
 /* the pp sits in a darker block with lazer's slanted left edge */
 .pf-ppblock { position: relative; align-self: stretch; min-width: 96px; display: grid; place-items: center; padding: 0 18px 0 26px; color: var(--ohl); font-weight: 700; }
 .pf-ppblock::before { content: ""; position: absolute; inset: 0 -20px 0 0; z-index: 0; background: var(--ob5); transform: skewX(-11.31deg); transform-origin: bottom left; }
@@ -1867,6 +1869,7 @@ div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
 .ov-icon { display: grid; place-items: center; width: 40px; height: 40px; margin: 0 2px 0 -5px; border-radius: 50%; background: hsl(var(--o-h) 30% 22%); color: var(--ohl); }
 .ov-icon .i { width: 20px; height: 20px; }
 .ov-head h1 { margin: 0; font-size: 1.25rem; font-weight: 400; text-transform: lowercase; letter-spacing: .01em; }
+.ov-head h1 .ov-name { text-transform: none; }
 .ov-sub { color: var(--oc2); opacity: .65; font-size: .9rem; margin-left: 4px; }
 .ov-head .grow { flex: 1; }
 .ov-head .btn:not(.primary) { background: var(--ob3); }
@@ -3950,6 +3953,8 @@ html.touch .ch-item.on .ch-x { display: grid; place-items: center; width: 26px; 
 .ch-input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border: 0; border-radius: 5px; outline: none; background: hsl(var(--h) 10% 10%); color: #fff; font: inherit; font-size: 14px; }
 .ch-input:focus { box-shadow: 0 0 0 2px hsl(var(--h) 100% 70% / .5); }
 @media (max-width: 640px) { .ch-list { width: 120px; } .ch-talk { display: none; } .ch-line { grid-template-columns: 40px 90px minmax(0, 1fr); column-gap: 8px; padding-left: 8px; } }
+/* (a phone held sideways is wider than that, but the time and a 150px name column took a third of its width) */
+@media (max-height: 520px) { .ch-line { grid-template-columns: 54px 100px minmax(0, 1fr); column-gap: 10px; padding-left: 10px; } }
 
 /* lazer's RankingsOverlay, PerformanceTable (Green scheme): 32px rows 3px apart, 4px corners, Background4 →
    Background3 on hover; 12px text, the stats in Foreground1, Performance in white; headers above in 12px */
