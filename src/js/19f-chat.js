@@ -197,7 +197,7 @@ const Chat = {
     clearEl(this.list).append(
       h('div.ch-group', h('span', 'CHANNELS'), icon('globe')), ...pub.map(item),
       h('div.ch-group', h('span', 'DIRECT MESSAGES'), icon('user')),
-      ...(pms.length ? pms.map(item) : [h('div.ch-hint', 'Message a friend from their ⋯ menu.')]));
+      ...(pms.length ? pms.map(item) : [h('div.ch-hint', 'Message a friend from their\u00a0⋯\u00a0menu.')]));
   },
   /** The toolbar button shows unread messages, like the notification bell. */
   badge() {

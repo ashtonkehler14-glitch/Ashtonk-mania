@@ -8388,8 +8388,8 @@ const SETTINGS_SCHEMA = [
     fmt: v => `${v} (${Math.round(11485 / v)}ms)`, hint: 'How long notes are visible before reaching the receptors.' },
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollDirection', l: 'Scrolling direction', t: 'select', d: 'down', o: [['down', 'Down'], ['up', 'Up']] },
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollMode', l: 'Scroll speed changes', t: 'select', d: 'sv', o: [['sv', 'SV + BPM'], ['svonly', 'SV only'], ['constant', 'Constant']], hint: 'SV + BPM is how osu!mania scrolls.' },
-  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.mobileLayout', l: 'Mobile layout', t: 'select', d: 'portrait', o: [['portrait', 'Portrait'], ['landscape', 'Landscape'], ['expanded', 'Landscape (expanded columns)']],
-    hint: 'How songs are played on a phone or tablet, as in osu!lazer: held upright, or sideways — with the columns as on a computer, or widened to fill the screen.', when: () => TOUCH_DEVICE },
+  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.mobileLayout', l: 'Mobile layout', t: 'select', d: 'auto', o: [['auto', 'Automatic (as you hold it)'], ['portrait', 'Portrait'], ['landscape', 'Landscape'], ['expanded', 'Landscape (expanded columns)']],
+    hint: 'How songs are played on a phone or tablet: whichever way you hold it, or always as osu!lazer\'s — upright, or sideways with the columns as on a computer or widened to fill the screen.', when: () => TOUCH_DEVICE },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.laneWidth', l: 'Lane width', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.hitPositionOffset', l: 'Hit position', t: 'range', d: 0, min: -120, max: 60, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}`, hint: 'Moves where notes are judged (the receptors) up or down from where the skin puts them. Also in the skin editor, where you can drag it.' },
   { x: 1, s: 'Gameplay', g: 'Playfield', k: 'gameplay.stagePosition', l: 'Stage position', t: 'select', d: 'center', o: [['center', 'Centered'], ['skin', 'Skin (ColumnStart)'], ['left', 'Left'], ['right', 'Right']] },
@@ -10342,8 +10342,10 @@ const EXPANDED_COL = 2.83, EXPANDED_KEYS = 7, PHONE_ASPECT = 1.92;
 class ManiaRenderer {
   /** crop: size the canvas to just the stage (plus room for the health bar / key display) instead of the whole
    *  screen, so each frame clears, fills and composites far fewer pixels. The canvas's parent is the screen. */
-  constructor(canvas, { crop = false } = {}) {
-    this.canvas = canvas;
+  /** `touch`: on a touch screen, laid out to be played by touch (below) — a preview of a skin shows the stage as on a
+   *  computer instead: in its small box, the touch layout's columns came out huge and cut off. */
+  constructor(canvas, { crop = false, touch = true } = {}) {
+    this.canvas = canvas; this.touchLayout = touch;
     this.crop = crop; this.cropX = 0;
     this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._tx = 0; this._noteRefW = 0;
     if (crop && typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
@@ -10493,13 +10495,14 @@ class ManiaRenderer {
     // side with no gaps, in the middle, with the receptors as near the edge as FNF's (below). Held upright, each column
     // as wide as an FNF arrow (112 of 720, about a sixth of the screen's height), narrowed to fit across it; held
     // sideways, as Settings → Mobile layout says (lazer's): "Landscape" is the stage as on a computer, "Landscape
-    // (expanded columns)" the skin's columns widened by lazer's reckoning (EXPANDED_COL)
-    const touch = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
-    const upright = this.H > this.W;
-    this.fnf = touch && (upright || Settings.get('gameplay.mobileLayout') !== 'landscape');
+    // (expanded columns)" the skin's columns widened by lazer's reckoning (EXPANDED_COL); "Automatic" keeps the arrows'
+    // size either way up
+    const touch = this.touchLayout && typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const upright = this.H > this.W, layout = Settings.get('gameplay.mobileLayout');
+    this.fnf = touch && (upright || layout !== 'landscape');
     if (this.fnf) {
       this._fnfCol = Math.min(this.H * TOUCH_COL * lw, this.W * 0.96 / L.keys);
-      const size = upright ? this._fnfCol : Math.min((L.columnWidth[0] || 30) * s * EXPANDED_COL * Math.min(1, EXPANDED_KEYS / L.keys) * (this.W / this.H) / PHONE_ASPECT * lw, this.W * 0.96 / L.keys);
+      const size = upright || layout !== 'expanded' ? this._fnfCol : Math.min((L.columnWidth[0] || 30) * s * EXPANDED_COL * Math.min(1, EXPANDED_KEYS / L.keys) * (this.W / this.H) / PHONE_ASPECT * lw, this.W * 0.96 / L.keys);
       this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * size); this.stageW = size * L.keys;
       this.narrow = true;
     } else {
@@ -22640,7 +22643,7 @@ const ReplaysScreen = {
 // ─────────────────────────────── Skins ───────────────────────────────
 class SkinPreview {
   /** scrollSpeed: scroll at the player's scroll speed setting instead of a fixed demo speed. */
-  constructor(canvas, { scrollSpeed = false } = {}) { this.canvas = canvas; this.renderer = new ManiaRenderer(canvas); this.running = false; this.useSpeed = scrollSpeed; }
+  constructor(canvas, { scrollSpeed = false } = {}) { this.canvas = canvas; this.renderer = new ManiaRenderer(canvas, { touch: false }); this.running = false; this.useSpeed = scrollSpeed; }
   async show(skin, keys) {
     this.token = {};
     const tok = this.token;
@@ -28582,7 +28585,7 @@ const DashboardScreen = {
     clearEl(this.listEl).append(...(list.length ? list.map(u => UserPanels.panel(u, style))
       : [this.tab !== 'friends' ? stateCard('social', 'Nobody is online right now', 'Players show up here while they\'re playing.', { cls: '.plain', neru: true })
         : Friends.list().length ? stateCard('search', 'Nobody here', q ? 'None of your friends match that search.' : 'None of your friends are in this list.', { cls: '.plain' })
-        : stateCard('social', 'No friends yet', 'Find people under "currently online" and add them from the ⋯ menu.', { cls: '.plain', neru: true })]));
+        : stateCard('social', 'No friends yet', 'Find people under "currently online" and add them from the\u00a0⋯\u00a0menu.', { cls: '.plain', neru: true })]));
   },
 };
 
@@ -28891,7 +28894,9 @@ const Keyboard = {
 if (Mobile.touch) Keyboard.init();
 
 /** Which way the phone is held, as lazer's mobile app: the game is used sideways, and songs are played the way
- *  Settings → Mobile layout says — upright (Portrait, lazer's default) or sideways. The screen is locked that way where
+ *  Settings → Mobile layout says — whichever way it's held (Automatic, to begin with: a browser can't turn the screen
+ *  for a song as lazer's app does, and asking everyone to turn it got in the way), or always upright or sideways. The
+ *  screen is locked that way where
  *  the browser allows it (the installed app, or fullscreen); otherwise a prompt covers the screen until the phone is
  *  turned (a song waits for it, and one under way stops for a tap). */
 const Orientation = {
@@ -28899,7 +28904,7 @@ const Orientation = {
   /** The menus are used sideways; a song as Settings → Mobile layout says; the results either way up. */
   wanted() {
     const n = typeof Screens !== 'undefined' ? Screens.currentName : '';
-    if (n === 'gameplay') return typeof Settings !== 'undefined' && Settings.get('gameplay.mobileLayout') === 'portrait' ? 'portrait' : 'landscape';
+    if (n === 'gameplay') { const m = typeof Settings !== 'undefined' ? Settings.get('gameplay.mobileLayout') : 'auto'; return m === 'portrait' ? 'portrait' : m === 'landscape' || m === 'expanded' ? 'landscape' : 'any'; }
     return n === 'results' ? 'any' : 'landscape';
   },
   /** Whether the prompt to turn the phone is up. */
@@ -29319,7 +29324,7 @@ const Chat = {
     clearEl(this.list).append(
       h('div.ch-group', h('span', 'CHANNELS'), icon('globe')), ...pub.map(item),
       h('div.ch-group', h('span', 'DIRECT MESSAGES'), icon('user')),
-      ...(pms.length ? pms.map(item) : [h('div.ch-hint', 'Message a friend from their ⋯ menu.')]));
+      ...(pms.length ? pms.map(item) : [h('div.ch-hint', 'Message a friend from their\u00a0⋯\u00a0menu.')]));
   },
   /** The toolbar button shows unread messages, like the notification bell. */
   badge() {
@@ -30844,7 +30849,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '7f0db8a2ae04';
+const APP_BUILD = '484bf3f3426a';
 
 const App = {
   lastReport: null,

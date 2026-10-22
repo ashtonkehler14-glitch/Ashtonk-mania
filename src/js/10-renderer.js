@@ -61,8 +61,10 @@ const EXPANDED_COL = 2.83, EXPANDED_KEYS = 7, PHONE_ASPECT = 1.92;
 class ManiaRenderer {
   /** crop: size the canvas to just the stage (plus room for the health bar / key display) instead of the whole
    *  screen, so each frame clears, fills and composites far fewer pixels. The canvas's parent is the screen. */
-  constructor(canvas, { crop = false } = {}) {
-    this.canvas = canvas;
+  /** `touch`: on a touch screen, laid out to be played by touch (below) — a preview of a skin shows the stage as on a
+   *  computer instead: in its small box, the touch layout's columns came out huge and cut off. */
+  constructor(canvas, { crop = false, touch = true } = {}) {
+    this.canvas = canvas; this.touchLayout = touch;
     this.crop = crop; this.cropX = 0;
     this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._tx = 0; this._noteRefW = 0;
     if (crop && typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
@@ -212,13 +214,14 @@ class ManiaRenderer {
     // side with no gaps, in the middle, with the receptors as near the edge as FNF's (below). Held upright, each column
     // as wide as an FNF arrow (112 of 720, about a sixth of the screen's height), narrowed to fit across it; held
     // sideways, as Settings → Mobile layout says (lazer's): "Landscape" is the stage as on a computer, "Landscape
-    // (expanded columns)" the skin's columns widened by lazer's reckoning (EXPANDED_COL)
-    const touch = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
-    const upright = this.H > this.W;
-    this.fnf = touch && (upright || Settings.get('gameplay.mobileLayout') !== 'landscape');
+    // (expanded columns)" the skin's columns widened by lazer's reckoning (EXPANDED_COL); "Automatic" keeps the arrows'
+    // size either way up
+    const touch = this.touchLayout && typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const upright = this.H > this.W, layout = Settings.get('gameplay.mobileLayout');
+    this.fnf = touch && (upright || layout !== 'landscape');
     if (this.fnf) {
       this._fnfCol = Math.min(this.H * TOUCH_COL * lw, this.W * 0.96 / L.keys);
-      const size = upright ? this._fnfCol : Math.min((L.columnWidth[0] || 30) * s * EXPANDED_COL * Math.min(1, EXPANDED_KEYS / L.keys) * (this.W / this.H) / PHONE_ASPECT * lw, this.W * 0.96 / L.keys);
+      const size = upright || layout !== 'expanded' ? this._fnfCol : Math.min((L.columnWidth[0] || 30) * s * EXPANDED_COL * Math.min(1, EXPANDED_KEYS / L.keys) * (this.W / this.H) / PHONE_ASPECT * lw, this.W * 0.96 / L.keys);
       this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * size); this.stageW = size * L.keys;
       this.narrow = true;
     } else {

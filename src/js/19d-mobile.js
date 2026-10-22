@@ -278,7 +278,9 @@ const Keyboard = {
 if (Mobile.touch) Keyboard.init();
 
 /** Which way the phone is held, as lazer's mobile app: the game is used sideways, and songs are played the way
- *  Settings → Mobile layout says — upright (Portrait, lazer's default) or sideways. The screen is locked that way where
+ *  Settings → Mobile layout says — whichever way it's held (Automatic, to begin with: a browser can't turn the screen
+ *  for a song as lazer's app does, and asking everyone to turn it got in the way), or always upright or sideways. The
+ *  screen is locked that way where
  *  the browser allows it (the installed app, or fullscreen); otherwise a prompt covers the screen until the phone is
  *  turned (a song waits for it, and one under way stops for a tap). */
 const Orientation = {
@@ -286,7 +288,7 @@ const Orientation = {
   /** The menus are used sideways; a song as Settings → Mobile layout says; the results either way up. */
   wanted() {
     const n = typeof Screens !== 'undefined' ? Screens.currentName : '';
-    if (n === 'gameplay') return typeof Settings !== 'undefined' && Settings.get('gameplay.mobileLayout') === 'portrait' ? 'portrait' : 'landscape';
+    if (n === 'gameplay') { const m = typeof Settings !== 'undefined' ? Settings.get('gameplay.mobileLayout') : 'auto'; return m === 'portrait' ? 'portrait' : m === 'landscape' || m === 'expanded' ? 'landscape' : 'any'; }
     return n === 'results' ? 'any' : 'landscape';
   },
   /** Whether the prompt to turn the phone is up. */

@@ -740,7 +740,7 @@ const ReplaysScreen = {
 // ─────────────────────────────── Skins ───────────────────────────────
 class SkinPreview {
   /** scrollSpeed: scroll at the player's scroll speed setting instead of a fixed demo speed. */
-  constructor(canvas, { scrollSpeed = false } = {}) { this.canvas = canvas; this.renderer = new ManiaRenderer(canvas); this.running = false; this.useSpeed = scrollSpeed; }
+  constructor(canvas, { scrollSpeed = false } = {}) { this.canvas = canvas; this.renderer = new ManiaRenderer(canvas, { touch: false }); this.running = false; this.useSpeed = scrollSpeed; }
   async show(skin, keys) {
     this.token = {};
     const tok = this.token;

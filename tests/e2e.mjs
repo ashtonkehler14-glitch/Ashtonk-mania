@@ -2715,12 +2715,19 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
     await mp.evaluate(() => { document.activeElement.blur(); document.getElementById('kb-test').remove(); }); await mp.waitForTimeout(80);
     check('phone: the typing bar waits for the keyboard (never along the top first), sits just above it, and goes when it\'s put away', first === 'hidden' && up === '280px' && away === 'hidden' && letGo && again === 'hidden', JSON.stringify({ first, up, away, letGo, again }));
   }
-  check('phone: Settings → Mobile layout, as lazer\'s — Portrait, Landscape, Landscape (expanded columns); Portrait to begin with', await mp.evaluate(() => {
+  check('phone: Settings → Mobile layout — whichever way it\'s held to begin with, or lazer\'s Portrait, Landscape, Landscape (expanded columns)', await mp.evaluate(() => {
     const d = SETTINGS_SCHEMA.find(x => x.k === 'gameplay.mobileLayout');
-    return !!d && d.when() && AshtonkMania.Settings.get('gameplay.mobileLayout') === 'portrait' && d.o.map(o => o[1]).join() === 'Portrait,Landscape,Landscape (expanded columns)';
+    return !!d && d.when() && AshtonkMania.Settings.get('gameplay.mobileLayout') === 'auto' && d.o.map(o => o[1]).join() === 'Automatic (as you hold it),Portrait,Landscape,Landscape (expanded columns)';
   }));
-  // Portrait, held sideways: the song waits, the prompt asking for the phone upright; turned, it starts upright
+  // to begin with, held sideways: the song plays as it is — no prompt to turn it — the screen's width split evenly
+  // between the columns for touches
   await mp.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: [], force: true }); });
+  await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 }).catch(() => {});
+  const asHeld = await mp.evaluate(() => { const G = AshtonkMania.GameplayScreen, r = G.renderer, b = G.canvas.parentElement.getBoundingClientRect();
+    return { prompt: !document.querySelector('.rot-prompt').hidden, running: !!(G.s && G.s.running), cols: [0.1, 0.3, 0.6, 0.9].map(f => r.columnAt(b.left + b.width * f)).join() }; });
+  check('phone sideways, Automatic: the song plays as it\'s held (no prompt), each quarter of the screen a column', !asHeld.prompt && asHeld.running && asHeld.cols === '0,1,2,3', JSON.stringify(asHeld));
+  // Portrait, held sideways: the song waits, the prompt asking for the phone upright; turned, it starts upright
+  await mp.evaluate(() => { AshtonkMania.Settings.set('gameplay.mobileLayout', 'portrait'); const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: [], force: true }); });
   await mp.waitForTimeout(4000);
   const waits = await mp.evaluate(() => ({ prompt: !document.querySelector('.rot-prompt').hidden, text: document.querySelector('.rot-prompt').textContent, running: !!(AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running) }));
   check('phone sideways, Portrait layout: the song waits, asking for the phone upright', waits.prompt && /upright/.test(waits.text) && !waits.running, JSON.stringify(waits));

@@ -897,7 +897,7 @@ const DashboardScreen = {
     clearEl(this.listEl).append(...(list.length ? list.map(u => UserPanels.panel(u, style))
       : [this.tab !== 'friends' ? stateCard('social', 'Nobody is online right now', 'Players show up here while they\'re playing.', { cls: '.plain', neru: true })
         : Friends.list().length ? stateCard('search', 'Nobody here', q ? 'None of your friends match that search.' : 'None of your friends are in this list.', { cls: '.plain' })
-        : stateCard('social', 'No friends yet', 'Find people under "currently online" and add them from the ⋯ menu.', { cls: '.plain', neru: true })]));
+        : stateCard('social', 'No friends yet', 'Find people under "currently online" and add them from the\u00a0⋯\u00a0menu.', { cls: '.plain', neru: true })]));
   },
 };
 
