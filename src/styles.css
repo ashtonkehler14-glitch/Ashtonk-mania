@@ -392,6 +392,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 @keyframes menuOut { to { opacity: 0; } }
 .menu.out { animation: menuOut 170ms cubic-bezier(.22, 1, .36, 1) 50ms both; pointer-events: none; }
 .menu.up { animation-name: menuInUp; }
+/* (never taller than the screen — a long one on a phone held sideways: it scrolls instead of running off the bottom) */
+.menu { max-height: calc(100 * var(--vh) - 16px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .menu button { display: flex; width: 100%; align-items: center; gap: 10px; padding: 9px 12px; border: 0; border-radius: 8px; background: transparent; text-align: left; font-weight: 700; font-size: .88rem; color: var(--text-2); }
 .menu button:hover, .menu button:focus-visible { background: rgba(var(--accent-rgb), .16); color: var(--text); outline: none; }
 .menu .sep { height: 1px; margin: 5px 6px; background: var(--line); }
