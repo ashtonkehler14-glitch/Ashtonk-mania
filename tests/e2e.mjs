@@ -174,7 +174,8 @@ await shot('01-home-empty');
   });
   check('Neru\'s frame loop: one while she bounces, asleep once she\'s settled', r.busy > 0 && r.busy <= 45 && r.still === 0, JSON.stringify(r));
 }
-// Neru's easter eggs on the main menu: clicked over and over she's in a huff (and won't hop for a moment); she cheers
+// Neru's easter eggs on the main menu: clicked over and over she's in a huff (and nothing makes her do anything else
+// till it's over); she cheers
 // through the music's chorus; the pointer kept on her, sunglasses on, then a wink; left alone she gets bored — back to
 // herself at a touch; picked up she hangs from the pointer, and let go she drops back to her place
 {
@@ -184,11 +185,13 @@ await shot('01-home-empty');
     const M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), out = {}, p = () => M.img.dataset.pose || 'usual';
     // (her hello at this hour — a yawn after midnight — over, or not to come: these don't depend on the time of day)
     NeruEggs._greeted = true; clearTimeout(NeruEggs._greetT); clearTimeout(NeruEggs._actT); M._actUntil = 0; await M.show(null);
-    for (let i = 0; i < 8; i++) M.el.click();
+    // (chance says angry, not a spin)
+    const rnd = Math.random; Math.random = () => 0.1; try { for (let i = 0; i < 8; i++) M.el.click(); } finally { Math.random = rnd; }
     await wait(500);
     out.huff = `${p()}|${M.el.classList.contains('huff')}|${!!M.el.querySelector('.neru-vein')}`;
-    M.el.click(); out.ignored = M.el.classList.contains('shake') && !M.el.classList.contains('hop');
-    M._huffUntil = 0; clearTimeout(M._back); M.el.classList.remove('huff', 'shake'); await M.show(null);
+    M.el.click(); out.ignored = !M.el.classList.contains('shake') && !M.el.classList.contains('hop') && p() === 'sassy';
+    for (let i = 0; i < 80 && M.el._fanBusy; i++) await wait(50);
+    clearTimeout(M._back); M.el.classList.remove('huff', 'shake'); await M.show(null);
     // (the menu music's own beats held back meanwhile: its chorus — or not — would decide instead)
     const beat = M.beat; M.beat = () => {}; M._kiai = false;
     beat.call(M, 1, true); await wait(400); out.chorus = p();
@@ -221,7 +224,8 @@ await shot('01-home-empty');
     S.set('audio.master', 1); await wait(400); out.up = p(); await wait(1700);
     S.set('audio.master', 0); await wait(400); out.down = p(); await wait(2000);
     S.set('audio.master', v0);
-    // (songs skipped one after another: three in a few seconds; two aren't enough, nor the same one again)
+    // (songs skipped one after another: three in a few seconds — a wagging finger, never at her desk; two aren't enough,
+    // nor the same one again)
     const E0 = NeruEggs; E0._song = null; E0._skips = [];
     for (const id of ['s1', 's2', 's2']) E0.skipped({ id }); await wait(400); out.twoSkips = p();
     E0.skipped({ id: 's3' }); await wait(400); out.threeSkips = p(); await wait(1600);
@@ -238,8 +242,8 @@ await shot('01-home-empty');
     ScoreManager.scores = saved;
     return out;
   });
-  check('Neru\'s small easter eggs: the volume all the way up (a cheer) or down (bored); three songs skipped in a row, a blank "huh?"',
-    small.up === 'cheer' && small.down === 'bored' && small.twoSkips === 'usual' && small.threeSkips === 'huh', JSON.stringify(small));
+  check('Neru\'s small easter eggs: the volume all the way up (a cheer) or down (bored); three songs skipped in a row, a wagging finger (not at her desk)',
+    small.up === 'cheer' && small.down === 'bored' && small.twoSkips === 'usual' && small.threeSkips === 'point', JSON.stringify(small));
   check('…and clicked on other screens: a dance after a full combo, a sulk after a poor play, worried at a song far above anything passed (not for a newcomer, nor on Auto)',
     small.results === 'dance,dance,-,-,sulk,-' && small.worried === 'worried,-,worried,-' && small.newcomer === '-', JSON.stringify(small));
   // the Konami code on the main menu: she dances (and its B doesn't open Browse); left alone longer: her phone, then her
@@ -307,7 +311,7 @@ await shot('01-home-empty');
     beat.seven.split('|')[0] !== 'dance' && beat.seven.endsWith('|false') && beat.eight === 'dance|false' && beat.kept === 'dance' && beat.stopped !== 'dance'
     && !beat.offBeat.startsWith('dance') && beat.offBeat.endsWith('|0') && !beat.gap.startsWith('dance') && beat.gap.endsWith('|4'), JSON.stringify(beat));
   // a headpat: press and hold on her head — her happy face, hearts floating up (stroking it, still a pat, never picked
-  // up); let go and she huffs, with no click's hop; held on her middle, no pat
+  // up); let go and she huffs, blushing, with no click's hop; held on her middle, no pat
   {
     await page.mouse.move(5, 300);
     await page.evaluate(async () => { const M = NeruMascot; M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; M._clicks = []; await M.show(null); });
@@ -322,23 +326,24 @@ await shot('01-home-empty');
     pat.stroked = await page.evaluate(() => `${NeruMascot.img.dataset.pose}|${NeruMascot.el.classList.contains('held')}`);
     await page.mouse.up(); await page.waitForTimeout(300);
     pat.after = await page.evaluate(() => `${NeruMascot.img.dataset.pose}|${NeruMascot.el.classList.contains('hop')}`);
+    await page.waitForTimeout(400); pat.blush = await page.evaluate(() => document.querySelectorAll('.home .neru .neru-body > .neru-blush i').length);
     await page.mouse.move(5, 300); await page.waitForTimeout(2600);
     await page.evaluate(() => document.querySelectorAll('.home .neru .neru-heart').forEach(x => x.remove()));
     await page.mouse.move(ib.x + ib.w * 0.5, ib.y + ib.h * 0.75); await page.mouse.down(); await page.waitForTimeout(900);
     pat.body = `${await page.evaluate(() => NeruMascot.img.dataset.pose)}|${await hearts()}`;
     await page.mouse.up(); await page.mouse.move(5, 300); await page.waitForTimeout(1800);
-    check('Neru: a headpat — her happy face and hearts, stroking it still a pat — then a huff when let go (no hop); not held lower down',
-      pat.during === 'happy' && pat.hearts && pat.stroked === 'happy|false' && pat.after === 'sassy|false' && !/^happy/.test(pat.body) && pat.body.endsWith('|0'), JSON.stringify(pat));
+    check('Neru: a headpat — her happy face and hearts, stroking it still a pat — then a huff when let go, blushing (no hop); not held lower down',
+      pat.during === 'happy' && pat.hearts && pat.stroked === 'happy|false' && pat.after === 'sassy|false' && pat.blush === 2 && !/^happy/.test(pat.body) && pat.body.endsWith('|0'), JSON.stringify(pat));
   }
   // double-clicked: a hop each time — a twirl only for one of her own (the Neru gang), who never makes her angry, and a
-  // click mid-twirl doesn't cut it short; clicked over and over by a Teto or Miku fan: one of three — angry, a photo of
-  // their character held up, or "No baguette!" / "No leek!" — which clicking again doesn't cut short, and a photo or what
-  // she said is gone before her pose changes back; the hundredth click this visit, even mid-huff: her happy face and
-  // hearts — she gives up
+  // click mid-twirl doesn't cut it short; clicked over and over, angry — or, as often, a spin; by a Teto or Miku fan,
+  // mostly angry or a spin, now and then a photo of their character held up or their thing crossed out in a thought bubble — which
+  // clicking again doesn't cut short, and a photo or what she said is gone before her pose changes back; the hundredth
+  // click this visit, even mid-huff: her happy face and hearts — she gives up
   {
     const tw = await page.evaluate(async () => {
       const M = NeruMascot, E = NeruEggs, P = AshtonkMania.ProfileManager, name = P.profile.name, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
-      const calm = async () => { M._actUntil = M._happyUntil = M._huffUntil = M._twirlUntil = 0; M._clicks = []; M._lastClick = -1e9; E._clicked = 0; M.el._fanBusy = false; M.el.classList.remove('hop', 'twirl', 'huff', 'shake', 'giggle'); M.el.querySelectorAll('.neru-bread, .neru-photo, .neru-say').forEach(x => x.remove()); await M.show(null); await wait(700); };
+      const calm = async () => { E._seen = performance.now(); M._idle = false; M._actUntil = M._happyUntil = M._twirlUntil = 0; M._clicks = []; M._lastClick = -1e9; E._clicked = 0; M.el._fanBusy = false; M.el.classList.remove('hop', 'twirl', 'huff', 'shake', 'giggle'); M.el.querySelectorAll('.neru-bread, .neru-photo, .neru-say').forEach(x => x.remove()); await M.show(null); await wait(700); };
       // (a fan's eight clicks, with which of the three set by `v`; then clicked again mid-way, and watched to the end)
       const fanSpam = async v => {
         await calm(); const jab = E.jab, rnd = Math.random; E.jab = () => {}; E._onBeat = false;
@@ -350,19 +355,21 @@ await shot('01-home-empty');
           const ignored = E._clicked === n && !M.el.classList.contains('hop') && M.img.dataset.pose === pose;
           let kind = '-', what = '', early = false, held = null;
           for (let i = 0; i < 100 && M.el._fanBusy; i++) {
-            const ph = M.el.querySelector(':scope > .neru-photo'), sy = M.el.querySelector(':scope > .neru-say');
+            const ph = M.el.querySelector(':scope > .neru-photo'), bd = M.el.querySelector(':scope > .neru-bread');
             if (M.el.querySelector(':scope > .neru-vein')) kind = 'angry';
-            if (sy) { kind = 'say'; what = sy.textContent; }
+            if (M.el.classList.contains('twirl')) { kind = 'spin'; what = M.img.dataset.pose; }
+            if (bd) { kind = 'thought'; what = (/nb-(teto|miku)/.exec(bd.className) || [])[1] || '?'; }
             if (ph) { kind = 'photo'; what = (/neru-photos\/(teto|miku)-/.exec(ph.querySelector('img').src) || [])[1] || '?'; if (held == null) held = M.img.dataset.pose; else if (M.img.dataset.pose !== held) early = true; }
             await wait(50);
           }
-          const gone = !M.el.querySelector(':scope > .neru-photo, :scope > .neru-say');
+          const gone = !M.el.querySelector(':scope > .neru-photo, :scope > .neru-bread');
           await wait(500);
           return `${kind}|${what}|${ignored}|${!early && gone}|${held || '-'}|${M.img.dataset.pose || 'usual'}`;
         } finally { E.jab = jab; }
       };
-      const spam = async () => { await calm(); const jab = E.jab; E.jab = () => {}; E._onBeat = false; try { for (let i = 0; i < 10; i++) { M.el.click(); await wait(110); } } finally { E.jab = jab; } await wait(300);
-        const b = M.el.querySelector(':scope > .neru-bread'); return `${M.el.classList.contains('huff')}|${b ? b.className.replace('neru-bread nb-', '') : '-'}|${!!M.el.querySelector('.neru-say')}`; };
+      // (`v`: what chance gives — a half or more, a spin instead of a huff)
+      const spam = async (v = 0.1) => { await calm(); const jab = E.jab, rnd = Math.random; E.jab = () => {}; E._onBeat = false; Math.random = () => v; try { for (let i = 0; i < 10; i++) { M.el.click(); await wait(110); } } finally { E.jab = jab; Math.random = rnd; } await wait(300);
+        const b = M.el.querySelector(':scope > .neru-bread'); return `${M.el.classList.contains('huff')}|${b ? b.className.replace('neru-bread nb-', '') : '-'}|${!!M.el.querySelector('.neru-say')}|${M.el.classList.contains('twirl')}`; };
       await calm(); M.el.click(); await wait(60);
       out.once = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
       await calm(); M.el.click(); await wait(150); M.el.click(); await wait(60);
@@ -372,20 +379,26 @@ await shot('01-home-empty');
         out.gang = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
         M.el.click(); await wait(30); out.midTwirl = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
         out.gangSpam = await spam();
-        P.profile.name = 'TetoFan'; out.teto = [await fanSpam(0), await fanSpam(0.4), await fanSpam(0.8)];
-        P.profile.name = 'MikuFan'; out.miku = [await fanSpam(0.4), await fanSpam(0.8)];
+        // (the odds — angry 4, the thought 1, a photo 1, a spin 4 — laid end to end: 0 angry, .45 the thought, .55 a photo, .8 a spin;
+        // with no thought or photo, angry or a spin half and half)
+        P.profile.name = 'TetoFan'; out.teto = [await fanSpam(0), await fanSpam(0.45), await fanSpam(0.55), await fanSpam(0.8)];
+        P.profile.name = 'MikuFan'; out.miku = [await fanSpam(0.45), await fanSpam(0.55)];
+        out.odds = JSON.stringify(E.ODDS);
       } finally { P.profile.name = name; }
-      out.plain = await spam();
+      out.plain = await spam(0.1); out.plainSpin = await spam(0.9);
       await calm(); E._clicked = 98; M.el.click(); await wait(300); out.n99 = M.img.dataset.pose;
-      M._huffUntil = performance.now() + 5000; M.el.click(); await wait(400);
-      out.n100 = `${M.img.dataset.pose}|${M._huffUntil}|${document.querySelectorAll('.home .neru .neru-heart').length > 0 || document.documentElement.classList.contains('slow')}`;
-      await wait(3200); out.after = M.img.dataset.pose || 'usual';
+      // (mid-huff, the hundredth click doesn't count: nothing does)
+      M.el._fanBusy = true; M.el.click(); await wait(100); out.busy = E._clicked; M.el._fanBusy = false;
+      M.el.click(); await wait(400);
+      out.n100 = `${M.img.dataset.pose}|${document.querySelectorAll('.home .neru .neru-heart').length > 0 || document.documentElement.classList.contains('slow')}`;
+      E._seen = performance.now(); await wait(3200); out.after = M.img.dataset.pose || 'usual';
       return out;
     });
-    check('Neru: double-clicked, a hop — a twirl only for the Neru gang (not cut short by another click), who never makes her angry; clicked over and over, angry — or for a Teto or Miku fan one of three (angry, a photo, "No baguette!" / "No leek!") that clicking again doesn\'t cut short, the photo or words gone before her pose changes; the hundredth click in a visit — even in a huff — gets her happy face and a shower of hearts',
-      tw.once === 'true|false' && tw.twice === 'true|false' && tw.gang === 'false|true' && tw.midTwirl === 'false|true' && tw.gangSpam === 'false|-|false' && tw.plain === 'true|-|false'
-      && tw.teto.join() === 'angry||true|true|-|usual,say|No baguette!|true|true|-|usual,photo|teto|true|true|mock|usual' && tw.miku.join() === 'say|No leek!|true|true|-|usual,photo|miku|true|true|mock|usual'
-      && tw.n99 === 'happy' && tw.n100 === 'happy|0|true' && tw.after === 'usual', JSON.stringify(tw));
+    check('Neru: double-clicked, a hop — a twirl only for the Neru gang (not cut short by another click), who never makes her angry; clicked over and over, angry or (as often) a spin — or for a Teto or Miku fan mostly angry or a spin, now and then a photo or their thing crossed out, that clicking again doesn\'t cut short, the photo or words gone before her pose changes; the hundredth click in a visit (not one mid-huff: nothing counts then) gets her happy face and a shower of hearts',
+      tw.once === 'true|false' && tw.twice === 'true|false' && tw.gang === 'false|true' && tw.midTwirl === 'false|true' && tw.gangSpam === 'false|-|false|true' && tw.plain === 'true|-|false|false' && tw.plainSpin === 'false|-|false|true'
+      && tw.teto.join() === 'angry||true|true|-|usual,thought|teto|true|true|-|usual,photo|teto|true|true|mock|usual,spin|happy|true|true|-|usual' && tw.miku.join() === 'thought|miku|true|true|-|usual,photo|miku|true|true|mock|usual'
+      && tw.odds === '{"angry":4,"thought":1,"photo":1,"spin":4}'
+      && tw.n99 === 'happy' && tw.busy === 99 && tw.n100 === 'happy|true' && tw.after === 'usual', JSON.stringify(tw));
   }
   // dizzy: the pointer circled round her head three times — a blank look, a wobble, stars going round her head; flung,
   // or shaken about, she lands dizzy too (let go gently, as before, she's only put out)
@@ -543,7 +556,7 @@ await shot('01-home-empty');
   });
   check('…and their picture as yours: Neru draws glasses and a moustache on it (your profile); on her own, a crown', doodle.drawn && doodle.inked && doodle.tiny && doodle.hers, JSON.stringify(doodle));
   // Teto looked up anywhere (here the settings' search) by a Miku fan: up she peeks — on the right, clear of the settings —
-  // laughing at Miku, their own one; and turned off before, a Teto name brings her back on, saying so
+  // laughing at Teto, the one looked up; and turned off before, a Teto name brings her back on, saying so
   const fans = await page.evaluate(async () => {
     const A = AshtonkMania, P = A.ProfileManager, S = A.Settings, E = NeruEggs, wait = ms => new Promise(r => setTimeout(r, ms)), out = {};
     const av = P.profile.avatar, name = P.profile.name, egg = A.Medals.egg;
@@ -554,7 +567,7 @@ await shot('01-home-empty');
       const i = document.querySelector('.sp-search');
       i.value = 'kasane teto'; E._peekAt = -1e9; i.dispatchEvent(new Event('input', { bubbles: true })); await wait(1500);
       const ph = document.querySelector('.nc-peek.right .neru-photo img');
-      out.search = !!ph && /neru-photos\/miku-/.test(ph.src);
+      out.search = !!ph && /neru-photos\/teto-/.test(ph.src);
       i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true }));
       A.SettingsPanel.close(); await wait(400); document.querySelectorAll('.nc-peek').forEach(x => x.remove());
       E.PHOTO_CHANCE = 0.1; await P.setAvatar(av);
@@ -570,7 +583,7 @@ await shot('01-home-empty');
     }
     return out;
   });
-  check('Teto or Miku looked up anywhere by a fan: Neru laughs at their own one; turned off, a fan\'s name brings her back on, "I\'m back~"',
+  check('Teto or Miku looked up anywhere by a fan: Neru laughs at the one looked up; turned off, a fan\'s name brings her back on, "I\'m back~"',
     fans.search && fans.off && fans.on && fans.said === 'I\'m back~', JSON.stringify(fans));
   // the very bottom of the settings: Neru asleep at her desk — found, a secret medal (not before she's scrolled to)
   const fine = await page.evaluate(async () => {
@@ -624,7 +637,8 @@ await shot('01-home-empty');
     out.pat = `${face()}|${c.querySelectorAll('.neru-heart').length > 0 || document.documentElement.classList.contains('slow')}`;
     window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 11 })); c.click(); await wait(350);
     out.after = `${face()}|${c.classList.contains('hop')}`;
-    await wait(1600); out.back = face();
+    await wait(400); out.blush = c.querySelectorAll('.nc-body > .neru-blush i').length;
+    await wait(2100); out.back = face();
     c.remove();
     if (slow) document.documentElement.classList.add('slow');
     return out;
@@ -650,8 +664,8 @@ await shot('01-home-empty');
   check('Neru nodding off when left alone at night (little z\'s; not in the daytime), and a cheer for five new songs or more (not two)',
     (zz.night > 0 || zz.night === 'slow') && zz.day === 0 && zz.two === 'usual' && zz.six === 'cheer', JSON.stringify(zz));
   check('Neru at night: stars twinkle around her, a shooting star now and then (10pm till 5, from the evening at Tanabata; not with the animations off)', night.when === 'true,true,false,true,false' && night.moon && night.stars > 0 && night.shooting === 1 && night.shot === 0 && night.offNone, JSON.stringify(night));
-  check('…and a small Neru on another screen takes a headpat too: happy, hearts, then a huff (no hop), and back to her picture',
-    night.pat === 'neru-happy.png|true' && night.after === 'neru-sassy.png|false' && night.back === night.before, JSON.stringify(night));
+  check('…and a small Neru on another screen takes a headpat too: happy, hearts, then a huff, blushing (no hop), and back to her picture',
+    night.pat === 'neru-happy.png|true' && night.after === 'neru-sassy.png|false' && night.blush === 2 && night.back === night.before, JSON.stringify(night));
   // the time of year around her on the main menu: leaves in autumn, snow in winter, blossom in spring, fireflies on a
   // summer night, bats at Halloween (the other way round in the south); a few at a time, never in the way of a click;
   // after midnight a yawn, and on New Year's Day a cheer

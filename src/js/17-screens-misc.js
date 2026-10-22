@@ -908,6 +908,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.22b', title: 'Neru touch-ups', sections: [
+    { icon: 'heart', title: 'Neru touch-ups', items: ['She blushes after headpats', 'Clicked a lot, she spins as often as she gets mad', 'Searching Miku or Teto shows the one you searched', 'Changing songs no longer sits her at her desk'] },
+  ] },
   { id: '2026.10.22', title: 'Phones and fixes', sections: [
     { icon: 'sparkle', title: 'Phones and fixes', items: ['Mobile layout setting: Portrait, Landscape or Landscape (expanded columns)', 'Updating the HTML file no longer leaves an empty file', 'Copies of the game without a multiplayer server say so', 'Menus run smoother in performance mode'] },
   ] },
