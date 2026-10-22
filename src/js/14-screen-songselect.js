@@ -1215,7 +1215,7 @@ const SongSelect = {
     const items = [];
     const head = (t, ctx) => h('div.op-head', h('b', t), ctx ? h('span', ctx) : null);
     const btn = (label, ic, fn, danger) => { const b = h(`button.op-btn${danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); setTimeout(() => this.closeOptions(), 50); fn(); } }, icon(ic), h('span', label)); items.push(b); return b; };
-    const el = h('div.op-pop', { role: 'menu' },
+    const list = h('div.op-list',
       head('General'),
       btn('Manage collections', 'folder', () => ManageCollections.open()),
       head('For all difficulties', `${set.artist} - ${set.title}`),
@@ -1229,8 +1229,13 @@ const SongSelect = {
       btn('Clear local scores', 'trash', () => this.clearScores(m)),
       btn('Hide', 'x', () => this.hideMap(m)),
       ...((Settings.get('songselect.hidden') || []).length ? [btn('Restore all hidden', 'retry', () => this.restoreHidden())] : []));
+    const el = h('div.op-pop', { role: 'menu' }, list);
     $('#app').appendChild(el);
     const r = this.optionsBtn.getBoundingClientRect(), z = Zoom.z;
+    // (no taller than the room between the top bar and the button: on a phone it scrolls — it used to run off the top,
+    // Manage collections out of reach)
+    const tb = document.getElementById('toolbar'), top = (tb ? Math.max(0, tb.getBoundingClientRect().bottom) : 0) * z + 8;
+    list.style.maxHeight = `${Math.max(150, r.top * z - 14 - top - 10)}px`;
     el.style.left = `${Math.max(8, (r.left + r.width / 2) * z - el.offsetWidth / 2)}px`;
     el.style.top = `${r.top * z - el.offsetHeight - 14}px`;
     el.style.setProperty('--ax', `${(r.left + r.width / 2) * z - parseFloat(el.style.left)}px`);
