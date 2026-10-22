@@ -3312,6 +3312,11 @@ body:has(.onboarding) .lz-tipbox { visibility: hidden; } /* (not peeking out fro
 .res-actions > .muted { position: absolute; right: 16px; }
 .res-ab { position: relative; display: grid; place-items: center; width: 75px; height: 30px; padding: 0; border: 0; border-radius: 10px; background: #444; color: #fff; cursor: pointer; overflow: hidden; transition: transform 1000ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
 .res-ab.wide { width: 300px; }
+/* (kept clear of the back button — 240px and its 12px margin — on both sides, so still centred: on a narrower screen,
+   a tablet's, the two wide buttons give up their width instead of sliding under it) */
+.res-actions { padding: 0 262px; justify-content: safe center; }
+.res-ab { flex: none; }
+.res-ab.wide { flex: 0 1 300px; min-width: 60px; }
 .res-ab.green { background: #88b300; }
 .res-ab .i { width: 13px; height: 13px; stroke-width: 3; }
 .res-ab.dl { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 700; } /* (Download: icon and word side by side) */
