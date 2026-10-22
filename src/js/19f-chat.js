@@ -118,7 +118,7 @@ const Chat = {
       const up = () => { top.removeEventListener('pointermove', move); top.removeEventListener('pointerup', up); if (this._h) Settings.set('ui.chatHeight', +this._h.toFixed(3)); };
       top.addEventListener('pointermove', move); top.addEventListener('pointerup', up);
     });
-    this.o = makeOverlay(this.panel, { onClose: () => { this.o = null; Toolbar.sync(); } });
+    this.o = makeOverlay(this.panel, { flags: ['chat'], onClose: () => { this.o = null; Toolbar.sync(); } });
     this.o.el.classList.add('chat-ov');
     this.paint();
     Toolbar.sync();

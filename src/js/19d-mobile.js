@@ -150,7 +150,7 @@ const Mobile = {
       : [h('li', 'Open your browser\'s ⋮ menu'), h('li', 'Choose "Install app" (or "Add to Home screen")'), h('li', 'Open Ashtonk!mania from your home screen')]));
     const install = async () => {
       if (App.installPrompt) { if (await App.install()) close(); return; }
-      how.hidden = false; // (no one-tap install here: the steps)
+      how.hidden = false; const box = how.closest('.mob-inst-box'); if (box) box.classList.add('how-shown'); // (no one-tap install here: the steps)
     };
     el.append(h('div.mob-inst-box',
       h('img', { src: Host.asset('icons/icon-192.png'), alt: '' }),

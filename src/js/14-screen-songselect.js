@@ -49,10 +49,18 @@ const SongSelect = {
     this.el = el;
     setTimeout(() => el.classList.remove('entering'), 900);
     this.searchInput = h('input.input', { type: 'search', placeholder: 'type to search', title: 'Filters: keys=7 stars>4 bpm>180 od>8 length<2m30s ln>30 diff=hard', value: this.query, 'aria-label': 'Search beatmaps', spellcheck: 'false' });
-    this.searchInput.addEventListener('input', () => { this.query = this.searchInput.value; this.rebuild(true); });
+    // (on a slow device the list is filtered once typing pauses, as lazer's carousel does, rather than for every letter)
+    const typed = () => { clearTimeout(this._typeT); this._typeT = 0; this.rebuild(true); };
+    this.searchInput.addEventListener('input', () => {
+      this.query = this.searchInput.value;
+      const root = document.documentElement.classList;
+      clearTimeout(this._typeT);
+      if (root.contains('perf') || root.contains('slow')) this._typeT = setTimeout(typed, 150); else typed();
+    });
     this.searchInput.addEventListener('keydown', e => {
       if (e.isComposing || e.keyCode === 229) { e.stopPropagation(); return; } // (an input method's own keys)
       if (['ArrowUp', 'ArrowDown', 'Enter', 'F1', 'F2', 'F3', 'F4'].includes(e.key) || (e.key === 'Escape')) {
+        if (this._typeT) typed(); // (what's typed so far, filtered before the key acts on it)
         if (e.key === 'Escape' && this.searchInput.value) { this.searchInput.value = ''; this.query = ''; this.rebuild(true); e.stopPropagation(); e.preventDefault(); return; }
         this.searchInput.blur();
       } else e.stopPropagation();
@@ -89,10 +97,12 @@ const SongSelect = {
     // right carousel
     this.inner = h('div.carousel-inner');
     this.scroller = h('div.carousel-scroll', { tabindex: '-1' }, this.inner);
+    // (only just after a focus: reading it on every scroll made the browser lay the page out mid-scroll)
+    this.scroller.addEventListener('focusin', () => { this._focusAt = performance.now(); });
     this.scroller.addEventListener('scroll', () => {
       // the panels run past the right edge, so focusing one (a click) made the browser scroll the list sideways and
       // cut every panel's left edge off; the list only ever scrolls up and down
-      if (this.scroller.scrollLeft) this.scroller.scrollLeft = 0;
+      if (performance.now() - (this._focusAt || -1e9) < 1000 && this.scroller.scrollLeft) this.scroller.scrollLeft = 0;
       // while the list scrolls the panels follow the curve at once; otherwise (a panel opening) they ease along
       this.scroller.classList.add('scrolling');
       clearTimeout(this._scrollingT); this._scrollingT = setTimeout(() => this.scroller.classList.remove('scrolling'), 120);
@@ -190,7 +200,7 @@ const SongSelect = {
     // device; the screen is still fading in, so the list joining a frame later doesn't show)
     requestAnimationFrame(() => requestAnimationFrame(() => {
       if (Screens.current !== this) return;
-      this.rebuild(); this.scrollToSelected(false);
+      this.rebuild(); // (which scrolls to the selected beatmap)
       // (a beatmap asked for — Play in the library, a download's "view" — that the search or filters hide: they're
       // cleared so it's the one selected, rather than whatever came first)
       const want = params.mapId && BeatmapManager.maps.get(params.mapId);
@@ -206,12 +216,14 @@ const SongSelect = {
   },
   /** The logo in the corner keeps lazer's beat: a 2% squeeze 60ms before each beat that eases out over two beats. */
   beatLoop() {
-    cancelAnimationFrame(this._beatRaf);
+    cancelAnimationFrame(this._beatRaf); clearTimeout(this._beatT);
     let last = -1;
     const tick = () => {
-      this._beatRaf = requestAnimationFrame(tick);
       const tm = Music.meta && Music.meta.timing;
-      if (!tm || !Music.playing || !this.logoBeat || !Settings.get('ui.animSpeed')) return;
+      // (nothing to pulse to — no music, animations off (Performance mode) — looked in on a few times a second, not
+      // every frame)
+      if (!tm || !Music.playing || !this.logoBeat || !Settings.get('ui.animSpeed')) { this._beatRaf = 0; clearTimeout(this._beatT); this._beatT = setTimeout(() => { this._beatRaf = requestAnimationFrame(tick); }, 300); return; }
+      this._beatRaf = requestAnimationFrame(tick);
       const t = Music.time + 60, i = Math.max(0, bsearchLE(tm, t, 'time')), tp = tm[i];
       const beat = Math.floor((t - tp.time) / tp.beatLength), key = i * 100000 + beat;
       if (key === last || t < tp.time || beat < 0) return;
@@ -237,11 +249,11 @@ const SongSelect = {
     if (beat % f === 0) for (const el of sc.querySelectorAll('.set-panel.expanded')) pulse(el);
   },
   leave() {
-    cancelAnimationFrame(this._beatRaf);
+    cancelAnimationFrame(this._beatRaf); clearTimeout(this._beatT);
     this.closeOptions();
     (this._unsub || []).forEach(f => f());
     this._ro && this._ro.disconnect();
-    clearTimeout(this._previewT);
+    clearTimeout(this._previewT); clearTimeout(this._infoT); this._infoT = 0; clearTimeout(this._typeT); this._typeT = 0;
     this._previewTok = {}; // (a preview still loading stops where it is)
   },
   /** lazer's DifficultyRangeSlider: the star spectrum as a track, darkened outside the range, a Highlight1 frame round
@@ -295,8 +307,7 @@ const SongSelect = {
     });
     // double-click a nub to put it back
     nLo.addEventListener('dblclick', () => setLo(0)); nHi.addEventListener('dblclick', () => setHi(HI_MAX));
-    new ResizeObserver(paint).observe(track);
-    requestAnimationFrame(paint);
+    new ResizeObserver(paint).observe(track); // (also its first paint, once it has a size: measuring it sooner laid out the whole screen)
     return el;
   },
   fillCollections() {
@@ -447,7 +458,9 @@ const SongSelect = {
     this.countEl.textContent = `${fmtInt(nSongs)} ${nSongs === 1 ? 'match' : 'matches'}`;
     this.renderEmpty();
     this.updateInfo();
-    this.renderVisible(true);
+    // (the rows are built where the list ends up, once: built here and then again after the jump to the selected
+    // beatmap, the browser laid the whole screen out twice — a long stall opening song select on a slow device)
+    if (stay) this.renderVisible(true);
     // the selected beatmap's song plays (arriving with nothing playing, or a filter that moved the selection)
     const sel = this.selectedId && BeatmapManager.maps.get(this.selectedId);
     // (back from that very song: it's loaded but stopped — it plays again, unless you paused the music yourself)
@@ -455,7 +468,7 @@ const SongSelect = {
     if (sel && (silent || !Music.meta || Music.meta.setId !== sel.setId || this.trackKey(sel) !== (Music.key || '').toLowerCase())) this.schedulePreview(sel);
     else if (sel) { this.showBackground(sel); this.loopTrack(sel); }
     if (stay) return;
-    if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
+    this.scrollToSelected(keepScroll, true);
   },
   /** The difficulty a song opens on: the one you last played from it (remembered when a play starts; for plays from
    *  before that, the one with the latest score), else `fallback`, else its first playable one. */
@@ -637,7 +650,7 @@ const SongSelect = {
     // lazer's carousel runs along a circle: a panel slides right the further it is from the middle of the list
     // (Carousel.offsetX: radius 3, in units of half the visible height)
     const half = vh / 2, arc = y => { const d = Math.abs(1 - (y - st) / half); return Math.round((3 - Math.sqrt(Math.max(0, 9 - d * d))) * half); };
-    const needed = new Set();
+    const needed = new Set(), moving = Settings.get('ui.animSpeed') > 0; // (nothing slides with the animations off)
     for (const row of this.rows) {
       if (row.y + row.h < from || row.y > to) continue;
       const key = row.type === 'group' ? 'g:' + row.g.key : row.type === 'set' ? 's:' + row.r.set.id : row.type === 'std' ? 'b:' + row.m.id : 'd:' + row.m.id;
@@ -652,7 +665,7 @@ const SongSelect = {
         // a set that just opened: its difficulties slide out from under its panel (lazer), rather than popping up
         // at their places while the panel is still moving there. (Placed before it joins the page, so it doesn't
         // first appear at the top and glide down from there.)
-        if (fresh && row.type === 'diff' && row.m.setId === this._expandSet && performance.now() - this._expandAt < 450) {
+        if (moving && fresh && row.type === 'diff' && row.m.setId === this._expandSet && performance.now() - this._expandAt < 450) {
           const hel = this.pool.get('s:' + row.m.setId);
           // (from where that panel is right now: it may still be gliding to its new place)
           const cur = hel && hel.isConnected ? new DOMMatrix(getComputedStyle(hel).transform).m42 : null;
@@ -671,7 +684,7 @@ const SongSelect = {
       if (needed.has(k)) continue;
       this.pool.delete(k);
       // the set that just closed: its difficulties slide back up under its panel and fade, instead of vanishing
-      const hel = el._setId && el._setId === this._collapseSet && performance.now() - this._expandAt < 450 && this.pool.get('s:' + el._setId);
+      const hel = moving && el._setId && el._setId === this._collapseSet && performance.now() - this._expandAt < 450 && this.pool.get('s:' + el._setId);
       if (hel) { el.classList.add('spawn'); el.style.transform = hel.style.transform; setTimeout(() => el.remove(), 320); }
       else el.remove();
     }
@@ -778,9 +791,14 @@ const SongSelect = {
     // scrolling (rebuilding every visible row, twice, made each change of beatmap stutter on slow devices). Another
     // group opening rebuilds them: the same set can list other difficulties there.
     if (scroll) this.scrollToSelected(true, regroup); else this.renderVisible(regroup);
-    this.updateInfo();
+    // an arrow key held down: the list keeps up with every step, and the details and the song follow the one it stops
+    // on (rebuilding them for each beatmap passed over is most of what made holding a key stutter on a slow device)
+    const held = this._held; this._held = false;
+    clearTimeout(this._infoT); this._infoT = 0;
+    if (held) this._infoT = setTimeout(() => { this._infoT = 0; this.updateInfo(); }, 150);
+    else this.updateInfo();
     // a difficulty can have its own song file (and background): the preview follows the difficulty, not just the set
-    if (setChanged || !Music.meta || Music.meta.setId !== m.setId || this.trackKey(m) !== (Music.key || '').toLowerCase()) this.schedulePreview(m);
+    if (setChanged || !Music.meta || Music.meta.setId !== m.setId || this.trackKey(m) !== (Music.key || '').toLowerCase()) this.schedulePreview(m, held ? 200 : 60);
     else { this.showBackground(m); this.loopTrack(m); } // (another difficulty of the same set can have its own background)
   },
   scrollToSelected(smooth, force = false) {
@@ -862,6 +880,8 @@ const SongSelect = {
       if (e.key === 'Escape') { Screens.back(); return true; }
       if (!['ArrowUp', 'ArrowDown', 'Enter', 'F1', 'F2', 'F3', 'F4'].includes(e.key)) return false;
     }
+    this._held = e.repeat && /^(Arrow(Up|Down|Left|Right)|Page(Up|Down))$/.test(e.key); // (see select())
+    if (this._held) queueMicrotask(() => { this._held = false; }); // (only for the step this key makes)
     switch (e.key) {
       case 'ArrowDown': if (e.ctrlKey || e.metaKey) this.changeSpeed(-0.05); else this.moveDiff(1); return true;
       case 'ArrowUp': if (e.ctrlKey || e.metaKey) this.changeSpeed(0.05); else this.moveDiff(-1); return true;
@@ -911,9 +931,9 @@ const SongSelect = {
       else if (Screens.currentName !== 'songselect' && Screens.currentName !== 'gameplay') MenuMusic.next();
     };
   },
-  schedulePreview(m) {
+  schedulePreview(m, ms = 60) {
     clearTimeout(this._previewT);
-    this._previewT = setTimeout(() => this.preview(m), 60);
+    this._previewT = setTimeout(() => this.preview(m), ms);
   },
   /** The selected difficulty's own background (each difficulty's [Events] can name a different picture). */
   async showBackground(m) {

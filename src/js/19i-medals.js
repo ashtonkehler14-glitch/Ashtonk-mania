@@ -97,7 +97,7 @@ const Medals = {
     const at = performance.now();
     el.classList.add('cool'); setTimeout(() => el.classList.remove('cool'), this.COOLDOWN_MS);
     const close = () => { if (done || performance.now() - at < this.COOLDOWN_MS) return; done = true; o.close(); };
-    const o = makeOverlay(el, { onClose: () => { this.showing = false; this.later(); }, onKey: e => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { close(); return true; } return false; } });
+    const o = makeOverlay(el, { flags: ['neru-cover'], onClose: () => { this.showing = false; this.later(); }, onKey: e => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { close(); return true; } return false; } });
     el.addEventListener('click', close);
     Notifications.add(`Medal unlocked: ${m.name}`, m.desc, 'ok');
   },
@@ -107,11 +107,11 @@ const Medals = {
     // (every one of Neru's secrets found: there she is beside them, cheering)
     const allNeru = MEDALS.filter(m => m.egg).every(m => got[m.id]);
     const neru = g => g === 'Neru' && allNeru && typeof NeruCameo !== 'undefined' ? NeruCameo.make('allFound', 'nc-medals', { delay: 300 }) : null;
-    return groups.map(g => h('div.md-group', h('h4', g), neru(g), h('div.md-grid', ...MEDALS.filter(m => m.group === g).map(m =>
+    return groups.map(g => (n => h(`div.md-group${n ? '.has-neru' : ''}`, h('h4', g), n, h('div.md-grid', ...MEDALS.filter(m => m.group === g).map(m =>
       // (one of Neru's secrets not found yet: only that there is one)
       m.egg && !got[m.id] ? h('div.md-badge.secret', { title: '??? — A secret. Keep an eye on Neru.' }, h('div.md-mini', icon('question')), h('span', '???')) :
       h(`div.md-badge${got[m.id] ? '.on' : ''}`, { title: `${m.name} — ${m.desc}${got[m.id] ? `\nUnlocked ${new Date(got[m.id]).toLocaleDateString()}` : ''}` },
-        h('div.md-mini', icon(m.icon)), h('span', m.name))))));
+        h('div.md-mini', icon(m.icon)), h('span', m.name))))))(neru(g)));
   },
   count() { const got = this.unlocked(); return MEDALS.filter(m => got[m.id]).length; },
 };

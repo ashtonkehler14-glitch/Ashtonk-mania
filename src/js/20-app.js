@@ -450,8 +450,11 @@ const App = {
   globalLoop() {
     const dbg = h('div.debug-overlay', { hidden: true });
     $('#app').appendChild(dbg);
-    let lastDbg = 0;
+    let lastDbg = 0, running = false;
+    // (only while the FPS counter or the debug overlay is up: a loop waking every frame for nothing kept slow devices busy)
+    const wanted = () => Settings.get('graphics.showFps') || Settings.get('debug.overlay');
     const tick = now => {
+      if (!wanted()) { running = false; FPS.frame(now); if (!dbg.hidden) dbg.hidden = true; return; }
       requestAnimationFrame(tick);
       // (only write `hidden` when it changes: an attribute write every frame forces a style pass every frame)
       if (Screens.current === GameplayScreen) { if (!dbg.hidden) dbg.hidden = true; return; }
@@ -474,7 +477,9 @@ DPR          ${devicePixelRatio} · ${innerWidth}×${innerHeight}
 Memory       ${performance.memory ? fmtBytes(performance.memory.usedJSHeapSize) : 'n/a'}`;
       }
     };
-    requestAnimationFrame(tick);
+    const start = () => { if (!running && wanted()) { running = true; requestAnimationFrame(tick); } };
+    Bus.on('settings:changed', k => { if (k === 'graphics.showFps' || k === 'debug.overlay' || k === '*') start(); });
+    start();
   },
 };
 

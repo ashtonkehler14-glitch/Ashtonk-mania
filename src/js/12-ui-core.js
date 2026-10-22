@@ -420,8 +420,9 @@ const Overlays = {
   closeAll() { for (const o of [...this.stack].reverse()) o.close(); },
 };
 
-function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass = 'out', dismissable = true } = {}) {
-  const wrap = h('div', { style: { position: 'absolute', inset: '0' } });
+/** (`flags`: page-wide classes — BodyFlag — on while it's up, until it's gone from the page; `cls`: a class for its wrapper) */
+function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass = 'out', dismissable = true, flags = [], cls = '' } = {}) {
+  const wrap = h('div', { class: cls || null, style: { position: 'absolute', inset: '0' } });
   let bd = null;
   if (backdrop) { bd = h('div.backdrop'); wrap.appendChild(bd); }
   wrap.appendChild(contentEl);
@@ -435,8 +436,8 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
     close() {
       if (closed) return; closed = true;
       Overlays.remove(o);
-      contentEl.classList.add(animOutClass); bd && bd.classList.add('out');
-      setTimeout(() => wrap.remove(), 220 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1) + 10);
+      contentEl.classList.add(animOutClass); bd && bd.classList.add('out'); wrap.classList.add('closing');
+      setTimeout(() => { wrap.remove(); for (const f of flags) BodyFlag.set(f, false, o); }, 220 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1) + 10);
       onClose && onClose();
       const a = document.activeElement;
       // (only a text box gets it back: a button refocused after a dialog showed a focus ring nobody asked for)
@@ -444,6 +445,7 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
     },
   };
   if (bd && dismissable) bd.addEventListener('click', () => { UISounds.back(); o.close(); });
+  for (const f of flags) BodyFlag.set(f, true, o);
   return Overlays.push(o);
 }
 
@@ -499,6 +501,8 @@ const Dialog = {
     let o;
     const dlg = h('div.dialog', { role: 'dialog', 'aria-modal': 'true' }, h('h2', title), h('div.body', bodyEl),
       h('div.actions', ...actions.map(a => h(`button.btn${a.primary ? '.primary' : a.danger ? '.danger' : '.ghost'}`, { onclick: () => { a.onClick && a.onClick(); if (a.close !== false) o.close(); } }, a.label))));
+    // (sized for what's in it: .for-<its class>)
+    if (bodyEl && bodyEl.classList && bodyEl.classList[0]) dlg.classList.add('for-' + bodyEl.classList[0]);
     o = makeOverlay(dlg);
     return o;
   },
@@ -514,7 +518,7 @@ function showMenu(x, y, items, { above = false } = {}) {
     menu.appendChild(h(`button${it.danger ? '.danger' : ''}`, { role: 'menuitem', onclick: () => { UISounds.click(); o.close(); it.onClick && it.onClick(); } },
       it.icon ? icon(it.icon) : null, it.label, it.checked ? h('span.check', '✓') : null));
   }
-  const o = makeOverlay(menu, { backdrop: false });
+  const o = makeOverlay(menu, { backdrop: false, flags: ['menu'] });
   const closer = e => { if (!menu.contains(e.target)) { o.close(); document.removeEventListener('pointerdown', closer, true); } };
   setTimeout(() => document.addEventListener('pointerdown', closer, true), 0);
   requestAnimationFrame(() => {
@@ -959,13 +963,13 @@ const NowPlaying = {
     this.ensure();
     if (this.open) return;
     this.open = true;
-    this.el.classList.add('show');
+    this.el.classList.add('show'); BodyFlag.set('np', true);
     this.render();
     const loop = () => { if (!this.open) return; this.update(); this._raf = requestAnimationFrame(loop); };
     loop();
     Toolbar.sync();
   },
-  hide() { if (!this.el) return; this.open = false; this.el.classList.remove('show'); cancelAnimationFrame(this._raf); Toolbar.sync(); },
+  hide() { if (!this.el) return; this.open = false; this.el.classList.remove('show'); BodyFlag.set('np', false); cancelAnimationFrame(this._raf); Toolbar.sync(); },
   async render() {
     if (!this.el) return;
     const m = MenuMusic.current;
@@ -1241,11 +1245,11 @@ const Notifications = {
       Bus.on('screen:changed', () => this.close());
     }
     this.render();
-    this.el.classList.add('open');
+    this.el.classList.add('open'); BodyFlag.set('nf', true);
     this.unread = 0; Bus.emit('notif:changed');
     Toolbar.sync();
   },
-  close() { if (this.el) this.el.classList.remove('open'); Toolbar.sync(); },
+  close() { if (this.el) this.el.classList.remove('open'); BodyFlag.set('nf', false); Toolbar.sync(); },
   clear() { this.list = []; this.render(); Bus.emit('notif:changed'); },
   /** How long ago, in whole units rounded down (90 minutes is "1h ago", not "2h"; 59½ minutes isn't "60m"). */
   ago(t) {

@@ -145,6 +145,24 @@ await shot('01-home-empty');
   });
   check('an empty list has Neru, a blank "huh?" at it, in place of the icon', n.face === n.pose && n.pose === 'neru-huh.png' && !n.icon, JSON.stringify(n));
 }
+// her frame loop sleeps once she's settled and wakes for a bounce — one loop, never two (a bounce set in the middle of
+// a frame used to start a second one, doubling every frame until the page stopped answering)
+{
+  await page.waitForSelector('.home .neru:not([hidden]) .neru-img', { timeout: 8000 }).catch(() => {});
+  const r = await page.evaluate(async () => {
+    const M = NeruMascot, raf = window.requestAnimationFrame, beat = M.beat, wait = ms => new Promise(res => setTimeout(res, ms));
+    let n = 0;
+    M.beat = () => {}; // (the menu music's own beats held back meanwhile)
+    window.requestAnimationFrame = cb => { if (cb === M._tick) n++; return raf(cb); };
+    try {
+      for (let i = 0; i < 6; i++) { M._bob = 1; await wait(50); }
+      n = 0; await wait(500); const busy = n;
+      await wait(2500); n = 0; await wait(500);
+      return { busy, still: n };
+    } finally { window.requestAnimationFrame = raf; M.beat = beat; }
+  });
+  check('Neru\'s frame loop: one while she bounces, asleep once she\'s settled', r.busy > 0 && r.busy <= 45 && r.still === 0, JSON.stringify(r));
+}
 // Neru's easter eggs on the main menu: clicked over and over she's in a huff (and won't hop for a moment); she cheers
 // through the music's chorus; the pointer kept on her, sunglasses on, then a wink; left alone she gets bored — back to
 // herself at a touch; picked up she hangs from the pointer, and let go she drops back to her place

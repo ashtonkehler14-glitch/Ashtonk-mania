@@ -120,11 +120,12 @@ const NeruMascot = {
     cancelAnimationFrame(this._raf);
     this._lean = 0; this._bob = 0; this._px = null;
     // (her box is measured when the pointer moves, not every frame: reading layout each frame can force a reflow)
-    if (!this._onMove) this._onMove = e => { this._px = e.clientX; this._py = e.clientY; if (this.el && this.el.isConnected) { this._rect = this.el.getBoundingClientRect(); NeruEggs.circle(e.clientX, e.clientY); } };
+    if (!this._onMove) this._onMove = e => { this._px = e.clientX; this._py = e.clientY; this.wake(); if (this.el && this.el.isConnected) { this._rect = this.el.getBoundingClientRect(); NeruEggs.circle(e.clientX, e.clientY); } };
     window.addEventListener('pointermove', this._onMove, { passive: true });
     NeruEggs.watchIdle();
     let last = performance.now();
     const tick = now => {
+      this._raf = -1; // (mid-frame: a bounce set during it doesn't start a second loop — see wake())
       if (!this.el || !this.body || !this.el.isConnected) { if (this.el && !this.el.isConnected) this.stop(); else this._raf = requestAnimationFrame(tick); return; }
       if (typeof Spectate !== 'undefined' && Spectate.rkEl) { last = now; this._raf = requestAnimationFrame(tick); return; } // (hidden under a spectated screen)
       const dt = Math.min(64, now - last); last = now;
@@ -143,8 +144,12 @@ const NeruMascot = {
       const tf = held ? held.tf : `rotate(${this._lean.toFixed(2)}deg) translateY(${(b * 6).toFixed(2)}px) scale(${(1 + b * 0.012).toFixed(4)}, ${(1 - b * 0.022).toFixed(4)})`;
       const sh = held ? held.sh : `scaleX(${(1 + b * 0.05).toFixed(3)})`;
       if (tf !== this._tf) { this._tf = tf; this.body.style.transform = tf; if (this.shadow) { this.shadow.style.transform = sh; this.shadow.style.opacity = held ? held.so : ''; } }
+      // (settled — still, not held, not leaning any further — the loop sleeps until something moves her: the pointer, a
+      // bounce, a grab. Waking every frame for nothing kept a slow device busy on the main menu)
+      if (!held && b < 0.0005 && Math.abs(want - this._lean) < 0.005) { last = now; this._raf = 0; return; }
       this._raf = requestAnimationFrame(tick);
     };
+    this._tick = tick;
     this._raf = requestAnimationFrame(tick);
   },
   /** A beat of the menu music (from the main menu's beat tracking): a little squash, harder in kiai. */
@@ -217,14 +222,18 @@ const NeruMascot = {
     const old = document.querySelector('.home .neru');
     if (old) old.replaceWith(this.build());
   },
+  /** Her loop running again (it sleeps while she's settled; `_raf` 0 means asleep, -1 in the middle of a frame). */
+  wake() { if (!this._raf && this._tick && this.el && this.el.isConnected) this._raf = requestAnimationFrame(this._tick); },
   stop() {
-    clearTimeout(this._back); cancelAnimationFrame(this._raf);
+    clearTimeout(this._back); cancelAnimationFrame(this._raf); this._raf = 0; this._tick = null;
     if (this._onMove) window.removeEventListener('pointermove', this._onMove);
     NeruEggs.unwatchIdle(); NeruEggs.stopStare(); NeruEggs.letGo(true); clearTimeout(NeruEggs._patT); clearInterval(NeruEggs._heartT); NeruEggs._patting = false;
     // (a huff, a chorus or a stare cut short by leaving ends with it)
     this.el = null; this.img = null; this.body = null; this.shadow = null; this._idle = this._kiai = false; this._idlePose = null; this._huffUntil = this._happyUntil = 0;
   },
 };
+// (a bounce — on the beat, a cheer, a headpat — wakes her sleeping loop: set from all over, so it's done here)
+Object.defineProperty(NeruMascot, '_bob', { get() { return this.__bob || 0; }, set(v) { this.__bob = v; if (v > 0.0005) this.wake(); }, configurable: true });
 
 /** Neru around the game, not only on the main menu (with the same setting): she pops up at the edge of a screen in a
  *  pose that fits — grudgingly impressed by a good play, unimpressed by a poor one or a fail (a tsundere: never quite
@@ -1670,7 +1679,7 @@ const NeruEggs = {
         clearTimeout(this._patT);
         // (picked up)
         this.stopStare(); clearTimeout(M._back); M._huffUntil = M._happyUntil = 0; M.el.classList.remove('huff', 'hop', 'shake');
-        M._drag = { dx: 0, dy: 0, vx: 0, ang: 0 };
+        M._drag = { dx: 0, dy: 0, vx: 0, ang: 0 }; M.wake();
         M.body.style.transformOrigin = `${p.ox}px ${p.oy}px`;
         M.el.classList.add('held');
         M.show(M.has('point') ? 'point' : null, { pop: false });
@@ -1708,6 +1717,7 @@ const NeruEggs = {
     if (now || !d || !M.body) { M._drop = null; if (M.body) M.body.style.transformOrigin = ''; return; }
     // (the further up she was, the longer the fall)
     // (flung — let go while still moving fast — or shaken about: she lands dizzy)
+    M.wake();
     M._drop = { t0: performance.now(), dur: clamp(280 + Math.max(0, -d.dy) * 0.9, 300, 620), fx: d.dx, fy: d.dy, fa: d.ang, dizzy: !!d.shaken || Math.abs(d.vx) > this.FLING };
   },
   /** Each frame while she's held or falling: her transform (and her shadow's), or null when she's on the ground. */

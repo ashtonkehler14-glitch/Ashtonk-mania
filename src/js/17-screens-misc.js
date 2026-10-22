@@ -85,7 +85,13 @@ const BeatmapsScreen = {
     search.addEventListener('keydown', e => e.stopPropagation());
     this.list = h('div.ex-grid.lib-grid', { style: { '--o-h': OVERLAY_HUES.blue } });
     this.report = h('div');
-    page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, search, h('span.grow'), this.summary), this.list);
+    // while the list scrolls, the cards passing under the pointer don't react to it (as in the beatmap listing); they
+    // do again a moment after it stops
+    const shield = h('div.lib-shield');
+    page.classList.add('lib-page');
+    page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, search, h('span.grow'), this.summary), this.list, shield);
+    let still = 0;
+    el.querySelector('.screen-body').addEventListener('scroll', () => { shield.classList.add('on'); clearTimeout(still); still = setTimeout(() => shield.classList.remove('on'), 160); }, { passive: true });
     this._unsub = [Bus.on('library:changed', () => this.refresh()), Bus.on('import:report', () => this.renderReport()), Bus.on('accountsets:changed', () => this.refresh()), Bus.on('scores:changed', () => this.paintMine())];
     this.refresh();
     return el;
@@ -139,19 +145,30 @@ const BeatmapsScreen = {
     this.moreRows(more);
   },
   moreRows(more) {
-    const sets = this._sets || [], from = this._shown, to = Math.min(sets.length, from + 40);
+    // (fewer at a time on a slow device: each page of cards is built, laid out and drawn in one go)
+    const per = document.documentElement.classList.contains('perf') || document.documentElement.classList.contains('slow') ? 20 : 40;
+    const sets = this._sets || [], from = this._shown, to = Math.min(sets.length, from + per);
     if (from >= to) { more.remove(); if (this._io) this._io.disconnect(); return; }
     this._shown = to;
     const frag = document.createDocumentFragment();
     for (const set of sets.slice(from, to)) frag.append(this.row(set));
     more.before(frag);
   },
+  /** Pictures that came in, put on their cards together a few times a second: one at a time, each redrew the whole
+   *  list again — over and over while a page of rows was loading on a slow device. */
+  showThumb(els, u) {
+    (this._thumbs || (this._thumbs = [])).push([els, u]);
+    if (!this._thumbT) this._thumbT = setTimeout(() => {
+      this._thumbT = 0;
+      for (const [list, url] of this._thumbs.splice(0)) for (const el of list) { el.style.backgroundImage = `url("${url}")`; el.classList.add('loaded'); }
+    }, 100);
+  },
   /** One beatmap set as lazer's beatmap card (as in the beatmap listing): the cover faded behind, its picture on the
    *  left, title, artist and mapper, the difficulties as coloured bars, and Play / Extract / Delete sliding in on the
    *  right on hover. Clicking it opens its difficulties underneath, across the whole row. */
   row(set) {
     const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-    BeatmapManager.thumbURL(set).then(u => { if (!u) return; for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+    BeatmapManager.thumbURL(set).then(u => { if (u) this.showThumb([thumb, bg], u); });
     const maps = [...set.maps].sort((a, b) => a.keys - b.keys || a.stars - b.stars);
     const broken = maps.filter(m => m.problems.length);
     const keys = [...new Set(maps.map(m => m.keys))].sort((a, b) => a - b);
@@ -669,7 +686,11 @@ class SkinPreview {
       if (!this.running) return;
       this._raf = requestAnimationFrame(frame);
       if (!this.engine) return;
-      const now = performance.now() - this.t0;
+      // (Performance mode: drawn at 30fps — it's a picture of the skin, not a play to keep up with)
+      const real = performance.now();
+      if (real - (this._drawn || 0) < 31 && Settings.get('graphics.performanceMode')) return;
+      this._drawn = real;
+      const now = real - this.t0;
       if (now > this.end) { this.reset(); return; }
       while (this.fi < this.feed.length && this.feed[this.fi][0] <= now) {
         const [tt, c, d] = this.feed[this.fi++];
@@ -774,7 +795,7 @@ const SkinsScreen = {
         h('button.btn.sk-edit', { title: 'Edit this skin\'s layout (Ctrl+Shift+S)', onclick: async () => { if (!inUse) await SkinManager.select(meta.id); SkinEditor.open(); } }, icon('edit'), 'Edit skin'),
         !meta.builtin ? h('button.btn.ghost', { onclick: () => SkinManager.exportOsk(meta.id) }, icon('download'), 'Export') : null,
         !meta.builtin ? h('button.btn.danger', { title: 'Delete skin', 'aria-label': 'Delete skin', onclick: async () => { if (await Dialog.confirm('Delete skin?', `${skin.name} will be removed.`, { ok: 'Delete', danger: true })) { await SkinManager.remove(meta.id); this.sel = SkinManager.current.id; } } }, icon('trash')) : null),
-      h('div.sk-keys', h('span.muted.sk-kl', 'Preview'), chips, hint),
+      h('div.sk-keys.with-chips', h('span.muted.sk-kl', 'Preview'), chips, hint),
       meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel(true)) : pv,
       h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}`));
     // (again once the screen's entrance animation has settled: it moves the page while it plays)
@@ -882,7 +903,7 @@ const WhatsNew = {
         ...e.sections.map((sec, si) => h(`div.cl-sec${sec.title === e.title ? '.plain' : ''}`, { style: { animationDelay: `${si * 60}ms` } }, sec.title === e.title ? null : h('div.cl-sech', icon(sec.icon), sec.title),
           h('ul', ...sec.items.map(t => h('li', t)))))))),
       h('div.cl-foot', h('button.btn.primary', { onclick: () => o.close() }, 'Let\'s go!')));
-    const o = makeOverlay(el);
+    const o = makeOverlay(el, { flags: ['cl', 'neru-cover'] });
     // (Neru beside it, on her phone — reading it too; behind the dialog, so she never covers a line of it)
     const neru = typeof NeruCameo !== 'undefined' && NeruCameo.make('news', 'nc-news', { delay: 0 });
     if (neru) { o.el.insertBefore(neru, el); NeruCameo.beside(neru, el, o.el); }

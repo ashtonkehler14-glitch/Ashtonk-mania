@@ -826,8 +826,8 @@ html.touch .settings-panel .set-row .reset::after { content: ""; position: absol
 .practice-bar:hover { opacity: 1; }
 /* on a touch screen each quarter of the screen is a column, and the practice tools sat over the first: while the song
    plays they let every touch through to the column (faded); pause, and they're above the pause screen to use */
-html.touch .gameplay:not(:has(.pause-menu)) .practice-bar { pointer-events: none; opacity: .3; }
-html.touch .gameplay:has(.pause-menu) .practice-bar { z-index: 2; opacity: 1; }
+html.touch .gameplay:not(.pm-open) .practice-bar { pointer-events: none; opacity: .3; }
+html.touch .gameplay.pm-open .practice-bar { z-index: 2; opacity: 1; }
 html.touch .practice-bar .kbd { display: none; }
 .pr-timeline { position: relative; height: 36px; border-radius: 8px; background: rgba(255, 255, 255, .04); cursor: pointer; overflow: hidden; }
 .pr-timeline canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -838,12 +838,12 @@ html.touch .practice-bar .kbd { display: none; }
 .pr-controls .speed-group .chip { height: 28px; padding: 0 9px; }
 /* replay / Auto controls (osu!lazer's replay player): shown while the mouse moves, when paused or hovered */
 .replay-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, calc(calc(100 * var(--vw)) - 340px)); min-width: min(470px, calc(calc(100 * var(--vw)) - 32px)); padding: 10px 12px; border-radius: 14px; background: rgba(12, 8, 20, .84); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; cursor: default; opacity: 0; transition: opacity var(--t-med); }
-.gameplay:has(.pause-menu) .replay-bar { opacity: 0 !important; pointer-events: none !important; } /* (the pause / fail menu covers it: it sat over their title) */
-.gameplay.show-cursor .replay-bar, .replay-bar.paused, .replay-bar:hover, .replay-bar:has(:focus-visible) { opacity: 1; } /* (keyboard focus: a tapped button keeps its focus, and the bar stayed up) */
+.gameplay.pm-open .replay-bar { opacity: 0 !important; pointer-events: none !important; } /* (the pause / fail menu covers it: it sat over their title) */
+.gameplay.show-cursor .replay-bar, .replay-bar.paused, .replay-bar:hover, .replay-bar.kbd-focus { opacity: 1; } /* (keyboard focus: a tapped button keeps its focus, and the bar stayed up) */
 .replay-bar.top { bottom: auto; top: 14px; }
 /* the REPLAY tag sits on the same side: it steps aside while the controls are up */
 .hud-replay { transition: opacity var(--t-med); }
-.gameplay.show-cursor .hud-replay, .gameplay:has(.replay-bar.paused) .hud-replay, .gameplay:has(.replay-bar:hover) .hud-replay { opacity: 0; }
+.gameplay.show-cursor .hud-replay, .gp-hud.rp-paused .hud-replay, .gp-hud.rp-hover .hud-replay { opacity: 0; }
 .rp-timeline { position: relative; height: 28px; border-radius: 7px; background: rgba(255, 255, 255, .04); cursor: pointer; overflow: hidden; touch-action: none; }
 .rp-timeline canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .rp-fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0); background: rgba(var(--accent-rgb), .3); pointer-events: none; }
@@ -1289,7 +1289,7 @@ html.touch .practice-bar .kbd { display: none; }
 .mp-ready:hover, .mp-start:hover { filter: brightness(1.12); }
 .mp-ready:active, .mp-start:active { transform: scale(.97); }
 .mp-ready[disabled], .mp-start[disabled] { opacity: .4; pointer-events: none; }
-.mp:has(.mp-footer) .page-back { bottom: 5px; } /* centred in a room's 60px footer */
+.mp.mp-in-room .page-back { bottom: 5px; } /* centred in a room's 60px footer */
 .mp-results { border-radius: 10px; padding: 14px 16px; background: var(--panel-solid); display: flex; flex-direction: column; gap: 6px; animation: wedgeIn var(--t-med) var(--ease-out); }
 .mp-results.won { box-shadow: inset 0 3px 0 #88b300; }
 .mp-results.lost { box-shadow: inset 0 3px 0 #ed1121; }
@@ -1452,7 +1452,7 @@ html.touch .practice-bar .kbd { display: none; }
 .av-tile:hover { background: rgba(255, 255, 255, .09); transform: translateY(-2px); }
 .av-tile.on { box-shadow: inset 0 0 0 2px var(--accent); color: var(--text); }
 .av-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.dialog:has(.av-picker) { width: min(560px, calc(calc(100 * var(--vw)) - 32px)); }
+.dialog.for-av-picker { width: min(560px, calc(calc(100 * var(--vw)) - 32px)); }
 .ex-totop { position: absolute; right: 28px; bottom: 28px; z-index: 5; width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .1); display: grid; place-items: center; background: rgba(18, 16, 24, .92); color: var(--text-2); box-shadow: 0 8px 24px rgba(0, 0, 0, .5); opacity: 0; transform: translateY(16px) scale(.9); pointer-events: none; transition: opacity var(--t-med), transform var(--t-med) var(--ease-out), box-shadow var(--t-fast), color var(--t-fast), border-color var(--t-fast); }
 .ex-totop .i { width: 26px; height: 26px; stroke-width: 2.6; }
 .ex-totop-ring { position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px); pointer-events: none; overflow: visible; }
@@ -1651,10 +1651,10 @@ div.res-calib .i { color: var(--good); }
 .nc-results { left: clamp(8px, calc(4 * var(--vw)), 64px); bottom: 70px; height: calc(var(--nc-h) * var(--nc-s, 1)); transition: opacity 260ms ease, translate 420ms var(--ease-out); }
 .results.stats-open .nc-results { opacity: 0; translate: -60px 0; pointer-events: none; }
 .nc-pause { left: clamp(8px, calc(4 * var(--vw)), 64px); bottom: 8px; height: calc(var(--nc-h) * var(--nc-s, 1)); }
-.pause-menu:has(.pm-foot) .nc-pause { bottom: 58px; }
+.pause-menu.has-foot .nc-pause { bottom: 58px; }
 /* (where the screen's too narrow for her beside them — a tablet — the buttons go over her, never her over them) */
-.pause-menu:has(> .nc-pause) .pause-box { z-index: 5; pointer-events: none; } /* (its empty parts: she's still there to be clicked) */
-.pause-menu:has(> .nc-pause) .pause-box > * { pointer-events: auto; }
+.pause-menu.has-neru .pause-box { z-index: 5; pointer-events: none; } /* (its empty parts: she's still there to be clicked) */
+.pause-menu.has-neru .pause-box > * { pointer-events: auto; }
 .nc-loader { left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 .nc-empty { left: clamp(16px, calc(12 * var(--vw)), 220px); bottom: 70px; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 .nc-boot { left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
@@ -1664,22 +1664,22 @@ div.res-calib .i { color: var(--good); }
 .neru-cameo.nc-medal { right: clamp(8px, calc(5 * var(--vw)), 80px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); pointer-events: none; }
 .neru-cameo.nc-medal.in .nc-body { animation-delay: 1100ms; }
 .medal-ov.out .nc-medal { opacity: 0; translate: 0 30px; transition: opacity 260ms ease, translate 260ms ease; }
-body:has(.medal-ov, .nc-news, .nc-setup) :is(.home .neru, .nc-results) { opacity: 0; transition: opacity 300ms ease; }
+body.f-neru-cover :is(.home .neru, .nc-results) { opacity: 0; transition: opacity 300ms ease; }
 /* the first-run setup: beside it, a pose for each page (behind it, like What's new) */
 .neru-cameo.nc-setup { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1) * var(--nc-fit, 1)); }
 /* (beside a dialog without room for her: NeruCameo.beside) */
 .neru-cameo.nc-cramped { visibility: hidden; }
 .neru-cameo.nc-setup.in .nc-body { animation-delay: 300ms; }
-div:has(> .onboarding.out) > .nc-setup { opacity: 0; transition: opacity 200ms ease; }
+.closing > .neru-cameo.nc-setup { opacity: 0; transition: opacity 200ms ease; }
 .home .neru { transition: opacity 300ms ease; }
 /* (the chat open over the main menu: she ducks down out of its way, rather than her head poking up over its edge) */
-body:has(.chat:not(.out)) .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260ms ease, translate 320ms var(--ease-out); }
+body.f-chat .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260ms ease, translate 320ms var(--ease-out); }
 /* What's new: beside the dialog, on her phone — behind it, so on a narrow screen she's covered rather than covering */
 .neru-cameo.nc-news { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1) * var(--nc-fit, 1)); }
 .neru-cameo.nc-news.in .nc-body { animation-delay: 250ms; }
-div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
+.closing > .neru-cameo.nc-news { opacity: 0; transition: opacity 200ms ease; }
 /* every one of her secrets found: cheering beside them on your profile (floated beside the Neru medals) */
-.md-group:has(> .nc-medals) { display: flow-root; }
+.md-group.has-neru { display: flow-root; }
 .neru-cameo.nc-medals { position: relative; z-index: auto; float: right; height: 150px; margin: -10px 4px 0 12px; }
 .neru-cameo.nc-medals[hidden] { display: block; visibility: hidden; }
 /* the very bottom of the settings: asleep at her desk, breathing slowly */
@@ -1835,9 +1835,9 @@ div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
 .res-score.skinned { margin: 6px 0 4px; }
 /* results: share card preview */
 .share-card { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line-2); box-shadow: 0 8px 30px rgba(0, 0, 0, .4); }
-.dialog:has(.share-card) { width: min(780px, calc(calc(100 * var(--vw)) - 32px)); }
+.dialog.for-share-card { width: min(780px, calc(calc(100 * var(--vw)) - 32px)); }
 /* keyboard shortcuts list */
-.dialog:has(.shortcuts) { width: min(860px, calc(calc(100 * var(--vw)) - 32px)); }
+.dialog.for-shortcuts { width: min(860px, calc(calc(100 * var(--vw)) - 32px)); }
 .shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 6px 28px; color: var(--text); }
 .sc-group h3 { margin: 12px 0 6px; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-3, var(--accent)); }
 .sc-row { display: grid; grid-template-columns: 188px 1fr; align-items: baseline; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: .86rem; }
@@ -2144,7 +2144,7 @@ div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
 @media (max-width: 800px) and (hover: none) and (orientation: portrait) { .gp-loader { grid-template-columns: 1fr; } .pl-settings { display: none; } }
 /* like lazer's toast tray, notifications step aside while the now-playing panel or a menu is open at the top right */
 #toasts { transition: opacity 200ms, top 300ms var(--ease-out); }
-body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-events: none; }
+body.f-np #toasts, body.f-menu #toasts { opacity: 0; pointer-events: none; }
 /* lazer's NowPlayingOverlay: the cover at ~60% brightness, 5px corners, a yellow progress bar */
 
 /* ── multiplayer room — lazer's match screen in the Plum scheme: sheared footer buttons (the big green Ready, the
@@ -2278,7 +2278,7 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .tv-bar { width: 120px; height: 4px; border-radius: 2px; background: var(--team-blue); overflow: hidden; }
 .tv-bar i { display: block; height: 100%; background: var(--team-red); transform-origin: left; transition: transform 200ms; }
 .tv-diff { font-size: .68rem; font-weight: 700; color: rgba(255, 255, 255, .7); font-variant-numeric: tabular-nums; min-height: 1em; }
-.hud-replay ~ .hud-teams, .gp-hud:has(.hud-teams) .hud-replay { top: 52px; }
+.hud-replay ~ .hud-teams, .gp-hud.has-teams .hud-replay { top: 52px; }
 
 /* Quick Play room */
 .qp-round { font-size: 1.5rem; }
@@ -2413,7 +2413,7 @@ body.lz-cursor input[type="text"], body.lz-cursor input:not([type]), body.lz-cur
 .dc-card.me .dc-cover { background: linear-gradient(90deg, rgba(var(--accent-rgb), .7), rgba(var(--accent-rgb), .25)); }
 .dc-card > .btn { position: relative; grid-column: 2; justify-self: start; }
 body.lz-cursor .gameplay:not(.show-cursor), body.lz-cursor .gameplay:not(.show-cursor) * { cursor: none; }
-body:has(.nf-panel.open) #toasts { opacity: 0; pointer-events: none; }
+body.f-nf #toasts { opacity: 0; pointer-events: none; }
 
 /* osu!lazer mod icons */
 .mod-icon { display: inline-block; flex: none; line-height: 0; }
@@ -2437,7 +2437,7 @@ body:has(.nf-panel.open) #toasts { opacity: 0; pointer-events: none; }
 .mod-p.on .mod-ac .mi-bg { fill: rgba(0, 0, 0, .78); }
 .mod-p.on .mod-ac .mi-g { stroke: var(--mod); } .mod-p.on .mod-ac .mi-fill, .mod-p.on .mod-ac .mi-t { fill: var(--mod); }
 .mod-id { margin-left: 6px; font-size: .7em; font-weight: 700; opacity: .55; }
-body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
+body.f-modsel #toasts { opacity: 0; pointer-events: none; }
 .lz-tip { transform-origin: 0 0; }
 
 /* skin viewer: the Custom skin's options beside its live preview */
@@ -2620,7 +2620,7 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .cl-sec.plain ul { margin-top: 0; padding-left: 22px; }
 .cl-foot { display: flex; justify-content: flex-end; padding: 14px 26px; background: hsl(255 10% 9%); }
 .sp-footer { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
-body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
+body.f-cl #toasts { opacity: 0; pointer-events: none; }
 
 /* ── multiplayer lobby (lazer style) */
 .qp-av.pic { background: none; overflow: hidden; }
@@ -2695,7 +2695,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-cr-ico .i { width: 20px; height: 20px; }
 .mp-cr-keys { display: flex; align-items: center; gap: 10px; font-size: .85rem; color: var(--text-2); }
 @media (max-width: 700px) and (hover: none) and (orientation: portrait) { .mp-cr-row { grid-template-columns: 1fr; } }
-.dialog:has(.mp-cr) { width: min(700px, calc(94 * var(--vw))) !important; max-width: none !important; }
+.dialog.for-mp-cr { width: min(700px, calc(94 * var(--vw))) !important; max-width: none !important; }
 .mp-cr { min-width: 0; }
 
 /* beatmap listing: nothing reacts to the pointer while the list is scrolling — one invisible shield over the list
@@ -2750,7 +2750,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .sk-k { min-width: 40px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
 .sk-khint { margin-left: 8px; font-size: .82rem; }
 /* 1K–18K: a row of chips (scrolls sideways on a narrow screen; a dot marks what the skin sets up itself) */
-.sk-keys:has(.sk-kchips) { flex-wrap: wrap; row-gap: 8px; }
+.sk-keys.with-chips { flex-wrap: wrap; row-gap: 8px; }
 .sk-kchips { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(255, 255, 255, .04); overflow-x: auto; scrollbar-width: none; max-width: 100%; }
 .sk-kchips::-webkit-scrollbar { display: none; }
 .sk-kchips.more-r { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
@@ -3228,13 +3228,13 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 /* lazer's SongTicker: top right, 15px in and 5px down; a 24px light italic title over the 16px artist */
 .lz-ticker { position: absolute; right: 15px; top: calc(var(--toolbar-h) + 5px); z-index: 4; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; opacity: 0; pointer-events: none; text-shadow: 0 0 40px rgba(10, 10, 10, .5); }
 /* (the now-playing panel open over it: a sliver of the title peeked out above the panel on a phone) */
-body:has(.np-panel.show) .lz-ticker { visibility: hidden; }
+body.f-np .lz-ticker { visibility: hidden; }
 .lz-tk-t { font-size: 24px; font-weight: 300; font-style: italic; line-height: 1.1; }
 .lz-tk-a { font-size: 16px; line-height: 1.1; }
 /* lazer's MenuTipDisplay: bottom centre, #171a1c at 75% with 10px corners, 600px of text */
 .lz-bottom { position: absolute; left: 50%; bottom: 0; z-index: 4; transform: translateX(-50%); pointer-events: none; }
 .lz-tipbox { width: 620px; max-width: calc(100 * var(--vw) - 20px); padding: 10px; border-radius: 10px; background: rgba(23, 26, 28, .75); text-align: center; font-size: 16px; line-height: 1.3; opacity: 0; transform-origin: 50% 100%; }
-body:has(.onboarding) .lz-tipbox { visibility: hidden; } /* (not peeking out from under the first-run setup) */
+body.f-onboarding .lz-tipbox { visibility: hidden; } /* (not peeking out from under the first-run setup) */
 .lz-tip-t { display: inline-flex; align-items: center; gap: 5px; color: #ff99c7; font-weight: 600; }
 .lz-tip-t .i { width: 16px; height: 16px; }
 .lz-tip-b { margin-top: 2px; }
@@ -3267,8 +3267,8 @@ body:has(.onboarding) .lz-tipbox { visibility: hidden; } /* (not peeking out fro
 #app.side-l .screen { translate: 28.5px 0; }
 #app.side-r .screen { translate: -16px 0; }
 #app.in-game .screen { translate: none; }
-#overlay-root > div:has(> .settings-panel) > .backdrop { background: transparent; animation: none; }
-#app:has(.settings-panel) #toolbar { z-index: 61; }
+#overlay-root > .sp-wrap > .backdrop { background: transparent; animation: none; }
+body.f-settings #app #toolbar { z-index: 61; }
 /* song select's logo (lazer's SongSelect: the OsuLogo at scale 0.4 tracked to the footer at (-76, -36) from the corner) */
 .ss-footer .ss-cookie { position: absolute; right: 76px; bottom: 36px; width: 192.5px; height: 192.5px; margin: 0; transform: translate(50%, 50%); border-radius: 50%; z-index: 3; transition: none; }
 /* (the Practice and "Choose the match beatmap" tags sat under the logo: they end where it starts) */
@@ -3359,7 +3359,7 @@ body:has(.onboarding) .lz-tipbox { visibility: hidden; } /* (not peeking out fro
 /* FailOverlay's footer: #333, 50px, the save-score button (DownloadButton: grey, yellow while saving, green with a
    tick once saved) centred */
 .pm-foot { position: absolute; left: 0; right: 0; bottom: 0; height: 50px; display: flex; align-items: center; justify-content: center; gap: 5px; background: #333; animation: fadeIn 200ms ease; }
-.pause-menu:has(.pm-foot) .pause-box { bottom: 50px; }
+.pause-menu.has-foot .pause-box { bottom: 50px; }
 .pm-save { transition: background-color 500ms cubic-bezier(.87, 0, .13, 1), transform 1000ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
 .pm-save > span { grid-area: 1 / 1; display: grid; transition: translate 500ms cubic-bezier(.87, 0, .13, 1), scale 500ms cubic-bezier(.87, 0, .13, 1); }
 .pm-save .pm-save-ok { translate: 8px 0; scale: 0; }
@@ -3541,9 +3541,9 @@ html.touch .explorer.ov .ex-flabel { padding-top: 7px; }
 .dash-si.on i { opacity: 1; height: 6px; }
 .dash-body { margin: 0 -50px; padding: 20px 40px 40px; background: var(--ob4); min-height: 60vh; }
 /* (and down to the bottom of the screen, however few people are in it: no darker strip left under a short list) */
-.screen-body:has(> .ov-content > .page > .dash-body) { display: flex; flex-direction: column; }
-.screen-body:has(> .ov-content > .page > .dash-body) > .ov-content { flex: 1 0 auto; display: flex; flex-direction: column; }
-.ov-content > .page:has(> .dash-body) { flex: 1 0 auto; display: flex; flex-direction: column; width: 100%; } /* (its auto side margins would otherwise shrink it to its content in the column) */
+.screen-body.dash-screen { display: flex; flex-direction: column; }
+.screen-body.dash-screen > .ov-content { flex: 1 0 auto; display: flex; flex-direction: column; }
+.ov-content > .page.dash-page { flex: 1 0 auto; display: flex; flex-direction: column; width: 100%; } /* (its auto side margins would otherwise shrink it to its content in the column) */
 .page > .dash-body { flex: 1 0 auto; margin-bottom: -90px; padding-bottom: 130px; } /* (through the page's room for the back button, keeping it inside) */
 .dash-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
 .dash-search { height: 40px; flex: 1 1 260px; max-width: 520px; }
@@ -3663,7 +3663,7 @@ html.touch img { -webkit-user-drag: none; }
 .mob-inst-box .mob-inst-warn { color: #ffcc22; font-weight: 700; }
 .mob-inst-how { align-self: stretch; margin: 2px 0 0; padding: 10px 14px 10px 32px; border-radius: 10px; background: rgba(255, 255, 255, .06); text-align: left; line-height: 1.6; }
 /* (a phone held sideways: tighter, so the whole box — Don't remind me included — fits without scrolling) */
-@media (max-height: 500px) { .mob-inst { padding: 8px; } .mob-inst-box { gap: 6px; padding: 12px 18px 10px; } .mob-inst-box img { width: 40px; height: 40px; } .mob-inst-box h2 { font-size: 17px; } .mob-inst-how { line-height: 1.4; padding-top: 6px; padding-bottom: 6px; } .mob-inst-box:has(.mob-inst-how:not([hidden])) > p:not(.mob-inst-warn) { display: none; } .mob-inst-box .btn.primary { min-height: 0; padding-top: 8px; padding-bottom: 8px; } .mob-inst-skip { padding: 4px; } }
+@media (max-height: 500px) { .mob-inst { padding: 8px; } .mob-inst-box { gap: 6px; padding: 12px 18px 10px; } .mob-inst-box img { width: 40px; height: 40px; } .mob-inst-box h2 { font-size: 17px; } .mob-inst-how { line-height: 1.4; padding-top: 6px; padding-bottom: 6px; } .mob-inst-box.how-shown > p:not(.mob-inst-warn) { display: none; } .mob-inst-box .btn.primary { min-height: 0; padding-top: 8px; padding-bottom: 8px; } .mob-inst-skip { padding: 4px; } }
 .mob-inst-btns { align-self: stretch; display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 .mob-inst-btns .btn { justify-content: center; height: 46px; font-size: 15px; }
 .mob-inst-skip { border: 0; background: none; padding: 10px; color: var(--muted); font-size: 13px; text-decoration: underline; cursor: pointer; }
@@ -3710,8 +3710,6 @@ html.touch img { -webkit-user-drag: none; }
   /* the top bar: the clock gives its room to the buttons (the notifications bell was pushed off the screen) */
   #toolbar .tb-clock { display: none; }
 }
-/* touch screens: keyboard hints mean nothing there */
-html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 /* osu!lazer's BeatmapSetOnlineStatusPill (title wedge: Caption1, padding 6×1; carousel set panels: Caption2, 4×0) */
 .status-pill { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 99px; font-size: 14px; line-height: 1.15; font-weight: 700; letter-spacing: 0; white-space: nowrap; }
 .status-pill.sm { padding: 0 4px 1px; font-size: 12px; margin-right: 5px; }
@@ -4584,20 +4582,26 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 /* (big soft shadows are repainted with whatever moves under them) */
 :root.perf .settings-panel, :root.perf .np-player, :root.perf .np-playlist, :root.perf .nf-panel, :root.perf .menu, :root.perf .dialog, :root.perf .toast, :root.perf .chat, :root.perf .tooltip { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4) !important; }
 :root.perf #bg-layer { transform: none !important; }
+/* (scrolled on the compositor: on a screen that isn't high-DPI the browser otherwise repaints and re-layers the whole
+   list for every step of the wheel — the most expensive thing in the menus on a slow computer) */
+:root.perf :is(.screen-body, .bso-scroll, .res-body, .mp-body, .cl-body, .ab-grid, .setup-body, .mc-list, .nf-list, .np-list, .ch-lines),
+:root.slow :is(.screen-body, .bso-scroll, .res-body, .mp-body, .cl-body, .ab-grid) { will-change: scroll-position; }
 :root.perf #bg-a, :root.perf #bg-b { will-change: auto; }
 /* the beatmap listing at its lightest: flat cards (no cover behind them, shade, shadow or hover lift) */
-:root.perf .ex-card, :root.slow .ex-card { box-shadow: none !important; transform: none !important; }
+:root.perf .ex-card, :root.slow .ex-card { box-shadow: none !important; transform: none !important; isolation: auto; } /* (nothing drawn behind it to keep apart) */
 :root.perf .ex-cardbg, :root.perf .ex-cardshade, :root.slow .ex-cardbg, :root.slow .ex-cardshade { display: none; }
 :root.perf .ex-card, :root.slow .ex-card { background: hsl(var(--o-h, 333) 10% 18%); }
 :root.perf .ex-thumb, :root.slow .ex-thumb { opacity: 1; transition: none; }
 :root.perf .ex-grid, :root.slow .ex-grid { transition: none; }
+/* (a card's Play / Download / Delete strip waits off its edge until the card's hovered: with no slide to show it isn't
+   there at all until then — hundreds of hidden strips were still drawn and hit-tested on every step of a scroll) */
+@media (hover: hover) { :root.perf .ex-card:not(:hover):not(:focus-visible):not(:focus-within) .ex-side { display: none; } }
 /* a Team Versus room in the lounge: a red and a blue chip before its type */
 .mp-rteams { display: inline-flex; gap: 2px; align-items: center; }
 .mp-rteams i { width: 8px; height: 8px; border-radius: 2px; }
 .mp-rteams i.red { background: #e24f4f; } .mp-rteams i.blue { background: #4f8fe2; }
 /* lazer's LoadingLayer while an online page waits: the spinner, larger, above what it's waiting for */
-.rk-empty, .dash-empty:has(> .spinner) { flex-direction: column; gap: 14px; }
-.dash-empty:has(> .spinner) { display: flex; align-items: center; }
+.rk-empty { flex-direction: column; gap: 14px; }
 .rk-empty > .spinner, .dash-empty > .spinner { width: 32px; height: 32px; }
 /* the skin editor's hit position: a line across the stage you drag up or down */
 .se-box.se-hitline { border: 0; border-radius: 0; background: none; cursor: ns-resize; }
@@ -4681,6 +4685,11 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 
 /* the beatmap library as lazer's beatmap cards (the listing's), two columns; a card opens its difficulties under it */
 .lib-grid { grid-auto-flow: row dense; }
+/* (over the list while it scrolls, as in the beatmap listing: cards passing under a still pointer don't light up one after
+   another — restyling and redrawing the list for every step of the wheel) */
+.lib-page { position: relative; }
+.lib-shield { position: absolute; inset: 0; z-index: 4; display: none; }
+.lib-shield.on { display: block; }
 .lib-grid > .off-state, .lib-grid > .lib-more { grid-column: 1 / -1; }
 .lib-card.open { box-shadow: 0 0 0 2px hsl(var(--o-h) 70% 65% / .7), 0 6px 18px rgba(0, 0, 0, .45); }
 .lib-card .ex-side { justify-content: stretch; }
@@ -4710,7 +4719,7 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mp-roompanel > .mp-invite { grid-area: invite; }
 .mp-roompanel > .mp-copy { grid-area: copy; }
 /* the host's Settings: a column of its own after Copy code */
-.mp-roompanel:has(> .mp-settings-btn) { grid-template-columns: minmax(0, 1fr) auto auto auto auto; grid-template-areas: "state code invite copy set" "body code invite copy set"; }
+.mp-roompanel.with-set { grid-template-columns: minmax(0, 1fr) auto auto auto auto; grid-template-areas: "state code invite copy set" "body code invite copy set"; }
 .mp-roompanel > .mp-settings-btn { grid-area: set; }
 .mp-roompanel .mp-rshade { background: linear-gradient(90deg, hsl(var(--o-h, 333) 10% 15%) 25%, hsl(var(--o-h, 333) 10% 15% / .45)); }
 .mp-pact { flex: none; display: grid; place-items: center; width: 26px; height: 26px; margin-left: -4px; border: 0; border-radius: 5px; background: none; color: rgba(255, 255, 255, .55); cursor: pointer; transition: color 150ms, background 150ms; }
@@ -4862,7 +4871,7 @@ html.lp-open #toasts { right: 380px; }
 .setup-next.busy { opacity: .6; pointer-events: none; }
 
 /* ── "Your beatmaps": the beatmaps on your other devices, as small cover cards to pick from */
-.dialog:has(.ab) { width: min(860px, calc(100vw - 32px)); max-width: none; }
+.dialog.for-ab { width: min(860px, calc(100vw - 32px)); max-width: none; }
 .ab { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .ab-sub { margin: 0; color: var(--muted); font-size: .85rem; }
 .ab-bar { display: flex; gap: 8px; align-items: center; }

@@ -813,6 +813,7 @@ const MultiplayerScreen = {
 
   // ── lobby (osu!lazer's lounge): create a room or join one by code; every public room is listed underneath
   renderLobby() {
+    if (this.el) this.el.classList.remove('mp-in-room');
     // (why the last try to open or join a room didn't work stays up for a while: a room that fails to open redraws
     // the lounge, which took the message with it — so "Create room" looked like it did nothing)
     const err = this._lobbyErr && Date.now() - this._lobbyErr.at < 20000 ? this._lobbyErr.text : '';
@@ -957,6 +958,7 @@ const MultiplayerScreen = {
     const r = Multiplayer.room;
     this.roomCode = r.code;
     clearEl(this.body);
+    this.el.classList.add('mp-in-room'); // (the back button sits in the room's footer)
     this.headEl = h('div.mp-head'); this.resEl = h('div'); this.mapEl = h('div'); this.playersEl = h('div'); this.footEl = h('div.mp-footer');
     // chat
     this.chatList = h('div.mp-chat-list');
@@ -1000,6 +1002,7 @@ const MultiplayerScreen = {
       invite, copy,
       // (lazer's match settings: the host changes the rules between matches)
       host && !Multiplayer.isQP() && !Multiplayer.isRP() ? h('button.btn.sm.mp-settings-btn', { title: 'Match type, win condition, room size, queue, visibility, auto start', disabled: playing, onclick: () => { UISounds.click(); this.openSettings(); } }, icon('cog'), 'Settings') : null));
+    { const rp = this.headEl.firstChild; if (rp) rp.classList.toggle('with-set', !!rp.querySelector(':scope > .mp-settings-btn')); }
     Toast.place();
 
     // beatmap panel

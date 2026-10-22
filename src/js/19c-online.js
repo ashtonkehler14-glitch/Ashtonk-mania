@@ -836,6 +836,7 @@ const DashboardScreen = {
     this.tabsEl = h('div.dash-tabs');
     const { el, page } = pageShell('dashboard', 'view your friends and who\'s online', [], { icon: 'social', hue: 'purple', tabs: this.tabsEl, wide: true });
     this.page = page;
+    page.classList.add('dash-page'); el.querySelector('.screen-body').classList.add('dash-screen'); // (its panel reaches the bottom)
     const r = () => this.render();
     this._unsub = [Bus.on('presence:changed', r), Bus.on('friends:changed', r), Bus.on('mp:changed', r)];
     this._tick = setInterval(() => Presence.refresh(), 10000);

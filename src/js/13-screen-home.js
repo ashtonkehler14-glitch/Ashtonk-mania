@@ -71,7 +71,7 @@ const HomeScreen = {
     return el;
   },
   leave() {
-    cancelAnimationFrame(this._raf); NeruMascot.stop(); MenuTriangles.stop();
+    cancelAnimationFrame(this._raf); clearTimeout(this._perfT); NeruMascot.stop(); MenuTriangles.stop();
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.removeEventListener(ev, this._poke);
     if (this._offMusic) this._offMusic();
     if (this._offDaily) this._offDaily(); clearInterval(this._dailyT);
@@ -353,6 +353,8 @@ const HomeScreen = {
       if (Settings.get('graphics.performanceMode')) {
         if (!this._perfClear) { this._perfClear = true; cv.width = cv.height = 1; this.tris.width = this.tris.height = 1; if (this.ampEl) this.ampEl.style.scale = ''; }
         if (this.menuState !== 'initial' && this.menuState !== 'entering' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !NowPlaying.open) this.setState('initial');
+        // (nothing drawn: looked in on a few times a second, not every frame)
+        cancelAnimationFrame(this._raf); clearTimeout(this._perfT); this._perfT = setTimeout(() => { this._raf = requestAnimationFrame(tick); }, 400);
         return;
       }
       if (this._perfClear) { this._perfClear = false; this._szAt = 0; this._ampS = null; }

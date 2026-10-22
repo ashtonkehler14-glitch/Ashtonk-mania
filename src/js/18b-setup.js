@@ -51,7 +51,7 @@ const Onboarding = {
       this.womAnswer = this.womDone = this.womStatus = null;
       this.animate = true;
       this.el = h('div.onboarding.setup', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Setup' });
-      this.o = makeOverlay(this.el, {
+      this.o = makeOverlay(this.el, { flags: ['onboarding', 'neru-cover'],
         dismissable: false,
         onKey: e => {
           if (e.key === 'Escape') return true; // closed with its own buttons only

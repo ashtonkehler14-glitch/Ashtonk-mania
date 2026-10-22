@@ -340,6 +340,18 @@ function settleOn(sc, fn) {
   if ('onscrollend' in sc) sc.addEventListener('scrollend', go, { once: true });
   setTimeout(go, 900);
 }
+/** A page-wide state as a class on <body> (`f-<name>`): on while anything (`why`) still wants it. These stand in for
+ *  :has() rules — with even one on the page, every change of text anywhere (the clock, a list filling in) made the
+ *  browser restyle the whole page, which on a slow device was most of the menus' stutter. */
+const BodyFlag = {
+  on: new Map(),
+  set(name, on, why = name) {
+    let s = this.on.get(name);
+    if (!s) this.on.set(name, s = new Set());
+    if (on) s.add(why); else s.delete(why);
+    document.body.classList.toggle('f-' + name, s.size > 0);
+  },
+};
 /** Run `fn` when the browser has a moment to spare (not in the middle of scrolling or an animation). */
 const whenIdle = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 3000 }) : setTimeout(fn, 200));
 

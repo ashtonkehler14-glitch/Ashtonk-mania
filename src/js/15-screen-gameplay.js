@@ -1264,6 +1264,7 @@ const GameplayScreen = {
       this.mpBoard.append(...this._mpRows.map(r => r.el));
       if (teams) {
         this.mpTeams = { red: h('span.tv-n'), blue: h('span.tv-n'), bar: h('i'), diff: h('span.tv-diff') };
+        this.hud.classList.add('has-teams');
         this.hud.append(h('div.hud-teams', h('div.tv-side.red', h('span.tv-l', 'Red'), this.mpTeams.red), h('div.tv-mid', h('div.tv-bar', this.mpTeams.bar), this.mpTeams.diff), h('div.tv-side.blue', this.mpTeams.blue, h('span.tv-l', 'Blue'))));
       }
     }
@@ -1667,12 +1668,13 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
         h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
-    if (failed && this.failedScore) el.append(this.failFooter());
+    if (failed && this.failedScore) { el.append(this.failFooter()); el.classList.add('has-foot'); }
     // (Neru: smug about a fail, teasing about a pause — when you're the one playing, and not in a match)
-    if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause', { poke: failed ? NeruCameo.EGG.failed : NeruCameo.EGG.paused }); if (n) { el.append(n); if (!failed) NeruEggs.fishLater(n); } }
+    if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause', { poke: failed ? NeruCameo.EGG.failed : NeruCameo.EGG.paused }); if (n) { el.append(n); el.classList.add('has-neru'); if (!failed) NeruEggs.fishLater(n); } }
     this.pauseEl = el;
     this.el.appendChild(el);
-    this.el.classList.add('show-cursor');
+    // (classes, not :has() rules: with any :has() on the page, every change of text anywhere restyles all of it)
+    this.el.classList.add('show-cursor', 'pm-open');
     const first = el.querySelector('button'); first && first.focus();
     el.addEventListener('keydown', ev => {
       const b = $$('button:not(.neru-cameo)', el), i = b.indexOf(document.activeElement);
@@ -1706,7 +1708,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const results = h('button.res-ab', { onclick: () => { UISounds.click(); Screens.go('results', { score, replay }, { replace: true }); }, title: 'view results', 'aria-label': 'View results' }, icon('chart'));
     return h('div.pm-foot', save, results);
   },
-  closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
+  closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor', 'pm-open'); },
   /** Phones held upright wait here until turned sideways (there's no upright gameplay). */
   /** Phones held sideways wait here until turned upright (gameplay on a phone is upright, as in lazer's app). */
   waitUpright() { return Promise.resolve(); }, // (songs now play sideways too: nothing to wait for)
@@ -1949,7 +1951,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.rpSpeeds = REPLAY_SPEEDS.map(k => h(`button.chip${k === 1 ? '.on' : ''}`, { onclick: () => this.replaySpeed(k) }, `${k}×`));
     this._rpHover = false;
     // (on the side the notes come from, so it never covers the judgement line you're watching)
-    const bar = h(`div.replay-bar${Settings.get('gameplay.scrollDirection') === 'up' ? '' : '.top'}`, { onpointerenter: () => { this._rpHover = true; }, onpointerleave: () => { this._rpHover = false; } },
+    const bar = h(`div.replay-bar${Settings.get('gameplay.scrollDirection') === 'up' ? '' : '.top'}`, { onpointerenter: () => { this._rpHover = true; this.hud.classList.add('rp-hover'); }, onpointerleave: () => { this._rpHover = false; this.hud.classList.remove('rp-hover'); },
+        // (a keyboard's focus in it keeps it up; a tapped button keeping its focus doesn't)
+        onfocusin: e => bar.classList.toggle('kbd-focus', !!(e.target.matches && e.target.matches(':focus-visible'))), onfocusout: e => { if (!bar.contains(e.relatedTarget)) bar.classList.remove('kbd-focus'); } },
       tl,
       h('div.rp-controls',
         this.rpPlay,
@@ -1989,7 +1993,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     setText(this.rpTime, t);
     const ic = s.running ? 'pause' : 'play';
     if (this.rpPlay.dataset.ic !== ic) { this.rpPlay.dataset.ic = ic; this.rpPlay.replaceChildren(icon(ic)); }
-    this.replayBar.classList.toggle('paused', !s.running);
+    this.replayBar.classList.toggle('paused', !s.running); this.hud.classList.toggle('rp-paused', !s.running);
   },
   replayKey(e) {
     const s = this.s;
