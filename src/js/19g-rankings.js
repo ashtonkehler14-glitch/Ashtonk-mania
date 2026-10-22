@@ -83,36 +83,64 @@ const Verified = {
       return d;
     } catch (e) { console.warn('score not counted online', e); return null; }
   },
-  /** Your best plays the server doesn't have — set offline, in multiplayer, or ones that didn't get through — go up
-   *  again, a few seconds apart, in the background (never during a song), so the pp and best performance the rankings
-   *  and other players see are the ones on your profile. Once a session, after coming online; a play already sent
-   *  isn't sent again. */
+  /** Your best plays the server doesn't have — set offline, in multiplayer, on your other device, or ones that didn't
+   *  get through — go up together, straight away (never during a song), so the pp and best performance the rankings and
+   *  other players see are the ones on your profile: on coming online, and when your profile shows some not counted
+   *  yet. One the server has taken isn't sent again; one that didn't get through is tried again. */
   SENT_KEY: 'am.ppSent',
+  BATCH: 25, BATCH_BYTES: 6e6, // (plays, and beatmap file bytes, in one request)
   async catchUp() {
     if (this._catching || !Multiplayer.available() || !Presence.pid() || !Presence.ws) return;
     this._catching = true;
+    const tried = this._tried || (this._tried = new Set()); // (this session: not sent again and again)
     try {
       const server = await new Promise(res => { const off = Bus.on('myBests', m => { off(); clearTimeout(t); res(m); }), t = setTimeout(() => { off(); res(null); }, 15000); Presence.send({ t: 'myBests' }); });
       if (!server) return;
       const have = new Map(server.list || []), keep = server.keep || 200;
       const floor = have.size >= keep ? Math.min(...have.values()) : 0; // (the server keeps each player's best `keep`)
       let sent = {}; try { sent = JSON.parse(localStorage.getItem(this.SENT_KEY) || '{}') || {}; } catch { /* none */ }
-      const todo = ScoreManager.bestPpPerMap().slice(0, 100).filter(({ score: s, pp }) => !s.synced && pp > floor
-        && !((have.get(s.mapHash) || 0) >= pp - 0.5) && !(Math.abs((sent[s.mapHash] || -1) - pp) < 0.01));
-      for (const { score: s, pp } of todo) {
+      const id = (s, pp) => `${s.mapHash}:${pp.toFixed(2)}`;
+      const todo = ScoreManager.bestPpPerMap().slice(0, 100).filter(({ score: s, pp }) => pp > floor && !((have.get(s.mapHash) || 0) >= pp - 0.5)
+        && !(Math.abs((sent[s.mapHash] || -1) - pp) < 0.01) && !tried.has(id(s, pp)));
+      let any = false;
+      for (let i = 0; i < todo.length;) {
         // (never during a song, nor right after one, whose own score goes up first)
-        while (Screens.currentName === 'gameplay' || Date.now() - (this._lastOwn || 0) < 8000) await sleep(5000);
+        while (Screens.currentName === 'gameplay' || Date.now() - (this._lastOwn || 0) < 8000) await sleep(2000);
         if (!Presence.pid()) break;
-        const rec = BeatmapManager.mapByHash(s.mapHash);
-        if (!rec) continue;
-        await this.submit({ rec, score: { ...s, pp }, background: true });
-        sent[s.mapHash] = pp;
+        const batch = [];
+        for (let bytes = 0; i < todo.length && batch.length < this.BATCH && bytes < this.BATCH_BYTES; i++) {
+          const { score: s, pp } = todo[i], rec = BeatmapManager.mapByHash(s.mapHash), osu = rec ? await this.file(rec) : null;
+          tried.add(id(s, pp));
+          if (osu) { batch.push({ s, pp, rec, osu }); bytes += osu.length; }
+        }
+        if (!batch.length) continue;
+        let got = await this.batch(batch);
+        // (a server from before plays went up together: one at a time)
+        if (got === null) { got = []; for (const b of batch) { got.push(await this.submit({ rec: b.rec, score: { ...b.s, pp: b.pp }, background: true })); await sleep(3200); } }
+        batch.forEach((b, k) => {
+          const r = got[k];
+          if (r && r.ok) { sent[b.s.mapHash] = b.pp; any = true; } else if (!r) tried.delete(id(b.s, b.pp)); // (didn't get there: next time)
+        });
         try { localStorage.setItem(this.SENT_KEY, JSON.stringify(sent)); } catch { /* full */ }
-        await sleep(4000); // (the server takes one score every few seconds from each player)
+        if (i < todo.length) await sleep(3200); // (the server takes one lot every few seconds from each player)
       }
-      if (todo.length) { Presence.send({ t: 'rankings' }); Presence.send({ t: 'profile', pid: Presence.pid() }); } // (your place and profile, with them counted)
+      if (any) { Presence.send({ t: 'rankings' }); Presence.send({ t: 'profile', pid: Presence.pid() }); } // (your place and profile, with them counted)
     } catch (e) { console.warn('catch-up', e); }
     finally { this._catching = false; }
+  },
+  /** Plays sent together ([{ s, pp, osu }]): the server's answer for each — { ok, pp } or { error }; none for one that
+   *  didn't get there — or null from a server too old to take them together. */
+  async batch(plays) {
+    const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), plays: plays.map(p => ({ osu: p.osu, result: this.result({ ...p.s, pp: p.pp }) })) });
+    for (let i = 0; i < 4; i++) {
+      try {
+        const r = await fetch(Host.api('api/mp/scores'), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(60000) });
+        if (r.status === 404 || r.status === 405) return null;
+        if (r.status !== 429 && r.status < 500) { const d = await r.json().catch(() => null); return d && d.ok && Array.isArray(d.results) ? d.results : []; }
+      } catch { /* the network: again in a moment */ }
+      await sleep(3500 * (i + 1));
+    }
+    return [];
   },
 };
 

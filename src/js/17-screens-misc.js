@@ -424,6 +424,8 @@ const ProfileScreen = {
       pp.total = srv.pp;
       const got = new Map(srv.top.map(x => [x.key || x.mapHash, x.pp || 0]));
       pending = (d.top || []).filter(x => !(got.get(x._s.mapHash) >= x.pp - 0.5));
+      // (plays the server doesn't have yet: sent now — not waited on)
+      if (pending.length) Verified.catchUp();
     }
     const avatar = own ? ProfileManager.avatarEl(120) : Presence.avatarEl({ name: p.name, avatar: this.remote.avatar || d.avatar }, 120);
     avatar.classList.add('pf-avatar');
@@ -497,8 +499,7 @@ const ProfileScreen = {
           // (plays on beatmaps that aren't ranked on osu! — your own, or from a file — give pp in the results but never count here)
           : ScoreManager.scores.some(x => x.passed) ? 'No performance records yet: only plays on beatmaps ranked on osu! count here — find some in the beatmap listing.' : 'No performance records. Pass a ranked beatmap to earn pp.')),
       pending.length ? sub('Not counted yet', pending.length,
-        h('div.pf-note', (n => n === pending.length ? 'On their way to the server to be checked — they count once it has.' : n ? 'On their way to the server to be checked. The ones without a replay count once you play them again.'
-          : 'There\'s no replay of these for the server to check. Play them again to count them.')(pending.filter(x => x._s.replayId).length)),
+        h('div.pf-note', Presence.ws ? 'Going up to the server now — they count in a moment.' : 'These go up to the server as soon as you\'re online.'),
         more(pending, x => row(x, 0, false))) : null,
       own && d.importedTop && d.importedTop.length ? sub('From imported backups', d.importedTop.length,
         h('div.pf-note', 'Not counted in your pp or on the rankings: there\'s no replay of these for the server to check. Play them again here to count them.'),

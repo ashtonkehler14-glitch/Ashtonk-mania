@@ -1712,10 +1712,18 @@ div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
 /* a photo of their character she holds up to laugh at: a polaroid, a strip of tape across the top, a soft shadow */
 .neru-photo { position: absolute; z-index: 3; width: clamp(108px, calc(12.5 * var(--vw)), 184px); padding: 6% 6% 20%; box-sizing: border-box; border-radius: 3px; pointer-events: none;
   background: linear-gradient(#fdfcf8, #f3f1ea); box-shadow: 0 12px 26px rgba(0, 0, 0, .45), 0 2px 5px rgba(0, 0, 0, .25); transform-origin: 50% 15%; }
+.nc-peek .neru-photo { width: clamp(96px, calc(10 * var(--vw)), 150px); }
 .neru-photo img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 1px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .08); user-select: none; }
 .neru-photo::after { content: ""; position: absolute; left: 6%; right: 6%; top: 4.6%; aspect-ratio: 1; background: linear-gradient(130deg, rgba(255, 255, 255, .22), transparent 42%); pointer-events: none; }
 .neru-photo .np-tape { position: absolute; top: -8px; left: 50%; width: 44%; height: 17px; translate: -50% 0; rotate: -5deg; background: rgba(255, 168, 204, .66); box-shadow: 0 1px 2px rgba(0, 0, 0, .14);
   clip-path: polygon(0 8%, 6% 0, 12% 10%, 18% 0, 24% 8%, 30% 0, 36% 10%, 42% 0, 48% 8%, 54% 0, 60% 10%, 66% 0, 72% 8%, 78% 0, 84% 10%, 90% 0, 96% 8%, 100% 0, 100% 92%, 94% 100%, 88% 90%, 82% 100%, 76% 92%, 70% 100%, 64% 90%, 58% 100%, 52% 92%, 46% 100%, 40% 90%, 34% 100%, 28% 92%, 22% 100%, 16% 90%, 10% 100%, 4% 92%, 0 100%); }
+/* something Neru says (her "I'm back~"): a speech bubble beside her face, its tail pointing back at her */
+.neru-say { position: absolute; z-index: 4; transform: translate(0, -50%); transform-origin: 0 50%; pointer-events: none; white-space: nowrap;
+  padding: .45em .95em .5em; border-radius: 999px; background: linear-gradient(#fff, #f7f2fb); color: #2e1f3d; font-weight: 800; letter-spacing: .01em;
+  font-size: clamp(15px, calc(1.5 * var(--vw)), 24px); line-height: 1.2; box-shadow: 0 8px 22px rgba(0, 0, 0, .38), 0 1px 3px rgba(0, 0, 0, .2); }
+.neru-say::before { content: ""; position: absolute; left: -.55em; top: 54%; width: .8em; height: .7em; background: #faf6fc; clip-path: polygon(100% 0, 0 70%, 100% 100%); }
+.neru-say.flip { transform: translate(-100%, -50%); transform-origin: 100% 50%; }
+.neru-say.flip::before { left: auto; right: -.55em; clip-path: polygon(0 0, 100% 70%, 0 100%); }
 /* Neru's marker on a Teto or Miku profile picture: glasses and a moustache, in ink with a faint paper-white edge */
 .avatar.doodled { position: relative; }
 .neru-doodle { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
@@ -15496,7 +15504,8 @@ Bus.on('screen:changed', () => { NeruEggs._selPeeked = false; NeruEggs.selectIdl
 for (const ev of ['pointerdown', 'keydown', 'wheel']) addEventListener(ev, () => { if (Screens.currentName === 'songselect') NeruEggs.selectIdle(); }, { capture: true, passive: true });
 Bus.on('library:changed', () => { if (NeruMascot.img) NeruEggs.newSongs(); NeruEggs.newSet(); });
 Bus.on('mp:changed', () => NeruEggs.roomAlone());
-document.addEventListener('input', e => { if (e.target && e.target.matches && e.target.matches('input[type="search"]')) NeruEggs.searched(e.target); });
+// (any box for looking something up: the song, beatmap, settings, mods, rooms, collections and library searches)
+document.addEventListener('input', e => { if (e.target && e.target.matches && e.target.matches('input[type="search"], input[placeholder*="search" i], input[placeholder*="filter" i], input[aria-label*="search" i]')) NeruEggs.searched(e.target); });
 // (a new name or picture that makes you a Teto or Miku fan — or no longer: Neru comes back on, or goes, and she's herself
 // again or your picture)
 Bus.on('profile:changed', () => {
@@ -15508,7 +15517,7 @@ Bus.on('profile:changed', () => {
 });
 Bus.on('settings:changed', k => {
   if (k === 'audio.master') NeruEggs.volume(Settings.get('audio.master'));
-  if (k === 'ui.mascot' && Screens.currentName === 'home') { const old = document.querySelector('.home .neru'); if (old) old.replaceWith(NeruMascot.build()); }
+  if (k === 'ui.mascot' && Screens.currentName === 'home' && !NeruEggs._backing) { const old = document.querySelector('.home .neru'); if (old) old.replaceWith(NeruMascot.build()); }
 });
 
 /** Neru's easter eggs: each one is only pictures and motion — she never
@@ -15699,7 +15708,9 @@ const NeruEggs = {
   fan() {
     const f = this.fanOf();
     this._wasFan = JSON.stringify([f, this.neruFan()]); // (what a change of name or picture is told apart from)
-    if (!f) { this.ownPicture(); return; }
+    // (turned off before: she's back — and says so before she starts on you)
+    const late = this.back(f) ? 2300 : 0;
+    if (!f) { this.ownPicture(late); return; }
     if (this._fanSeen) return;
     this._fanSeen = true;
     clearTimeout(this._fanT);
@@ -15724,7 +15735,7 @@ const NeruEggs = {
           then('mock', 2700, () => this.act('point', 1800));
         });
       });
-    }, 1400);
+    }, 1400 + late);
     // (and every couple of minutes on the main menu after that, another laugh at them)
     clearInterval(this._fanAgain);
     this._fanAgain = setInterval(() => {
@@ -15747,7 +15758,7 @@ const NeruEggs = {
   /** How often a laugh at them comes with a photo (else their thing crossed out): one in ten — a rare treat. */
   PHOTO_CHANCE: 0.1,
   /** A laugh at them: now and then a photo, else their thing crossed out (on the main menu's Neru, or `box`/`img`). */
-  jab(who, box, img) { if (Math.random() < this.PHOTO_CHANCE) this.photo(who, box, img); else this.prop(who, box, img); },
+  jab(who, box, img) { if (Math.random() < this.PHOTO_CHANCE && !(box && box.classList.contains('behind'))) this.photo(who, box, img); else this.prop(who, box, img); },
   /** One of them as a polaroid, taped up beside her for a moment (`ms`) — a different one from last time. */
   photo(who, box = NeruMascot.el, img = NeruMascot.img, ms = 2500) {
     const list = this.PHOTOS[who] || [];
@@ -15757,9 +15768,13 @@ const NeruEggs = {
     this._lastPhoto = i;
     const er = box.getBoundingClientRect(), ir = img.getBoundingClientRect(), k = box.offsetWidth ? er.width / box.offsetWidth : 1;
     const el = h('span.neru-photo', h('img', { src: Host.asset(`neru-photos/${list[i]}`), alt: '', draggable: 'false' }), h('i.np-tape'));
-    // (beside her, a little below her face: clear of the menu's bar of buttons)
-    Object.assign(el.style, { left: `${(ir.left - er.left + ir.width * 0.88) / k}px`, top: `${(ir.top - er.top + ir.height * 0.2) / k}px` });
+    // (beside her, a little below her face: clear of the menu's bar of buttons; on her left when she's on the right)
+    const flip = box.classList.contains('right');
+    Object.assign(el.style, { left: `${(ir.left - er.left + ir.width * (flip ? 0.12 : 0.88)) / k}px`, top: `${(ir.top - er.top + ir.height * 0.2) / k}px` }, flip ? { translate: '-100% 0' } : {});
     box.append(el);
+    // (kept on the screen: one peeking up from the bottom edge has it higher, beside her face)
+    const over = er.top + (parseFloat(el.style.top) + el.offsetHeight) * k - (innerHeight - 12);
+    if (over > 0) el.style.top = `${parseFloat(el.style.top) - over / k}px`;
     const tilt = (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 4);
     el.style.rotate = `${tilt}deg`;
     const away = () => el.remove();
@@ -15860,10 +15875,35 @@ const NeruEggs = {
   neruFan(name = this.myName(), avatar = typeof ProfileManager !== 'undefined' && ProfileManager.profile ? ProfileManager.profile.avatar : '') {
     return avatar === 'preset:neru' || (this.named('neru', name) && !/^\s*neru\s*$/i.test(String(name || '')));
   },
-  ownPicture() {
+  ownPicture(late = 0) {
     if (!this.neruFan() || this._ownSeen) return;
     this._ownSeen = true;
-    setTimeout(() => { if (!this.act('happy', 1700, { sparkle: true })) { this._ownSeen = false; return; } for (const t of [150, 450]) setTimeout(() => this.heart(), t); }, 2800);
+    setTimeout(() => { if (!this.act('happy', 1700, { sparkle: true })) { this._ownSeen = false; return; } for (const t of [150, 450]) setTimeout(() => this.heart(), t); }, 2800 + late);
+  },
+  /** Turned off in Settings, and then a Teto or Miku fan (`f`) or one of hers: she's back — turned on again, for good —
+   *  and says so beside her head, smug at a fan of theirs, with a wink for one of hers. Whether she did. */
+  back(f) {
+    if (Settings.get('ui.mascot') || !this.stays()) return false;
+    this._backing = true;
+    try { Settings.set('ui.mascot', true); } finally { this._backing = false; }
+    setTimeout(() => { if (this.act(f ? 'sassy' : 'wink', 2100)) this.say('I\'m back~'); }, 1100);
+    return true;
+  },
+  /** Something she says, in a speech bubble beside her face — on the side away from the screen's edge — for `ms`. */
+  say(text, box = NeruMascot.el, img = NeruMascot.img, ms = 1900) {
+    if (!box || !img || !box.isConnected) return null;
+    const old = box.querySelector(':scope > .neru-say');
+    if (old) old.remove();
+    const er = box.getBoundingClientRect(), ir = img.getBoundingClientRect(), k = box.offsetWidth ? er.width / box.offsetWidth : 1;
+    const flip = box.classList.contains('right');
+    const el = h(`span.neru-say${flip ? '.flip' : ''}`, text);
+    Object.assign(el.style, { left: `${(ir.left - er.left + ir.width * (flip ? 0.2 : 0.8)) / k}px`, top: `${(ir.top - er.top + ir.height * 0.23) / k}px` });
+    box.append(el);
+    const away = () => el.remove();
+    if (!Settings.get('ui.animSpeed')) { setTimeout(away, ms); return el; }
+    el.animate([{ scale: 0.3, opacity: 0 }, { scale: 1.08, opacity: 1, offset: 0.6 }, { scale: 1, opacity: 1 }], { duration: 420, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+    setTimeout(() => { if (el.isConnected) el.animate([{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '0 -10px' }], { duration: 320, easing: 'ease-in', fill: 'forwards' }).onfinish = away; }, ms);
+    return el;
   },
   /** Their thing in a thought bubble beside her head — Teto's French bread, Miku's leek — then struck out, the bubble
    *  shaking its head with her. */
@@ -16006,12 +16046,14 @@ const NeruEggs = {
   // ── her name searched for (song select, the beatmap listing): she peeks up from the bottom of the screen — "huh?
   // you called?" — and ducks back down (not when the search found nothing: the empty list has her already)
   searched(input) {
-    const v = input.value || '', them = /(^|[^a-z])(teto|miku)([^a-z]|$)/i.exec(v);
+    const v = input.value || '', them = ['teto', 'miku'].find(w => this.named(w, v));
     if (!(them || /(^|[^a-z])neru([^a-z]|$)/i.test(v)) || performance.now() - (this._peekAt || -1e9) < 9000) return;
     this._peekAt = performance.now();
-    // (Teto or Miku searched for: she peeks up laughing, their thing crossed out)
-    const who = them && them[2].toLowerCase();
-    setTimeout(() => { if (input.isConnected) who ? this.peek('failed', { found: false, then: el => this.prop(who, el, el.querySelector('.nc-img')) }) : this.peek(); }, 300);
+    // (Teto or Miku looked up, in any search box, written any way: she peeks up laughing at you — their thing crossed
+    // out, or now and then a photo of them; a fan of either gets their own one, whichever was looked up)
+    // (the settings open: up on the right, clear of them)
+    const f = them && this.fanOf(), who = them && (f ? f.who : them), side = document.querySelector('.settings-panel:not(.out)') ? 'right' : null;
+    setTimeout(() => { if (input.isConnected) who ? this.peek('failed', { found: false, side, then: el => this.jab(who, el, el.querySelector('.nc-img')) }) : this.peek('list', { side }); }, 300);
   },
   /** Whether Neru's on screen already — the main menu's, or a small one on another screen, a dialog or a medal: a peek
    *  then would make two of her. */
@@ -16105,14 +16147,15 @@ const NeruEggs = {
   // ── her name said in the chat: she peeks up to see who's talking about her (her taunt said back: she laughs)
   mentioned(text) {
     const t = String(text || '');
-    const taunt = /(^|[^a-z])zako([^a-z]|$)/i.test(t), name = /(^|[^a-z])neru([^a-z]|$)/i.test(t), them = ['teto', 'miku'].find(w => this.named(w, t));
+    const taunt = /(^|[^a-z])zako([^a-z]|$)/i.test(t), name = /(^|[^a-z])neru([^a-z]|$)/i.test(t), said = ['teto', 'miku'].find(w => this.named(w, t));
+    const fan = said && this.fanOf(), them = said && (fan ? fan.who : said); // (a fan of either: their own one)
     if (!(taunt || name || them) || performance.now() - (this._chatPeekAt || -1e9) < 20000) return;
     this._chatPeekAt = performance.now();
     // (Teto or Miku: she laughs, their thing crossed out over her head; on the main menu she's there already: she looks
     // round herself)
     setTimeout(() => {
-      if (Screens.currentName === 'home' && NeruMascot.img) { if (this.act(them || taunt ? 'mock' : 'huh', 1600, { hop: false }) && them) setTimeout(() => this.prop(them), 250); }
-      else this.peek(them || taunt ? 'failed' : 'list', { found: false, then: them ? el => this.prop(them, el, el.querySelector('.nc-img')) : null });
+      if (Screens.currentName === 'home' && NeruMascot.img) { if (this.act(them || taunt ? 'mock' : 'huh', 1600, { hop: false }) && them) setTimeout(() => this.jab(them), 450); }
+      else this.peek(them || taunt ? 'failed' : 'list', { found: false, then: them ? el => this.jab(them, el, el.querySelector('.nc-img')) : null });
     }, 400);
   },
 
@@ -18672,7 +18715,7 @@ const GameplayScreen = {
       // nor for the skin editor's preview)
       // (one of her own songs: she dances — NeruEggs.herSong; the same song again and again: worn out — NeruEggs.tries)
       p.replay || p.skinEditor ? null : NeruCameo.make(hers ? 'herSong' : theirs ? 'theirSong' : again ? 'again' : 'loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
-    if (theirs) NeruEggs.propOn(el.querySelector('.nc-loader'), theirs, 900);
+    if (theirs) NeruEggs.propOn(el.querySelector('.nc-loader'), fan.who, 900); // (a fan's own one, whoever's song it is)
     this.loaderT0 = performance.now(); this.loaderExtra = 0;
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
@@ -22016,6 +22059,8 @@ const ProfileScreen = {
       pp.total = srv.pp;
       const got = new Map(srv.top.map(x => [x.key || x.mapHash, x.pp || 0]));
       pending = (d.top || []).filter(x => !(got.get(x._s.mapHash) >= x.pp - 0.5));
+      // (plays the server doesn't have yet: sent now — not waited on)
+      if (pending.length) Verified.catchUp();
     }
     const avatar = own ? ProfileManager.avatarEl(120) : Presence.avatarEl({ name: p.name, avatar: this.remote.avatar || d.avatar }, 120);
     avatar.classList.add('pf-avatar');
@@ -22089,8 +22134,7 @@ const ProfileScreen = {
           // (plays on beatmaps that aren't ranked on osu! — your own, or from a file — give pp in the results but never count here)
           : ScoreManager.scores.some(x => x.passed) ? 'No performance records yet: only plays on beatmaps ranked on osu! count here — find some in the beatmap listing.' : 'No performance records. Pass a ranked beatmap to earn pp.')),
       pending.length ? sub('Not counted yet', pending.length,
-        h('div.pf-note', (n => n === pending.length ? 'On their way to the server to be checked — they count once it has.' : n ? 'On their way to the server to be checked. The ones without a replay count once you play them again.'
-          : 'There\'s no replay of these for the server to check. Play them again to count them.')(pending.filter(x => x._s.replayId).length)),
+        h('div.pf-note', Presence.ws ? 'Going up to the server now — they count in a moment.' : 'These go up to the server as soon as you\'re online.'),
         more(pending, x => row(x, 0, false))) : null,
       own && d.importedTop && d.importedTop.length ? sub('From imported backups', d.importedTop.length,
         h('div.pf-note', 'Not counted in your pp or on the rankings: there\'s no replay of these for the server to check. Play them again here to count them.'),
@@ -25469,7 +25513,7 @@ const Presence = {
     ws.onmessage = ev => {
       this._heard = Date.now();
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); if (!this._caughtUp) { this._caughtUp = true; setTimeout(() => Verified.catchUp(), 20000); } if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
+      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); setTimeout(() => Verified.catchUp(), 3000); /* (plays the server doesn't have yet: up they go) */ if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
@@ -28937,36 +28981,64 @@ const Verified = {
       return d;
     } catch (e) { console.warn('score not counted online', e); return null; }
   },
-  /** Your best plays the server doesn't have — set offline, in multiplayer, or ones that didn't get through — go up
-   *  again, a few seconds apart, in the background (never during a song), so the pp and best performance the rankings
-   *  and other players see are the ones on your profile. Once a session, after coming online; a play already sent
-   *  isn't sent again. */
+  /** Your best plays the server doesn't have — set offline, in multiplayer, on your other device, or ones that didn't
+   *  get through — go up together, straight away (never during a song), so the pp and best performance the rankings and
+   *  other players see are the ones on your profile: on coming online, and when your profile shows some not counted
+   *  yet. One the server has taken isn't sent again; one that didn't get through is tried again. */
   SENT_KEY: 'am.ppSent',
+  BATCH: 25, BATCH_BYTES: 6e6, // (plays, and beatmap file bytes, in one request)
   async catchUp() {
     if (this._catching || !Multiplayer.available() || !Presence.pid() || !Presence.ws) return;
     this._catching = true;
+    const tried = this._tried || (this._tried = new Set()); // (this session: not sent again and again)
     try {
       const server = await new Promise(res => { const off = Bus.on('myBests', m => { off(); clearTimeout(t); res(m); }), t = setTimeout(() => { off(); res(null); }, 15000); Presence.send({ t: 'myBests' }); });
       if (!server) return;
       const have = new Map(server.list || []), keep = server.keep || 200;
       const floor = have.size >= keep ? Math.min(...have.values()) : 0; // (the server keeps each player's best `keep`)
       let sent = {}; try { sent = JSON.parse(localStorage.getItem(this.SENT_KEY) || '{}') || {}; } catch { /* none */ }
-      const todo = ScoreManager.bestPpPerMap().slice(0, 100).filter(({ score: s, pp }) => !s.synced && pp > floor
-        && !((have.get(s.mapHash) || 0) >= pp - 0.5) && !(Math.abs((sent[s.mapHash] || -1) - pp) < 0.01));
-      for (const { score: s, pp } of todo) {
+      const id = (s, pp) => `${s.mapHash}:${pp.toFixed(2)}`;
+      const todo = ScoreManager.bestPpPerMap().slice(0, 100).filter(({ score: s, pp }) => pp > floor && !((have.get(s.mapHash) || 0) >= pp - 0.5)
+        && !(Math.abs((sent[s.mapHash] || -1) - pp) < 0.01) && !tried.has(id(s, pp)));
+      let any = false;
+      for (let i = 0; i < todo.length;) {
         // (never during a song, nor right after one, whose own score goes up first)
-        while (Screens.currentName === 'gameplay' || Date.now() - (this._lastOwn || 0) < 8000) await sleep(5000);
+        while (Screens.currentName === 'gameplay' || Date.now() - (this._lastOwn || 0) < 8000) await sleep(2000);
         if (!Presence.pid()) break;
-        const rec = BeatmapManager.mapByHash(s.mapHash);
-        if (!rec) continue;
-        await this.submit({ rec, score: { ...s, pp }, background: true });
-        sent[s.mapHash] = pp;
+        const batch = [];
+        for (let bytes = 0; i < todo.length && batch.length < this.BATCH && bytes < this.BATCH_BYTES; i++) {
+          const { score: s, pp } = todo[i], rec = BeatmapManager.mapByHash(s.mapHash), osu = rec ? await this.file(rec) : null;
+          tried.add(id(s, pp));
+          if (osu) { batch.push({ s, pp, rec, osu }); bytes += osu.length; }
+        }
+        if (!batch.length) continue;
+        let got = await this.batch(batch);
+        // (a server from before plays went up together: one at a time)
+        if (got === null) { got = []; for (const b of batch) { got.push(await this.submit({ rec: b.rec, score: { ...b.s, pp: b.pp }, background: true })); await sleep(3200); } }
+        batch.forEach((b, k) => {
+          const r = got[k];
+          if (r && r.ok) { sent[b.s.mapHash] = b.pp; any = true; } else if (!r) tried.delete(id(b.s, b.pp)); // (didn't get there: next time)
+        });
         try { localStorage.setItem(this.SENT_KEY, JSON.stringify(sent)); } catch { /* full */ }
-        await sleep(4000); // (the server takes one score every few seconds from each player)
+        if (i < todo.length) await sleep(3200); // (the server takes one lot every few seconds from each player)
       }
-      if (todo.length) { Presence.send({ t: 'rankings' }); Presence.send({ t: 'profile', pid: Presence.pid() }); } // (your place and profile, with them counted)
+      if (any) { Presence.send({ t: 'rankings' }); Presence.send({ t: 'profile', pid: Presence.pid() }); } // (your place and profile, with them counted)
     } catch (e) { console.warn('catch-up', e); }
     finally { this._catching = false; }
+  },
+  /** Plays sent together ([{ s, pp, osu }]): the server's answer for each — { ok, pp } or { error }; none for one that
+   *  didn't get there — or null from a server too old to take them together. */
+  async batch(plays) {
+    const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), plays: plays.map(p => ({ osu: p.osu, result: this.result({ ...p.s, pp: p.pp }) })) });
+    for (let i = 0; i < 4; i++) {
+      try {
+        const r = await fetch(Host.api('api/mp/scores'), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(60000) });
+        if (r.status === 404 || r.status === 405) return null;
+        if (r.status !== 429 && r.status < 500) { const d = await r.json().catch(() => null); return d && d.ok && Array.isArray(d.results) ? d.results : []; }
+      } catch { /* the network: again in a moment */ }
+      await sleep(3500 * (i + 1));
+    }
+    return [];
   },
 };
 
@@ -30257,7 +30329,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '17a95b52b693';
+const APP_BUILD = 'f7cd5bdc8af4';
 
 const App = {
   lastReport: null,

@@ -2372,6 +2372,31 @@ export class Matchmaker {
     this.send(out);
     return json({ ok: true, key, score: entry.score, accuracy: entry.acc, combo: entry.combo, grade: entry.grade, pp: entry.pp, stars: entry.stars, total, rank, of, best, daily: dailyRes });
   }
+  /** Several plays of one player's at once (the game catching up on best plays the server doesn't have): { pid, key,
+   *  items: [{ hash, r }] } — each onto the boards and into their best plays as score() puts one. */
+  async scores(request) {
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object' || !Array.isArray(body.items)) return json({ error: 'Bad request.' }, 400);
+    await this.loadFriends();
+    const pid = String(body.pid || '');
+    if (!/^[a-z0-9]{6,24}$/.test(pid) || !this.presence.keyOk(pid, body.key)) return json({ error: 'Not signed in as that player.' }, 403);
+    if (this.presence.isBanned(pid)) return json({ error: 'You\'re banned from online play.' }, 403);
+    const t = Date.now(), last = (this._lastBatch || (this._lastBatch = new Map())).get(pid) || 0;
+    if (t - last < 3000) return json({ error: 'Too many scores at once.' }, 429);
+    this._lastBatch.set(pid, t);
+    await this.ensureBests(pid);
+    const out = [], results = [];
+    for (const it of body.items.slice(0, 25)) {
+      const key = String((it && it.hash) || ''), r = it && it.r;
+      if (!r || typeof r !== 'object' || r.error || !/^[a-f0-9]{64}$/.test(key)) { results.push({ key, error: (r && r.error) || 'Bad beatmap file.' }); continue; }
+      if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []); }
+      const got = this.presence.recordVerified(pid, key, r, {});
+      out.push(...got.out);
+      results.push({ key, ok: true, pp: got.entry.pp });
+    }
+    this.send(out);
+    return json({ ok: true, results });
+  }
   /** Friends and friend requests live in this object's storage (fr:<pid>, fq:<pid>), loaded once before anyone connects. */
   async loadFriends() {
     if (this._friendsLoaded) return this._friendsLoaded;
@@ -2649,6 +2674,7 @@ export class Matchmaker {
       return this.presenceSocket();
     }
     if (url.pathname === '/judged-score' && request.method === 'POST') return this.score(request);
+    if (url.pathname === '/judged-scores' && request.method === 'POST') return this.scores(request);
     if (url.pathname.startsWith('/internal/admin/') && request.method === 'POST') return this.admin(url.pathname.slice(16), request);
     // (a player's kept settings or plays changed: their other devices online fetch them — not the one that sent them)
     if (url.pathname === '/internal/synced' && request.method === 'POST') {
@@ -2715,18 +2741,34 @@ async function judgePlay(request, { noFail = false } = {}) {
   if (Number(request.headers.get('content-length') || 0) > 8e6) return { res: json({ error: 'Too big.' }, 413) };
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== 'object') return { res: json({ error: 'Bad request.' }, 400) };
+  const j = await judgeFile(body.osu, { result: body.result, play: body.play, noFail });
+  if (!j) return { body, res: json({ error: 'Bad beatmap file.' }, 400) };
+  return { body, ...j };
+}
+/** A beatmap file (base64) and a play on it: { hash, md5, r } — r the play's result, or { error } — or null for a file
+ *  that isn't one. */
+async function judgeFile(osu, { result = null, play = null, noFail = false } = {}) {
   let bytes;
-  try { bytes = Uint8Array.from(atob(String(body.osu || '')), c => c.charCodeAt(0)); } catch { return { body, res: json({ error: 'Bad beatmap file.' }, 400) }; }
-  if (!bytes.length || bytes.length > 5e6) return { body, res: json({ error: 'Bad beatmap file.' }, 400) };
+  try { bytes = Uint8Array.from(atob(String(osu || '')), c => c.charCodeAt(0)); } catch { return null; }
+  if (!bytes.length || bytes.length > 5e6) return null;
   const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
   const hash = hex(await crypto.subtle.digest('SHA-256', bytes));
   // (the file's MD5 is how osu! itself knows a beatmap: it finds the set of a file that doesn't say which it's from)
   let md5 = ''; try { md5 = hex(await crypto.subtle.digest('MD5', bytes)); } catch { md5 = ''; }
   let r;
   // (the game's own result, taken as it is; a play sent as its key presses only — an older game — is judged)
-  try { const text = new TextDecoder().decode(bytes); r = body.result && typeof body.result === 'object' ? acceptPlay(text, body.result, { noFail }) : verifyPlay(text, body.play, { noFail }); }
+  try { const text = new TextDecoder().decode(bytes); r = result && typeof result === 'object' ? acceptPlay(text, result, { noFail }) : verifyPlay(text, play, { noFail }); }
   catch { r = { error: 'The play could not be judged.' }; }
-  return { body, hash, md5, r };
+  return { hash, md5, r };
+}
+/** As in osu!, only ranked / approved beatmaps give pp: the set's status from the osu! API (kept a week). When osu!
+ *  can't say — not reachable, no osu! API key on this server, the beatmap not found there — the play keeps the pp the
+ *  game gave it (the game only gives pp on beatmaps osu! told it are ranked). */
+async function rankedOnly(r, md5, env) {
+  if (!r || r.error || !(r.pp > 0) || env.TEST_ALL_RANKED === '1') return r;
+  const { status: st, setId } = await beatmapStatus(r, md5, env);
+  if (setId > 0 && !(r.beatmapSetId > 0)) r = { ...r, beatmapSetId: setId };
+  return st && st !== 'ranked' && st !== 'approved' ? { ...r, pp: 0, unranked: true } : r;
 }
 
 /** A judged beatmap's ranked status on osu!: by its set id, else its beatmap id, else its file's MD5 ('' when unknown). */
@@ -2804,12 +2846,7 @@ export async function handleMultiplayer(request, env, url) {
   if (path === '/api/mp/score' && request.method === 'POST') {
     const j = await judgePlay(request, {});
     if (j.res) return j.res;
-    // (as in osu!, only ranked / approved beatmaps give pp: the set's status from the osu! API, kept a week)
-    if (j.r && !j.r.error && j.r.pp > 0 && env.TEST_ALL_RANKED !== '1') {
-      const { status: st, setId } = await beatmapStatus(j.r, j.md5, env);
-      if (setId > 0 && !(j.r.beatmapSetId > 0)) j.r = { ...j.r, beatmapSetId: setId };
-      if (st !== 'ranked' && st !== 'approved') j.r = { ...j.r, pp: 0, unranked: true };
-    }
+    j.r = await rankedOnly(j.r, j.md5, env);
     // (a daily challenge play on a beatmap whose file doesn't say its id — older ones don't: found from the file's MD5,
     // or it could never match the day's beatmap)
     if (j.r && !j.r.error && j.body.daily && !(j.r.beatmapId > 0) && /^[a-f0-9]{32}$/.test(j.md5 || '')) {
@@ -2817,6 +2854,19 @@ export async function handleMultiplayer(request, env, url) {
     }
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL('/judged-score', url), { method: 'POST', body: JSON.stringify({ pid: j.body.pid, key: j.body.key, daily: j.body.daily, playlist: j.body.playlist, hash: j.hash, r: j.r }), headers: { 'content-type': 'application/json' } }));
+  }
+  // (several plays at once — your best plays the server doesn't have yet, from the game catching up: { pid, key, plays:
+  // [{ osu, result }] }, up to 25 — each taken as score() takes one)
+  if (path === '/api/mp/scores' && request.method === 'POST') {
+    if (Number(request.headers.get('content-length') || 0) > 30e6) return json({ error: 'Too big.' }, 413);
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object' || !Array.isArray(body.plays)) return json({ error: 'Bad request.' }, 400);
+    const items = await Promise.all(body.plays.slice(0, 25).map(async p => {
+      const j = p && typeof p === 'object' && p.result && typeof p.result === 'object' ? await judgeFile(p.osu, { result: p.result }) : null;
+      return j ? { hash: j.hash, r: await rankedOnly(j.r, j.md5, env) } : { hash: '', r: { error: 'Bad beatmap file.' } };
+    }));
+    const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
+    return stub.fetch(new Request(new URL('/judged-scores', url), { method: 'POST', body: JSON.stringify({ pid: body.pid, key: body.key, items }), headers: { 'content-type': 'application/json' } }));
   }
   if (path === '/api/mp/rooms') {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));

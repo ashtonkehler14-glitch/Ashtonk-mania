@@ -1693,10 +1693,18 @@ div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
 /* a photo of their character she holds up to laugh at: a polaroid, a strip of tape across the top, a soft shadow */
 .neru-photo { position: absolute; z-index: 3; width: clamp(108px, calc(12.5 * var(--vw)), 184px); padding: 6% 6% 20%; box-sizing: border-box; border-radius: 3px; pointer-events: none;
   background: linear-gradient(#fdfcf8, #f3f1ea); box-shadow: 0 12px 26px rgba(0, 0, 0, .45), 0 2px 5px rgba(0, 0, 0, .25); transform-origin: 50% 15%; }
+.nc-peek .neru-photo { width: clamp(96px, calc(10 * var(--vw)), 150px); }
 .neru-photo img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 1px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .08); user-select: none; }
 .neru-photo::after { content: ""; position: absolute; left: 6%; right: 6%; top: 4.6%; aspect-ratio: 1; background: linear-gradient(130deg, rgba(255, 255, 255, .22), transparent 42%); pointer-events: none; }
 .neru-photo .np-tape { position: absolute; top: -8px; left: 50%; width: 44%; height: 17px; translate: -50% 0; rotate: -5deg; background: rgba(255, 168, 204, .66); box-shadow: 0 1px 2px rgba(0, 0, 0, .14);
   clip-path: polygon(0 8%, 6% 0, 12% 10%, 18% 0, 24% 8%, 30% 0, 36% 10%, 42% 0, 48% 8%, 54% 0, 60% 10%, 66% 0, 72% 8%, 78% 0, 84% 10%, 90% 0, 96% 8%, 100% 0, 100% 92%, 94% 100%, 88% 90%, 82% 100%, 76% 92%, 70% 100%, 64% 90%, 58% 100%, 52% 92%, 46% 100%, 40% 90%, 34% 100%, 28% 92%, 22% 100%, 16% 90%, 10% 100%, 4% 92%, 0 100%); }
+/* something Neru says (her "I'm back~"): a speech bubble beside her face, its tail pointing back at her */
+.neru-say { position: absolute; z-index: 4; transform: translate(0, -50%); transform-origin: 0 50%; pointer-events: none; white-space: nowrap;
+  padding: .45em .95em .5em; border-radius: 999px; background: linear-gradient(#fff, #f7f2fb); color: #2e1f3d; font-weight: 800; letter-spacing: .01em;
+  font-size: clamp(15px, calc(1.5 * var(--vw)), 24px); line-height: 1.2; box-shadow: 0 8px 22px rgba(0, 0, 0, .38), 0 1px 3px rgba(0, 0, 0, .2); }
+.neru-say::before { content: ""; position: absolute; left: -.55em; top: 54%; width: .8em; height: .7em; background: #faf6fc; clip-path: polygon(100% 0, 0 70%, 100% 100%); }
+.neru-say.flip { transform: translate(-100%, -50%); transform-origin: 100% 50%; }
+.neru-say.flip::before { left: auto; right: -.55em; clip-path: polygon(0 0, 100% 70%, 0 100%); }
 /* Neru's marker on a Teto or Miku profile picture: glasses and a moustache, in ink with a faint paper-white edge */
 .avatar.doodled { position: relative; }
 .neru-doodle { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }

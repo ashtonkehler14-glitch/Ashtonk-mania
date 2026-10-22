@@ -1387,7 +1387,7 @@ test('lazer\'s user tags: only players with a play on the beatmap can tag it; vo
   assert.match(tags('a', { tag: PresenceLogic.USER_TAGS[20], on: true }).err, /10 tags/);
 });
 
-test('a judged beatmap\'s ranked status: by its set id, else its beatmap id, else its file\'s MD5; unknown is unranked', async () => {
+test('a judged beatmap\'s ranked status: by its set id, else its beatmap id, else its file\'s MD5; "" when osu! can\'t say', async () => {
   const asked = [], api = { 'beatmapsets/7': { status: 'ranked' }, 'beatmaps/42': { beatmapset_id: 9, beatmapset: { id: 9, status: 'loved' } }, ['beatmaps/lookup?checksum=' + 'a'.repeat(32)]: { beatmapset_id: 11, beatmapset: { id: 11, status: 'approved' } } };
   const get = async p => { asked.push(p); if (!api[p]) throw Object.assign(new Error('nope'), { status: 404 }); return api[p]; };
   assert.deepEqual(await beatmapStatus({ beatmapSetId: 7, beatmapId: 42 }, 'a'.repeat(32), {}, get), { status: 'ranked', setId: 7 });

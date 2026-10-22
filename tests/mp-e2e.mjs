@@ -161,6 +161,8 @@ check('a play goes up as the beatmap and the key presses, and the server judges 
 // a play sent with someone else's id but not their key is refused
 const forged = await bob.evaluate(async () => { const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pid: AshtonkMania.Presence.pid(), key: 'not-bobs-key-0000000000', osu: btoa('x'), play: { mods: [], events: [] } }) }); return r.status; });
 check('…and nobody can send scores as someone else (their key)', forged === 403, String(forged));
+const forgedLot = await bob.evaluate(async () => { const r = await fetch('api/mp/scores', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pid: AshtonkMania.Presence.pid(), key: 'not-bobs-key-0000000000', plays: [{ osu: btoa('x'), result: { score: 1 } }] }) }); return r.status; });
+check('…nor several at once', forgedLot === 403, String(forgedLot));
 // lazer's user tags: only a player with a score on the beatmap can tag it; everyone sees the votes
 {
   const hash = await bob.evaluate(() => [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal').hash);

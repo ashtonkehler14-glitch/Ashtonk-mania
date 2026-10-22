@@ -322,9 +322,10 @@ try {
   });
   const rk = await rankings(c);
   check('a backup\'s scores are marked imported, aren\'t sent with the profile, and the device that imported it isn\'t on the rankings', imp.marked === 'backup' && !imp.sent && !rk.names.includes('Someone'), JSON.stringify({ imp, rk }));
-  // a play the server never got (set offline, or in multiplayer): the game sends it up with its replay and the server
-  // judges it — the best plays and pp the rankings have are the ones on your profile (last: its play would otherwise go
-  // to the other devices and change what they count)
+  // a play the server never got (set offline, or in multiplayer): the game sends it straight up, with any others, in
+  // one go — the best plays and pp the rankings have are the ones on your profile (last: its play would otherwise go to
+  // the other devices and change what they count)
+  let lots = 0; const onReq = r => { if (r.url().includes('api/mp/scores')) lots++; }; a.on('request', onReq);
   const caught = await a.evaluate(async () => {
     const A = AshtonkMania, m = [...A.BeatmapManager.maps.values()].find(x => x.version === '8K Insane');
     A.BeatmapManager.setById.get(m.setId).status = 'ranked'; // (the test beatmaps aren't online)
@@ -342,7 +343,8 @@ try {
     await Verified.catchUp();
     return { had, has: (await bests()).includes(m.hash), local: A.ScoreManager.bestPpPerMap().some(x => x.score.mapHash === m.hash) };
   });
-  check('a play the server never got (offline, multiplayer) goes up with its replay and is judged there: the rankings have the best plays your profile has', !caught.had && caught.has && caught.local, JSON.stringify(caught));
+  a.off('request', onReq);
+  check('a play the server never got (offline, multiplayer) goes straight up, together with any others: the rankings have the best plays your profile has', !caught.had && caught.has && caught.local && lots >= 1, JSON.stringify({ ...caught, lots }));
   // your own profile shows the server's pp and best plays: the same numbers everyone else sees
   const own = await a.evaluate(async () => {
     const A = AshtonkMania, srv = await new Promise(r => { const off = A.Bus.on('profile:remote', m => { if (m.pid !== A.Presence.pid()) return; off(); r(m); }); A.Screens.go('profile'); });

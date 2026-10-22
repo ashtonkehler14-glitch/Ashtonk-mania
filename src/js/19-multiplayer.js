@@ -535,7 +535,7 @@ const Presence = {
     ws.onmessage = ev => {
       this._heard = Date.now();
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); if (!this._caughtUp) { this._caughtUp = true; setTimeout(() => Verified.catchUp(), 20000); } if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
+      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); setTimeout(() => Verified.catchUp(), 3000); /* (plays the server doesn't have yet: up they go) */ if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
