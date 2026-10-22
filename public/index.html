@@ -3543,7 +3543,7 @@ html.touch .explorer.ov .ex-flabel { padding-top: 7px; }
 /* (and down to the bottom of the screen, however few people are in it: no darker strip left under a short list) */
 .screen-body:has(> .ov-content > .page > .dash-body) { display: flex; flex-direction: column; }
 .screen-body:has(> .ov-content > .page > .dash-body) > .ov-content { flex: 1 0 auto; display: flex; flex-direction: column; }
-.ov-content > .page:has(> .dash-body) { flex: 1 0 auto; display: flex; flex-direction: column; }
+.ov-content > .page:has(> .dash-body) { flex: 1 0 auto; display: flex; flex-direction: column; width: 100%; } /* (its auto side margins would otherwise shrink it to its content in the column) */
 .page > .dash-body { flex: 1 0 auto; margin-bottom: -90px; padding-bottom: 130px; } /* (through the page's room for the back button, keeping it inside) */
 .dash-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
 .dash-search { height: 40px; flex: 1 1 260px; max-width: 520px; }
@@ -30373,7 +30373,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '3f43db38815a';
+const APP_BUILD = '51387f5fda76';
 
 const App = {
   lastReport: null,
