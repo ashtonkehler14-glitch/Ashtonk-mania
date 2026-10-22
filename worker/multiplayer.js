@@ -2748,17 +2748,21 @@ async function judgePlay(request, { noFail = false } = {}) {
 /** A beatmap file (base64) and a play on it: { hash, md5, r } — r the play's result, or { error } — or null for a file
  *  that isn't one. */
 async function judgeFile(osu, { result = null, play = null, noFail = false } = {}) {
+  // (each byte by hand: a callback for every one of a long map's bytes took longer than the rest of the play together,
+  // and a few plays at once ran over the time the server is given — none of them counted)
   let bytes;
-  try { bytes = Uint8Array.from(atob(String(osu || '')), c => c.charCodeAt(0)); } catch { return null; }
+  try { const bin = atob(String(osu || '')); bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); } catch { return null; }
   if (!bytes.length || bytes.length > 5e6) return null;
   const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
   const hash = hex(await crypto.subtle.digest('SHA-256', bytes));
-  // (the file's MD5 is how osu! itself knows a beatmap: it finds the set of a file that doesn't say which it's from)
-  let md5 = ''; try { md5 = hex(await crypto.subtle.digest('MD5', bytes)); } catch { md5 = ''; }
   let r;
   // (the game's own result, taken as it is; a play sent as its key presses only — an older game — is judged)
   try { const text = new TextDecoder().decode(bytes); r = result && typeof result === 'object' ? acceptPlay(text, result, { noFail }) : verifyPlay(text, play, { noFail }); }
   catch { r = { error: 'The play could not be judged.' }; }
+  // (the file's MD5 is how osu! itself knows a beatmap: it finds the set of a file that doesn't say which it's from —
+  // only worked out for one that doesn't)
+  let md5 = '';
+  if (!(r && r.beatmapId > 0)) try { md5 = hex(await crypto.subtle.digest('MD5', bytes)); } catch { md5 = ''; }
   return { hash, md5, r };
 }
 /** As in osu!, only ranked / approved beatmaps give pp: the set's status from the osu! API (kept a week). When osu!

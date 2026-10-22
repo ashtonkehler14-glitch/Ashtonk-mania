@@ -533,8 +533,13 @@ const ProfileScreen = {
       const mine = new Map((d.top || []).map(x => [x._s.mapHash, x]));
       topPlays = srv.top.map(x => { const k = x.key || x.mapHash, l = k && mine.get(k); return l ? { ...l, pp: x.pp } : x; });
       pp.total = srv.pp;
-      const got = new Map(srv.top.map(x => [x.key || x.mapHash, x.pp || 0]));
-      pending = (d.top || []).filter(x => !(got.get(x._s.mapHash) >= x.pp - 0.5));
+      const got = new Map(srv.top.map(x => [x.key || x.mapHash, x.pp || 0])), shown = x => got.get(x._s.mapHash) >= x.pp - 0.5;
+      // (counted: on the server's own list of your best plays, as the catch-up goes by — the ones it shows on your
+      // profile can leave some out, and those are listed with the rest here; one below the least it keeps isn't "not
+      // counted", just not among them)
+      const extra = (d.top || []).filter(x => !shown(x) && Verified.counted(x._s.mapHash, x.pp));
+      if (extra.length) topPlays = [...topPlays, ...extra].sort((a, b) => b.pp - a.pp);
+      pending = (d.top || []).filter(x => !shown(x) && !Verified.counted(x._s.mapHash, x.pp) && !(x.pp <= Verified.floor));
       // (plays the server doesn't have yet: sent now — not waited on)
       if (pending.length) Verified.catchUp();
     }
@@ -612,7 +617,7 @@ const ProfileScreen = {
       pending.length ? sub('Not counted yet', pending.length,
         // (each says why the server hasn't got it — turned down, or not ranked on osu! — once it's been asked)
         h('div.pf-note', !Presence.ws ? 'These go up to the server as soon as you\'re online.'
-          : !Verified.busy() && pending.every(x => Verified.why(x._s.mapHash, x.pp)) ? 'The server didn\'t count these — why is beside each one.'
+          : !Verified.busy() && pending.every(x => Verified.why(x._s.mapHash, x.pp)) ? 'Not counted — why is beside each one.'
           : 'Going up to the server now — they count in a moment.'),
         more(pending, x => this.scoreRow(x._s, fmtInt(x.pp), null, null, Verified.why(x._s.mapHash, x.pp)))) : null,
       own && d.importedTop && d.importedTop.length ? sub('From imported backups', d.importedTop.length,
@@ -908,6 +913,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.22c', title: 'Scores fix', sections: [
+    { icon: 'trophy', title: 'Scores fix', items: ['Plays stuck on "Not counted yet" now count', 'Plays that can\'t reach the server say so and try again'] },
+  ] },
   { id: '2026.10.22b', title: 'Neru touch-ups', sections: [
     { icon: 'heart', title: 'Neru touch-ups', items: ['She blushes after headpats', 'Clicked a lot, she spins as often as she gets mad', 'Searching Miku or Teto shows the one you searched', 'Changing songs no longer sits her at her desk'] },
   ] },

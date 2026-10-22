@@ -81,13 +81,27 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   };
 }
 
+/** A beatmap file's [Metadata] section ({ Title, Artist, Version, BeatmapID, BeatmapSetID, … }) without reading the
+ *  rest of the file — or null without one. */
+function osuMetadata(text) {
+  const at = text.search(/^\[Metadata\][ \t]*\r?$/m);
+  if (at < 0) return null;
+  const end = text.indexOf('\n[', at + 10), md = {};
+  for (const line of text.slice(at, end < 0 ? undefined : end).split(/\r?\n/).slice(1)) {
+    const i = line.indexOf(':');
+    if (i > 0) md[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  return md;
+}
 /** A play as the game reports it (`res`: its result), taken as it is: tidied into the shape verifyPlay gives, with the
  *  beatmap's details from its file. Auto's plays aren't anyone's, and a fail only counts in multiplayer (`noFail`),
  *  as an F worth 0pp. */
 function acceptPlay(osuText, res, { noFail = false } = {}) {
   if (typeof osuText !== 'string' || !res || typeof res !== 'object') return { error: 'bad play' };
-  let bm;
-  try { bm = BeatmapParser.parse(osuText); } catch (e) { return { error: 'the beatmap could not be read' }; }
+  // (its details are all a play taken as it is needs from the file: read from its [Metadata] alone — every note of a long
+  // map read through took longer than the server is given for a few plays at once)
+  let bm = { metadata: osuMetadata(osuText) };
+  if (!bm.metadata) try { bm = BeatmapParser.parse(osuText); } catch (e) { return { error: 'the beatmap could not be read' }; }
   const num = (v, lo, hi, d = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
   const mods = ModSystem.normalize(Array.isArray(res.mods) ? res.mods.map(String) : []);
   if (mods.includes('AT')) return { error: 'Auto\'s play' };

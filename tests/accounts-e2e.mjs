@@ -367,6 +367,47 @@ try {
     return { shown: big ? big.querySelector('b').textContent : null, server: A.fmtInt ? A.fmtInt(srv.verified ? srv.verified.pp : 0) + 'pp' : null, pp: srv.verified && srv.verified.pp, rows: document.querySelectorAll('.pf-subsec:first-child .pf-scores > :not(.pf-more)').length, top: srv.top.length, subs };
   });
   check('your own profile shows the server\'s pp and best plays (what others see)', own.pp > 0 && own.shown === (Math.round(own.pp).toLocaleString('en-US') + 'pp') && own.top > 0 && !own.subs.some(t => /Not counted/.test(t)), JSON.stringify(own));
+  // the server has a play on its own list of your best plays, but the ones it shows on your profile leave it out (osu!
+  // not asked about it yet, say): it's counted — listed with the rest, never "not counted yet" (it sat there for good,
+  // "going up now", with the game sending nothing)
+  const left = await a.evaluate(async () => {
+    const A = AshtonkMania, P = A.ProfileScreen, m = [...A.BeatmapManager.maps.values()].find(x => x.version === '8K Insane');
+    await new Promise(r => { const off = A.Bus.on('myBests', () => { off(); r(); }); A.Presence.send({ t: 'myBests' }); });
+    P.ownServer = { ...P.ownServer, top: P.ownServer.top.filter(x => (x.key || x.mapHash) !== m.hash) };
+    P.render(); await new Promise(r => setTimeout(r, 300));
+    const subs = [...document.querySelectorAll('.pf-subsec h3')].map(x => x.textContent);
+    const best = [...document.querySelectorAll('.pf-subsec')].find(x => /Best performance/.test(x.querySelector('h3').textContent));
+    for (let i = 0; i < 20 && best && best.querySelector('.pf-more'); i++) { best.querySelector('.pf-more').click(); await new Promise(r => setTimeout(r, 50)); }
+    const rows = best ? [...best.querySelectorAll('.pf-score')].map(x => x.textContent) : [];
+    return { pending: subs.some(t => /Not counted/.test(t)), listed: rows.some(t => t.includes('8K Insane')), counted: Verified.counted(m.hash, 1) };
+  });
+  check('a play on the server\'s own list of your best plays counts, though the ones it shows left it out: with the rest, not "not counted yet"', !left.pending && left.listed && left.counted, JSON.stringify(left));
+  // a lot the server can't take, every try (it ran over its time): one at a time instead; and one that can't get there
+  // at all says so beside it, and goes again in a minute
+  const one = await a.evaluate(async () => {
+    const A = AshtonkMania, V = Verified, m = [...A.BeatmapManager.maps.values()].find(x => x.version === '9K Expert');
+    A.BeatmapManager.setById.get(m.setId).status = 'ranked';
+    while (V._catching) await new Promise(r => setTimeout(r, 200));
+    const f = window.fetch, hits = { lot: 0, one: 0 }, ms = [V.RETRY_MS, V.ONE_MS];
+    let block = true;
+    V.RETRY_MS = 10; V.ONE_MS = 300;
+    window.fetch = (u, o) => { const s = String(u); if (/api\/mp\/scores/.test(s)) { hits.lot++; return Promise.resolve(new Response('busy', { status: 503 })); } if (/api\/mp\/score$/.test(s)) { hits.one++; if (block) return Promise.reject(new TypeError('offline')); } return f(u, o); };
+    try {
+      // (nothing gets there: it says so — the profile open sends it up as soon as it's there, so it's caught from the start)
+      await A.ScoreManager.add({ id: 'sc-one-' + Math.random().toString(36).slice(2, 10), mapHash: m.hash, mapId: m.id, setId: m.setId, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, mods: [], rate: 1,
+        score: 9e5, scoreStd: 9e5, accuracy: 0.97, maxCombo: 90, counts: [90, 8, 2, 0, 0, 0], grade: 'S', passed: true, date: Date.now(), duration: 30000, player: A.ProfileManager.profile.name, own: true, srVersion: SR_VERSION });
+      await new Promise(r => setTimeout(r, 300));
+      while (V._catching) await new Promise(r => setTimeout(r, 200));
+      V._lastOwn = 0; await V.catchUp();
+      const said = V.why(m.hash, A.ScoreManager.bestPpPerMap().find(x => x.score.mapHash === m.hash).pp), again = !!V._retryT;
+      // (one at a time does)
+      const asked = hits.lot + hits.one; await new Promise(r => setTimeout(r, 1500)); const quiet = hits.lot + hits.one === asked; // (not asked again and again meanwhile)
+      block = false; clearTimeout(V._retryT); V._retryT = null; V._unsent = null; V._lastOwn = 0; await V.catchUp();
+      const has = await new Promise(r => { const off = A.Bus.on('myBests', x => { off(); r(x.list.some(e => e[0] === m.hash)); }); A.Presence.send({ t: 'myBests' }); });
+      return { ...hits, said, again, quiet, has, counted: V.counted(m.hash, 1), still: V.why(m.hash, 1) };
+    } finally { window.fetch = f; [V.RETRY_MS, V.ONE_MS] = ms; }
+  });
+  check('a lot of plays the server can\'t take goes up one at a time instead; one that can\'t get there at all says so, and goes again in a minute (not straight away, again and again)', one.lot >= 2 && one.one >= 2 && /couldn't reach the server/.test(one.said || '') && one.again && one.quiet && one.has && one.counted && one.still === null, JSON.stringify(one));
 } catch (e) { check('ran to the end', false, e.stack); }
 
 check('no page errors', !errors.length, errors.join(' | '));
