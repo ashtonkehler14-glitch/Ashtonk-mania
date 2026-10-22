@@ -3327,7 +3327,7 @@ body.f-settings #app #toolbar { z-index: 61; }
 .rs-ring { width: 230px; height: 230px; margin: 40px 0 0; }
 .rs .res-score { margin: 0 0 5px; font-size: 60px; font-weight: 300; line-height: 66px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .rs-diff { margin: 0; gap: 5px; font-size: 13px; }
-.rs-diff .rs-mods { zoom: .7; margin: 0; flex-wrap: nowrap; } /* (as tall as the star rating beside them; zoom, not scale: the badges take only their shrunk room, so they never sit on top of the key count) */
+.rs-diff .rs-mods { zoom: .88; margin: 0; flex-wrap: nowrap; } /* (as tall as the star rating beside them; zoom, not scale: the badges take only their shrunk room, so they never sit on top of the key count) */
 .rs-dv { margin-top: 4px; }
 .rs-version { font-size: 16px; font-weight: 600; line-height: 20px; max-width: 340px; }
 .rs-mapper { margin-top: 0; font-size: 12px; line-height: 15px; }
@@ -3999,7 +3999,7 @@ html.touch .ch-item.on .ch-x { display: grid; place-items: center; width: 26px; 
 .rk-sep { text-align: center; color: hsl(var(--o-h) 10% 40%); }
 .rk-foot { max-width: 1100px; margin: 14px auto 0; color: hsl(var(--o-h) 10% 40%); font-size: 12px; text-align: right; }
 .rk-empty { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px 20px; color: hsl(var(--o-h) 10% 60%); }
-@media (max-width: 760px) { .rk-row { grid-template-columns: 46px minmax(0, 1fr) 70px 80px; } .rk-row > span:nth-child(n+5) { display: none; } }
+@media (max-width: 760px) { .rk-row { grid-template-columns: 46px minmax(0, 1fr) 84px 96px; } .rk-row > span:nth-child(n+5) { display: none; } }
 .pf-global { cursor: pointer; }
 
 /* lazer's daily challenge (Plum scheme): the day's beatmap on its cover, the time left with a draining bar, Mods and
@@ -4505,7 +4505,7 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 @media (max-height: 520px) { .results .rs { zoom: .74; justify-self: center; } }
 @media (max-height: 420px) { .results .rs { zoom: .64; } }
 /* (…but its mods stay big enough to make out: halved again inside a shrunk card, they were specks) */
-@media (max-height: 520px) { .results .rs-diff { flex-wrap: wrap; row-gap: 3px; } .results .rs-diff .rs-mods { zoom: .85; } }
+@media (max-height: 520px) { .results .rs-diff { flex-wrap: wrap; row-gap: 3px; } }
 /* (a short, wide screen — a phone held sideways: the card laid out wide, the accuracy circle beside the rest instead of
    above it — lazer's tall card had to shrink to a third of the screen to fit, too small to read) */
 @media (max-height: 520px) and (min-aspect-ratio: 3/2) {
@@ -23209,13 +23209,13 @@ const OnlineBeatmaps = {
     return this.fill(tpl, id, kind);
   },
   /** Load a set's cover into `el` as its background, trying each size in turn (older sets lack the @2x ones). */
-  loadCover(el, id, kinds, done, queue = null) {
+  loadCover(el, id, kinds, done, queue = null, failed = null) {
     const urls = [...new Set(kinds.map(k => this.coverURL(id, k)))]; // (sources with one cover size give one URL)
     // a cover that has loaded before goes straight in, so rebuilt cards don't fade in again
     const known = this._covers.get(urls.join('|'));
     if (known) { el.style.transition = 'none'; el.style.backgroundImage = `url("${known}")`; done && done(null); return; }
     const next = i => {
-      if (i >= urls.length) return;
+      if (i >= urls.length) { failed && failed(); return; }
       const img = new Image();
       // (decoded off the main thread before it's shown, so a card scrolling in doesn't stall a frame decoding it)
       // (`queue`: the picture goes on in the page's next frame along with everything else, not the moment it's decoded —
@@ -23626,8 +23626,10 @@ const ExplorerScreen = {
       // (Performance mode, or a device found to be slow: the plain-size thumbnail alone — a quarter of the pixels to
       // decode, and one picture per card instead of two)
       const q = f => this.later(f);
-      if (this.lite()) { OnlineBeatmaps.loadCover(thumb, set.id, ['list', 'card'], show(thumb), q); return; }
-      OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], show(thumb), q);
+      // (a set with no cover anywhere gets a note, as in your library — not an empty square)
+      const none = () => q(() => thumb.isConnected && noPicture(thumb));
+      if (this.lite()) { OnlineBeatmaps.loadCover(thumb, set.id, ['list', 'card'], show(thumb), q, none); return; }
+      OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], show(thumb), q, none);
       OnlineBeatmaps.loadCover(bg, set.id, ['card@2x', 'card', 'cover'], show(bg), q);
     };
     const keys = [...new Set(set.diffs.map(d => d.keys))].sort((a, b) => a - b);
@@ -30863,7 +30865,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '20580afa6087';
+const APP_BUILD = '6104160e7c70';
 
 const App = {
   lastReport: null,
