@@ -97,12 +97,8 @@ const SongSelect = {
     // right carousel
     this.inner = h('div.carousel-inner');
     this.scroller = h('div.carousel-scroll', { tabindex: '-1' }, this.inner);
-    // (only just after a focus: reading it on every scroll made the browser lay the page out mid-scroll)
-    this.scroller.addEventListener('focusin', () => { this._focusAt = performance.now(); });
+    // (the list only ever scrolls up and down: see .carousel-inner)
     this.scroller.addEventListener('scroll', () => {
-      // the panels run past the right edge, so focusing one (a click) made the browser scroll the list sideways and
-      // cut every panel's left edge off; the list only ever scrolls up and down
-      if (performance.now() - (this._focusAt || -1e9) < 1000 && this.scroller.scrollLeft) this.scroller.scrollLeft = 0;
       // while the list scrolls the panels follow the curve at once; otherwise (a panel opening) they ease along
       this.scroller.classList.add('scrolling');
       clearTimeout(this._scrollingT); this._scrollingT = setTimeout(() => this.scroller.classList.remove('scrolling'), 120);

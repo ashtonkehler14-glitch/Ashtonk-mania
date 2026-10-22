@@ -663,7 +663,7 @@ html.touch .settings-panel .set-row .reset::after { content: ""; position: absol
 .carousel { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .carousel-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; outline: none; }
 .carousel-scroll.under { -webkit-mask-image: linear-gradient(transparent, #000 36px); mask-image: linear-gradient(transparent, #000 36px); }
-.carousel-inner { position: relative; }
+.carousel-inner { position: relative; overflow-x: clip; } /* (the panels run past the right edge, but give the list nothing to scroll sideways to — a click focusing one used to slide the whole list over) */
 .c-item { position: absolute; left: 0; right: 0; will-change: transform, translate; transition: transform calc(400ms * var(--anim)) var(--ease-out), translate calc(400ms * var(--anim)) var(--ease-out), opacity calc(300ms * var(--anim)) ease-out; }
 .carousel-scroll.scrolling .c-item { transition: transform calc(400ms * var(--anim)) var(--ease-out), opacity calc(300ms * var(--anim)) ease-out; }
 .c-item.set { z-index: 1; } /* (difficulties slide out from under their set's panel) */
@@ -4530,9 +4530,6 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .pf-bc-foot { margin-top: auto; display: flex; align-items: center; gap: 6px; font-size: 11.5px; white-space: nowrap; overflow: hidden; }
 .pf-bc-local { padding: 1px 8px; border-radius: 9px; background: rgba(255, 255, 255, .14); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
 
-/* the beatmap library's rows: off-screen ones aren't laid out or painted (a big library scrolls like a small one) */
-.lib-row { content-visibility: auto; contain-intrinsic-size: auto 72px; }
-.lib-more { height: 1px; }
 
 /* long pages: the parts well off screen aren't laid out or painted until they come near (opening a profile or the
    settings laid out every section at once — a dropped frame or two on a slow device) */
@@ -4690,14 +4687,15 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .lib-page { position: relative; }
 .lib-shield { position: absolute; inset: 0; z-index: 4; display: none; }
 .lib-shield.on { display: block; }
-.lib-grid > .off-state, .lib-grid > .lib-more { grid-column: 1 / -1; }
+.lib-grid > .off-state { grid-column: 1 / -1; }
 .lib-card.open { box-shadow: 0 0 0 2px hsl(var(--o-h) 70% 65% / .7), 0 6px 18px rgba(0, 0, 0, .45); }
 .lib-card .ex-side { justify-content: stretch; }
 .ex-side-btn.del:hover { background: #ed1121; color: #fff; }
 .lib-fav { flex: none; color: #ff66ab; }
 .lib-fav .i { width: 14px; height: 14px; }
 .lib-broken { background: #ed1121; color: #fff; }
-.lib-details { grid-column: 1 / -1; padding: 6px 14px 12px; border-radius: 10px; background: hsl(var(--o-h) 10% 14%); animation: rowIn 250ms var(--ease-out) both; }
+.lib-details { grid-column: 1 / -1; padding: 6px 14px 12px; border-radius: 10px; background: hsl(var(--o-h) 10% 14%); }
+.lib-details.lib-in { animation: rowIn 250ms var(--ease-out) both; } /* (as it opens — not again each time it scrolls back into view) */
 .lib-details .table { width: 100%; }
 .lib-star { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 99px; background: var(--sc); color: #000; font-size: .78rem; font-weight: 700; }
 .lib-star .i { width: 11px; height: 11px; }

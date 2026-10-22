@@ -649,7 +649,9 @@ await shot('01-home-empty');
     out.pile = parseFloat(gs.querySelector('.nd-pile').style.height);
     for (const d of M.el.querySelectorAll('.neru-drift, .neru-ground')) d.remove();
     E.drift(M.el, 'bubbles'); await wait(1200);
-    const bub = M.el.querySelector('.neru-drift.nd-bubbles:not(.nd-front) .nd');
+    // (each bubble goes in front of her or behind at random: one behind her, given a moment if the first ones weren't)
+    let bub = null;
+    for (let i = 0; i < 20 && !(bub = M.el.querySelector('.neru-drift.nd-bubbles:not(.nd-front) .nd')); i++) await wait(150);
     out.poppable = !!bub && getComputedStyle(bub).pointerEvents === 'auto';
     if (bub) { bub.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); await wait(350); out.popped = !bub.isConnected; }
     for (const d of M.el.querySelectorAll('.neru-drift, .neru-ground')) d.remove();

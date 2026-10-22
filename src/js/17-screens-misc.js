@@ -91,13 +91,23 @@ const BeatmapsScreen = {
     page.classList.add('lib-page');
     page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, search, h('span.grow'), this.summary), this.list, shield);
     let still = 0;
-    el.querySelector('.screen-body').addEventListener('scroll', () => { shield.classList.add('on'); clearTimeout(still); still = setTimeout(() => shield.classList.remove('on'), 160); }, { passive: true });
+    const sc = this._scroller = el.querySelector('.screen-body');
+    sc.addEventListener('scroll', () => { shield.classList.add('on'); clearTimeout(still); still = setTimeout(() => shield.classList.remove('on'), 160); this.schedule(); }, { passive: true });
+    // (the list's columns, row height and where it starts are measured again only when something changes size: the
+    // window, the import report above it — never while it scrolls)
+    this._ro = new ResizeObserver(es => { const g = es.find(e => e.target === this.list); if (es.some(e => e.target !== this.list) || (g && g.contentRect.width !== this._gw)) { if (g) this._gw = g.contentRect.width; this._mDirty = true; this.schedule(); } });
+    for (const t of [sc, this.report, this.list]) this._ro.observe(t);
+    this._cards = new Map(); this._details = new Map(); this._open = new Set();
     this._unsub = [Bus.on('library:changed', () => this.refresh()), Bus.on('import:report', () => this.renderReport()), Bus.on('accountsets:changed', () => this.refresh()), Bus.on('scores:changed', () => this.paintMine())];
     this.refresh();
     return el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); if (this._io) this._io.disconnect(); },
-  async refresh() { this.paintMine(); this.renderSummary(); this.renderList(); this.renderReport(); },
+  leave() { (this._unsub || []).forEach(f => f()); this._ro && this._ro.disconnect(); cancelAnimationFrame(this._fr); this._fr = 0; },
+  async refresh() {
+    // (the cards are built again: a set's difficulties, favourite or status can have changed)
+    this._cards = new Map(); this._details = new Map();
+    this.paintMine(); this.renderSummary(); this.renderList(); this.renderReport();
+  },
   /** "Your beatmaps (n)": the ones on your other devices that aren't here — shown only when there are any. */
   paintMine() {
     if (!this.mineBtn) return;
@@ -125,8 +135,10 @@ const BeatmapsScreen = {
   },
   renderList() {
     clearEl(this.list);
+    this.list.style.paddingTop = this.list.style.paddingBottom = '';
     const sets = BeatmapManager.sets.filter(s => !this.q || `${s.artist} ${s.title} ${s.creator} ${s.tags}`.toLowerCase().includes(this.q))
       .sort((a, b) => b.added - a.added);
+    this._sets = sets; this._range = null;
     if (!sets.length) {
       const mine = AccountBeatmaps.list().length;
       this.list.append(BeatmapManager.sets.length ? stateCard('search', 'No matches', 'Nothing in your library matches that search.', { cls: '.plain', neru: true })
@@ -134,25 +146,112 @@ const BeatmapsScreen = {
         : stateCard('beatmap', 'No beatmaps yet', kbHint('Drop .osz archives or beatmap folders anywhere on the window, or get some from the beatmap listing.', 'Import .osz files from your device, or get some from the beatmap listing.'), { cls: '.plain', neru: true }));
       return;
     }
-    // rows go in a page at a time as the list scrolls (all of a big library at once froze the screen opening), each
-    // with its picture once it's near the screen, and its table of difficulties built only when it's opened
-    this._sets = sets; this._shown = 0;
-    if (this._io) this._io.disconnect();
-    const more = h('div.lib-more');
-    this.list.append(more);
-    this._io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) this.moreRows(more); }, { rootMargin: '600px' });
-    this._io.observe(more);
-    this.moreRows(more);
+    this._mDirty = true;
+    this.renderWindow();
+    // (once more after layout: the columns and the row height are only known then)
+    requestAnimationFrame(() => requestAnimationFrame(() => { this._mDirty = true; this.renderWindow(); }));
   },
-  moreRows(more) {
-    // (fewer at a time on a slow device: each page of cards is built, laid out and drawn in one go)
-    const per = document.documentElement.classList.contains('perf') || document.documentElement.classList.contains('slow') ? 20 : 40;
-    const sets = this._sets || [], from = this._shown, to = Math.min(sets.length, from + per);
-    if (from >= to) { more.remove(); if (this._io) this._io.disconnect(); return; }
-    this._shown = to;
-    const frag = document.createDocumentFragment();
-    for (const set of sets.slice(from, to)) frag.append(this.row(set));
-    more.before(frag);
+  schedule() { if (!this._fr) this._fr = requestAnimationFrame(() => { this._fr = 0; this.renderWindow(); }); },
+  /** The grid's columns, the distance from one row of cards to the next (with the gap), where it starts in the list and
+   *  how much of it shows. */
+  measure() {
+    const grid = this.list, sc = this._scroller, cs = getComputedStyle(grid);
+    const cols = Math.max(1, cs.gridTemplateColumns.split(' ').filter(Boolean).length), gap = parseFloat(cs.rowGap) || 0;
+    const card = grid.querySelector(':scope > .lib-card');
+    let top = 0;
+    for (let e = grid; e && e !== sc; e = e.offsetParent) { top += e.offsetTop; if (e.offsetParent && !sc.contains(e.offsetParent) && e.offsetParent !== sc) { top -= sc.offsetTop; break; } }
+    this._mDirty = !(card && card.offsetHeight && sc.clientHeight); // (not laid out yet: asked again)
+    return { cols, gap, rowH: ((card && card.offsetHeight) || 100) + gap, top, vh: sc.clientHeight || innerHeight };
+  },
+  /** Where each row of cards starts — and the tables of difficulties opened under them, in between. */
+  layout() {
+    const sets = this._sets || [], { cols, rowH, gap } = this._m, rows = [];
+    let y = 0;
+    for (let i = 0; i < sets.length; i += cols) {
+      const row = { i, y, open: [] };
+      y += rowH;
+      for (const set of sets.slice(i, i + cols)) {
+        if (!this._open.has(set.id)) continue;
+        const d = this._details.get(set.id);
+        row.open.push(set); y += (d && d._h ? d._h : 46 + 37 * (set.maps.length + 1)) + gap;
+      }
+      rows.push(row);
+    }
+    this._rows = rows; this._end = y;
+  },
+  /** Only the cards near the screen are in the page; the rest of the list is just space above and below them. What's
+   *  on screen (and a little either side) goes in at once; a few screens either side join a couple of rows at a time
+   *  while nothing else is going on, so scrolling through them costs nothing more; past that they're let go. A library
+   *  of thousands scrolls as lightly as one of a hundred — every card ever scrolled past used to stay in the page, and
+   *  each one made every frame of scrolling a little heavier. */
+  renderWindow(grow = false) {
+    const grid = this.list, sets = this._sets || [], sc = this._scroller;
+    if (!grid || !sc || !sets.length || !grid.isConnected) return;
+    if (this._mDirty !== false || !this._m) { const c = this._m && this._m.cols; this._m = this.measure(); this._layoutDirty = true; if (c !== this._m.cols) this._range = null; }
+    if (this._layoutDirty) { this._layoutDirty = false; this.layout(); }
+    const { cols, top, vh } = this._m, rows = this._rows;
+    let from = 0, to = rows.length;
+    if (sets.length > cols * 12) {
+      const lite = document.documentElement.classList.contains('perf') || document.documentElement.classList.contains('slow');
+      const st = sc.scrollTop - top;
+      const after = y => { let lo = 0, hi = rows.length; while (lo < hi) { const m = (lo + hi) >> 1; if (rows[m].y < y) lo = m + 1; else hi = m; } return lo; };
+      const band = k => { const a = Math.max(0, after(st - vh * k) - 1); return [a, Math.max(a + 1, after(st + vh + vh * k))]; };
+      const show = band(0.5), keep = band(lite ? 3 : 4), drop = band(lite ? 5 : 6);
+      const cur = this._range;
+      // (jumped somewhere else — the scrollbar dragged, a search: what's in the page now is no help)
+      if (!cur || cur[1] <= show[0] || cur[0] >= show[1] || cur[1] > rows.length) [from, to] = show;
+      else { from = Math.max(drop[0], Math.min(cur[0], show[0])); to = Math.min(drop[1], Math.max(cur[1], show[1])); }
+      // (a row or two more either side each time the page has a moment, up to a few screens)
+      if (grow) { const n = lite ? 1 : 2; from = Math.max(keep[0], from - n); to = Math.min(keep[1], to + n); }
+      if (from > keep[0] || to < keep[1]) { if (!this._growing) { this._growing = true; whenIdle(() => { this._growing = false; if (Screens.current === this) this.renderWindow(true); }); } }
+    }
+    this._range = [from, to];
+    const pt = from ? `${rows[from].y}px` : '', pb = to < rows.length ? `${this._end - rows[to].y}px` : '';
+    if (grid.style.paddingTop !== pt) grid.style.paddingTop = pt;
+    if (grid.style.paddingBottom !== pb) grid.style.paddingBottom = pb;
+    const shown = [];
+    for (let r = from; r < to; r++) {
+      for (const set of sets.slice(rows[r].i, rows[r].i + cols)) shown.push(this.cardEl(set));
+      for (const set of rows[r].open) shown.push(this.detailsEl(set));
+    }
+    // change only what differs: the cards that left go, the ones that came in are put in their places
+    const want = new Set(shown);
+    for (const k of [...grid.children]) if (!want.has(k)) k.remove();
+    let at = grid.firstElementChild;
+    for (const c of shown) {
+      if (c === at) { at = at.nextElementSibling; continue; }
+      grid.insertBefore(c, at);
+    }
+  },
+  /** A set's card, built the first time it comes near the screen (and kept for when it comes back). */
+  cardEl(set) {
+    let c = this._cards.get(set.id);
+    if (!c) { c = this.row(set); this._cards.set(set.id, c); }
+    c.classList.toggle('open', this._open.has(set.id));
+    return c;
+  },
+  /** Its table of difficulties, under the row it's in. */
+  detailsEl(set) {
+    let d = this._details.get(set.id);
+    if (d) return d;
+    const maps = [...set.maps].sort((a, b) => a.keys - b.keys || a.stars - b.stars);
+    d = h('div.lib-details',
+      h('table.table', h('tr', h('th', 'Difficulty'), h('th', 'Keys'), h('th', 'Stars'), h('th', 'Notes / LNs'), h('th', 'Length'), h('th', 'Status')),
+        ...maps.map(m => h('tr', h('td', m.version), h('td', m.keys + 'K'), h('td', h('span.lib-star', { style: { '--sc': starColour(m.stars) } }, icon('star'), m.stars.toFixed(2))), h('td', `${m.noteCount} / ${m.lnCount}`), h('td', fmtTime(m.length)),
+          h('td', m.problems.length ? h('span', { style: { color: '#ffb3bb' } }, m.problems.join('; ')) : m.warnings.length ? h('span.muted', m.warnings.join('; ')) : h('span', { style: { color: 'var(--good)' } }, 'OK'))))),
+      h('div.muted.lib-files', `Added ${fmtDate(set.added)} · files stored: ${Object.keys(set.fileIndex).length}${set.storyboard ? ' · storyboard' : ''}${set.video ? ' · video skipped' : ''} · source: ${set.sourceName || '—'}`));
+    // (its height, once it's laid out, for the space it takes when it's scrolled away)
+    new ResizeObserver(es => { const hh = es[0].borderBoxSize?.[0]?.blockSize ?? es[0].contentRect.height; if (hh && Math.abs(hh - (d._h || 0)) > 0.5) { d._h = hh; this._layoutDirty = true; this.schedule(); } }).observe(d);
+    this._details.set(set.id, d);
+    return d;
+  },
+  /** A card clicked (or Enter on it): its difficulties open underneath, across the whole row — or close. */
+  toggle(set) {
+    UISounds.click();
+    if (this._open.has(set.id)) this._open.delete(set.id);
+    else { this._open.add(set.id); const d = this.detailsEl(set); d.classList.add('lib-in'); setTimeout(() => d.classList.remove('lib-in'), 400); }
+    this._layoutDirty = true;
+    this.renderWindow();
   },
   /** Pictures that came in, put on their cards together a few times a second: one at a time, each redrew the whole
    *  list again — over and over while a page of rows was loading on a slow device. */
@@ -179,18 +278,7 @@ const BeatmapsScreen = {
     const spectrum = maps.length > 10
       ? h('span.ex-spec-more', h('i', { style: { '--sc': starColour(Math.max(...maps.map(m => m.stars))) } }), `${maps.length}`)
       : h('span.ex-spec', ...maps.map(m => h('i', { style: { '--sc': m.problems.length ? '#555' : starColour(m.stars) }, title: `[${m.version}] ${m.stars.toFixed(2)}★ ${m.keys}K` })));
-    let details = null;
-    const toggle = () => {
-      UISounds.click();
-      if (details) { details.remove(); details = null; card.classList.remove('open'); return; }
-      card.classList.add('open');
-      details = h('div.lib-details',
-        h('table.table', h('tr', h('th', 'Difficulty'), h('th', 'Keys'), h('th', 'Stars'), h('th', 'Notes / LNs'), h('th', 'Length'), h('th', 'Status')),
-          ...maps.map(m => h('tr', h('td', m.version), h('td', m.keys + 'K'), h('td', h('span.lib-star', { style: { '--sc': starColour(m.stars) } }, icon('star'), m.stars.toFixed(2))), h('td', `${m.noteCount} / ${m.lnCount}`), h('td', fmtTime(m.length)),
-            h('td', m.problems.length ? h('span', { style: { color: '#ffb3bb' } }, m.problems.join('; ')) : m.warnings.length ? h('span.muted', m.warnings.join('; ')) : h('span', { style: { color: 'var(--good)' } }, 'OK'))))),
-        h('div.muted.lib-files', `Added ${fmtDate(set.added)} · files stored: ${Object.keys(set.fileIndex).length}${set.storyboard ? ' · storyboard' : ''}${set.video ? ' · video skipped' : ''} · source: ${set.sourceName || '—'}`));
-      card.after(details);
-    };
+    const toggle = () => this.toggle(set);
     const side = (cls, ic, label, fn) => h(`button.ex-side-btn${cls}`, { title: label, 'aria-label': label, onclick: e => { e.stopPropagation(); e.currentTarget.blur(); fn(); } }, icon(ic));
     const card = h('div.ex-card.lib-card', { tabindex: '0', role: 'button', 'aria-label': `${artist} - ${title}`, onclick: toggle,
       onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); toggle(); } } },
