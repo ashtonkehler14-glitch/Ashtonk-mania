@@ -3218,6 +3218,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 /* lazer's MenuTipDisplay: bottom centre, #171a1c at 75% with 10px corners, 600px of text */
 .lz-bottom { position: absolute; left: 50%; bottom: 0; z-index: 4; transform: translateX(-50%); pointer-events: none; }
 .lz-tipbox { width: 620px; max-width: calc(100 * var(--vw) - 20px); padding: 10px; border-radius: 10px; background: rgba(23, 26, 28, .75); text-align: center; font-size: 16px; line-height: 1.3; opacity: 0; transform-origin: 50% 100%; }
+body:has(.onboarding) .lz-tipbox { visibility: hidden; } /* (not peeking out from under the first-run setup) */
 .lz-tip-t { display: inline-flex; align-items: center; gap: 5px; color: #ff99c7; font-weight: 600; }
 .lz-tip-t .i { width: 16px; height: 16px; }
 .lz-tip-b { margin-top: 2px; }
@@ -3514,6 +3515,11 @@ html.touch .explorer.ov .ex-flabel { padding-top: 7px; }
 .dash-si i { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; border-radius: 2px; background: var(--bar); opacity: .5; transition: opacity 100ms, height 100ms; }
 .dash-si.on i { opacity: 1; height: 6px; }
 .dash-body { margin: 0 -50px; padding: 20px 40px 40px; background: var(--ob4); min-height: 60vh; }
+/* (and down to the bottom of the screen, however few people are in it: no darker strip left under a short list) */
+.screen-body:has(> .ov-content > .page > .dash-body) { display: flex; flex-direction: column; }
+.screen-body:has(> .ov-content > .page > .dash-body) > .ov-content { flex: 1 0 auto; display: flex; flex-direction: column; }
+.ov-content > .page:has(> .dash-body) { flex: 1 0 auto; display: flex; flex-direction: column; }
+.page > .dash-body { flex: 1 0 auto; margin-bottom: -90px; padding-bottom: 130px; } /* (through the page's room for the back button, keeping it inside) */
 .dash-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
 .dash-search { height: 40px; flex: 1 1 260px; max-width: 520px; }
 .dash-sorts { display: flex; align-items: center; gap: 14px; }
