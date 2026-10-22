@@ -4506,6 +4506,17 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 @media (max-height: 420px) { .results .rs { zoom: .64; } }
 /* (…but its mods stay big enough to make out: halved again inside a shrunk card, they were specks) */
 @media (max-height: 520px) { .results .rs-diff { flex-wrap: wrap; row-gap: 3px; } .results .rs-diff .rs-mods { zoom: .85; } }
+/* (a short, wide screen — a phone held sideways: the card laid out wide, the accuracy circle beside the rest instead of
+   above it — lazer's tall card had to shrink to a third of the screen to fit, too small to read) */
+@media (max-height: 520px) and (min-aspect-ratio: 3/2) {
+  .results .res-grid:not(.stats-open) { grid-template-columns: 640px; }
+  .results .res-grid:not(.stats-open) > .rs { width: 640px; min-height: 0; }
+  .results .res-grid:not(.stats-open) > .rs .rs-mid { display: grid; grid-template-columns: 236px minmax(0, 1fr); column-gap: 16px; align-content: center; padding: 14px 18px 18px; }
+  .results .res-grid:not(.stats-open) > .rs .rs-mid > * { grid-column: 2; }
+  .results .res-grid:not(.stats-open) > .rs .rs-ring { grid-column: 1; grid-row: 1 / span 9; align-self: center; justify-self: center; margin: 0; width: 220px; height: 220px; }
+  .results .res-grid:not(.stats-open) > .rs .res-score { margin: 6px 0 2px; }
+  .results .res-grid:not(.stats-open) > .rs .rs-stats { margin-top: 12px; }
+}
 /* lazer's HUD overlay visibility mode (hidden during gameplay / never): the HUD fades out — but not the touch columns,
  * the skip and pause buttons, the room's chat or the replay controls; Ctrl peeks */
 .gp-hud.auto-hide > :not(.fnf-hitbox):not(.hud-skip):not(.hud-touch-pause):not(.gp-chat):not(.replay-bar):not(.hud-replay) { opacity: 0; transition: opacity 300ms ease; }
@@ -21260,7 +21271,8 @@ const ResultsScreen = {
     });
   },
   /** Never scroll: the panels shrink as one to fit whatever space is left (opening the statistics, or more of them,
-   *  or a small window / phone), the way lazer's results always sit whole on screen. */
+   *  or a small window / phone), the way lazer's results always sit whole on screen — and the wide card a phone held
+   *  sideways gets grows a little into the room it has. */
   fitToScreen(body, grid) {
     let raf = 0, shown = false;
     // (one observer per screen: the next results screen enters before this one leaves)
@@ -21275,8 +21287,10 @@ const ResultsScreen = {
       let others = 0;
       for (const c of body.children) if (c !== grid && c.offsetParent) others += c.offsetHeight + (parseFloat(cs.rowGap) || 0);
       const ah = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - others;
-      const k = Math.max(0.35, Math.min(1, aw / grid.offsetWidth, ah / grid.offsetHeight));
-      const on = k < 0.995;
+      // (the wide card of a short, wide screen — a phone held sideways — may grow into the room it leaves, too)
+      const grow = !grid.classList.contains('stats-open') && matchMedia('(max-height: 520px) and (min-aspect-ratio: 3/2)').matches ? 1.3 : 1;
+      const k = Math.max(0.35, Math.min(grow, aw / grid.offsetWidth, ah / grid.offsetHeight));
+      const on = Math.abs(k - 1) > 0.005;
       grid.style.scale = on ? k.toFixed(4) : '';
       // (shrunk from the top, and giving back the height it no longer uses, so the column stays centred on screen)
       if (others) { grid.style.transformOrigin = on ? '50% 0' : ''; grid.style.marginBottom = on ? `${(-grid.offsetHeight * (1 - k)).toFixed(1)}px` : ''; }
@@ -30849,7 +30863,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '484bf3f3426a';
+const APP_BUILD = '20580afa6087';
 
 const App = {
   lastReport: null,

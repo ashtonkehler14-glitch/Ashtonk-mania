@@ -59,7 +59,8 @@ const ResultsScreen = {
     });
   },
   /** Never scroll: the panels shrink as one to fit whatever space is left (opening the statistics, or more of them,
-   *  or a small window / phone), the way lazer's results always sit whole on screen. */
+   *  or a small window / phone), the way lazer's results always sit whole on screen — and the wide card a phone held
+   *  sideways gets grows a little into the room it has. */
   fitToScreen(body, grid) {
     let raf = 0, shown = false;
     // (one observer per screen: the next results screen enters before this one leaves)
@@ -74,8 +75,10 @@ const ResultsScreen = {
       let others = 0;
       for (const c of body.children) if (c !== grid && c.offsetParent) others += c.offsetHeight + (parseFloat(cs.rowGap) || 0);
       const ah = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - others;
-      const k = Math.max(0.35, Math.min(1, aw / grid.offsetWidth, ah / grid.offsetHeight));
-      const on = k < 0.995;
+      // (the wide card of a short, wide screen — a phone held sideways — may grow into the room it leaves, too)
+      const grow = !grid.classList.contains('stats-open') && matchMedia('(max-height: 520px) and (min-aspect-ratio: 3/2)').matches ? 1.3 : 1;
+      const k = Math.max(0.35, Math.min(grow, aw / grid.offsetWidth, ah / grid.offsetHeight));
+      const on = Math.abs(k - 1) > 0.005;
       grid.style.scale = on ? k.toFixed(4) : '';
       // (shrunk from the top, and giving back the height it no longer uses, so the column stays centred on screen)
       if (others) { grid.style.transformOrigin = on ? '50% 0' : ''; grid.style.marginBottom = on ? `${(-grid.offsetHeight * (1 - k)).toFixed(1)}px` : ''; }
