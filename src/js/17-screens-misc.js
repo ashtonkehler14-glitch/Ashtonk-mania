@@ -147,7 +147,7 @@ const BeatmapsScreen = {
       const mine = AccountBeatmaps.list().length;
       this.list.append(BeatmapManager.sets.length ? stateCard('search', 'No matches', 'Nothing in your library matches that search.', { cls: '.plain', neru: true })
         : mine ? stateCard('beatmap', 'No beatmaps on this device yet', `You have ${plural(mine, 'beatmap')} on your other devices.`, { cls: '.plain', neru: true, action: h('button.btn.primary.off-act', { onclick: () => { UISounds.click(); AccountBeatmaps.open(); } }, icon('download'), 'Show your beatmaps') })
-        : stateCard('beatmap', 'No beatmaps yet', kbHint('Drop .osz archives or beatmap folders anywhere on the window, or get some from the beatmap listing.', 'Import .osz files from your device, or get some from the beatmap listing.'), { cls: '.plain', neru: true }));
+        : stateCard('beatmap', 'No beatmaps yet', kbHint('Drop .osz archives or beatmap folders anywhere on the window, or get some from the beatmap listing.', 'Import .osz files from your device, or get some from the beatmap listing.'), { cls: '.plain', neru: true, action: h('button.btn.primary.off-act', { onclick: () => { UISounds.click(); Screens.go('explore'); } }, icon('search'), 'Browse online') }));
       return;
     }
     this._mDirty = true;
@@ -913,6 +913,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.22d', title: 'Look and feel', sections: [
+    { icon: 'sparkle', title: 'Look and feel', items: ['Phones play whichever way you hold them, unless you pick one', 'A bigger results card on a phone held sideways', 'Tablets: two beatmaps a row in the listing, and song select\'s filters fit', 'Chat opens taller on phones and tablets, and the skin editor gives the game more room', 'Beatmaps without a picture show a note, not an empty square', 'An empty library has a Browse online button'] },
+  ] },
   { id: '2026.10.22c', title: 'Scores fix', sections: [
     { icon: 'trophy', title: 'Scores fix', items: ['Plays stuck on "Not counted yet" now count', 'Plays that can\'t reach the server say so and try again'] },
   ] },
