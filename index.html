@@ -1679,6 +1679,8 @@ body:has(.medal-ov, .nc-news, .nc-setup) :is(.home .neru, .nc-results) { opacity
 .neru-cameo.nc-setup.in .nc-body { animation-delay: 300ms; }
 div:has(> .onboarding.out) > .nc-setup { opacity: 0; transition: opacity 200ms ease; }
 .home .neru { transition: opacity 300ms ease; }
+/* (the chat open over the main menu: she ducks down out of its way, rather than her head poking up over its edge) */
+body:has(.chat:not(.out)) .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260ms ease, translate 320ms var(--ease-out); }
 /* What's new: beside the dialog, on her phone — behind it, so on a narrow screen she's covered rather than covering */
 .neru-cameo.nc-news { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 .neru-cameo.nc-news.in .nc-body { animation-delay: 250ms; }
@@ -1693,7 +1695,7 @@ div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
 .neru-cameo.nc-fine.in .nc-body { animation: none; }
 .nc-fine .nc-img { animation-duration: 7s; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .4)); }
 /* (in a page's "nothing here" card, in place of its icon) */
-.neru-cameo.nc-card { position: relative; z-index: auto; height: clamp(170px, calc(26 * var(--vh)), 240px); margin: 0 auto 6px; }
+.neru-cameo.nc-card { position: relative; z-index: auto; height: clamp(110px, calc(26 * var(--vh)), 240px); margin: 0 auto 6px; } /* (smaller on a short screen — a phone on its side — so what she's saying stays on it) */
 .neru-cameo.nc-card[hidden] { display: block; visibility: hidden; } /* (her room kept while her picture loads: no jump) */
 .nc-card .nc-img { filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .4)); }
 .slow .nc-img { animation: none; filter: none; }
@@ -3492,7 +3494,7 @@ html.touch .explorer.ov .ex-flabel { padding-top: 7px; }
 /* Performance (Chromebook) mode: lighter menus — no idle sway or soft shadows on Neru, no glow shadows on big panels */
 .slow .neru-img { animation: none; filter: none; }
 .slow .neru.hop .neru-img { animation: neruHop 620ms linear; }
-.slow .settings-panel, .slow .np-panel, .slow .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
+.slow .settings-panel, .slow .np-player, .slow .np-playlist, .slow .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); } /* (the now-playing card's own edge — round the panel, it drew an empty strip below it) */
 
 .spec-pill { position: fixed; left: 50%; bottom: 14px; translate: -50% 0; z-index: 96; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 999px; background: hsl(255 10% 15% / .95); box-shadow: 0 6px 24px rgba(0, 0, 0, .45); color: #fff; max-width: calc(100 * var(--vw) - 24px); }
 .spec-pill-t { display: flex; flex-direction: column; min-width: 0; }
@@ -4565,7 +4567,7 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 :root.perf .lz-vis, :root.perf .lz-fountain, :root.perf .ov-waves, :root.perf .rkm-bgmap, :root.perf .up-cover { display: none !important; }
 :root.perf .panel.glass, :root.perf .bso-card { background-color: rgba(18, 16, 24, .94); }
 /* (big soft shadows are repainted with whatever moves under them) */
-:root.perf .settings-panel, :root.perf .np-panel, :root.perf .nf-panel, :root.perf .menu, :root.perf .dialog, :root.perf .toast, :root.perf .chat, :root.perf .tooltip { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4) !important; }
+:root.perf .settings-panel, :root.perf .np-player, :root.perf .np-playlist, :root.perf .nf-panel, :root.perf .menu, :root.perf .dialog, :root.perf .toast, :root.perf .chat, :root.perf .tooltip { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4) !important; }
 :root.perf #bg-layer { transform: none !important; }
 :root.perf #bg-a, :root.perf #bg-b { will-change: auto; }
 /* the beatmap listing at its lightest: flat cards (no cover behind them, shade, shadow or hover lift) */
@@ -4642,6 +4644,8 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mp-roomlist > .off-state { margin-top: 30px; }
 /* an empty list ("No replays saved", "Empty collection"…): the same icon and words, without the card behind them */
 .off-state.plain { background: none; box-shadow: none; margin: 48px auto; max-width: 520px; }
+/* (a short screen — a phone on its side: less room around it, so it isn't pushed off the bottom) */
+@media (max-height: 520px) { .off-state:not(.compact), .off-state.plain, .mp-roomlist > .off-state { margin: 14px auto; padding: 14px 24px 16px; gap: 8px; } }
 .off-state.plain .off-ico { color: hsl(var(--o-h, 255) 30% 72%); background: hsl(var(--o-h, 255) 22% 26% / .55); }
 @media (max-width: 760px) { .mp-lounge-bar { flex-wrap: wrap; } .mp-lounge-bar .mp-searchbox { order: 3; flex-basis: 100%; } }
 
@@ -21120,8 +21124,9 @@ const ResultsScreen = {
       <circle cx="120" cy="120" r="${R - 1.2}" fill="none" stroke="rgba(47,47,47,.5)" stroke-width="${W + 2.4}"/>
       <circle class="accring" cx="120" cy="120" r="${R}" fill="none" stroke="url(#rsg)" stroke-width="${W}" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition: stroke-dashoffset ${fillMs}ms cubic-bezier(.1,1,.2,1)"/>
       ${segs.map(([a, b, c]) => arc(a, b, c)).join('')}</svg>`;
-    // badges sit on an ellipse just outside the ring; A and S are nudged down so they don't collide with SS (as lazer does)
-    const badges = [['D', 0, 0.35], ['C', 0.7, 0.75], ['B', 0.8, 0.85], ['A', 0.9, 0.9125], ['S', 0.95, 0.96], ['SS', 1, 1]];
+    // badges sit on an ellipse just outside the ring, spaced so S and SS (95% and 100%, close together at the top) never
+    // touch, nor A and S
+    const badges = [['D', 0, 0.35], ['C', 0.7, 0.75], ['B', 0.8, 0.85], ['A', 0.9, 0.905], ['S', 0.95, 0.952], ['SS', 1, 1]];
     for (const [g, cut, at] of badges) {
       if (g === 'SS' ? !isSS && s.accuracy < 1 : s.accuracy < cut && !isSS) continue;
       const ang = (at * 360 - 90) * Math.PI / 180;
@@ -30342,7 +30347,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '78475242be5b';
+const APP_BUILD = 'c78a8f988374';
 
 const App = {
   lastReport: null,

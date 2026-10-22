@@ -178,8 +178,9 @@ const ResultsScreen = {
       <circle cx="120" cy="120" r="${R - 1.2}" fill="none" stroke="rgba(47,47,47,.5)" stroke-width="${W + 2.4}"/>
       <circle class="accring" cx="120" cy="120" r="${R}" fill="none" stroke="url(#rsg)" stroke-width="${W}" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition: stroke-dashoffset ${fillMs}ms cubic-bezier(.1,1,.2,1)"/>
       ${segs.map(([a, b, c]) => arc(a, b, c)).join('')}</svg>`;
-    // badges sit on an ellipse just outside the ring; A and S are nudged down so they don't collide with SS (as lazer does)
-    const badges = [['D', 0, 0.35], ['C', 0.7, 0.75], ['B', 0.8, 0.85], ['A', 0.9, 0.9125], ['S', 0.95, 0.96], ['SS', 1, 1]];
+    // badges sit on an ellipse just outside the ring, spaced so S and SS (95% and 100%, close together at the top) never
+    // touch, nor A and S
+    const badges = [['D', 0, 0.35], ['C', 0.7, 0.75], ['B', 0.8, 0.85], ['A', 0.9, 0.905], ['S', 0.95, 0.952], ['SS', 1, 1]];
     for (const [g, cut, at] of badges) {
       if (g === 'SS' ? !isSS && s.accuracy < 1 : s.accuracy < cut && !isSS) continue;
       const ang = (at * 360 - 90) * Math.PI / 180;
