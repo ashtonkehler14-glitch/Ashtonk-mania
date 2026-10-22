@@ -1333,6 +1333,7 @@ html.touch .practice-bar .kbd { display: none; }
 .hud-mp-row.me .mpl-right .sc { color: #fff; }
 .hud-mp { transition: opacity var(--t-med) ease, transform var(--t-med) var(--ease-out); }
 .hud-mp.lb-off { opacity: 0; transform: translate(-24px, -50%); pointer-events: none; }
+.hud-mp.compact.over-stage:not(.lb-off) { opacity: .3; } /* (over the columns while you play: see GameplayScreen.hudMode) */
 .hud-lb { width: 260px; }
 /* the skin's own health bar (osu!lazer LegacyHealthDisplay): top-left corner */
 .hud-skinhp { position: absolute; left: 0; top: 0; pointer-events: none; }

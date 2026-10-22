@@ -1865,8 +1865,22 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const board = this.board();
     if (board) {
       const full = !s.running || s.finished || !!s.feed || !!s.spectate || this._inBreak || now < s.firstNote - 500 * s.rate || !!this._ctrl;
-      if (full !== board._full) { board._full = full; board.classList.toggle('compact', !full); if (full && board === this.lbEl) this.updateLeaderboard(true); }
+      if (full !== board._full) { board._full = full; board.classList.toggle('compact', !full); if (full && board === this.lbEl) this.updateLeaderboard(true); board._overAt = 0; }
+      // (a board over the columns — a phone held upright, where they fill the width — fades while you play, so the
+      // notes under it can be seen; looked at again every few seconds, the screen may have turned)
+      const t = performance.now();
+      if (!full && t - (board._overAt || 0) > 2500) { board._overAt = t; const over = this.overStage(board); if (over !== !!board._over) { board._over = over; board.classList.toggle('over-stage', over); } }
+      else if (full && board._over) { board._over = false; board.classList.remove('over-stage'); }
     }
+  },
+  /** Whether a HUD element lies across the columns, side to side. */
+  overStage(el) {
+    const r = this.renderer;
+    if (!r || !r.canvas || !r.canvas.parentElement || !Number.isFinite(r.stageX) || !r.W) return false;
+    // (the canvas may be cropped to the stage: its host has the whole width the renderer's numbers are for)
+    const c = r.canvas.parentElement.getBoundingClientRect(), b = el.getBoundingClientRect(), k = c.width / r.W;
+    const L = c.left + r.stageX * k, R = L + r.stageW * k;
+    return b.width > 0 && b.right > L + 4 && b.left < R - 4;
   },
   // ─────────────────────────────── breaks ───────────────────────────────
   /** Break overlay between distant notes (gaps of at least the minimum break length). */

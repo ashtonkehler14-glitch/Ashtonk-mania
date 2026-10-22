@@ -914,7 +914,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.22d', title: 'Look and feel', sections: [
-    { icon: 'sparkle', title: 'Look and feel', items: ['Phones play whichever way you hold them, unless you pick one', 'A bigger results card on a phone held sideways', 'Tablets: two beatmaps a row in the listing, and song select\'s filters fit', 'Chat opens taller on phones and tablets, and the skin editor gives the game more room', 'Beatmaps without a picture show a note, not an empty square', 'An empty library has a Browse online button'] },
+    { icon: 'sparkle', title: 'Look and feel', items: ['Phones play whichever way you hold them, unless you pick one', 'A bigger results card on a phone held sideways', 'Tablets: two beatmaps a row in the listing, and song select\'s filters fit', 'Chat opens taller on phones and tablets, and the skin editor gives the game more room', 'Held upright, the leaderboard fades while you play so notes under it show', 'Beatmaps without a picture show a note, not an empty square', 'An empty library has a Browse online button'] },
   ] },
   { id: '2026.10.22c', title: 'Scores fix', sections: [
     { icon: 'trophy', title: 'Scores fix', items: ['Plays stuck on "Not counted yet" now count', 'Plays that can\'t reach the server say so and try again'] },
