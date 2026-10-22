@@ -923,6 +923,7 @@ html.touch .practice-bar .kbd { display: none; }
 .list-row .s { color: var(--muted); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .list-row .grade { font-size: 1.6rem; width: 40px; text-align: center; }
 .split { display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
+.split > * { min-width: 0; } /* (a grid column otherwise grows to its widest row, past the screen's edge on a tablet) */
 @media (max-width: 900px) and (hover: none) and (orientation: portrait) { .split { grid-template-columns: 1fr; } }
 .side-list { display: flex; flex-direction: column; gap: 6px; }
 .side-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); text-align: left; width: 100%; font-weight: 600; transition: all var(--t-fast); }
@@ -2742,6 +2743,9 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .sk-keys:has(.sk-kchips) { flex-wrap: wrap; row-gap: 8px; }
 .sk-kchips { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(255, 255, 255, .04); overflow-x: auto; scrollbar-width: none; max-width: 100%; }
 .sk-kchips::-webkit-scrollbar { display: none; }
+.sk-kchips.more-r { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
+.sk-kchips.more-l { -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px); mask-image: linear-gradient(90deg, transparent, #000 40px); }
+.sk-kchips.more-l.more-r { -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
 .sk-kc { position: relative; flex: none; min-width: 38px; height: 28px; padding: 0 6px; border: 0; border-radius: 7px; background: transparent; color: var(--text-2);
   font: inherit; font-size: .8rem; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast); }
 .sk-kc:hover { background: rgba(255, 255, 255, .08); color: var(--text); }
@@ -3264,6 +3268,8 @@ body:has(.onboarding) .lz-tipbox { visibility: hidden; } /* (not peeking out fro
 .ss-logo .lz-home-disc { inset: 3%; }
 /* main menu: Neru stands in front of the button bar */
 .home .neru { z-index: 5; }
+/* (on a squarer screen the bar's buttons come further left, over where she stands: she's a little shorter, below them) */
+@media (max-aspect-ratio: 3/2) { .home .neru { height: min(calc(40 * var(--vh)), 420px); } }
 /* results: lazer's expanded ScorePanel — 360 × 586; a #444→#333 top layer whose first 53px show above the
    #555→#333 middle layer (both with corners of 20), the 80px picture straddling the top edge */
 .res-grid, .res-grid.stats-open { grid-template-columns: 360px; }
@@ -3671,7 +3677,6 @@ html.touch img { -webkit-user-drag: none; }
   .list-row .main { flex: 1 1 calc(100% - 110px); }
   .ov-content .row { flex-wrap: wrap; }
   .ov-content .row > .search, .ov-content .row > input.input { flex: 1 1 100% !important; max-width: none !important; }
-  .split > * { min-width: 0; }
   /* song select's footer: narrower buttons, so Random and Options aren't under the play button */
   .ss-footer .foot-btn { width: clamp(44px, calc((var(--vw) * 100 - 112px - 168px) / 3), 72px); font-size: .7rem; }
   .ss-footer .ss-cookie { width: 96px; height: 96px; right: 30px; bottom: 26px; }

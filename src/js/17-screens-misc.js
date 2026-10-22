@@ -748,7 +748,18 @@ const SkinsScreen = {
     const chips = h('div.sk-kchips', { role: 'tablist', 'aria-label': 'Key count' }, ...Array.from({ length: MAX_KEYS }, (_, i) => i + 1).map(k =>
       h(`button.sk-kc${k === this.keys ? '.on' : ''}${!meta.builtin && supported.includes(k) ? '.own' : ''}`, { role: 'tab', 'aria-selected': String(k === this.keys), dataset: { k },
         onclick: e => { if (k === this.keys) return; UISounds.click(); this.keys = k; for (const b of chips.children) { const on = +b.dataset.k === k; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); }
-          hint.textContent = kHint(k); e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }); if (this.preview) this.preview.show(skin, k); } }, `${k}K`)));
+          hint.textContent = kHint(k); centre(e.currentTarget, true); if (this.preview) this.preview.show(skin, k); } }, `${k}K`)));
+    // (on a narrow screen the row scrolls: its ends fade where more key counts are past them, and it starts on the one picked)
+    let centred = false;
+    function centre(chip, smooth) { const a = chip.getBoundingClientRect(), b = chips.getBoundingClientRect(); chips.scrollTo({ left: chips.scrollLeft + a.left - b.left - (b.width - a.width) / 2, behavior: smooth ? 'smooth' : 'instant' }); }
+    const edges = () => {
+      const on = chips.querySelector('.on');
+      if (!centred && on && chips.clientWidth) { centred = true; centre(on); }
+      chips.classList.toggle('more-l', chips.scrollLeft > 1);
+      chips.classList.toggle('more-r', chips.scrollLeft + chips.clientWidth < chips.scrollWidth - 1);
+    };
+    chips.addEventListener('scroll', edges, { passive: true });
+    new ResizeObserver(edges).observe(chips);
     const canvas = h('canvas');
     const pv = h('div.skin-preview', canvas);
     const inUse = SkinManager.current.id === meta.id;
