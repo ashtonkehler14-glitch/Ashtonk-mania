@@ -281,6 +281,24 @@ const NeruCameo = {
     // (a close-up is shown a little smaller — never below 85%: shrunk to match her head exactly, some poses came out tiny)
     return { src: pics.poses[name], scale: clamp(this.HEAD_SIZE / (this.HEAD[name] || this.HEAD_SIZE), 0.85, 1) };
   },
+  /** Neru beside a dialog (`dlg`, centred in `host`): where there's less room than she needs — a tablet, the dialog
+   *  nearly as wide as the screen — she's shrunk to fit it, and with too little to look like herself she isn't there
+   *  at all (half of her behind the dialog looked broken). Kept fitted as her picture comes in, with each pose and
+   *  when the window changes, until she's gone. (Widths in the host's own units: no transforms in them.) */
+  beside(el, dlg, host) {
+    let fit = 1;
+    const ro = new ResizeObserver(() => {
+      if (!el.isConnected) { ro.disconnect(); return; }
+      if (!el.offsetWidth) return; // (her picture's still loading)
+      const room = (host.clientWidth - dlg.offsetWidth) / 2 - el.offsetLeft - 12;
+      const f = clamp(room / (el.offsetWidth / fit), 0, 1);
+      if (Math.abs(f - fit) < 0.01) return;
+      fit = f;
+      el.style.setProperty('--nc-fit', f.toFixed(3));
+      el.classList.toggle('nc-cramped', f < 0.6);
+    });
+    ro.observe(el); ro.observe(host);
+  },
   /** A play's mood: from its grade (a new best too), or a fail. */
   moodOf(s) {
     if (!s || !s.passed) return 'failed';

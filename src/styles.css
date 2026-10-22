@@ -1660,14 +1660,15 @@ div.res-calib .i { color: var(--good); }
 body:has(.medal-ov, .nc-news, .nc-setup) :is(.home .neru, .nc-results) { opacity: 0; transition: opacity 300ms ease; }
 /* the first-run setup: beside it, a pose for each page (behind it, like What's new) */
 .neru-cameo.nc-setup { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1) * var(--nc-fit, 1)); }
-.neru-cameo.nc-setup.nc-cramped { visibility: hidden; }
+/* (beside a dialog without room for her: NeruCameo.beside) */
+.neru-cameo.nc-cramped { visibility: hidden; }
 .neru-cameo.nc-setup.in .nc-body { animation-delay: 300ms; }
 div:has(> .onboarding.out) > .nc-setup { opacity: 0; transition: opacity 200ms ease; }
 .home .neru { transition: opacity 300ms ease; }
 /* (the chat open over the main menu: she ducks down out of its way, rather than her head poking up over its edge) */
 body:has(.chat:not(.out)) .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260ms ease, translate 320ms var(--ease-out); }
 /* What's new: beside the dialog, on her phone — behind it, so on a narrow screen she's covered rather than covering */
-.neru-cameo.nc-news { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
+.neru-cameo.nc-news { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1) * var(--nc-fit, 1)); }
 .neru-cameo.nc-news.in .nc-body { animation-delay: 250ms; }
 div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
 /* every one of her secrets found: cheering beside them on your profile (floated beside the Neru medals) */

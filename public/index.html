@@ -1679,14 +1679,15 @@ div.res-calib .i { color: var(--good); }
 body:has(.medal-ov, .nc-news, .nc-setup) :is(.home .neru, .nc-results) { opacity: 0; transition: opacity 300ms ease; }
 /* the first-run setup: beside it, a pose for each page (behind it, like What's new) */
 .neru-cameo.nc-setup { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1) * var(--nc-fit, 1)); }
-.neru-cameo.nc-setup.nc-cramped { visibility: hidden; }
+/* (beside a dialog without room for her: NeruCameo.beside) */
+.neru-cameo.nc-cramped { visibility: hidden; }
 .neru-cameo.nc-setup.in .nc-body { animation-delay: 300ms; }
 div:has(> .onboarding.out) > .nc-setup { opacity: 0; transition: opacity 200ms ease; }
 .home .neru { transition: opacity 300ms ease; }
 /* (the chat open over the main menu: she ducks down out of its way, rather than her head poking up over its edge) */
 body:has(.chat:not(.out)) .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260ms ease, translate 320ms var(--ease-out); }
 /* What's new: beside the dialog, on her phone — behind it, so on a narrow screen she's covered rather than covering */
-.neru-cameo.nc-news { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
+.neru-cameo.nc-news { z-index: 0; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1) * var(--nc-fit, 1)); }
 .neru-cameo.nc-news.in .nc-body { animation-delay: 250ms; }
 div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
 /* every one of her secrets found: cheering beside them on your profile (floated beside the Neru medals) */
@@ -15369,6 +15370,24 @@ const NeruCameo = {
     // (a close-up is shown a little smaller — never below 85%: shrunk to match her head exactly, some poses came out tiny)
     return { src: pics.poses[name], scale: clamp(this.HEAD_SIZE / (this.HEAD[name] || this.HEAD_SIZE), 0.85, 1) };
   },
+  /** Neru beside a dialog (`dlg`, centred in `host`): where there's less room than she needs — a tablet, the dialog
+   *  nearly as wide as the screen — she's shrunk to fit it, and with too little to look like herself she isn't there
+   *  at all (half of her behind the dialog looked broken). Kept fitted as her picture comes in, with each pose and
+   *  when the window changes, until she's gone. (Widths in the host's own units: no transforms in them.) */
+  beside(el, dlg, host) {
+    let fit = 1;
+    const ro = new ResizeObserver(() => {
+      if (!el.isConnected) { ro.disconnect(); return; }
+      if (!el.offsetWidth) return; // (her picture's still loading)
+      const room = (host.clientWidth - dlg.offsetWidth) / 2 - el.offsetLeft - 12;
+      const f = clamp(room / (el.offsetWidth / fit), 0, 1);
+      if (Math.abs(f - fit) < 0.01) return;
+      fit = f;
+      el.style.setProperty('--nc-fit', f.toFixed(3));
+      el.classList.toggle('nc-cramped', f < 0.6);
+    });
+    ro.observe(el); ro.observe(host);
+  },
   /** A play's mood: from its grade (a new best too), or a fail. */
   moodOf(s) {
     if (!s || !s.passed) return 'failed';
@@ -22543,7 +22562,7 @@ const WhatsNew = {
     const o = makeOverlay(el);
     // (Neru beside it, on her phone — reading it too; behind the dialog, so she never covers a line of it)
     const neru = typeof NeruCameo !== 'undefined' && NeruCameo.make('news', 'nc-news', { delay: 0 });
-    if (neru) o.el.insertBefore(neru, el);
+    if (neru) { o.el.insertBefore(neru, el); NeruCameo.beside(neru, el, o.el); }
     UISounds.play('check-on');
     return o;
   },
@@ -24316,13 +24335,7 @@ const Onboarding = {
       });
       // (Neru beside it, sizing you up — a pose for each page — while the main menu's steps out: never two of her)
       this.neru = typeof NeruCameo !== 'undefined' ? NeruCameo.make('setup', 'nc-setup', { delay: 0 }) : null;
-      if (this.neru) {
-        this.o.el.insertBefore(this.neru, this.el);
-        // (sized to the room beside the dialog — once her picture's in, after each pose, and when the window changes)
-        this._neruFit = 1;
-        this._neruRO = new ResizeObserver(() => this.fitNeru());
-        this._neruRO.observe(this.neru); this._neruRO.observe(this.o.el);
-      }
+      if (this.neru) { this.o.el.insertBefore(this.neru, this.el); NeruCameo.beside(this.neru, this.el, this.o.el); }
       this.render();
       if (already) this.bringBack({ pause: false }).then(() => { if (this.o && this.step.id === 'account') { this.animate = false; this.render(); } });
     });
@@ -24379,20 +24392,6 @@ const Onboarding = {
   /** Neru's pose for each page: hand on hip at the start, glad to see you back (a code) or a wag of her finger at a
    *  newcomer, a blank look at Web-Osu-Mania, on her phone while you pick performance or graphics, a wink at your
    *  colours, fists up for the gameplay, sunglasses on for the skin. */
-  /** Neru stands beside the dialog: where there's less room than she needs (a tablet, the dialog nearly as wide as
-   *  the screen) she's shrunk to fit it, and with too little for her to look like herself she isn't there at all —
-   *  half of her hidden behind the dialog looked broken. (Widths in the overlay's own units: no transforms.) */
-  fitNeru() {
-    const n = this.neru;
-    if (!n || !this.o || !n.offsetWidth) return;
-    const natural = n.offsetWidth / (this._neruFit || 1);
-    const room = (this.o.el.clientWidth - this.el.offsetWidth) / 2 - n.offsetLeft - 12;
-    const fit = clamp(room / natural, 0, 1);
-    if (Math.abs(fit - (this._neruFit || 1)) < 0.01) return;
-    this._neruFit = fit;
-    n.style.setProperty('--nc-fit', fit.toFixed(3));
-    n.classList.toggle('nc-cramped', fit < 0.6);
-  },
   NERU: { welcome: 'sassy', wom: 'huh', device: 'phone', look: 'wink', gameplay: 'cheer', skin: 'cool' },
   neruPose() {
     const st = this.step, n = this.neru;
@@ -24462,7 +24461,6 @@ const Onboarding = {
     UISounds.click();
     const o = this.o;
     this.o = null; this.finishing = false;
-    if (this._neruRO) { this._neruRO.disconnect(); this._neruRO = null; }
     if (!o) return;
     o.close();
     if (Screens.currentName !== 'home') Screens.go('home');
@@ -30395,7 +30393,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '5763bcd61388';
+const APP_BUILD = 'de37e188b150';
 
 const App = {
   lastReport: null,

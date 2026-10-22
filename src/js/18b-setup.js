@@ -61,13 +61,7 @@ const Onboarding = {
       });
       // (Neru beside it, sizing you up — a pose for each page — while the main menu's steps out: never two of her)
       this.neru = typeof NeruCameo !== 'undefined' ? NeruCameo.make('setup', 'nc-setup', { delay: 0 }) : null;
-      if (this.neru) {
-        this.o.el.insertBefore(this.neru, this.el);
-        // (sized to the room beside the dialog — once her picture's in, after each pose, and when the window changes)
-        this._neruFit = 1;
-        this._neruRO = new ResizeObserver(() => this.fitNeru());
-        this._neruRO.observe(this.neru); this._neruRO.observe(this.o.el);
-      }
+      if (this.neru) { this.o.el.insertBefore(this.neru, this.el); NeruCameo.beside(this.neru, this.el, this.o.el); }
       this.render();
       if (already) this.bringBack({ pause: false }).then(() => { if (this.o && this.step.id === 'account') { this.animate = false; this.render(); } });
     });
@@ -124,20 +118,6 @@ const Onboarding = {
   /** Neru's pose for each page: hand on hip at the start, glad to see you back (a code) or a wag of her finger at a
    *  newcomer, a blank look at Web-Osu-Mania, on her phone while you pick performance or graphics, a wink at your
    *  colours, fists up for the gameplay, sunglasses on for the skin. */
-  /** Neru stands beside the dialog: where there's less room than she needs (a tablet, the dialog nearly as wide as
-   *  the screen) she's shrunk to fit it, and with too little for her to look like herself she isn't there at all —
-   *  half of her hidden behind the dialog looked broken. (Widths in the overlay's own units: no transforms.) */
-  fitNeru() {
-    const n = this.neru;
-    if (!n || !this.o || !n.offsetWidth) return;
-    const natural = n.offsetWidth / (this._neruFit || 1);
-    const room = (this.o.el.clientWidth - this.el.offsetWidth) / 2 - n.offsetLeft - 12;
-    const fit = clamp(room / natural, 0, 1);
-    if (Math.abs(fit - (this._neruFit || 1)) < 0.01) return;
-    this._neruFit = fit;
-    n.style.setProperty('--nc-fit', fit.toFixed(3));
-    n.classList.toggle('nc-cramped', fit < 0.6);
-  },
   NERU: { welcome: 'sassy', wom: 'huh', device: 'phone', look: 'wink', gameplay: 'cheer', skin: 'cool' },
   neruPose() {
     const st = this.step, n = this.neru;
@@ -207,7 +187,6 @@ const Onboarding = {
     UISounds.click();
     const o = this.o;
     this.o = null; this.finishing = false;
-    if (this._neruRO) { this._neruRO.disconnect(); this._neruRO = null; }
     if (!o) return;
     o.close();
     if (Screens.currentName !== 'home') Screens.go('home');

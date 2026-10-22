@@ -881,7 +881,7 @@ const WhatsNew = {
     const o = makeOverlay(el);
     // (Neru beside it, on her phone — reading it too; behind the dialog, so she never covers a line of it)
     const neru = typeof NeruCameo !== 'undefined' && NeruCameo.make('news', 'nc-news', { delay: 0 });
-    if (neru) o.el.insertBefore(neru, el);
+    if (neru) { o.el.insertBefore(neru, el); NeruCameo.beside(neru, el, o.el); }
     UISounds.play('check-on');
     return o;
   },
