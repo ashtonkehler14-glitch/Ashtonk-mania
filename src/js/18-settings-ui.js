@@ -138,8 +138,10 @@ const SettingsPanel = {
         s.addEventListener('keydown', e => e.stopPropagation());
         s.addEventListener('change', flash);
         upd();
-        row = form('frange', h('div.fleft', cap, v,
-          it.calibrate ? h('button.btn.sm.fcal', { onclick: () => Calibration.open() }, 'Calibrate') : null), h('div.fright', s));
+        // (its help underneath, across the whole box, rather than squeezed into the half beside the slider)
+        row = form(`frange${it.hint ? '.hinted' : ''}`, h('div.fleft', it.hint ? h('div.lbl', it.l) : cap, v,
+          it.calibrate ? h('button.btn.sm.fcal', { onclick: () => Calibration.open() }, 'Calibrate') : null), h('div.fright', s),
+          it.hint ? h('div.fhint', it.hint) : null);
         break;
       }
       case 'select': {

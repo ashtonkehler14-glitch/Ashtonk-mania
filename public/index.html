@@ -473,6 +473,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .settings-panel .frange .val { min-width: 0; text-align: left; font-weight: 400; font-size: .875rem; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .settings-panel .frange .fcal { align-self: flex-start; }
 .settings-panel .frange .fright { flex: 1; min-width: 0; }
+.settings-panel .frange.hinted { flex-wrap: wrap; row-gap: 2px; }
+.settings-panel .frange .fhint { flex: 1 0 100%; padding: 0 4px 4px 0; font-size: .75rem; color: hsl(var(--o-h) 20% 70%); }
 .settings-panel input[type=range].slider { display: block; width: 100%; height: 40px; margin: 0; background: transparent; }
 .settings-panel input[type=range].slider::-webkit-slider-runnable-track { height: 40px; border-radius: 5px; background: linear-gradient(90deg, var(--ol4) var(--p), var(--ob5) var(--p)); }
 .settings-panel input[type=range].slider::-webkit-slider-thumb { width: 10px; height: 40px; margin-top: 0; border-radius: 5px; border: 0; background: var(--ohl); box-shadow: 0 0 0 1px rgba(0, 0, 0, .15); }
@@ -3253,11 +3255,11 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 #app.in-game .nf-panel, #app.hide-toolbar .nf-panel { top: 0; }
 #app.in-game .np-panel, #app.hide-toolbar .np-panel { top: 10px; }
 .sp-nav { width: 170px; padding: 10px 0; gap: 0; }
-.sp-nb { position: relative; display: flex; align-items: center; height: 46px; margin: 0 5px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: rgb(98, 89, 125); font-size: 16px; text-align: left; cursor: pointer; transition: color 500ms cubic-bezier(.22, 1, .36, 1), background 500ms cubic-bezier(.22, 1, .36, 1); }
+.sp-nb { position: relative; display: flex; align-items: center; height: 46px; margin: 0 5px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: rgb(98, 89, 125); font-size: 15px; text-align: left; cursor: pointer; transition: color 500ms cubic-bezier(.22, 1, .36, 1), background 500ms cubic-bezier(.22, 1, .36, 1); }
 .sp-nb:hover { color: rgb(116, 110, 134); background: hsl(255 40% 50% / .1); }
 .sp-nb.active { color: #999; }
 .sp-nb .i { position: absolute; left: 25px; top: 50%; width: 20px; height: 20px; margin-top: -10px; }
-.sp-nb > span:last-child { position: absolute; left: 55px; white-space: nowrap; }
+.sp-nb > span:last-child { position: absolute; left: 53px; white-space: nowrap; } /* (15px: "user interface" fits inside the sidebar) */
 .sp-nb-ind { position: absolute; left: 9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 1.5px; background: hsl(255 100% 70%); opacity: 0; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1), height 500ms cubic-bezier(.22, 1, .36, 1), margin-top 500ms cubic-bezier(.22, 1, .36, 1); }
 .sp-nb.active .sp-nb-ind { opacity: 1; height: 18px; margin-top: -9px; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1), height 500ms linear(0, .388, .75, 1, 1.125, 1.153, 1.125, 1.077, 1.031, 1, .984, .981, .984, .99, .996, 1, 1.002, 1.002, 1.002, 1.001, 1), margin-top 500ms linear(0, .388, .75, 1, 1.125, 1.153, 1.125, 1.077, 1.031, 1, .984, .981, .984, .99, .996, 1, 1.002, 1.002, 1.002, 1.001, 1); }
 @media (max-width: 700px) and (hover: none) and (orientation: portrait) { .sp-nav { width: 60px; } .sp-nb > span:last-child { display: none; } }
@@ -23732,8 +23734,10 @@ const SettingsPanel = {
         s.addEventListener('keydown', e => e.stopPropagation());
         s.addEventListener('change', flash);
         upd();
-        row = form('frange', h('div.fleft', cap, v,
-          it.calibrate ? h('button.btn.sm.fcal', { onclick: () => Calibration.open() }, 'Calibrate') : null), h('div.fright', s));
+        // (its help underneath, across the whole box, rather than squeezed into the half beside the slider)
+        row = form(`frange${it.hint ? '.hinted' : ''}`, h('div.fleft', it.hint ? h('div.lbl', it.l) : cap, v,
+          it.calibrate ? h('button.btn.sm.fcal', { onclick: () => Calibration.open() }, 'Calibrate') : null), h('div.fright', s),
+          it.hint ? h('div.fhint', it.hint) : null);
         break;
       }
       case 'select': {
@@ -30347,7 +30351,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'c78a8f988374';
+const APP_BUILD = '07950439c37c';
 
 const App = {
   lastReport: null,
