@@ -1648,6 +1648,9 @@ div.res-calib .i { color: var(--good); }
 .results.stats-open .nc-results { opacity: 0; translate: -60px 0; pointer-events: none; }
 .nc-pause { left: clamp(8px, calc(4 * var(--vw)), 64px); bottom: 8px; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 .pause-menu:has(.pm-foot) .nc-pause { bottom: 58px; }
+/* (where the screen's too narrow for her beside them — a tablet — the buttons go over her, never her over them) */
+.pause-menu:has(> .nc-pause) .pause-box { z-index: 5; pointer-events: none; } /* (its empty parts: she's still there to be clicked) */
+.pause-menu:has(> .nc-pause) .pause-box > * { pointer-events: auto; }
 .nc-loader { left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 .nc-empty { left: clamp(16px, calc(12 * var(--vw)), 220px); bottom: 70px; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 .nc-boot { left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(var(--nc-h) * var(--nc-s, 1)); }
