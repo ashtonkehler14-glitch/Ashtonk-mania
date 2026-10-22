@@ -2488,6 +2488,8 @@ body.f-modsel #toasts { opacity: 0; pointer-events: none; }
 .ex-thumbwrap { position: relative; flex: none; width: 100px; height: 100px; border-radius: 10px; overflow: hidden; background: hsl(var(--o-h) 20% 22%); }
 .ex-thumb { position: absolute; inset: 0; background: center / cover no-repeat; opacity: 0; transition: opacity 400ms; }
 .ex-thumb.loaded { opacity: 1; }
+.ex-thumb.ex-nopic { display: grid; place-items: center; color: hsl(var(--o-h) 35% 60% / .45); }
+.ex-thumb.ex-nopic .i { width: 34px; height: 34px; }
 .ex-thumbwrap .ex-play { position: absolute; inset: 0; margin: auto; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .5); color: #fff; opacity: 0; transition: opacity 150ms, transform 150ms; }
 .ex-card:hover .ex-play, .ex-play[data-ic="pause"] { opacity: 1; }
 /* (a touch screen has no hover: the preview button is always there — it was only seen after the card had opened) */
@@ -21828,6 +21830,10 @@ const AccountBeatmaps = {
   },
 };
 
+/** A beatmap card's square for a set with no background picture: a note in it, rather than an empty square that looks
+ *  like a picture still loading. */
+function noPicture(thumb) { thumb.classList.add('ex-nopic', 'loaded'); thumb.append(icon('music')); }
+
 const BeatmapsScreen = {
   q: '',
   enter() {
@@ -22027,7 +22033,7 @@ const BeatmapsScreen = {
    *  right on hover. Clicking it opens its difficulties underneath, across the whole row. */
   row(set) {
     const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-    BeatmapManager.thumbURL(set).then(u => { if (u) this.showThumb([thumb, bg], u); });
+    BeatmapManager.thumbURL(set).then(u => { if (u) this.showThumb([thumb, bg], u); else noPicture(thumb); });
     const maps = [...set.maps].sort((a, b) => a.keys - b.keys || a.stars - b.stars);
     const broken = maps.filter(m => m.problems.length);
     const keys = [...new Set(maps.map(m => m.keys))].sort((a, b) => a - b);
@@ -22101,7 +22107,8 @@ const CollectionsScreen = {
       const m = BeatmapManager.mapByHash(hash), set = m && BeatmapManager.setById.get(m.setId);
       const best = ScoreManager.best(hash);
       const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-      if (set) BeatmapManager.thumbURL(set).then(u => { if (!u) return; for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+      if (set) BeatmapManager.thumbURL(set).then(u => { if (!u) return noPicture(thumb); for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+      else noPicture(thumb);
       const side = (cls, ic, label, fn) => h(`button.ex-side-btn${cls}`, { title: label, 'aria-label': label, onclick: e => { e.stopPropagation(); fn(); } }, icon(ic));
       const open = () => m && Screens.go('songselect', { mapId: m.id });
       list.append(h(`div.ex-card.lib-card${m ? '' : '.missing'}`, { tabindex: '0', role: 'button', onclick: open, onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); open(); } } },
@@ -30625,7 +30632,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'bdee0ddbf07e';
+const APP_BUILD = '7e520ae38d0d';
 
 const App = {
   lastReport: null,

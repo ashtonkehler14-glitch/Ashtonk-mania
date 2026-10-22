@@ -2469,6 +2469,8 @@ body.f-modsel #toasts { opacity: 0; pointer-events: none; }
 .ex-thumbwrap { position: relative; flex: none; width: 100px; height: 100px; border-radius: 10px; overflow: hidden; background: hsl(var(--o-h) 20% 22%); }
 .ex-thumb { position: absolute; inset: 0; background: center / cover no-repeat; opacity: 0; transition: opacity 400ms; }
 .ex-thumb.loaded { opacity: 1; }
+.ex-thumb.ex-nopic { display: grid; place-items: center; color: hsl(var(--o-h) 35% 60% / .45); }
+.ex-thumb.ex-nopic .i { width: 34px; height: 34px; }
 .ex-thumbwrap .ex-play { position: absolute; inset: 0; margin: auto; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .5); color: #fff; opacity: 0; transition: opacity 150ms, transform 150ms; }
 .ex-card:hover .ex-play, .ex-play[data-ic="pause"] { opacity: 1; }
 /* (a touch screen has no hover: the preview button is always there — it was only seen after the card had opened) */

@@ -68,6 +68,10 @@ const AccountBeatmaps = {
   },
 };
 
+/** A beatmap card's square for a set with no background picture: a note in it, rather than an empty square that looks
+ *  like a picture still loading. */
+function noPicture(thumb) { thumb.classList.add('ex-nopic', 'loaded'); thumb.append(icon('music')); }
+
 const BeatmapsScreen = {
   q: '',
   enter() {
@@ -267,7 +271,7 @@ const BeatmapsScreen = {
    *  right on hover. Clicking it opens its difficulties underneath, across the whole row. */
   row(set) {
     const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-    BeatmapManager.thumbURL(set).then(u => { if (u) this.showThumb([thumb, bg], u); });
+    BeatmapManager.thumbURL(set).then(u => { if (u) this.showThumb([thumb, bg], u); else noPicture(thumb); });
     const maps = [...set.maps].sort((a, b) => a.keys - b.keys || a.stars - b.stars);
     const broken = maps.filter(m => m.problems.length);
     const keys = [...new Set(maps.map(m => m.keys))].sort((a, b) => a - b);
@@ -341,7 +345,8 @@ const CollectionsScreen = {
       const m = BeatmapManager.mapByHash(hash), set = m && BeatmapManager.setById.get(m.setId);
       const best = ScoreManager.best(hash);
       const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-      if (set) BeatmapManager.thumbURL(set).then(u => { if (!u) return; for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+      if (set) BeatmapManager.thumbURL(set).then(u => { if (!u) return noPicture(thumb); for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+      else noPicture(thumb);
       const side = (cls, ic, label, fn) => h(`button.ex-side-btn${cls}`, { title: label, 'aria-label': label, onclick: e => { e.stopPropagation(); fn(); } }, icon(ic));
       const open = () => m && Screens.go('songselect', { mapId: m.id });
       list.append(h(`div.ex-card.lib-card${m ? '' : '.missing'}`, { tabindex: '0', role: 'button', onclick: open, onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); open(); } } },
