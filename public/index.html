@@ -2118,8 +2118,8 @@ div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
 .pl-card { width: auto; max-width: max(320px, min(820px, calc(100% - 660px))); display: flex; flex-direction: column; align-items: center; text-align: center; background: none; box-shadow: none; border-radius: 0; overflow: visible; }
 .pl-logo { position: relative; width: 77px; height: 77px; container-type: size; margin-bottom: 4px; animation: setupLogo 2.4s ease-in-out infinite; }
 .pl-logo .lz-cookie-disc { border-width: 3.6px; }
-.pl-card .pl-t { margin-top: 15px; max-width: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 2.25rem; font-weight: 400; font-style: italic; line-height: 1.15; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
-.pl-card .pl-a { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.625rem; font-style: italic; color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
+.pl-card .pl-t { margin-top: 15px; max-width: 100%; padding: 0 .15em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 2.25rem; font-weight: 400; font-style: italic; line-height: 1.15; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
+.pl-card .pl-a { max-width: 100%; padding: 0 .15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.625rem; font-style: italic; color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
 .pl-thumb { position: relative; width: 300px; height: 60px; margin: 10px; border-radius: 10px; overflow: hidden; background: #2a2833; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); }
 .pl-thumb .pl-cover { position: absolute; inset: 0; height: auto; }
 .pl-thumb .pl-load { position: absolute; inset: 0; padding: 0; justify-content: center; border: 0; background: rgba(0, 0, 0, .5); color: #fff; transition: background 400ms, opacity 400ms; }
@@ -2129,7 +2129,7 @@ div:has(> .cl.out) > .nc-news { opacity: 0; transition: opacity 200ms ease; }
 .gp-loader.ready .pl-thumb .pl-load { opacity: 0; }
 .pl-thumb .pl-bar { display: none; }
 .pl-card .pl-d { flex-direction: column; gap: 5px; margin: 0 0 30px; font-size: 1rem; }
-.pl-v { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.625rem; font-style: italic; }
+.pl-v { max-width: 100%; padding: 0 .15em; /* (room for the italic's lean: clipped, the last letter lost its top) */ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.625rem; font-style: italic; }
 .pl-sr { display: flex; gap: 6px; justify-content: center; }
 .pl-meta { display: grid; grid-template-columns: auto auto; gap: 2px 0; font-size: .95rem; }
 .pl-mk { text-align: right; padding-right: 5px; color: rgba(255, 255, 255, .7); }
@@ -30373,7 +30373,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'd1b92ed63f19';
+const APP_BUILD = '3f43db38815a';
 
 const App = {
   lastReport: null,
