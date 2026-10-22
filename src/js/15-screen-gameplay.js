@@ -36,8 +36,9 @@ const Game = {
 };
 
 /** Gameplay fills the screen: fullscreen while playing (the setting, on by default). On phones and tablets, as in
- *  lazer's mobile app, the game is used sideways and only gameplay is upright: the screen turns upright for the song
- *  and back sideways after (where the browser lets it lock the turn; otherwise Orientation asks — see 19d-mobile).
+ *  lazer's mobile app, the game is used sideways and songs as Settings → Mobile layout says: the screen turns upright
+ *  for the song (Portrait) and back sideways after (where the browser lets it lock the turn; otherwise Orientation
+ *  asks — see 19d-mobile).
  *  Leave fullscreen mid-song (the browser's bar swiped back, Esc) and a tap or click on the game puts it back. */
 /** The screen stays on while playing (a song with few notes would otherwise let a phone dim and lock). */
 const WakeLock = {
@@ -68,8 +69,8 @@ const PlayScreen = {
     if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => { this._ours = true; keys(); this.lock(); }, () => this.lock());
     else this.lock();
   },
-  // (a song plays either way up: the screen follows how the phone is held)
-  lock() { if (this.phone() && typeof Orientation !== 'undefined') Orientation.lock('any'); },
+  // (a song is played upright or sideways, as Settings → Mobile layout says)
+  lock() { if (this.phone() && typeof Orientation !== 'undefined') Orientation.lock(Orientation.wanted()); },
   unlock() {
     if (this._keys) { this._keys = false; try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); } catch { /* not supported */ } }
     if (!document.fullscreenElement) this._ours = false;
@@ -241,7 +242,7 @@ const GameplayScreen = {
     if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) document.activeElement.blur();
     el.tabIndex = -1; requestAnimationFrame(() => { if (el.isConnected) el.focus({ preventScroll: true }); });
     el.addEventListener('pointerdown', () => { if (document.activeElement !== el && !(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) el.focus({ preventScroll: true }); });
-    // turning the phone mid-song (it plays either way up) stops it for a tap, so the new layout doesn't cost notes
+    // turning the phone mid-song stops it for a tap, so the new layout (or the prompt to turn it back) doesn't cost notes
     this._upright = typeof Mobile !== 'undefined' && Mobile.portrait;
     this._orient = () => {
       const up = typeof Mobile !== 'undefined' && Mobile.portrait;
@@ -645,7 +646,8 @@ const GameplayScreen = {
         await sleep(100);
       }
     } else {
-      while (this._tok === tok && !this.loaderSkip && (performance.now() - this.loaderT0 < min || this.loaderHold)) await sleep(50);
+      // (and, on a phone held the wrong way for Settings → Mobile layout, till it's turned: the prompt covers the song)
+      while (this._tok === tok && ((!this.loaderSkip && (performance.now() - this.loaderT0 < min || this.loaderHold)) || (typeof Orientation !== 'undefined' && Orientation.wrong()))) await sleep(50);
     }
     if (this._tok !== tok) return;
     const el = this.loaderEl;

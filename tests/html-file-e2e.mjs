@@ -130,6 +130,15 @@ try {
   check('a saved file can write itself (the browser offers File System Access to file:// pages)', canWrite);
   const same = await fp.evaluate(async () => { await AshtonkMania.HtmlFile.check(); return !document.querySelector('.dialog'); });
   check('a file of the website\'s current version doesn\'t ask to update', same);
+  const kept = await fp.evaluate(async () => {
+    const F = AshtonkMania.HtmlFile, build = F.build, pick = window.showSaveFilePicker;
+    let picked = false;
+    F.build = async () => { throw new Error('The download stopped part-way.'); };
+    window.showSaveFilePicker = async () => { picked = true; throw new DOMException('no', 'AbortError'); };
+    try { await F.update(); } finally { F.build = build; window.showSaveFilePicker = pick; }
+    return !picked && !document.querySelector('.dialog');
+  });
+  check('an update that can\'t get the new version never touches the file', kept);
   await fp.evaluate(() => {
     AshtonkMania.HtmlFile.latest = async () => 'feedfacecafe';
     // (the browser's save box can't be clicked in a test: it hands back a file that records what's written)
@@ -139,6 +148,12 @@ try {
   const asked = await fp.evaluate(() => (document.querySelector('.dialog h2') || {}).textContent || '');
   check('an out-of-date file asks whether to update', /new version of Ashtonk!mania/.test(asked), asked);
   await fp.evaluate(() => [...document.querySelectorAll('.dialog button')].find(b => b.textContent.trim() === 'Update').click());
+  // (the new version is all fetched before the save box opens: that box empties the file you pick there and then, so a
+  // version that never came used to leave a 0-byte file where the game was)
+  const saveBtn = () => [...document.querySelectorAll('.dialog button')].find(b => b.textContent.trim() === 'Save');
+  await fp.waitForFunction(`(${saveBtn})()`, null, { timeout: 60000 }).catch(() => {});
+  check('the save box only opens once the new version is all here', await fp.evaluate(`!window.__picked && !!(${saveBtn})()`));
+  await fp.evaluate(`(${saveBtn})().click()`);
   await fp.waitForFunction(() => window.__written > 0, null, { timeout: 60000 }).catch(() => {});
   const wrote = await fp.evaluate(() => ({ picked: window.__picked, size: window.__written || 0 }));
   check('"Update" writes the newest version to the file (the save box opens on this file\'s name)', wrote.picked === 'Ashtonk!mania.html' && wrote.size > 6e6, JSON.stringify(wrote));

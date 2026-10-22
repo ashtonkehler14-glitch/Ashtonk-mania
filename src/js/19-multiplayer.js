@@ -31,7 +31,9 @@ const Multiplayer = {
     let r;
     try { r = await fetch(Host.api(path), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}), signal: timeoutSignal(20000) }); }
     catch (e) { throw (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) ? new Error('The game\'s server didn\'t answer. Check your connection and try again.') : e; }
-    const d = await r.json().catch(() => ({}));
+    const j = /json/i.test(r.headers.get('content-type') || '') ? await r.json().catch(() => null) : null;
+    if (isNoServer(r, j)) throw new Error(NO_SERVER);
+    const d = j || {};
     if (!r.ok) throw new Error(d.error || `Server error (${r.status})`);
     return d;
   },
@@ -97,8 +99,9 @@ const Multiplayer = {
   async whyNot(code) {
     try {
       const r = await fetch(Host.api(`api/mp/room/${encodeURIComponent(code)}/status`), { cache: 'no-store', signal: timeoutSignal(5000) });
+      const d = /json/i.test(r.headers.get('content-type') || '') ? await r.json().catch(() => null) : null;
+      if (isNoServer(r, d)) return NO_SERVER;
       if (r.ok) return null;
-      const d = await r.json().catch(() => null);
       return d && typeof d.error === 'string' ? d.error : null;
     } catch { return null; }
   },
@@ -456,13 +459,20 @@ const Multiplayer = {
 /** What an online page shows with no connection: "Connecting…" while the server is being reached, otherwise a calm
  *  card — the server can't be reached, what's missing, and Try again (it also keeps retrying by itself). `what` says
  *  what will appear once it's back; compact for small panels (song select's leaderboard). */
+/** A site that only serves the game's files (no server behind it): its /api answers with a web page — "not found",
+ *  or the game itself — where the server's JSON should be. (The server's own "not found"s are JSON.) */
+function isNoServer(r, d) { return !!r && !d && (r.status === 404 || r.status === 405 || r.ok); }
+const NO_SERVER = 'This copy of the game has no multiplayer server. Open Ashtonk!mania from the website its server is on — everyone in a room has to use that same website.';
+
 function offlineState(what, { compact = false } = {}) {
   const cls = `div.off-state${compact ? '.compact' : ''}`;
   if (Presence.connecting()) return h(`${cls}.connecting`, h('span.spinner'), h('div.off-sub', 'Connecting…'));
-  const local = !Multiplayer.available();
-  return stateCard('globe', local ? 'Offline' : 'Can\'t reach the server',
-    local ? `${what} needs the game's server — open Ashtonk!mania from its website.` : `${what} will show up as soon as it's back.`,
-    { slash: true, cls: compact ? '.compact' : '', action: local ? null : h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Presence.tryNow(); } }, icon('sync'), 'Try again') });
+  const local = !Multiplayer.available(), none = !local && Presence.noServer;
+  return stateCard('globe', local ? 'Offline' : none ? 'No game server here' : 'Can\'t reach the server',
+    local ? `${what} needs the game's server — open Ashtonk!mania from its website.`
+      : none ? `${what} needs the game's server, and this copy of the game doesn't have one. Open Ashtonk!mania from the website its server is on — everyone you play with has to use that same website.`
+      : `${what} will show up as soon as it's back.`,
+    { slash: true, cls: compact ? '.compact' : '', action: local || none ? null : h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Presence.tryNow(); } }, icon('sync'), 'Try again') });
 }
 
 const Presence = {
@@ -472,9 +482,7 @@ const Presence = {
     this.started = true;
     // only where the Worker serves multiplayer (a plain static copy has no /api): 'checking' until we know
     this.health = 'checking';
-    const none = () => { this.health = 'none'; Bus.emit('presence:changed'); clearTimeout(this._hT); this._hT = setTimeout(() => this.tryNow(true), 60000); };
-    // (no answer in 15 s counts as no server: "Connecting…" otherwise stays up for as long as the request hangs)
-    fetch(Host.api('api/health'), { cache: 'no-store', signal: timeoutSignal(15000) }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) { this.health = 'ok'; this.connect(); } else none(); }).catch(none);
+    this.checkHealth();
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
     Bus.on('scores:changed', () => { clearTimeout(this._rkT); this._rkT = setTimeout(() => Rankings.report(), 2000); });
@@ -616,14 +624,20 @@ const Presence = {
     if (!Multiplayer.available() || this.ws) return;
     this.retry = 0; clearTimeout(this._t); clearTimeout(this._hT);
     if (this.health === 'ok') this.connect();
-    else {
-      this.health = 'checking';
-      fetch(Host.api('api/health'), { cache: 'no-store', signal: timeoutSignal(15000) }).then(r => r.ok ? r.json() : null).then(d => {
-        if (d && d.multiplayer) { this.health = 'ok'; this.connect(); return; }
-        this.health = 'none'; Bus.emit('presence:changed'); this._hT = setTimeout(() => this.tryNow(true), 60000);
-      }).catch(() => { this.health = 'none'; Bus.emit('presence:changed'); this._hT = setTimeout(() => this.tryNow(true), 60000); });
-    }
+    else { this.health = 'checking'; this.checkHealth(); }
     if (!quiet) Bus.emit('presence:changed');
+  },
+  /** Whether the site the game came from has the game's server: 'ok', or 'none' — and `noServer` when it plainly
+   *  hasn't one (a copy of the game put up somewhere that only serves its files: the page answers, its /api doesn't),
+   *  rather than a server that just didn't answer this time. Asked again every minute until it's there.
+   *  (no answer in 15 s counts as none for now: "Connecting…" otherwise stays up for as long as the request hangs) */
+  checkHealth() {
+    const none = noServer => { this.health = 'none'; this.noServer = !!noServer; Bus.emit('presence:changed'); clearTimeout(this._hT); this._hT = setTimeout(() => this.tryNow(true), 60000); };
+    fetch(Host.api('api/health'), { cache: 'no-store', signal: timeoutSignal(15000) }).then(async r => {
+      const d = /json/i.test(r.headers.get('content-type') || '') ? await r.json().catch(() => null) : null;
+      if (r.ok && d && d.multiplayer) { this.health = 'ok'; this.noServer = false; this.connect(); return; }
+      none(isNoServer(r, d));
+    }).catch(() => none(false));
   },
   /** Still finding out whether the server is there (the first look, or the first connection attempt). */
   connecting() { return Multiplayer.available() && (!this.started || this.health === 'checking' || (this.health === 'ok' && !this.retry && !(this.ws && this.ws.readyState === 1))); },

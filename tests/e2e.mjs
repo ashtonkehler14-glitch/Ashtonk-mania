@@ -145,6 +145,17 @@ await shot('01-home-empty');
   });
   check('an empty list has Neru, a blank "huh?" at it, in place of the icon', n.face === n.pose && n.pose === 'neru-huh.png' && !n.icon, JSON.stringify(n));
 }
+// a copy of the game on a site that only serves its files (no server behind it — as here): multiplayer says so plainly,
+// rather than "can't reach the server" with a Try again that could never work, and making a room explains why it can't
+{
+  const r = await page.evaluate(async () => {
+    for (let i = 0; i < 80 && (!Presence.started || Presence.health === 'checking'); i++) await new Promise(res => setTimeout(res, 100));
+    const card = offlineState('Multiplayer');
+    let err = ''; try { await Multiplayer.api('api/mp/new'); } catch (e) { err = e.message; }
+    return { health: Presence.health, none: !!Presence.noServer, text: card.textContent, retry: !!card.querySelector('.off-retry'), err };
+  });
+  check('a copy of the game with no server behind it says so (no "Try again"), and making a room explains why', r.none && /No game server here/.test(r.text) && !r.retry && /no multiplayer server/i.test(r.err), JSON.stringify(r));
+}
 // her frame loop sleeps once she's settled and wakes for a bounce — one loop, never two (a bounce set in the middle of
 // a frame used to start a second one, doubling every frame until the page stopped answering)
 {
@@ -320,12 +331,36 @@ await shot('01-home-empty');
       pat.during === 'happy' && pat.hearts && pat.stroked === 'happy|false' && pat.after === 'sassy|false' && !/^happy/.test(pat.body) && pat.body.endsWith('|0'), JSON.stringify(pat));
   }
   // double-clicked: a hop each time — a twirl only for one of her own (the Neru gang), who never makes her angry, and a
-  // click mid-twirl doesn't cut it short; clicked over and over by a Teto or Miku fan: their thing crossed out over her
-  // head instead of the steam; the hundredth click this visit, even mid-huff: her happy face and hearts — she gives up
+  // click mid-twirl doesn't cut it short; clicked over and over by a Teto or Miku fan: one of three — angry, a photo of
+  // their character held up, or "No baguette!" / "No leek!" — which clicking again doesn't cut short, and a photo or what
+  // she said is gone before her pose changes back; the hundredth click this visit, even mid-huff: her happy face and
+  // hearts — she gives up
   {
     const tw = await page.evaluate(async () => {
       const M = NeruMascot, E = NeruEggs, P = AshtonkMania.ProfileManager, name = P.profile.name, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
-      const calm = async () => { M._actUntil = M._happyUntil = M._huffUntil = M._twirlUntil = 0; M._clicks = []; M._lastClick = -1e9; E._clicked = 0; M.el.classList.remove('hop', 'twirl', 'huff', 'shake'); M.el.querySelectorAll('.neru-bread, .neru-photo').forEach(x => x.remove()); await M.show(null); await wait(700); };
+      const calm = async () => { M._actUntil = M._happyUntil = M._huffUntil = M._twirlUntil = 0; M._clicks = []; M._lastClick = -1e9; E._clicked = 0; M.el._fanBusy = false; M.el.classList.remove('hop', 'twirl', 'huff', 'shake', 'giggle'); M.el.querySelectorAll('.neru-bread, .neru-photo, .neru-say').forEach(x => x.remove()); await M.show(null); await wait(700); };
+      // (a fan's eight clicks, with which of the three set by `v`; then clicked again mid-way, and watched to the end)
+      const fanSpam = async v => {
+        await calm(); const jab = E.jab, rnd = Math.random; E.jab = () => {}; E._onBeat = false;
+        try {
+          Math.random = () => v;
+          try { for (let i = 0; i < 8; i++) { M.el.click(); await wait(110); } } finally { Math.random = rnd; }
+          const n = E._clicked, pose = M.img.dataset.pose;
+          for (let i = 0; i < 4; i++) { M.el.classList.remove('hop'); M.el.click(); await wait(60); }
+          const ignored = E._clicked === n && !M.el.classList.contains('hop') && M.img.dataset.pose === pose;
+          let kind = '-', what = '', early = false, held = null;
+          for (let i = 0; i < 100 && M.el._fanBusy; i++) {
+            const ph = M.el.querySelector(':scope > .neru-photo'), sy = M.el.querySelector(':scope > .neru-say');
+            if (M.el.querySelector(':scope > .neru-vein')) kind = 'angry';
+            if (sy) { kind = 'say'; what = sy.textContent; }
+            if (ph) { kind = 'photo'; what = (/neru-photos\/(teto|miku)-/.exec(ph.querySelector('img').src) || [])[1] || '?'; if (held == null) held = M.img.dataset.pose; else if (M.img.dataset.pose !== held) early = true; }
+            await wait(50);
+          }
+          const gone = !M.el.querySelector(':scope > .neru-photo, :scope > .neru-say');
+          await wait(500);
+          return `${kind}|${what}|${ignored}|${!early && gone}|${held || '-'}|${M.img.dataset.pose || 'usual'}`;
+        } finally { E.jab = jab; }
+      };
       const spam = async () => { await calm(); const jab = E.jab; E.jab = () => {}; E._onBeat = false; try { for (let i = 0; i < 10; i++) { M.el.click(); await wait(110); } } finally { E.jab = jab; } await wait(300);
         const b = M.el.querySelector(':scope > .neru-bread'); return `${M.el.classList.contains('huff')}|${b ? b.className.replace('neru-bread nb-', '') : '-'}|${!!M.el.querySelector('.neru-say')}`; };
       await calm(); M.el.click(); await wait(60);
@@ -337,8 +372,8 @@ await shot('01-home-empty');
         out.gang = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
         M.el.click(); await wait(30); out.midTwirl = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
         out.gangSpam = await spam();
-        P.profile.name = 'TetoFan'; out.teto = await spam();
-        P.profile.name = 'MikuFan'; out.miku = await spam();
+        P.profile.name = 'TetoFan'; out.teto = [await fanSpam(0), await fanSpam(0.4), await fanSpam(0.8)];
+        P.profile.name = 'MikuFan'; out.miku = [await fanSpam(0.4), await fanSpam(0.8)];
       } finally { P.profile.name = name; }
       out.plain = await spam();
       await calm(); E._clicked = 98; M.el.click(); await wait(300); out.n99 = M.img.dataset.pose;
@@ -347,8 +382,9 @@ await shot('01-home-empty');
       await wait(3200); out.after = M.img.dataset.pose || 'usual';
       return out;
     });
-    check('Neru: double-clicked, a hop — a twirl only for the Neru gang (not cut short by another click), who never makes her angry; clicked over and over, angry — or for a Teto or Miku fan their thing crossed out; the hundredth click in a visit — even in a huff — gets her happy face and a shower of hearts',
-      tw.once === 'true|false' && tw.twice === 'true|false' && tw.gang === 'false|true' && tw.midTwirl === 'false|true' && tw.gangSpam === 'false|-|false' && tw.teto === 'true|teto|false' && tw.miku === 'true|miku|false' && tw.plain === 'true|-|false'
+    check('Neru: double-clicked, a hop — a twirl only for the Neru gang (not cut short by another click), who never makes her angry; clicked over and over, angry — or for a Teto or Miku fan one of three (angry, a photo, "No baguette!" / "No leek!") that clicking again doesn\'t cut short, the photo or words gone before her pose changes; the hundredth click in a visit — even in a huff — gets her happy face and a shower of hearts',
+      tw.once === 'true|false' && tw.twice === 'true|false' && tw.gang === 'false|true' && tw.midTwirl === 'false|true' && tw.gangSpam === 'false|-|false' && tw.plain === 'true|-|false'
+      && tw.teto.join() === 'angry||true|true|-|usual,say|No baguette!|true|true|-|usual,photo|teto|true|true|mock|usual' && tw.miku.join() === 'say|No leek!|true|true|-|usual,photo|miku|true|true|mock|usual'
       && tw.n99 === 'happy' && tw.n100 === 'happy|0|true' && tw.after === 'usual', JSON.stringify(tw));
   }
   // dizzy: the pointer circled round her head three times — a blank look, a wobble, stars going round her head; flung,
@@ -2607,8 +2643,8 @@ const dupToasts = await page.evaluate(() => { const T = AshtonkMania.Toast; T.cl
 check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
 
 {
-  // a phone, as lazer's app: the game is used sideways and gameplay is upright. The stage fits, each column takes
-  // touches, and a pause button stands in for Escape
+  // a phone, as lazer's app: the game is used sideways, and songs are played as Settings → Mobile layout says —
+  // upright by default. The stage fits, each column takes touches, and a pause button stands in for Escape
   const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
   const mp = await mctx.newPage();
   mp.on('pageerror', e => errors.push('mobile: ' + e.message));
@@ -2665,15 +2701,16 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
     await mp.evaluate(() => { document.activeElement.blur(); document.getElementById('kb-test').remove(); }); await mp.waitForTimeout(80);
     check('phone: the typing bar waits for the keyboard (never along the top first), sits just above it, and goes when it\'s put away', first === 'hidden' && up === '280px' && away === 'hidden' && letGo && again === 'hidden', JSON.stringify({ first, up, away, letGo, again }));
   }
+  check('phone: Settings → Mobile layout, as lazer\'s — Portrait, Landscape, Landscape (expanded columns); Portrait to begin with', await mp.evaluate(() => {
+    const d = SETTINGS_SCHEMA.find(x => x.k === 'gameplay.mobileLayout');
+    return !!d && d.when() && AshtonkMania.Settings.get('gameplay.mobileLayout') === 'portrait' && d.o.map(o => o[1]).join() === 'Portrait,Landscape,Landscape (expanded columns)';
+  }));
+  // Portrait, held sideways: the song waits, the prompt asking for the phone upright; turned, it starts upright
   await mp.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: [], force: true }); });
   await mp.waitForTimeout(4000);
-  // sideways: the song plays as it is (no prompt), the screen's width split evenly between the columns for touches
-  const side = await mp.evaluate(() => { const G = AshtonkMania.GameplayScreen, r = G.renderer, b = G.canvas.parentElement.getBoundingClientRect();
-    return { prompt: !document.querySelector('.rot-prompt').hidden, running: !!(G.s && G.s.running), cols: [0.1, 0.3, 0.6, 0.9].map(f => r.columnAt(b.left + b.width * f)) }; });
-  check('phone sideways: gameplay plays sideways too (no prompt), each quarter of the screen a column', !side.prompt && side.running && side.cols.join() === '0,1,2,3', JSON.stringify(side));
-  // turned upright mid-song: it waits for a tap, then plays on upright
+  const waits = await mp.evaluate(() => ({ prompt: !document.querySelector('.rot-prompt').hidden, text: document.querySelector('.rot-prompt').textContent, running: !!(AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running) }));
+  check('phone sideways, Portrait layout: the song waits, asking for the phone upright', waits.prompt && /upright/.test(waits.text) && !waits.running, JSON.stringify(waits));
   await mp.setViewportSize({ width: 390, height: 844 });
-  await mp.waitForSelector('.gp-tap', { timeout: 5000 }); await mp.tap('.gp-tap');
   await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
   await mp.waitForFunction(() => { const r = AshtonkMania.GameplayScreen.renderer; return r && r.H > r.W; }, null, { timeout: 5000 }); // (laid out upright)
   check('phone upright in gameplay: no prompt', await mp.evaluate(() => document.querySelector('.rot-prompt').hidden));
@@ -2716,6 +2753,27 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.waitForFunction(() => AshtonkMania.Screens.currentName === 'results', null, { timeout: 40000 });
   await mp.waitForTimeout(500);
   check('phone upright: the results after a song stay upright (no prompt to turn sideways), Retry in reach', await mp.evaluate(() => document.querySelector('.rot-prompt').hidden && !!document.querySelector('.results')));
+  // sideways, the other two: "Landscape (expanded columns)" — the skin's columns widened as lazer does — and
+  // "Landscape", the stage as on a computer; either way the screen's width is split evenly between the columns for
+  // touches. Turned upright mid-song, it stops for a tap
+  await mp.setViewportSize({ width: 844, height: 390 });
+  await mp.evaluate(() => { AshtonkMania.Settings.set('gameplay.mobileLayout', 'expanded'); const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: [], force: true }); });
+  await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
+  const sideways = () => mp.evaluate(() => {
+    const G = AshtonkMania.GameplayScreen, r = G.renderer, b = G.canvas.parentElement.getBoundingClientRect(), lw = AshtonkMania.Settings.get('gameplay.laneWidth');
+    const wide = Math.min(r.layout.columnWidth[0] * r.s * lw * 2.83 * (r.W / r.H) / 1.92, r.W * 0.96 / 4);
+    return { prompt: !document.querySelector('.rot-prompt').hidden, running: !!(G.s && G.s.running), cols: [0.1, 0.3, 0.6, 0.9].map(f => r.columnAt(b.left + b.width * f)).join(), fnf: r.fnf,
+      expanded: r.colW.every(w => Math.abs(w - wide) < 0.5), sameFall: Math.abs(r.scrollLength - 402 * Math.min(r.H * 0.2 * lw, r.W * 0.96 / 4) / r.layout.columnWidth[0]) < 0.01, skin: r.colW.every((w, i) => Math.abs(w - r.layout.columnWidth[i] * r.s * lw) < 0.5), span: +(r.stageW / r.W).toFixed(2) };
+  });
+  const ex = await sideways();
+  check('phone sideways, Landscape (expanded columns): no prompt, lazer\'s widened columns across most of the screen (notes as long to read as ever), each quarter of it a column', !ex.prompt && ex.running && ex.cols === '0,1,2,3' && ex.fnf && ex.expanded && ex.sameFall && ex.span > 0.6, JSON.stringify(ex));
+  await mp.evaluate(() => AshtonkMania.Settings.set('gameplay.mobileLayout', 'landscape')); await mp.waitForTimeout(400);
+  const flat = await sideways();
+  check('phone sideways, Landscape: the stage as on a computer (the skin\'s own column widths), touches still split across the screen', !flat.prompt && flat.running && flat.cols === '0,1,2,3' && !flat.fnf && flat.skin && flat.span < ex.span, JSON.stringify(flat));
+  await mp.setViewportSize({ width: 390, height: 844 });
+  await mp.waitForSelector('.gp-tap', { timeout: 5000 }).catch(() => {});
+  const turned = await mp.evaluate(() => ({ tap: !!document.querySelector('.gp-tap'), running: AshtonkMania.GameplayScreen.s.running, prompt: /sideways/.test(document.querySelector('.rot-prompt:not([hidden])')?.textContent || '') }));
+  check('phone: turned the wrong way mid-song, it stops for a tap, the prompt asking for it sideways again', turned.tap && !turned.running && turned.prompt, JSON.stringify(turned));
   await mp.setViewportSize({ width: 844, height: 390 });
   await mp.evaluate(() => AshtonkMania.Screens.go('home', {}, {})); await mp.setViewportSize({ width: 390, height: 844 }); await mp.waitForTimeout(500);
   await mp.evaluate(() => { const H = AshtonkMania.Screens.current; if (H.setState) H.setState('top'); }); await mp.waitForTimeout(900);
@@ -2726,16 +2784,16 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   const land = await mp.evaluate(() => ({ rot: !document.querySelector('.rot-prompt').hidden, z: AshtonkMania.Zoom.z, w: document.querySelector('#app').offsetWidth }));
   check('phone sideways: the desktop interface scaled to the screen as on lazer for Android, at the phone\'s 125% UI scale (no rotate prompt)', !land.rot && land.z > 1.3 && Math.abs(land.w - 844 / (Math.min(844 / 1366, 390 / 768) * 1.25)) < 6, JSON.stringify(land));
   {
-    // a tablet-shaped screen and many keys: the stage spans it, so the skin's health bar beside it would be off the
-    // edge — lazer's bar at the top instead; with fewer keys the skin's bar stays beside the stage
+    // a tablet-shaped screen and many keys, expanded: the stage spans it, so the skin's health bar beside it would be off
+    // the edge — lazer's bar at the top instead; a stage as on a computer keeps the skin's bar beside it
     await mp.setViewportSize({ width: 1024, height: 768 }); await mp.waitForTimeout(400);
-    const hpFor = async v => {
-      await mp.evaluate(v => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === v); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); }, v);
+    const hpFor = async (v, layout) => {
+      await mp.evaluate(([v, layout]) => { AshtonkMania.Settings.set('gameplay.mobileLayout', layout); const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === v); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); }, [v, layout]);
       await mp.waitForFunction(v => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running && AshtonkMania.GameplayScreen.s.rec.version === v, v, { timeout: 20000 });
       return mp.evaluate(() => { const G = AshtonkMania.GameplayScreen, r = G.renderer; return { hm: G.healthMode, off: !!r.healthMode && r.stageX + r.stageW + r._cropMargins()[1] > r.W }; });
     };
-    const nine = await hpFor('9K Expert'), four = await hpFor('4K Normal');
-    check('touch screen: a stage spanning the screen gets lazer\'s health bar at the top (the skin\'s beside it would be off the edge)', nine.hm === 'lazer' && !nine.off && four.hm !== 'lazer' && !four.off, JSON.stringify({ nine, four }));
+    const nine = await hpFor('9K Expert', 'expanded'), four = await hpFor('4K Normal', 'landscape');
+    check('touch screen: a stage spanning the screen (expanded columns) gets lazer\'s health bar at the top (the skin\'s beside it would be off the edge)', nine.hm === 'lazer' && !nine.off && four.hm !== 'lazer' && !four.off, JSON.stringify({ nine, four }));
   }
   {
     // practice on a touch screen: the tools sat over the first column — while the song plays a touch there is the

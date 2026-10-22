@@ -277,13 +277,20 @@ const Keyboard = {
 };
 if (Mobile.touch) Keyboard.init();
 
-/** Which way the phone is held, as lazer's mobile app: the game is used sideways, and gameplay alone is upright.
- *  The screen is locked that way where the browser allows it (the installed app, or fullscreen); otherwise a prompt
- *  covers the screen until the phone is turned (gameplay waits paused meanwhile). */
+/** Which way the phone is held, as lazer's mobile app: the game is used sideways, and songs are played the way
+ *  Settings → Mobile layout says — upright (Portrait, lazer's default) or sideways. The screen is locked that way where
+ *  the browser allows it (the installed app, or fullscreen); otherwise a prompt covers the screen until the phone is
+ *  turned (a song waits for it, and one under way stops for a tap). */
 const Orientation = {
   el: null,
-  /** The menus are used sideways; gameplay either way up — upright (as lazer's app) or sideways, as you hold it. */
-  wanted() { return typeof Screens !== 'undefined' && /^(gameplay|results)$/.test(Screens.currentName) ? 'any' : 'landscape'; },
+  /** The menus are used sideways; a song as Settings → Mobile layout says; the results either way up. */
+  wanted() {
+    const n = typeof Screens !== 'undefined' ? Screens.currentName : '';
+    if (n === 'gameplay') return typeof Settings !== 'undefined' && Settings.get('gameplay.mobileLayout') === 'portrait' ? 'portrait' : 'landscape';
+    return n === 'results' ? 'any' : 'landscape';
+  },
+  /** Whether the prompt to turn the phone is up. */
+  wrong() { return !!this.el && !this.el.hidden; },
   lock(kind) { try { const o = screen.orientation; o && o.lock && o.lock(kind).catch(() => {}); } catch { /* not supported */ } this.update(); },
   init() {
     if (this.el || !Mobile.touch) return;
@@ -291,7 +298,7 @@ const Orientation = {
     document.body.append(this.el);
     window.addEventListener('resize', () => this.update());
     document.addEventListener('fullscreenchange', () => this.lock(this.wanted()));
-    const hook = () => { if (typeof Bus === 'undefined') return setTimeout(hook, 200); Bus.on('screen:changed', () => this.lock(this.wanted())); };
+    const hook = () => { if (typeof Bus === 'undefined') return setTimeout(hook, 200); Bus.on('screen:changed', () => this.lock(this.wanted())); Bus.on('settings:changed', k => { if (k === 'gameplay.mobileLayout' || k === '*') this.lock(this.wanted()); }); };
     hook();
     this.lock('landscape');
   },
@@ -301,7 +308,8 @@ const Orientation = {
     this.el.hidden = !wrong;
     this.el.classList.toggle('to-up', want === 'portrait');
     this.el.querySelector('b').textContent = want === 'portrait' ? 'Turn your device upright' : 'Turn your device sideways';
-    this.el.querySelector('span').textContent = want === 'portrait' ? 'Gameplay is played upright.' : 'The menus are used sideways — songs play either way up.';
+    const song = typeof Screens !== 'undefined' && Screens.currentName === 'gameplay';
+    this.el.querySelector('span').textContent = song ? `Songs are played ${want === 'portrait' ? 'upright' : 'sideways'} — Settings → Mobile layout.` : 'The menus are used sideways.';
   },
 };
 

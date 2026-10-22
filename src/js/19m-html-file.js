@@ -115,23 +115,32 @@ const HtmlFile = {
     this.update();
   },
   /** Write the newest version over this file: the place it was saved to before (remembered), or — the first time —
-   *  where you point the save box (already on this file's name). A browser that can't write files gets a download. */
+   *  where you point the save box (already on this file's name). A browser that can't write files gets a download.
+   *  The new version is all fetched before the file is touched: the save box empties the file you pick there and then,
+   *  so asking first and then failing to get the new version (the connection dropped, the website not reachable) left
+   *  a 0-byte file where the game was. */
   async update() {
     if (this.busy) return;
     const name = this.fileName();
-    // (asked straight away, while the click that asked for it still counts: the browser only allows the save box then)
-    let handle = await DB.kvGet('htmlFile.handle', null).catch(() => null);
-    if (handle && handle.name !== name) handle = null;
-    if (handle) { try { if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') handle = null; } catch { handle = null; } }
-    if (!handle && window.showSaveFilePicker) {
-      try { handle = await window.showSaveFilePicker({ suggestedName: name, startIn: 'downloads', types: [{ description: 'Ashtonk!mania', accept: { 'text/html': ['.html'] } }] }); }
-      catch (e) { if (e && e.name === 'AbortError') return; handle = null; }
-    }
-    if (!handle) { await this.save(); Toast.show('Put the new file in place of this one', `Then open ${this.NAME} again to play the new version.`, { timeout: 10000 }); return; }
     this.busy = true;
-    const p = Toast.progress('Updating Ashtonk!mania', 'Getting the newest version…');
+    let p = Toast.progress('Updating Ashtonk!mania', 'Getting the newest version…');
     try {
       const blob = await this.build(f => p.set(f * 0.97));
+      let handle = window.showSaveFilePicker ? await DB.kvGet('htmlFile.handle', null).catch(() => null) : null;
+      if (handle && handle.name !== name) handle = null;
+      let ok = false; try { ok = !!handle && await handle.queryPermission({ mode: 'readwrite' }) === 'granted'; } catch { /* asked below */ }
+      if (!ok) {
+        // (the browser only opens the save box, or asks to let the game write the file, straight after a click)
+        p.cancelled();
+        if (!await Dialog.confirm('The new version is ready', window.showSaveFilePicker ? `Save it over ${name}? Pick that file in the box that opens. Your beatmaps, scores and settings stay as they are.` : `It downloads as ${this.NAME}: put it in place of this file, then open it to play the new version.`, { ok: window.showSaveFilePicker ? 'Save' : 'Download', cancel: 'Not now', icon: 'download' })) return;
+        if (handle) { try { if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') handle = null; } catch { handle = null; } }
+        if (!handle && window.showSaveFilePicker) {
+          try { handle = await window.showSaveFilePicker({ suggestedName: name, startIn: 'downloads', types: [{ description: 'Ashtonk!mania', accept: { 'text/html': ['.html'] } }] }); }
+          catch (e) { if (e && e.name === 'AbortError') return; handle = null; }
+        }
+        if (!handle) { downloadBlob(blob, this.NAME); Toast.show('Put the new file in place of this one', `Then open ${this.NAME} again to play the new version.`, { timeout: 10000 }); return; }
+        p = Toast.progress('Updating Ashtonk!mania', 'Saving…');
+      }
       const w = await handle.createWritable();
       await w.write(blob); await w.close();
       DB.kvSet('htmlFile.handle', handle).catch(() => {});

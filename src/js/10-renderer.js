@@ -54,6 +54,9 @@ function visibleBox(img) {
 /** Phones and tablets: a column's width as a fraction of the screen's height (FNF's arrow is 112 of 720, ~0.156;
  *  a little larger here, easier to read and to hit). */
 const TOUCH_COL = 0.2;
+/** Settings → Mobile layout's "Landscape (expanded columns)", as lazer widens them: 2.83 times the skin's column (less
+ *  past 7 keys), times how much wider the screen is than a phone's usual 1.92 : 1. */
+const EXPANDED_COL = 2.83, EXPANDED_KEYS = 7, PHONE_ASPECT = 1.92;
 
 class ManiaRenderer {
   /** crop: size the canvas to just the stage (plus room for the health bar / key display) instead of the whole
@@ -91,10 +94,11 @@ class ManiaRenderer {
   // (scaled with the columns when a phone resizes them: notes cross the same number of note widths per second as in
   // the skin's own layout, so a tall upright screen doesn't make them feel faster)
   // On phones (the touch layout) notes fall at the same speed as on a computer at the same scroll speed: as many
-  // column widths a second (the columns there are sized to the upright screen, so it's the same every play).
+  // column widths a second (the columns there are sized to the upright screen, so it's the same every play) — the
+  // touch layout's usual columns, so widened ones (expanded, sideways) give notes no less time to read.
   get scrollLength() {
     const L = this.layout, cw = L && L.columnWidth && L.columnWidth[0];
-    if (this.fnf && cw > 0 && this.colW && this.colW[0] > 0) return 402 * this.colW[0] / cw;
+    if (this.fnf && cw > 0 && this.colW && this.colW[0] > 0) return 402 * (this._fnfCol || this.colW[0]) / cw;
     return 402 * (this.s || this.H / 480 || 1) * (this.colScale || 1);
   }
   resize(force = false) {
@@ -204,14 +208,17 @@ class ManiaRenderer {
       x += this.colW[i] + (i < L.keys - 1 ? ((L.columnSpacing[i] || 0) + Settings.get('gameplay.laneSpacing')) * s * lw : 0);
     }
     this.stageW = x;
-    // touch screens play laid out as Friday Night Funkin' does on a phone (its 1280×720 screen scaled to fit): each
-    // column as wide as an FNF arrow (112 of 720, about a sixth of the screen's height), side by side with no gaps,
-    // in the middle, with the receptors as near the edge as FNF's (below); a narrow screen (a phone held upright)
-    // has them narrow to fit across it
+    // touch screens play laid out as Friday Night Funkin' does on a phone (its 1280×720 screen scaled to fit): side by
+    // side with no gaps, in the middle, with the receptors as near the edge as FNF's (below). Held upright, each column
+    // as wide as an FNF arrow (112 of 720, about a sixth of the screen's height), narrowed to fit across it; held
+    // sideways, as Settings → Mobile layout says (lazer's): "Landscape" is the stage as on a computer, "Landscape
+    // (expanded columns)" the skin's columns widened by lazer's reckoning (EXPANDED_COL)
     const touch = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
-    this.fnf = touch;
-    if (touch) {
-      const size = Math.min(this.H * TOUCH_COL * lw, this.W * 0.96 / L.keys);
+    const upright = this.H > this.W;
+    this.fnf = touch && (upright || Settings.get('gameplay.mobileLayout') !== 'landscape');
+    if (this.fnf) {
+      this._fnfCol = Math.min(this.H * TOUCH_COL * lw, this.W * 0.96 / L.keys);
+      const size = upright ? this._fnfCol : Math.min((L.columnWidth[0] || 30) * s * EXPANDED_COL * Math.min(1, EXPANDED_KEYS / L.keys) * (this.W / this.H) / PHONE_ASPECT * lw, this.W * 0.96 / L.keys);
       this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * size); this.stageW = size * L.keys;
       this.narrow = true;
     } else {

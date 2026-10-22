@@ -266,7 +266,10 @@ function bsearchLE(arr, v, key) {
 function downloadBlob(blob, name) {
   const a = h('a', { href: URL.createObjectURL(blob), download: name });
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  // (kept a good while: the browser only reads it once the download really starts — after the "save as" box on a
+  // computer that asks where to save, or when a phone's download manager gets to it. Let go after 5 s, a big file such
+  // as the game's HTML file came down empty: 0 bytes)
+  setTimeout(() => URL.revokeObjectURL(a.href), 5 * 60e3);
 }
 function downloadJSON(obj, name) { downloadBlob(new Blob([JSON.stringify(obj)], { type: 'application/json' }), name); }
 
