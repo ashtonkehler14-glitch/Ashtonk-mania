@@ -4002,6 +4002,7 @@ html.touch .ch-item.on .ch-x { display: grid; place-items: center; width: 26px; 
    description (16) below */
 .medal-ov { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .6); cursor: pointer; animation: fadeIn 300ms ease both; --ds: min(400px, 52vh); }
 .medal-ov.out { animation: fadeOut 300ms ease both; }
+.medal-ov.cool { cursor: default; } /* (not to be put away just yet) */
 .md-strip { position: absolute; top: 50%; width: 0; height: 5px; margin-top: -2.5px; box-shadow: 0 0 50px rgba(102, 204, 255, .5); animation: mdStrip 900ms cubic-bezier(.23, 1, .32, 1) 600ms forwards; }
 .md-strip.l { right: calc(50% + var(--ds) / 2); background: linear-gradient(90deg, transparent, #fff); }
 .md-strip.r { left: calc(50% + var(--ds) / 2); background: linear-gradient(90deg, #fff, transparent); }
@@ -15227,23 +15228,26 @@ const NeruMascot = {
   hop() {
     if (!this.el) return;
     const now = performance.now();
+    // (mid-twirl: nothing cuts it short — another click waits till she's round)
+    if (now < (this._twirlUntil || 0)) return;
     // (the hundredth click on her this visit, huff or no huff: she gives up pretending she minds)
     if (++NeruEggs._clicked === NeruEggs.HUNDRED) { NeruEggs.hundred(); return; }
     // (in a huff: a click only gets a shake of her head)
     if (now < (this._huffUntil || 0)) { this.el.classList.remove('shake'); void this.el.offsetWidth; this.el.classList.add('shake'); UISounds.play('click-short'); return; }
     // (dancing — to the code, or to the beat you're tapping — a tap only bounces her along)
     if (NeruEggs.dancing()) { this._bob = 1; this.sparkle(); UISounds.click(); return; }
-    // (taps in time with the music never add up to a huff)
-    const onBeat = NeruEggs._onBeat; NeruEggs._onBeat = false;
-    if (!onBeat) {
+    // (taps in time with the music never add up to a huff; nor does anything one of her own does — the Neru gang)
+    const onBeat = NeruEggs._onBeat, gang = NeruEggs.neruFan(); NeruEggs._onBeat = false;
+    if (!onBeat && !gang) {
       this._clicks = (this._clicks || []).filter(t => now - t < 2600);
       this._clicks.push(now);
       if (this._clicks.length >= 8 && this.has('sassy')) { NeruEggs.huff(); return; }
     }
-    // (clicked twice, quickly: a twirl — once round — instead of a hop)
-    const twirl = now - (this._lastClick || -1e9) < 330 && Settings.get('ui.animSpeed');
+    // (clicked twice, quickly, by one of her own: a twirl — once round — instead of a hop)
+    const twirl = gang && now - (this._lastClick || -1e9) < 330 && Settings.get('ui.animSpeed');
     if (twirl) NeruEggs.found('twirl');
     this._lastClick = twirl ? -1e9 : now;
+    if (twirl) this._twirlUntil = now + 760;
     this.el.classList.remove('hop', 'twirl'); void this.el.offsetWidth; this.el.classList.add(twirl ? 'twirl' : 'hop');
     UISounds.click();
     NeruEggs.stopStare();
@@ -15428,13 +15432,15 @@ const NeruCameo = {
         const now = performance.now();
         // (in a huff — clicked over and over, like the main menu's Neru — a click only gets a shake of her head)
         if (now < (el._huffUntil || 0)) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); UISounds.play('click-short'); return; }
-        el._clicks = (el._clicks || []).filter(t => now - t < 2600); el._clicks.push(now);
-        if (el._clicks.length >= 6 && pics.poses && pics.poses.sassy) {
+        // (never for one of her own; a Teto or Miku fan gets their thing crossed out over her head instead of the steam)
+        if (!NeruEggs.neruFan()) { el._clicks = (el._clicks || []).filter(t => now - t < 2600); el._clicks.push(now); }
+        if (el._clicks && el._clicks.length >= 6 && pics.poses && pics.poses.sassy) {
           el._clicks = []; el._huffUntil = now + 3000; clearTimeout(el._back);
           show(this.pose(pics, 'sassy'));
           el.classList.remove('hop', 'shake'); void el.offsetWidth; el.classList.add('shake');
           UISounds.play('dialog-dangerous-tick');
-          NeruEggs.fume(el);
+          const no = NeruEggs.fanOf();
+          if (no) NeruEggs.prop(no.who, el, img); else NeruEggs.fume(el);
           el._back = setTimeout(() => { el.classList.remove('shake'); show(face); }, 3000);
           return;
         }
@@ -15567,7 +15573,8 @@ const NeruEggs = {
     this._wake = this._wakeMove = null;
   },
 
-  // ── clicked over and over: hand on hip, a shake, a cross mark and a puff of steam — and for a few seconds she won't hop
+  // ── clicked over and over: hand on hip, a shake, a cross mark and a puff of steam — and for a few seconds she won't hop.
+  // A Teto or Miku fan gets their thing crossed out over her head instead: no baguette, no leek
   huff() {
     const M = NeruMascot, el = M.el;
     if (!el) return;
@@ -15576,7 +15583,8 @@ const NeruEggs = {
     M.show('sassy', { pop: false });
     el.classList.remove('hop', 'huff'); void el.offsetWidth; el.classList.add('huff');
     UISounds.play('dialog-dangerous-tick');
-    this.fume(el);
+    const f = this.fanOf();
+    if (f) this.prop(f.who, el, M.img); else this.fume(el);
     M._back = setTimeout(() => { el.classList.remove('huff'); if (!M.busy()) M.show(M.rest()); }, 3400);
   },
 
@@ -16695,7 +16703,7 @@ const NeruEggs = {
   // let go and she drops back into her place with a bump and a puff of dust, put out about it for a moment
   press(e) {
     const M = NeruMascot;
-    if (e.button || !M.body || this._p) return;
+    if (e.button || !M.body || this._p || performance.now() < (M._twirlUntil || 0)) return; // (mid-twirl: she's busy)
     // (in the page's own pixels: the interface may be scaled — UI scale — so screen pixels are divided by that)
     const r = M.body.getBoundingClientRect(), k = M.body.offsetWidth ? r.width / M.body.offsetWidth : 1;
     this._p = { id: e.pointerId, x: e.clientX, y: e.clientY, k, ox: (e.clientX - r.left) / k, oy: (e.clientY - r.top) / k, lx: e.clientX, lt: performance.now() };
@@ -29241,7 +29249,7 @@ const MEDALS = [
     ['alone', 'clock', 'Left Alone', 'Leave Neru alone until she\'s hugging her knees.'],
     ['fish', 'magic', 'Gone Fishing', 'Pause so long she goes fishing — then bother the fish.'],
     ['peek', 'eye', 'You Called?', 'Search for her name.'],
-    ['twirl', 'retry', 'Twirl', 'Double-click Neru.'],
+    ['twirl', 'retry', 'Twirl', 'Double-click Neru as one of her own.'],
     ['night', 'ghost', 'Night Owl', 'Catch Neru yawning after midnight.'],
     ['showoff', 'target', 'Show-off', 'Click Neru after a full combo.'],
     ['seasons', 'sync', 'Four Seasons', 'See four different times of year around Neru.'],
@@ -29298,6 +29306,7 @@ const Medals = {
       this.show(this.queue.shift());
     }, 1400);
   },
+  COOLDOWN_MS: 1500,
   show(m) {
     this.showing = true;
     if (Settings.get('audio.uiSounds')) { const b = AudioManager.synth('medal-get'); b && AudioManager.play(b, { bus: 'ui' }); }
@@ -29308,8 +29317,12 @@ const Medals = {
     // (Neru, in the corner once the medal's up — the one on the screen behind steps out meanwhile: never two of her)
     const neru = typeof NeruCameo !== 'undefined' && NeruCameo.make(m.egg ? 'secret' : 'medal', 'nc-medal', { delay: 1700 });
     if (neru) el.append(neru);
+    // (a moment before it can be put away: a click meant for something else — Neru, clicked over and over — doesn't
+    // clear it before it's been seen)
     let done = false;
-    const close = () => { if (done) return; done = true; o.close(); };
+    const at = performance.now();
+    el.classList.add('cool'); setTimeout(() => el.classList.remove('cool'), this.COOLDOWN_MS);
+    const close = () => { if (done || performance.now() - at < this.COOLDOWN_MS) return; done = true; o.close(); };
     const o = makeOverlay(el, { onClose: () => { this.showing = false; this.later(); }, onKey: e => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { close(); return true; } return false; } });
     el.addEventListener('click', close);
     Notifications.add(`Medal unlocked: ${m.name}`, m.desc, 'ok');
@@ -30329,7 +30342,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'f7cd5bdc8af4';
+const APP_BUILD = '78475242be5b';
 
 const App = {
   lastReport: null,

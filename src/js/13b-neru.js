@@ -158,23 +158,26 @@ const NeruMascot = {
   hop() {
     if (!this.el) return;
     const now = performance.now();
+    // (mid-twirl: nothing cuts it short — another click waits till she's round)
+    if (now < (this._twirlUntil || 0)) return;
     // (the hundredth click on her this visit, huff or no huff: she gives up pretending she minds)
     if (++NeruEggs._clicked === NeruEggs.HUNDRED) { NeruEggs.hundred(); return; }
     // (in a huff: a click only gets a shake of her head)
     if (now < (this._huffUntil || 0)) { this.el.classList.remove('shake'); void this.el.offsetWidth; this.el.classList.add('shake'); UISounds.play('click-short'); return; }
     // (dancing — to the code, or to the beat you're tapping — a tap only bounces her along)
     if (NeruEggs.dancing()) { this._bob = 1; this.sparkle(); UISounds.click(); return; }
-    // (taps in time with the music never add up to a huff)
-    const onBeat = NeruEggs._onBeat; NeruEggs._onBeat = false;
-    if (!onBeat) {
+    // (taps in time with the music never add up to a huff; nor does anything one of her own does — the Neru gang)
+    const onBeat = NeruEggs._onBeat, gang = NeruEggs.neruFan(); NeruEggs._onBeat = false;
+    if (!onBeat && !gang) {
       this._clicks = (this._clicks || []).filter(t => now - t < 2600);
       this._clicks.push(now);
       if (this._clicks.length >= 8 && this.has('sassy')) { NeruEggs.huff(); return; }
     }
-    // (clicked twice, quickly: a twirl — once round — instead of a hop)
-    const twirl = now - (this._lastClick || -1e9) < 330 && Settings.get('ui.animSpeed');
+    // (clicked twice, quickly, by one of her own: a twirl — once round — instead of a hop)
+    const twirl = gang && now - (this._lastClick || -1e9) < 330 && Settings.get('ui.animSpeed');
     if (twirl) NeruEggs.found('twirl');
     this._lastClick = twirl ? -1e9 : now;
+    if (twirl) this._twirlUntil = now + 760;
     this.el.classList.remove('hop', 'twirl'); void this.el.offsetWidth; this.el.classList.add(twirl ? 'twirl' : 'hop');
     UISounds.click();
     NeruEggs.stopStare();
@@ -359,13 +362,15 @@ const NeruCameo = {
         const now = performance.now();
         // (in a huff — clicked over and over, like the main menu's Neru — a click only gets a shake of her head)
         if (now < (el._huffUntil || 0)) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); UISounds.play('click-short'); return; }
-        el._clicks = (el._clicks || []).filter(t => now - t < 2600); el._clicks.push(now);
-        if (el._clicks.length >= 6 && pics.poses && pics.poses.sassy) {
+        // (never for one of her own; a Teto or Miku fan gets their thing crossed out over her head instead of the steam)
+        if (!NeruEggs.neruFan()) { el._clicks = (el._clicks || []).filter(t => now - t < 2600); el._clicks.push(now); }
+        if (el._clicks && el._clicks.length >= 6 && pics.poses && pics.poses.sassy) {
           el._clicks = []; el._huffUntil = now + 3000; clearTimeout(el._back);
           show(this.pose(pics, 'sassy'));
           el.classList.remove('hop', 'shake'); void el.offsetWidth; el.classList.add('shake');
           UISounds.play('dialog-dangerous-tick');
-          NeruEggs.fume(el);
+          const no = NeruEggs.fanOf();
+          if (no) NeruEggs.prop(no.who, el, img); else NeruEggs.fume(el);
           el._back = setTimeout(() => { el.classList.remove('shake'); show(face); }, 3000);
           return;
         }
@@ -498,7 +503,8 @@ const NeruEggs = {
     this._wake = this._wakeMove = null;
   },
 
-  // ── clicked over and over: hand on hip, a shake, a cross mark and a puff of steam — and for a few seconds she won't hop
+  // ── clicked over and over: hand on hip, a shake, a cross mark and a puff of steam — and for a few seconds she won't hop.
+  // A Teto or Miku fan gets their thing crossed out over her head instead: no baguette, no leek
   huff() {
     const M = NeruMascot, el = M.el;
     if (!el) return;
@@ -507,7 +513,8 @@ const NeruEggs = {
     M.show('sassy', { pop: false });
     el.classList.remove('hop', 'huff'); void el.offsetWidth; el.classList.add('huff');
     UISounds.play('dialog-dangerous-tick');
-    this.fume(el);
+    const f = this.fanOf();
+    if (f) this.prop(f.who, el, M.img); else this.fume(el);
     M._back = setTimeout(() => { el.classList.remove('huff'); if (!M.busy()) M.show(M.rest()); }, 3400);
   },
 
@@ -1626,7 +1633,7 @@ const NeruEggs = {
   // let go and she drops back into her place with a bump and a puff of dust, put out about it for a moment
   press(e) {
     const M = NeruMascot;
-    if (e.button || !M.body || this._p) return;
+    if (e.button || !M.body || this._p || performance.now() < (M._twirlUntil || 0)) return; // (mid-twirl: she's busy)
     // (in the page's own pixels: the interface may be scaled — UI scale — so screen pixels are divided by that)
     const r = M.body.getBoundingClientRect(), k = M.body.offsetWidth ? r.width / M.body.offsetWidth : 1;
     this._p = { id: e.pointerId, x: e.clientX, y: e.clientY, k, ox: (e.clientX - r.left) / k, oy: (e.clientY - r.top) / k, lx: e.clientX, lt: performance.now() };

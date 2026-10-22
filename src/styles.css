@@ -3983,6 +3983,7 @@ html.touch .ch-item.on .ch-x { display: grid; place-items: center; width: 26px; 
    description (16) below */
 .medal-ov { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .6); cursor: pointer; animation: fadeIn 300ms ease both; --ds: min(400px, 52vh); }
 .medal-ov.out { animation: fadeOut 300ms ease both; }
+.medal-ov.cool { cursor: default; } /* (not to be put away just yet) */
 .md-strip { position: absolute; top: 50%; width: 0; height: 5px; margin-top: -2.5px; box-shadow: 0 0 50px rgba(102, 204, 255, .5); animation: mdStrip 900ms cubic-bezier(.23, 1, .32, 1) 600ms forwards; }
 .md-strip.l { right: calc(50% + var(--ds) / 2); background: linear-gradient(90deg, transparent, #fff); }
 .md-strip.r { left: calc(50% + var(--ds) / 2); background: linear-gradient(90deg, #fff, transparent); }

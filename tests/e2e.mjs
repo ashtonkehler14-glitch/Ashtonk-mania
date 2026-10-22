@@ -39,6 +39,22 @@ const results = [];
 const check = (name, ok, extra = '') => { results.push({ name, ok }); console.log(`${ok ? '✔' : '✖'} ${name}${extra ? '  — ' + extra : ''}`); };
 
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+// (a medal can't be put away for a moment after it pops up — checked on its own below: everywhere else a click puts it
+// away at once, so it's never in the way; and Neru's Night Owl, which any new player earns when she greets them after
+// midnight, is earned without its pop-up, so the time the tests run at changes nothing)
+{
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async (...a) => {
+    const c = await newContext(...a);
+    await c.addInitScript(() => { const t = setInterval(() => {
+      const M = window.AshtonkMania && AshtonkMania.Medals;
+      if (!M) return;
+      clearInterval(t); M.COOLDOWN_MS = 0;
+      const show = M.show.bind(M); M.show = m => { if (m && m.id === 'neru-night') { M.showing = false; M.later(); return; } show(m); };
+    }, 20); });
+    return c;
+  };
+}
 // (service workers off here: the API is mocked with page.route; the offline app is checked in its own context)
 const context = await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
 // Element.append(null) writes the word "null" on screen: any such call is reported as a page error
@@ -285,24 +301,37 @@ await shot('01-home-empty');
     check('Neru: a headpat — her happy face and hearts, stroking it still a pat — then a huff when let go (no hop); not held lower down',
       pat.during === 'happy' && pat.hearts && pat.stroked === 'happy|false' && pat.after === 'sassy|false' && !/^happy/.test(pat.body) && pat.body.endsWith('|0'), JSON.stringify(pat));
   }
-  // double-clicked: a twirl (once clicked: a hop); the hundredth click this visit, even mid-huff: her happy face and
-  // hearts — she gives up
+  // double-clicked: a hop each time — a twirl only for one of her own (the Neru gang), who never makes her angry, and a
+  // click mid-twirl doesn't cut it short; clicked over and over by a Teto or Miku fan: their thing crossed out over her
+  // head instead of the steam; the hundredth click this visit, even mid-huff: her happy face and hearts — she gives up
   {
     const tw = await page.evaluate(async () => {
-      const M = NeruMascot, E = NeruEggs, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
-      const calm = async () => { M._actUntil = M._happyUntil = M._huffUntil = 0; M._clicks = []; M._lastClick = -1e9; M.el.classList.remove('hop', 'twirl', 'huff', 'shake'); await M.show(null); await wait(700); };
+      const M = NeruMascot, E = NeruEggs, P = AshtonkMania.ProfileManager, name = P.profile.name, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
+      const calm = async () => { M._actUntil = M._happyUntil = M._huffUntil = M._twirlUntil = 0; M._clicks = []; M._lastClick = -1e9; E._clicked = 0; M.el.classList.remove('hop', 'twirl', 'huff', 'shake'); M.el.querySelectorAll('.neru-bread, .neru-photo').forEach(x => x.remove()); await M.show(null); await wait(700); };
+      const spam = async () => { await calm(); const jab = E.jab; E.jab = () => {}; E._onBeat = false; try { for (let i = 0; i < 10; i++) { M.el.click(); await wait(110); } } finally { E.jab = jab; } await wait(300);
+        const b = M.el.querySelector(':scope > .neru-bread'); return `${M.el.classList.contains('huff')}|${b ? b.className.replace('neru-bread nb-', '') : '-'}|${!!M.el.querySelector('.neru-say')}`; };
       await calm(); M.el.click(); await wait(60);
       out.once = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
       await calm(); M.el.click(); await wait(150); M.el.click(); await wait(60);
       out.twice = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
+      try {
+        P.profile.name = 'NeruGang'; await calm(); M.el.click(); await wait(150); M.el.click(); await wait(60);
+        out.gang = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
+        M.el.click(); await wait(30); out.midTwirl = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
+        out.gangSpam = await spam();
+        P.profile.name = 'TetoFan'; out.teto = await spam();
+        P.profile.name = 'MikuFan'; out.miku = await spam();
+      } finally { P.profile.name = name; }
+      out.plain = await spam();
       await calm(); E._clicked = 98; M.el.click(); await wait(300); out.n99 = M.img.dataset.pose;
       M._huffUntil = performance.now() + 5000; M.el.click(); await wait(400);
       out.n100 = `${M.img.dataset.pose}|${M._huffUntil}|${document.querySelectorAll('.home .neru .neru-heart').length > 0 || document.documentElement.classList.contains('slow')}`;
       await wait(3200); out.after = M.img.dataset.pose || 'usual';
       return out;
     });
-    check('Neru: double-clicked, a twirl; the hundredth click in a visit — even in a huff — gets her happy face and a shower of hearts',
-      tw.once === 'true|false' && tw.twice === 'false|true' && tw.n99 === 'happy' && tw.n100 === 'happy|0|true' && tw.after === 'usual', JSON.stringify(tw));
+    check('Neru: double-clicked, a hop — a twirl only for the Neru gang (not cut short by another click), who never makes her angry; clicked over and over, angry — or for a Teto or Miku fan their thing crossed out; the hundredth click in a visit — even in a huff — gets her happy face and a shower of hearts',
+      tw.once === 'true|false' && tw.twice === 'true|false' && tw.gang === 'false|true' && tw.midTwirl === 'false|true' && tw.gangSpam === 'false|-|false' && tw.teto === 'true|teto|false' && tw.miku === 'true|miku|false' && tw.plain === 'true|-|false'
+      && tw.n99 === 'happy' && tw.n100 === 'happy|0|true' && tw.after === 'usual', JSON.stringify(tw));
   }
   // dizzy: the pointer circled round her head three times — a blank look, a wobble, stars going round her head; flung,
   // or shaken about, she lands dizzy too (let go gently, as before, she's only put out)
@@ -360,7 +389,8 @@ await shot('01-home-empty');
     AshtonkMania.Medals.egg = id => got.push(id);
     try {
       M._actUntil = M._happyUntil = M._huffUntil = 0; M._clicks = []; M._lastClick = -1e9; await M.show(null); await wait(400);
-      M.el.click(); await wait(120); M.el.click(); await wait(800);
+      const nm = AshtonkMania.ProfileManager.profile.name; AshtonkMania.ProfileManager.profile.name = 'NeruGang'; // (the twirl is her own fans')
+      try { M.el.click(); await wait(120); M.el.click(); await wait(800); } finally { AshtonkMania.ProfileManager.profile.name = nm; }
       M._actUntil = M._happyUntil = 0; await M.show(null); E._greeted = false; E.greet(new Date(2026, 9, 21, 2, 30)); await wait(1900); E._greeted = true; await wait(2600);
       const c = AshtonkMania.NeruCameo.make('great', 'nc-results', { poke: AshtonkMania.NeruCameo.EGG.fullCombo });
       Object.assign(c.style, { position: 'fixed', right: '20px', bottom: '20px' }); document.body.append(c);
@@ -2591,6 +2621,8 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   }
   {
     // a long press is a right-click (iOS sends no contextmenu for one, and the press ended as a tap that started the song)
+    // (after midnight her Night Owl medal pops up on a new player's main menu: put away once it can be)
+    for (let i = 0; i < 10 && await mp.$('.medal-ov'); i++) { await mp.evaluate(() => { const o = document.querySelector('.medal-ov:not(.cool)'); if (o) o.click(); }); await mp.waitForTimeout(500); }
     await mp.evaluate(() => AshtonkMania.Screens.go('songselect', { force: true })); await mp.waitForTimeout(1500);
     const at = await mp.evaluate(() => { const r = document.querySelector('.diff-panel').getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; });
     const cdp0 = await mctx.newCDPSession(mp);
@@ -2900,6 +2932,19 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   for (let i = 0; i < 3 && await page.$('.medal-ov'); i++) { await page.click('.medal-ov'); await page.waitForTimeout(1700); }
   check('medals: Neru\'s secrets show as "???" till found, and finding one unlocks its medal (once) — and a wink from her', secret.hidden === 17 && !secret.named && /Zako~/.test(egg.text) && egg.got && egg.queued === 0 && egg.neru === 'neru-wink.png', JSON.stringify({ secret, egg }));
 }
+  // (a click straight away — meant for Neru, say — doesn't put a medal away before it's been seen)
+  const cool = await page.evaluate(async () => {
+    const M = AshtonkMania.Medals, wait = ms => new Promise(r => setTimeout(r, ms));
+    M.COOLDOWN_MS = 1500; // (as it plays)
+    try {
+      M.show({ id: 'test', name: 'Test Medal', desc: 'Only a test.', icon: 'star' }); await wait(200);
+      document.querySelector('.medal-ov').click(); await wait(500);
+      const early = !!document.querySelector('.medal-ov:not(.out)');
+      await wait(1000); document.querySelector('.medal-ov').click(); await wait(600);
+      return { early, later: !document.querySelector('.medal-ov') };
+    } finally { M.COOLDOWN_MS = 0; }
+  });
+  check('medals: a medal can\'t be clicked away for a moment after it shows', cool.early && cool.later, JSON.stringify(cool));
 
 // dangerous dialog buttons (red): a single press confirms, no holding
 {

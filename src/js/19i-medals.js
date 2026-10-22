@@ -23,7 +23,7 @@ const MEDALS = [
     ['alone', 'clock', 'Left Alone', 'Leave Neru alone until she\'s hugging her knees.'],
     ['fish', 'magic', 'Gone Fishing', 'Pause so long she goes fishing — then bother the fish.'],
     ['peek', 'eye', 'You Called?', 'Search for her name.'],
-    ['twirl', 'retry', 'Twirl', 'Double-click Neru.'],
+    ['twirl', 'retry', 'Twirl', 'Double-click Neru as one of her own.'],
     ['night', 'ghost', 'Night Owl', 'Catch Neru yawning after midnight.'],
     ['showoff', 'target', 'Show-off', 'Click Neru after a full combo.'],
     ['seasons', 'sync', 'Four Seasons', 'See four different times of year around Neru.'],
@@ -80,6 +80,7 @@ const Medals = {
       this.show(this.queue.shift());
     }, 1400);
   },
+  COOLDOWN_MS: 1500,
   show(m) {
     this.showing = true;
     if (Settings.get('audio.uiSounds')) { const b = AudioManager.synth('medal-get'); b && AudioManager.play(b, { bus: 'ui' }); }
@@ -90,8 +91,12 @@ const Medals = {
     // (Neru, in the corner once the medal's up — the one on the screen behind steps out meanwhile: never two of her)
     const neru = typeof NeruCameo !== 'undefined' && NeruCameo.make(m.egg ? 'secret' : 'medal', 'nc-medal', { delay: 1700 });
     if (neru) el.append(neru);
+    // (a moment before it can be put away: a click meant for something else — Neru, clicked over and over — doesn't
+    // clear it before it's been seen)
     let done = false;
-    const close = () => { if (done) return; done = true; o.close(); };
+    const at = performance.now();
+    el.classList.add('cool'); setTimeout(() => el.classList.remove('cool'), this.COOLDOWN_MS);
+    const close = () => { if (done || performance.now() - at < this.COOLDOWN_MS) return; done = true; o.close(); };
     const o = makeOverlay(el, { onClose: () => { this.showing = false; this.later(); }, onKey: e => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { close(); return true; } return false; } });
     el.addEventListener('click', close);
     Notifications.add(`Medal unlocked: ${m.name}`, m.desc, 'ok');
