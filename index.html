@@ -3243,6 +3243,8 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .lz-menu.lz-instant *, .lz-menu.lz-instant { transition: none !important; }
 /* lazer's SongTicker: top right, 15px in and 5px down; a 24px light italic title over the 16px artist */
 .lz-ticker { position: absolute; right: 15px; top: calc(var(--toolbar-h) + 5px); z-index: 4; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; opacity: 0; pointer-events: none; text-shadow: 0 0 40px rgba(10, 10, 10, .5); }
+/* (the now-playing panel open over it: a sliver of the title peeked out above the panel on a phone) */
+body:has(.np-panel.show) .lz-ticker { visibility: hidden; }
 .lz-tk-t { font-size: 24px; font-weight: 300; font-style: italic; line-height: 1.1; }
 .lz-tk-a { font-size: 16px; line-height: 1.1; }
 /* lazer's MenuTipDisplay: bottom centre, #171a1c at 75% with 10px corners, 600px of text */
@@ -30410,7 +30412,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '6de3eeaf8b63';
+const APP_BUILD = 'a0d8a1f94267';
 
 const App = {
   lastReport: null,
