@@ -4463,6 +4463,10 @@ body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 
   .se-set { gap: 12px; }
   .se-head { padding-bottom: 8px; }
 }
+/* (…and with a wide enough screen, one panel: the chosen one's settings open under it in the list — see placeSettings) */
+.se.se-short .se-r { display: none; }
+.se.se-short .se-l { width: 236px; }
+.se.se-short .se-l .se-set { flex: none; margin: 0 0 6px; padding: 10px 8px; border-radius: 8px; background: rgba(255, 255, 255, .04); box-shadow: inset 0 0 0 1px var(--se-line); }
 /* lazer's user tags: in song select's details (with their votes), and the voting panel on results */
 span.md-tag { cursor: default; }
 .md-tag.ut small { margin-left: 4px; font-size: 11px; opacity: .6; }
