@@ -639,6 +639,10 @@ html.touch .settings-panel .set-row .reset::after { content: ""; position: absol
 .ss-sel { display: flex; align-items: center; gap: 4px; height: 30px; padding: 0 2px 0 12px; font-size: .78rem; font-weight: 600; color: var(--c2); }
 .ss-sel::before { border-radius: 5px; background: var(--b4); }
 .ss-sel .select { height: 30px; padding: 0 26px 0 6px; font-size: .8rem; font-weight: 600; background-color: transparent; border-color: transparent; box-shadow: none; background-position: calc(100% - 14px) 13px, calc(100% - 9px) 13px; }
+/* (a narrow filter box — a tablet: the collection picker says which collection on its own, so its caption goes and
+   the room goes to the pickers, most to grouping's longer names) */
+.ss-row3 { container-type: inline-size; }
+@container (max-width: 560px) { .ss-row3 > .ss-coll > span { display: none; } .ss-row3 > .ss-sel:nth-child(2) { flex-grow: 1.25; } }
 /* DifficultyRangeSlider: a "Star Rating" label, then the star spectrum, darkened outside the range, framed in
    Highlight1, with a nub at each end in its star colour */
 .ss-stars { flex: 1; min-width: 0; display: flex; align-items: stretch; height: 30px; touch-action: none; }
@@ -2660,6 +2664,9 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 
 /* beatmap listing: three columns; lazer's hover panel slides out on the card's right with like / download */
 .ex-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* (a narrower listing — a tablet, or a big UI scale — two cards a row, so titles aren't cut to a few letters) */
+.explorer .ov-content > .page { container-type: inline-size; }
+@container (max-width: 1100px) { .ex-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 1100px) and (hover: none) and (orientation: portrait) { .ex-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) and (hover: none) and (orientation: portrait) { .ex-grid { grid-template-columns: 1fr; } }
 .ex-card .ex-cb { transition: padding-right 250ms var(--ease-out); }
