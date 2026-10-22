@@ -155,7 +155,7 @@ const Mobile = {
     el.append(h('div.mob-inst-box',
       h('img', { src: Host.asset('icons/icon-192.png'), alt: '' }),
       h('h2', 'Downloading the app is recommended'),
-      h('p.mob-inst-warn', 'Playing in the browser isn\'t recommended on phones.'),
+      h('p.mob-inst-warn', 'Playing in the browser isn\'t recommended on phones and tablets.'),
       h('p', 'In a browser tab the address bar, swipe gestures and browser timing get in the way. The app opens full screen, runs smoother and plays offline.'),
       how,
       h('div.mob-inst-btns',
