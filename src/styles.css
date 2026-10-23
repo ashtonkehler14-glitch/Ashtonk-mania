@@ -3370,6 +3370,8 @@ body.f-settings #app #toolbar { z-index: 61; }
 .pm-btn .pm-label { letter-spacing: 0; }
 .pm-btn:hover .pm-label { letter-spacing: 1.4px; transition-duration: 400ms; }
 .pm-info { align-self: center; justify-self: center; text-align: center; font-size: 18px; line-height: 1.35; }
+/* (a tall screen — a phone held upright: Neru stands in the space below the buttons, so the numbers sit just under them) */
+@media (orientation: portrait) and (max-aspect-ratio: 3/4) { .pause-menu.has-neru .pm-info { align-self: start; margin-top: 24px; } }
 .pm-info b { font-weight: 700; }
 /* FailOverlay's footer: #333, 50px, the save-score button (DownloadButton: grey, yellow while saving, green with a
    tick once saved) centred */
