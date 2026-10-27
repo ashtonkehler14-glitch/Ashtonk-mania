@@ -96,6 +96,7 @@ const BeatmapsScreen = {
     page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, search, h('span.grow'), this.summary), this.list, shield);
     let still = 0;
     const sc = this._scroller = el.querySelector('.screen-body');
+    sc.classList.add('lib-body');
     sc.addEventListener('scroll', () => { shield.classList.add('on'); clearTimeout(still); still = setTimeout(() => shield.classList.remove('on'), 160); this.schedule(); }, { passive: true });
     // (the list's columns, row height and where it starts are measured again only when something changes size: the
     // window, the import report above it — never while it scrolls)
@@ -913,6 +914,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.27d', title: 'Lighter menus', sections: [
+    { icon: 'sparkle', title: 'Lighter menus', items: ['Song select uses far less of your computer while you sit on it, with performance mode off too', 'Stepping through songs and typing a search are lighter, looking the same', 'Browse and your library scroll more smoothly on slow computers'] },
+  ] },
   { id: '2026.10.27c', title: 'Fixes', sections: [
     { icon: 'sparkle', title: 'Fixes', items: ['Notes scroll without the little hitches every few seconds', 'Percy skins: long notes are cut short by the same amount, like in osu!', 'Skins that hide the health bar with empty images hide it, instead of getting another bar', 'Updating the HTML file checks the new version saved properly before restarting, instead of opening a blank page'] },
     { icon: 'heart', title: 'Neru', items: ['Playing as Miku or Teto, single clicks don\'t set her off: the leek, the baguette or a picture comes when she\'d get angry', 'She only twirls in Neru mode', 'The thought bubble goes before she changes back'] },

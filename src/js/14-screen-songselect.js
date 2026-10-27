@@ -240,19 +240,23 @@ const SongSelect = {
     cancelAnimationFrame(this._beatRaf); clearTimeout(this._beatT);
     let last = -1;
     const tick = () => {
+      this._beatRaf = 0; clearTimeout(this._beatT);
       const tm = Music.meta && Music.meta.timing;
-      // (nothing to pulse to — no music, animations off (Performance mode) — looked in on a few times a second, not
-      // every frame)
-      if (!tm || !Music.playing || !this.logoBeat || !Settings.get('ui.animSpeed')) { this._beatRaf = 0; clearTimeout(this._beatT); this._beatT = setTimeout(() => { this._beatRaf = requestAnimationFrame(tick); }, 300); return; }
-      this._beatRaf = requestAnimationFrame(tick);
+      // (nothing to pulse to — no music, animations off (Performance mode) — looked in on a few times a second)
+      if (!tm || !Music.playing || !this.logoBeat || !Settings.get('ui.animSpeed')) { this._beatT = setTimeout(() => { this._beatRaf = requestAnimationFrame(tick); }, 300); return; }
       const t = Music.time + 60, i = Math.max(0, bsearchLE(tm, t, 'time')), tp = tm[i];
       const beat = Math.floor((t - tp.time) / tp.beatLength), key = i * 100000 + beat;
-      if (key === last || t < tp.time || beat < 0) return;
-      last = key;
-      const L = tp.beatLength;
-      this.panelPulse(beat, tp);
-      this.logoBeat.getAnimations().forEach(a => a.cancel());
-      this.logoBeat.animate([{ scale: 1, easing: 'cubic-bezier(.5, 1, .89, 1)' }, { scale: 0.98, offset: 60 / (60 + L * 2), easing: 'cubic-bezier(.22, 1, .36, 1)' }, { scale: 1 }], { duration: 60 + L * 2 });
+      if (key !== last && t >= tp.time && beat >= 0) {
+        last = key;
+        const L = tp.beatLength;
+        this.panelPulse(beat, tp);
+        this.logoBeat.getAnimations().forEach(a => a.cancel());
+        this.logoBeat.animate([{ scale: 1, easing: 'cubic-bezier(.5, 1, .89, 1)' }, { scale: 0.98, offset: 60 / (60 + L * 2), easing: 'cubic-bezier(.22, 1, .36, 1)' }, { scale: 1 }], { duration: 60 + L * 2 });
+      }
+      // (looked in on again as the next beat — or timing point — comes round, not every frame: a frame asked for each
+      // time, for nothing, had the whole page work out its styles and layers again sixty times a second)
+      const nx = tm[i + 1], until = Math.min(t < tp.time ? tp.time - t : tp.time + (beat + 1) * tp.beatLength - t, nx && nx.time > t ? nx.time - t : Infinity);
+      this._beatT = setTimeout(() => { this._beatRaf = requestAnimationFrame(tick); }, clamp(until / (Music.rate || 1) - 12, 0, 1000));
     };
     this._beatRaf = requestAnimationFrame(tick);
   },
@@ -1111,10 +1115,19 @@ const SongSelect = {
     const scope = ['global', 'friends'].includes(Settings.get('songselect.lbScope')) ? Settings.get('songselect.lbScope') : 'local';
     const headKey = `${tab}|${modsOn}|${sortBy}|${scope}`;
     const v = { m, set, fav, plays, len, bpm, sc, ink, stars, from, stats, tab, modsOn, sortBy, scope, headKey };
-    // Performance mode: the panels showing take the new beatmap in place — texts, numbers and colours changed on the
-    // same elements — rather than being built again: a hundred new elements styled and laid out for every beatmap
-    // stepped onto was most of what showing one cost on a slow computer. (Elsewhere they're built again: they fade over.)
-    if (Settings.get('graphics.performanceMode') && this.patchInfo(v)) return;
+    // the panels showing take the new beatmap in place — texts, numbers and colours changed on the same elements —
+    // rather than being built again: a hundred new elements styled and laid out for every beatmap stepped onto was most
+    // of what showing one cost. (Outside Performance mode they fade over for another set or difficulty, as they did
+    // built again; the bars slide on their own.)
+    if (this.patchInfo(v)) {
+      const sp = Settings.get('ui.animSpeed');
+      if (!Settings.get('graphics.performanceMode') && sp > 0) {
+        const [wedge, diff] = this.info.children, fade = el => el.animate([{ opacity: .5 }, { opacity: 1 }], { duration: 200 / sp, easing: 'ease-out' });
+        if (!sameSet) fade(wedge);
+        if (!sameMap) fade(diff);
+      }
+      return;
+    }
     clearEl(this.info);
     const favBtn = h(`button.w-fav${fav ? '.on' : ''}`, { title: fav ? 'Remove from favourites' : 'Favourite', 'aria-label': 'Favourite', onclick: async () => { UISounds.click(); const cur = BeatmapManager.maps.get(this._infoMap); if (cur) await Favorites.toggle(cur.setId); } }, icon('heart', fav ? 'fill' : ''));
     const collBtn = h('button.w-fav', { title: 'Add to collection', 'aria-label': 'Add to collection', onclick: e => { const cur = BeatmapManager.maps.get(this._infoMap); if (cur) this.collectionMenu(e, cur); } }, icon('folder'));
@@ -1161,8 +1174,8 @@ const SongSelect = {
   wdBadge(from, stars, panel) {
     return starBadgeRoll(from, stars, x => { const d = panel(); if (!d) return; const c = starColour(x); d.style.setProperty('--sc', c); d.style.setProperty('--ink', x >= 6.5 ? '#ffd966' : c); });
   },
-  /** Performance mode's updateInfo: the title wedge, the difficulty panel and the leaderboard's list showing take the
-   *  beatmap `v.m` in place. False when they can't — nothing there yet, an unplayable beatmap's other layout, the
+  /** updateInfo without building anything again: the title wedge, the difficulty panel and the leaderboard's list
+   *  showing take the beatmap `v.m` in place. False when they can't — nothing there yet, an unplayable beatmap's other layout, the
    *  leaderboard's tabs or dropdowns changed — and they're built again as usual. */
   patchInfo(v) {
     const { m, set, fav, stats } = v, info = this.info, [wedge, diff, lb] = info.children;

@@ -146,9 +146,11 @@ svg.i.lzi { background: currentColor; -webkit-mask: var(--lzi) center / contain 
 @keyframes tbBump { 0% { transform: translate(-50%, -50%) scale(1.1); background: #fff; } 40% { background: red; } 100% { transform: translate(-50%, -50%) scale(1); } }
 /* the clock: 3px + 10px in from the edges, 5px between the face and the time; no tooltip */
 .tb-clock { width: auto; padding: 0 13px; gap: 5px; }
-.tb-analog { position: relative; width: 22px; height: 22px; flex: none; overflow: visible; }
+.tb-analog { position: relative; width: 22px; height: 22px; flex: none; }
+.tb-analog > span { position: absolute; inset: 0; }
+.tb-analog svg { display: block; width: 22px; height: 22px; overflow: visible; }
 .tb-analog .face { fill: none; stroke: #fff; stroke-width: 2; }
-.tb-analog g { transform-box: view-box; transform-origin: 11px 11px; transition: transform 320ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.tb-analog .tb-hand { transform-origin: 11px 11px; transition: transform 320ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
 .tb-analog .rim { stroke: #222; stroke-width: 2.4; stroke-linecap: round; }
 .tb-analog .core { stroke: #fff; stroke-width: 1; stroke-linecap: round; }
 .tb-analog .sc line { stroke: #ff99cc; stroke-width: 1.68; stroke-linecap: round; }
@@ -4623,6 +4625,9 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 /* (each written out: in one :is() the rule was tried against every element restyled, whatever its class) */
 :root.perf .screen-body, :root.perf .bso-scroll, :root.perf .res-body, :root.perf .mp-body, :root.perf .cl-body, :root.perf .ab-grid, :root.perf .setup-body, :root.perf .mc-list, :root.perf .nf-list, :root.perf .np-list, :root.perf .ch-lines,
 :root.slow .screen-body, :root.slow .bso-scroll, :root.slow .res-body, :root.slow .mp-body, :root.slow .cl-body, :root.slow .ab-grid { will-change: scroll-position; }
+/* (not the beatmap listing's or the library's cards: scrolled on the compositor, each card's pieces became layers of
+   their own — 150 to 200 of them — and sorting those out again took longer each step than painting the cards) */
+:root.perf .ex-body, :root.slow .ex-body, :root.perf .lib-body, :root.slow .lib-body { will-change: auto; }
 :root.perf #bg-a, :root.perf #bg-b { will-change: auto; }
 /* (song select's list cut off under the filters rather than fading out there: the fade, a mask over a scrolling list,
    was a good part of every step of a scroll) */

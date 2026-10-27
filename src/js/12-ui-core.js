@@ -755,13 +755,14 @@ const Toolbar = {
   CLOCK_MODES: ['full', 'runtime', 'digital', 'analog'],
   buildClock() {
     const mode = this.CLOCK_MODES.includes(Settings.get('ui.clockMode')) ? Settings.get('ui.clockMode') : 'full';
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 22 22'); svg.setAttribute('class', 'tb-analog');
     // hands drawn pointing at 12, rotated about the centre: lazer's LargeHand is 2.4px thick, 34% / 48% of the face
-    // long, with a 0.7px Gray2 rim; the SecondHand is 66% long, 1.68px thick and starts 3.36px behind the centre
-    const hand = (cls, len) => `<g class="${cls}"><line x1="11" y1="11" x2="11" y2="${(11 - (len * 22 - 2.4)).toFixed(2)}" class="rim"/><line x1="11" y1="11" x2="11" y2="${(11 - (len * 22 - 2.4)).toFixed(2)}" class="core"/></g>`;
-    svg.innerHTML = '<circle cx="11" cy="11" r="10" class="face"/>' + hand('hr', 0.34) + hand('mn', 0.48) +
-      '<g class="sc"><line x1="11" y1="13.52" x2="11" y2="0.68"/></g><circle cx="11" cy="11" r="1.2" class="dot"/><circle cx="11" cy="11" r="0.84" class="dot2"/>';
+    // long, with a 0.7px Gray2 rim; the SecondHand is 66% long, 1.68px thick and starts 3.36px behind the centre.
+    // (each hand a picture of its own, turned as a whole: the graphics card turns it, where turning a hand inside one
+    // picture had the page lay itself out again for every frame of every tick)
+    const pic = (inner, cls = '') => { const el = h(`span${cls}`); el.innerHTML = `<svg viewBox="0 0 22 22">${inner}</svg>`; return el; };
+    const hand = (cls, len) => pic(`<line x1="11" y1="11" x2="11" y2="${(11 - (len * 22 - 2.4)).toFixed(2)}" class="rim"/><line x1="11" y1="11" x2="11" y2="${(11 - (len * 22 - 2.4)).toFixed(2)}" class="core"/>`, `.tb-hand.${cls}`);
+    const svg = h('span.tb-analog', pic('<circle cx="11" cy="11" r="10" class="face"/>'), hand('hr', 0.34), hand('mn', 0.48),
+      pic('<line x1="11" y1="13.52" x2="11" y2="0.68"/>', '.tb-hand.sc'), pic('<circle cx="11" cy="11" r="1.2" class="dot"/><circle cx="11" cy="11" r="0.84" class="dot2"/>'));
     this.hands = { hr: svg.querySelector('.hr'), mn: svg.querySelector('.mn'), sc: svg.querySelector('.sc') };
     this._rot = { hr: null, mn: null, sc: null };
     this.clockTime = h('span.tb-time'); this.clockRun = h('span.tb-run', h('span', 'running'), this.clockRunT = h('span'));
@@ -801,7 +802,8 @@ const Toolbar = {
   turn(k, deg) {
     const prev = this._rot[k];
     const next = prev == null ? deg : prev + ((((deg - prev) % 360) + 540) % 360 - 180);
-    if (next === prev) return;
+    // (the hour and minute hands move on once it shows — half a degree — not by a fraction every second)
+    if (next === prev || (prev != null && k !== 'sc' && Math.abs(next - prev) < 0.5)) return;
     this._rot[k] = next;
     this.hands[k].style.transform = `rotate(${next}deg)`;
     if (prev == null) { this.hands[k].style.transition = 'none'; void this.hands[k].getBoundingClientRect(); this.hands[k].style.transition = ''; }
