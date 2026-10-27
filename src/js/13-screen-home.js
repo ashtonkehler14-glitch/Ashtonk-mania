@@ -688,7 +688,9 @@ onmessage = async ({ data: m }) => {
   mount() {
     this.el = h('div.lz-tri', { 'aria-hidden': 'true' });
     this.running = true; this.col = null; this._drawn = null;
-    if (!this._sub) this._sub = Bus.on('bg:changed', url => this.fromImage(url));
+    // (only while the menu's showing: in song select each new background was being read for a colour nobody saw —
+    // coming back, mount() reads the one there is then)
+    if (!this._sub) this._sub = Bus.on('bg:changed', url => { if (this.running) this.fromImage(url); });
     this._ro = new ResizeObserver(() => { clearTimeout(this._rt); this._rt = setTimeout(() => this.render(true), 120); });
     this._ro.observe(this.el);
     this.fromImage(Background.current);

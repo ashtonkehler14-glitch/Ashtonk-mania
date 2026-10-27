@@ -301,7 +301,8 @@ await shot('01-home-empty');
       await wait(300); out.offBeat = `${p()}|${E._taps}`;
       // (a missed beat or two in the middle: the count starts over)
       M._happyUntil = 0; await M.show(null);
-      for (const k of [40, 41, 42, 43, 47, 48, 49, 50]) await tap(k * 500);
+      // (the beats missed take a second and more: her count of clicks in a row starts over too)
+      for (const k of [40, 41, 42, 43, 47, 48, 49, 50]) { if (k === 47) M._clicks = []; await tap(k * 500); }
       await wait(300); out.gap = `${p()}|${E._taps}`;
     } finally { Object.assign(Music, saved); }
     M._happyUntil = M._actUntil = 0; await M.show(null);
@@ -335,8 +336,9 @@ await shot('01-home-empty');
     check('Neru: a headpat — her happy face and hearts, stroking it still a pat — then a huff when let go, blushing (no hop); not held lower down',
       pat.during === 'happy' && pat.hearts && pat.stroked === 'happy|false' && pat.after === 'sassy|false' && pat.blush === 2 && !/^happy/.test(pat.body) && pat.body.endsWith('|0'), JSON.stringify(pat));
   }
-  // double-clicked: a hop each time — a twirl only for one of her own (the Neru gang), who never makes her angry, and a
-  // click mid-twirl doesn't cut it short; clicked over and over, angry — or, as often, a spin; by a Teto or Miku fan,
+  // double-clicked: a hop each time; clicked over and over — the eighth click in a row, however slowly (each within a
+  // little over a second of the last), never by chance — angry or, as often, a spin; one of her own (the Neru gang)
+  // always a spin, that a click mid-spin doesn't cut short; by a Teto or Miku fan,
   // mostly angry or a spin, now and then a photo of their character held up or their thing crossed out in a thought bubble — which
   // clicking again doesn't cut short, and a photo or what she said is gone before her pose changes back; the hundredth
   // click this visit, even mid-huff: her happy face and hearts — she gives up
@@ -374,11 +376,15 @@ await shot('01-home-empty');
       out.once = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
       await calm(); M.el.click(); await wait(150); M.el.click(); await wait(60);
       out.twice = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
+      // (slowly — a click every 0.7s, eight taking longer than the old 2.6s window — still the eighth, not the seventh)
+      { await calm(); const jab = E.jab, rnd = Math.random; E.jab = () => {}; Math.random = () => 0.1;
+        try { for (let i = 0; i < 7; i++) { E._onBeat = false; M.el.click(); await wait(700); } out.slow7 = M.el._fanBusy; E._onBeat = false; M.el.click(); await wait(100); out.slow8 = M.el._fanBusy && M.el.classList.contains('huff'); }
+        finally { E.jab = jab; Math.random = rnd; } }
       try {
         P.profile.name = 'NeruGang'; await calm(); M.el.click(); await wait(150); M.el.click(); await wait(60);
         out.gang = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
-        M.el.click(); await wait(30); out.midTwirl = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
         out.gangSpam = await spam();
+        M.el.classList.remove('hop'); M.el.click(); await wait(30); out.midTwirl = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
         // (the odds — angry 4, the thought 1, a photo 1, a spin 4 — laid end to end: 0 angry, .45 the thought, .55 a photo, .8 a spin;
         // with no thought or photo, angry or a spin half and half)
         P.profile.name = 'TetoFan'; out.teto = [await fanSpam(0), await fanSpam(0.45), await fanSpam(0.55), await fanSpam(0.8)];
@@ -394,8 +400,8 @@ await shot('01-home-empty');
       E._seen = performance.now(); await wait(3200); out.after = M.img.dataset.pose || 'usual';
       return out;
     });
-    check('Neru: double-clicked, a hop — a twirl only for the Neru gang (not cut short by another click), who never makes her angry; clicked over and over, angry or (as often) a spin — or for a Teto or Miku fan mostly angry or a spin, now and then a photo or their thing crossed out, that clicking again doesn\'t cut short, the photo or words gone before her pose changes; the hundredth click in a visit (not one mid-huff: nothing counts then) gets her happy face and a shower of hearts',
-      tw.once === 'true|false' && tw.twice === 'true|false' && tw.gang === 'false|true' && tw.midTwirl === 'false|true' && tw.gangSpam === 'false|-|false|true' && tw.plain === 'true|-|false|false' && tw.plainSpin === 'false|-|false|true'
+    check('Neru: double-clicked, a hop; the eighth click in a row, however slowly, always gets her going — angry or (as often) a spin; the Neru gang always a spin (not cut short by another click); a Teto or Miku fan mostly angry or a spin, now and then a photo or their thing crossed out, that clicking again doesn\'t cut short, the photo or words gone before her pose changes; the hundredth click in a visit (not one mid-huff: nothing counts then) gets her happy face and a shower of hearts',
+      tw.once === 'true|false' && tw.twice === 'true|false' && tw.slow7 === false && tw.slow8 === true && tw.gang === 'true|false' && tw.midTwirl === 'false|true' && tw.gangSpam === 'false|-|false|true' && tw.plain === 'true|-|false|false' && tw.plainSpin === 'false|-|false|true'
       && tw.teto.join() === 'angry||true|true|-|usual,thought|teto|true|true|-|usual,photo|teto|true|true|mock|usual,spin|happy|true|true|-|usual' && tw.miku.join() === 'thought|miku|true|true|-|usual,photo|miku|true|true|mock|usual'
       && tw.odds === '{"angry":4,"thought":1,"photo":1,"spin":4}'
       && tw.n99 === 'happy' && tw.busy === 99 && tw.n100 === 'happy|true' && tw.after === 'usual', JSON.stringify(tw));
@@ -457,7 +463,7 @@ await shot('01-home-empty');
     try {
       M._actUntil = M._happyUntil = M._huffUntil = 0; M._clicks = []; M._lastClick = -1e9; await M.show(null); await wait(400);
       const nm = AshtonkMania.ProfileManager.profile.name; AshtonkMania.ProfileManager.profile.name = 'NeruGang'; // (the twirl is her own fans')
-      try { M.el.click(); await wait(120); M.el.click(); await wait(800); } finally { AshtonkMania.ProfileManager.profile.name = nm; }
+      try { for (let i = 0; i < 8; i++) { E._onBeat = false; M.el.click(); await wait(110); } await wait(1500); } finally { AshtonkMania.ProfileManager.profile.name = nm; }
       M._actUntil = M._happyUntil = 0; await M.show(null); E._greeted = false; E.greet(new Date(2026, 9, 21, 2, 30)); await wait(1900); E._greeted = true; await wait(2600);
       const c = AshtonkMania.NeruCameo.make('great', 'nc-results', { poke: AshtonkMania.NeruCameo.EGG.fullCombo });
       Object.assign(c.style, { position: 'fixed', right: '20px', bottom: '20px' }); document.body.append(c);

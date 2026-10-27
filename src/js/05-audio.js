@@ -294,9 +294,13 @@ const Music = {
     this._seq = (this._seq || 0) + 1;
     AudioManager.init();
     this.stop(0);
-    this._dropStream();
+    // (the same element takes the new song: emptying it first — loading nothing — cost as much as loading the song)
+    const oldUrl = this.elUrl;
+    if (this.el) { this.el.pause(); this.el.onended = null; this.el = null; this.elUrl = null; }
     const el = this._audioEl || (this._audioEl = new Audio());
-    el.preload = 'auto';
+    // (read as it plays, not the whole file at once: reading it all, on the main thread, each time the song in song
+    // select changed was a good part of what changing it cost on a slow computer)
+    el.preload = 'metadata';
     if (!this.elNode) {
       this.elNode = AudioManager.ctx.createMediaElementSource(el);
       this.elGain = AudioManager.ctx.createGain();
@@ -304,6 +308,7 @@ const Music = {
     }
     this.elUrl = URL.createObjectURL(blob);
     el.src = this.elUrl;
+    if (oldUrl) URL.revokeObjectURL(oldUrl);
     el.onended = () => { if (this.el === el && this.playing) { this.playing = false; this.pausedPos = this.duration; this.onEnded && this.onEnded(); } };
     this.el = el; this.buffer = null; this.stretched = null; this.key = key; this.meta = meta || null;
     this.rate = 1; this.pausedPos = 0;

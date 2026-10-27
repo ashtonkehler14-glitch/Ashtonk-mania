@@ -124,7 +124,9 @@ const NeruMascot = {
     cancelAnimationFrame(this._raf);
     this._lean = 0; this._bob = 0; this._px = null;
     // (her box is measured when the pointer moves, not every frame: reading layout each frame can force a reflow)
-    if (!this._onMove) this._onMove = e => { this._px = e.clientX; this._py = e.clientY; this.wake(); if (this.el && this.el.isConnected) { this._rect = this.el.getBoundingClientRect(); NeruEggs.circle(e.clientX, e.clientY); } };
+    // (her box measured a few times a second at most: measured on every move of the pointer, the page was laid out
+    // again each time)
+    if (!this._onMove) this._onMove = e => { this._px = e.clientX; this._py = e.clientY; this.wake(); if (this.el && this.el.isConnected) { const t = performance.now(); if (!this._rect || t - (this._rectAt || 0) > 250) { this._rect = this.el.getBoundingClientRect(); this._rectAt = t; } NeruEggs.circle(e.clientX, e.clientY); } };
     window.addEventListener('pointermove', this._onMove, { passive: true });
     NeruEggs.watchIdle();
     let last = performance.now();
@@ -176,19 +178,12 @@ const NeruMascot = {
     if (++NeruEggs._clicked === NeruEggs.HUNDRED) { NeruEggs.hundred(); return; }
     // (dancing — to the code, or to the beat you're tapping — a tap only bounces her along)
     if (NeruEggs.dancing()) { this._bob = 1; this.sparkle(); UISounds.click(); return; }
-    // (taps in time with the music never add up to a huff; nor does anything one of her own does — the Neru gang)
-    const onBeat = NeruEggs._onBeat, gang = NeruEggs.neruFan(); NeruEggs._onBeat = false;
-    if (!onBeat && !gang) {
-      this._clicks = (this._clicks || []).filter(t => now - t < 2600);
-      this._clicks.push(now);
-      if (this._clicks.length >= 8 && this.has('sassy')) { NeruEggs.huff(); return; }
-    }
-    // (clicked twice, quickly, by one of her own: a twirl — once round — instead of a hop)
-    const twirl = gang && now - (this._lastClick || -1e9) < 330 && Settings.get('ui.animSpeed');
-    if (twirl) NeruEggs.found('twirl');
-    this._lastClick = twirl ? -1e9 : now;
-    if (twirl) this._twirlUntil = now + 760;
-    this.el.classList.remove('hop', 'twirl'); void this.el.offsetWidth; this.el.classList.add(twirl ? 'twirl' : 'hop');
+    // (clicked over and over: every click counts, one after another — each within CLICK_GAP of the last — and the
+    // eighth always gets her going (huff): never a matter of chance or of how quickly you click. A tap that sets her
+    // dancing, in time with the music, was the dance's and stopped above.)
+    NeruEggs._onBeat = false;
+    if (NeruEggs.counted(this, now) >= NeruEggs.CLICKS) { NeruEggs.huff(); return; }
+    this.el.classList.remove('hop', 'twirl'); void this.el.offsetWidth; this.el.classList.add('hop');
     UISounds.click();
     NeruEggs.stopStare();
     if (this.happy && this.img) {
@@ -396,9 +391,9 @@ const NeruCameo = {
         const now = performance.now();
         // (clicked over and over, like the main menu's Neru — angry, a spin…: a click does nothing till it's played out)
         if (el._fanBusy) return;
-        // (never for one of her own; a Teto or Miku fan gets their thing crossed out over her head instead of the steam)
-        if (!NeruEggs.neruFan()) { el._clicks = (el._clicks || []).filter(t => now - t < 2600); el._clicks.push(now); }
-        if (el._clicks && el._clicks.length >= 6 && pics.poses && pics.poses.sassy) {
+        // (as the main menu's Neru: every click counts, one after another, and the sixth always gets her going — one of
+        // her own gets a spin; a Teto or Miku fan, mostly angry, now and then their thing crossed out or a photo)
+        if (NeruEggs.counted(el, now) >= NeruEggs.CAMEO_CLICKS && pics.poses && pics.poses.sassy) {
           el._clicks = []; clearTimeout(el._back);
           const no = NeruEggs.fanOf(), pose = name => {
             if (!name) { show(face); return true; }
@@ -406,7 +401,7 @@ const NeruCameo = {
             if (!f) return false;
             show(f); return true;
           };
-          NeruEggs.clickedOver(no && no.who, el, img, pose);
+          if (NeruEggs.neruFan()) { NeruEggs.found('twirl'); NeruEggs.spin(el, pose); } else NeruEggs.clickedOver(no && no.who, el, img, pose);
           return;
         }
         // (fishing: the fish on her line flops about — she keeps still, rod in hand — an easter egg)
@@ -539,18 +534,30 @@ const NeruEggs = {
   },
 
   // ── clicked over and over: angry or a spin (clickedOver)
+  /** Clicks it takes — one after another, each within CLICK_GAP ms of the last — on the main menu's Neru and on the
+   *  smaller Neru on other screens. Always that many: not a chance per click. */
+  CLICKS: 8, CAMEO_CLICKS: 6, CLICK_GAP: 1200,
+  /** A click on `who` (a Neru, keeping its own count) at `now`: how many in a row so far. */
+  counted(who, now) {
+    const c = who._clicks || [], last = c[c.length - 1];
+    who._clicks = last == null || now - last > this.CLICK_GAP ? [now] : [...c, now];
+    return who._clicks.length;
+  },
   huff() {
     const M = NeruMascot, el = M.el;
     if (!el) return;
     M._clicks = []; M._happyUntil = 0;
     clearTimeout(M._back);
-    const f = this.fanOf();
-    this.clickedOver(f && f.who, el, M.img, name => {
+    const pose = name => {
       if (!name) { if (!M.busy()) M.show(M.rest()); return true; }
       if (name === 'happy' ? !M.happy : !M.has(name)) return false;
       M._idle = false; M.show(name, { pop: false });
       return true;
-    });
+    };
+    // (one of her own — the Neru gang — never makes her angry: a spin, always)
+    if (this.neruFan()) { this.found('twirl'); this.spin(el, pose); return; }
+    const f = this.fanOf();
+    this.clickedOver(f && f.who, el, M.img, pose);
   },
   /** Clicked over and over: one of these, picked at random (ODDS) — she gets angry (hand on hip, a shake, the cross
    *  mark and steam) or, as often, spins; a Teto or Miku fan (`who`) now and then gets their thing in a thought bubble,
@@ -1023,6 +1030,7 @@ const NeruEggs = {
     if (!M.img || M._drag || M._drop || !M.has(pose)) return;
     // (whatever she was in the middle of gives way: this is what the code is for)
     this.stopStare(); clearTimeout(M._back); M._happyUntil = M._actUntil = 0; M._idle = false; M._idlePose = null;
+    M._clicks = []; // (the taps that set her dancing were the dance's: a fresh count of clicks after)
     if (M.el) M.el.classList.remove('huff', 'shake');
     if (!this.act(pose, ms, { sparkle: true })) return;
     this._danceUntil = performance.now() + ms;
@@ -1531,7 +1539,7 @@ const NeruEggs = {
         const ltr = Math.random() < 0.5, y0 = H * r([0.12, 0.42]), y1 = y0 - H * r([0.04, 0.12]);
         path = [{ transform: `translate(${ltr ? -size * 2 : W + size}px, ${y0}px)` }, { transform: `translate(${ltr ? W + size : -size * 2}px, ${y1}px)` }];
         if (!ltr) spin.style.scale = '-1 1';
-        spin.animate([{ transform: 'scaleY(1)' }, { transform: 'scaleY(.45) translateY(12%)' }], { duration: r([150, 210]), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
+        endless(spin, [{ transform: 'scaleY(1)' }, { transform: 'scaleY(.45) translateY(12%)' }], { duration: r([150, 210]), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
       } else if (kind === 'bubbles') {
         // (up from the floor, drifting, and — somewhere along the way — pop)
         const x = W * r([0.02, 0.98]), top = H * r([0.05, 0.45]), x1 = x + r([-30, 30]);
@@ -1546,12 +1554,12 @@ const NeruEggs = {
           const a = Math.atan2((i < pts.length - 1 ? ny - y : y - py), (i < pts.length - 1 ? nx - x : x - px)) * 180 / Math.PI + 90;
           return { transform: `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${a.toFixed(1)}deg)`, opacity: i === 0 || i === pts.length - 1 ? 0 : 1, offset: i / (pts.length - 1), easing: 'cubic-bezier(.6, 0, .2, 1)' };
         });
-        spin.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(.82)' }], { duration: 70, iterations: Infinity, direction: 'alternate' });
+        endless(spin, [{ transform: 'scaleX(1)' }, { transform: 'scaleX(.82)' }], { duration: 70, iterations: Infinity, direction: 'alternate' });
       } else if (kind === 'fireflies') {
         // (where it is, low around her, glowing up and fading as it wanders)
         const x = W * r([0.05, 0.95]), y = H * r([0.35, 0.95]);
         path = [{ transform: `translate(${x}px, ${y}px)`, opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.8 }, { transform: `translate(${x + r([-30, 30])}px, ${y - r([10, 40])}px)`, opacity: 0 }];
-        spin.animate([{ opacity: 0.35, transform: 'scale(.8)' }, { opacity: 1, transform: 'scale(1.1)' }], { duration: r([900, 1600]), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
+        endless(spin, [{ opacity: 0.35, transform: 'scale(.8)' }, { opacity: 1, transform: 'scale(1.1)' }], { duration: r([900, 1600]), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
       } else {
         // (down from above her head to the floor)
         const x = W * r([0.02, 0.98]);
@@ -1560,7 +1568,7 @@ const NeruEggs = {
         if (turn) {
           // (a leaf or a petal flutters as it falls — turning a little towards you and away — at an angle of its own)
           const a = Math.random() * 360, f = r([35, 65]);
-          spin.animate([{ transform: `rotate(${a}deg) rotateY(${-f}deg) rotateX(${f * 0.4}deg)` }, { transform: `rotate(${a + r([-40, 40])}deg) rotateY(${f}deg) rotateX(${-f * 0.4}deg)` }],
+          endless(spin, [{ transform: `rotate(${a}deg) rotateY(${-f}deg) rotateX(${f * 0.4}deg)` }, { transform: `rotate(${a + r([-40, 40])}deg) rotateY(${f}deg) rotateX(${-f * 0.4}deg)` }],
             { duration: turn, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out', delay: -Math.random() * turn });
         }
       }
@@ -1568,12 +1576,12 @@ const NeruEggs = {
       const amp = r(K.sway), tilt = K.tilt ? r(K.tilt) : K.spin[1] ? r([18, 30]) : 0;
       // (a bat bobs up and down as it flies instead)
       const ax = kind === 'bats' ? 'translateY' : 'translateX';
-      sway.animate([{ transform: `${ax}(${-amp}px) rotate(${-tilt}deg)` }, { transform: `${ax}(${amp}px) rotate(${tilt}deg)` }], { duration: r(K.swayMs), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out', delay: -Math.random() * 2000 });
+      endless(sway, [{ transform: `${ax}(${-amp}px) rotate(${-tilt}deg)` }, { transform: `${ax}(${amp}px) rotate(${tilt}deg)` }], { duration: r(K.swayMs), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out', delay: -Math.random() * 2000 });
       // (a bubble behind her can be popped: a click on one)
       if (kind === 'bubbles' && !near) p.addEventListener('pointerdown', e => { e.stopPropagation(); this.pop(p); n--; });
       const fell = p.animate(path, { duration: ms, easing: 'linear', delay: pre ? -ms * r([0.15, 0.75]) : 0 });
       fell.onfinish = () => {
-        p.remove(); n--;
+        p.remove(); n--; Endless.sweep();
         // (now and then one that's come down settles at her feet)
         if (ground && ground.isConnected && Math.random() < (kind === 'snow' ? 0.5 : 0.35)) this.settle(ground, kind, W * r([0.08, 0.92]), c); // (the ground's as wide as the drift)
       };
@@ -1871,7 +1879,7 @@ const NeruEggs = {
         const an = (j / 16 + i / 3) * 2 * Math.PI, front = (Math.sin(an) + 1) / 2;
         frames.push({ transform: `translate(${(cx + Math.cos(an) * rx).toFixed(1)}px, ${(cy + Math.sin(an) * ry).toFixed(1)}px) translate(-50%, -50%) scale(${(0.7 + front * 0.45).toFixed(2)})`, zIndex: front > 0.5 ? 3 : -1 });
       }
-      st.animate(frames, { duration: 950, iterations: Infinity });
+      endless(st, frames, { duration: 950, iterations: Infinity });
       st.animate([{ opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 1, offset: 0.85 }, { opacity: 0 }], { duration: ms, fill: 'forwards' }).onfinish = () => st.remove();
     }
   },

@@ -4616,6 +4616,7 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 :root.perf :is(.screen-body, .bso-scroll, .res-body, .mp-body, .cl-body, .ab-grid, .setup-body, .mc-list, .nf-list, .np-list, .ch-lines),
 :root.slow :is(.screen-body, .bso-scroll, .res-body, .mp-body, .cl-body, .ab-grid) { will-change: scroll-position; }
 :root.perf #bg-a, :root.perf #bg-b { will-change: auto; }
+:root.perf .carousel-inner.still { pointer-events: none; } /* (song select's list while it scrolls: see its scroll listener) */
 /* the beatmap listing at its lightest: flat cards (no cover behind them, shade, shadow or hover lift) */
 :root.perf .ex-card, :root.slow .ex-card { box-shadow: none !important; transform: none !important; isolation: auto; } /* (nothing drawn behind it to keep apart) */
 :root.perf .ex-cardbg, :root.perf .ex-cardshade, :root.slow .ex-cardbg, :root.slow .ex-cardshade { display: none; }

@@ -395,6 +395,33 @@ const ImageWorker = {
 };
 
 /** Object-URL cache so blobs from IndexedDB are only materialised once. */
+/** Performance mode: an animation started from script ends at once, as the stylesheet makes every CSS one do
+ *  (:root.perf) — on a slow computer the menus' hover wobbles, pops and slides were still played out in full, frame
+ *  by frame. One meant to run forever plays once. */
+if (typeof Element !== 'undefined' && Element.prototype.animate) {
+  const animate = Element.prototype.animate;
+  Element.prototype.animate = function (keyframes, opts) {
+    if (!document.documentElement.classList.contains('perf')) return animate.call(this, keyframes, opts);
+    const o = typeof opts === 'number' ? { duration: opts } : { ...(opts || {}) };
+    if (o.iterations === Infinity) o.iterations = 1;
+    o.duration = Math.min(+o.duration || 0, 1); o.delay = 0; o.endDelay = 0;
+    return animate.call(this, keyframes, o);
+  };
+}
+
+/** An animation that runs forever (a falling leaf's flutter, a scrolling title): let go of once its element has left
+ *  the page. One still running on an element no longer shown kept the browser working through every frame, on every
+ *  screen, for the rest of the session. */
+const Endless = {
+  list: [],
+  add(a, el) { this.list.push([a, el]); if (!this._t) this._t = setInterval(() => this.sweep(), 2000); return a; },
+  sweep() {
+    this.list = this.list.filter(([a, el]) => { if (el.isConnected && a.playState !== 'idle') return true; a.cancel(); return false; });
+    if (!this.list.length) { clearInterval(this._t); this._t = 0; }
+  },
+};
+function endless(el, keyframes, opts) { return Endless.add(el.animate(keyframes, { ...opts, iterations: Infinity }), el); }
+
 const BlobURLs = {
   map: new Map(),
   get(key, blob) {

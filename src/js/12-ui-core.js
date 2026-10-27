@@ -864,7 +864,7 @@ function marquee(el, make) {
     flow.append(h('span.mq-copy', make()));
     const dist = w + 15, ms = 1000 + dist * 1000 / 50;
     el.classList.add('scroll');
-    flow.animate([{ transform: 'none' }, { transform: 'none', offset: 1000 / ms }, { transform: `translateX(${-dist}px)` }], { duration: ms, iterations: Infinity });
+    endless(flow, [{ transform: 'none' }, { transform: 'none', offset: 1000 / ms }, { transform: `translateX(${-dist}px)` }], { duration: ms, iterations: Infinity });
   });
 }
 

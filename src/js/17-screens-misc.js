@@ -913,6 +913,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.27', title: 'Neru', sections: [
+    { icon: 'heart', title: 'Neru', items: ['Clicking Neru over and over sets her off after the same number of clicks every time', 'Once she\'s going, more clicks can\'t cut her short', 'Playing as Neru, she twirls instead'] },
+  ] },
   { id: '2026.10.22d', title: 'Look and feel', sections: [
     { icon: 'sparkle', title: 'Look and feel', items: ['Phones play whichever way you hold them, unless you pick one', 'A bigger results card on a phone held sideways', 'Tablets: two beatmaps a row in the listing, and song select\'s filters fit', 'Chat opens taller on phones and tablets, and the skin editor gives the game more room', 'Held upright, the leaderboard fades while you play so notes under it show', 'Beatmaps without a picture show a note, not an empty square', 'An empty library has a Browse online button'] },
   ] },

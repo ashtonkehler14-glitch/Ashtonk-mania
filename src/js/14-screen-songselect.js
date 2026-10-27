@@ -99,12 +99,27 @@ const SongSelect = {
     this.scroller = h('div.carousel-scroll', { tabindex: '-1' }, this.inner);
     // (the list only ever scrolls up and down: see .carousel-inner)
     this.scroller.addEventListener('scroll', () => {
-      // while the list scrolls the panels follow the curve at once; otherwise (a panel opening) they ease along
-      this.scroller.classList.add('scrolling');
-      clearTimeout(this._scrollingT); this._scrollingT = setTimeout(() => this.scroller.classList.remove('scrolling'), 120);
-      this.renderVisible();
+      this._scrollAt = performance.now();
+      const jump = this._jumpTo != null; // (the list jumping to the selected beatmap, not you scrolling it)
+      // (Performance mode: the panels ignore the pointer while you scroll the list — after every step the browser
+      // otherwise worked out again which panel was under it, lit it up and told the ones it left. Not for a jump: a
+      // single step, and switching it on and off restyles the whole list.)
+      if (!jump && document.documentElement.classList.contains('perf')) {
+        if (!this._still) { this._still = true; this.inner.classList.add('still'); }
+        clearTimeout(this._stillT); this._stillT = setTimeout(() => { this._still = false; this.inner.classList.remove('still'); }, 150);
+      }
+      // while the list scrolls the panels follow the curve at once; otherwise (a panel opening) they ease along. (With
+      // nothing easing — animations off — there's nothing to mark: marking it restyled every panel twice a scroll.)
+      if (Settings.get('ui.animSpeed') > 0) {
+        this.scroller.classList.add('scrolling');
+        clearTimeout(this._scrollingT); this._scrollingT = setTimeout(() => this.scroller.classList.remove('scrolling'), 120);
+      }
+      // (where the list is, read once before anything changes: read again after the panels were added, it made the
+      // browser lay the page out a second time for every step of the wheel)
+      const sc = this.scroller, st = this._jumpTo ?? sc.scrollTop; this._jumpTo = null;
+      this.renderVisible(false, st);
       // panels fade out under the filter once the list is scrolled, instead of being cut off at its edge
-      const sc = this.scroller, under = sc.scrollTop > 4;
+      const under = st > 4;
       if (under !== sc.classList.contains('under')) sc.classList.toggle('under', under);
     }, { passive: true });
     // lazer's right-mouse absolute scroll: hold the right button beside the panels and the list jumps to that point
@@ -453,7 +468,8 @@ const SongSelect = {
     const nSongs = new Set(shown.map(r => r.set.id)).size;
     this.countEl.textContent = `${fmtInt(nSongs)} ${nSongs === 1 ? 'match' : 'matches'}`;
     this.renderEmpty();
-    this.updateInfo();
+    if (Settings.get('graphics.performanceMode')) { clearTimeout(this._infoT); this._infoT = setTimeout(() => { this._infoT = 0; this.updateInfo(); }, 200); } // (typing a search: once it settles)
+    else this.updateInfo();
     // (the rows are built where the list ends up, once: built here and then again after the jump to the selected
     // beatmap, the browser laid the whole screen out twice — a long stall opening song select on a slow device)
     if (stay) this.renderVisible(true);
@@ -639,24 +655,30 @@ const SongSelect = {
         h('div.nr-text', h('p', 'No beatmaps match your filter criteria!'), ...tips.map(t => h('p.nr-tip', h('i.nr-dot'), ...t)))));
     }
   },
-  renderVisible(force = false) {
+  renderVisible(force = false, at = null) {
     if (!this.rows) return;
-    const st = this.scroller.scrollTop, vh = this._vh || this.scroller.clientHeight || 600;
+    const st = at ?? this.scroller.scrollTop, vh = this._vh || this.scroller.clientHeight || 600;
     const from = st - 200, to = st + vh + 200;
     // lazer's carousel runs along a circle: a panel slides right the further it is from the middle of the list
     // (Carousel.offsetX: radius 3, in units of half the visible height)
-    const half = vh / 2, arc = y => { const d = Math.abs(1 - (y - st) / half); return Math.round((3 - Math.sqrt(Math.max(0, 9 - d * d))) * half); };
+    // (Performance mode: a straight list — every panel moving sideways on every step of a scroll was most of what
+    // scrolling it cost)
+    const flat = document.documentElement.classList.contains('perf');
+    const half = vh / 2, arc = y => { if (flat) return 0; const d = Math.abs(1 - (y - st) / half); return Math.round((3 - Math.sqrt(Math.max(0, 9 - d * d))) * half); };
     const needed = new Set(), moving = Settings.get('ui.animSpeed') > 0; // (nothing slides with the animations off)
     for (const row of this.rows) {
       if (row.y + row.h < from || row.y > to) continue;
       const key = row.type === 'group' ? 'g:' + row.g.key : row.type === 'set' ? 's:' + row.r.set.id : row.type === 'std' ? 'b:' + row.m.id : 'd:' + row.m.id;
       needed.add(key);
       let el = this.pool.get(key);
-      if (!el || force) {
+      // (redrawn — a search, another sort — a panel showing just what it showed before stays: rebuilding every panel on
+      // each keystroke of a search was most of what typing one cost)
+      const sig = force || !el ? this.rowSig(row) : null;
+      if (!el || (force && (el._sig !== sig || el.parentNode !== this.inner))) { // (one from an earlier visit's list is built again)
         const fresh = !el && !force;
         if (el) el.remove();
         el = this.renderRow(row);
-        el._key = key;
+        el._key = key; el._sig = sig;
         this.pool.set(key, el);
         // a set that just opened: its difficulties slide out from under its panel (lazer), rather than popping up
         // at their places while the panel is still moving there. (Placed before it joins the page, so it doesn't
@@ -685,6 +707,15 @@ const SongSelect = {
       else el.remove();
     }
   },
+  /** What a panel shows, as one string: a panel already on screen with the same one needn't be built again. (Its
+   *  selection, opening and height are brought up to date by refreshRow either way.) */
+  rowSig(row) {
+    const mods = (Settings.get('songselect.mods') || []).join();
+    const best = m => (ScoreManager.best(m.hash) || {}).grade || '';
+    if (row.type === 'group') return `g|${row.g.key}|${row.g.title}|${row.g.items.length}`;
+    if (row.type === 'set') { const s = row.r.set; return `s|${s.id}|${s.status}|${Favorites.has(s.id)}|${mods}|${row.r.maps.map(m => m.id + best(m)).join()}`; }
+    return `${row.type}|${row.m.id}|${mods}|${best(row.m)}`;
+  },
   /** A row that's already on screen only needs its selection state (and height) brought up to date. */
   refreshRow(el, row) {
     el._row = row;
@@ -695,6 +726,8 @@ const SongSelect = {
     if (row.type === 'set' || row.type === 'group' || row.type === 'std') b.classList.toggle('expanded', row.open);
     else b.classList.toggle('selected', row.m.id === this.selectedId);
   },
+  /** A panel's hover sound — not for the panels a scrolling list slides under a still pointer (a click each). */
+  hoverSound() { if (performance.now() - (this._scrollAt || 0) > 150) UISounds.hover(); },
   renderRow(row) {
     const wrap = h(`div.c-item${row.type === 'set' ? '.set' : row.type === 'group' ? '.grp' : ''}`, { style: { height: row.h + 'px' } });
     wrap._row = row;
@@ -708,7 +741,7 @@ const SongSelect = {
         h('span.gp-chev', icon('chevron')),
         h('div.gp-body', g.stars != null ? h('span.gp-star', { style: { '--sc': starColour(g.stars) } }, icon('star', 'fill')) : null, lead || h('span.gp-t', g.title)),
         h('span.gp-count', fmtInt(g.items.length)));
-      btn.addEventListener('pointerenter', () => UISounds.hover());
+      btn.addEventListener('pointerenter', () => this.hoverSound());
       wrap.appendChild(btn);
     } else if (row.type === 'std') {
       // lazer's PanelBeatmapStandalone: one difficulty with its set's background — title, artist, then the status,
@@ -725,7 +758,7 @@ const SongSelect = {
         h('div.sp-a', set.artist),
         h('div.std-line', statusPill(set.status, '.sm'), h('span.dp-k', `[${this.keysOf(m)}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
         h('div.dp-bottom', best ? rankPill(best.grade) : null, starBadge(stars), h('span.dp-stars', { style: { '--p': `${clamp(stars / 10, 0, 1) * 100}%` } }, '★★★★★★★★★★'))));
-      btn.addEventListener('pointerenter', () => UISounds.hover());
+      btn.addEventListener('pointerenter', () => this.hoverSound());
       wrap.appendChild(btn);
     } else if (row.type === 'set') {
       const { set, maps } = row.r;
@@ -748,7 +781,7 @@ const SongSelect = {
           maps.length > 18 ? h('span.sp-extra', `+${maps.length - 18}`) : null,
           broken ? h('span.tag.warn', 'Broken') : null)),
       Favorites.has(set.id) ? h('span.sp-fav', icon('heart', 'fill')) : null);
-      btn.addEventListener('pointerenter', () => UISounds.hover());
+      btn.addEventListener('pointerenter', () => this.hoverSound());
       wrap.appendChild(btn);
     } else {
       const m = row.m;
@@ -768,7 +801,7 @@ const SongSelect = {
           h('div.dp-top', h('span.dp-k', `[${this.keysOf(m)}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
           h('div.dp-bottom', starBadge(stars), h('span.dp-stars', { style: { '--p': `${clamp(stars / 10, 0, 1) * 100}%` } }, '★★★★★★★★★★'),
             m.problems.length ? h('span.dp-bad', m.problems[0]) : null))));
-      btn.addEventListener('pointerenter', () => UISounds.hover());
+      btn.addEventListener('pointerenter', () => this.hoverSound());
       wrap.appendChild(btn);
     }
     return wrap;
@@ -788,13 +821,17 @@ const SongSelect = {
     // group opening rebuilds them: the same set can list other difficulties there.
     if (scroll) this.scrollToSelected(true, regroup); else this.renderVisible(regroup);
     // an arrow key held down: the list keeps up with every step, and the details and the song follow the one it stops
-    // on (rebuilding them for each beatmap passed over is most of what made holding a key stutter on a slow device)
-    const held = this._held; this._held = false;
+    // on (rebuilding them for each beatmap passed over is most of what made holding a key stutter on a slow device).
+    // Performance mode does that for every change, as lazer's carousel does (its selection settles for a moment
+    // first): stepping through songs on a slow computer only moves the list until you stop on one.
+    const perf = Settings.get('graphics.performanceMode'), held = this._held || perf, wait = perf ? 200 : 150; this._held = false;
     clearTimeout(this._infoT); this._infoT = 0;
-    if (held) this._infoT = setTimeout(() => { this._infoT = 0; this.updateInfo(); }, 150);
+    if (held) this._infoT = setTimeout(() => { this._infoT = 0; this.updateInfo(); }, wait);
     else this.updateInfo();
     // a difficulty can have its own song file (and background): the preview follows the difficulty, not just the set
+    clearTimeout(this._bgT);
     if (setChanged || !Music.meta || Music.meta.setId !== m.setId || this.trackKey(m) !== (Music.key || '').toLowerCase()) this.schedulePreview(m, held ? 200 : 60);
+    else if (perf) this._bgT = setTimeout(() => { if (this.selectedId === m.id) { this.showBackground(m); this.loopTrack(m); } }, wait);
     else { this.showBackground(m); this.loopTrack(m); } // (another difficulty of the same set can have its own background)
   },
   scrollToSelected(smooth, force = false) {
@@ -804,9 +841,15 @@ const SongSelect = {
   },
   scrollToRow(row, smooth, force = false) {
     const vh = this._vh || this.scroller.clientHeight || 600;
-    const top = Math.max(0, row.y - vh / 2 + row.h / 2);
-    this.scroller.scrollTo({ top, behavior: smooth && Settings.get('ui.animSpeed') > 0 ? 'smooth' : 'auto' });
-    this.renderVisible(force);
+    const top = Math.max(0, row.y - vh / 2 + row.h / 2), sc = this.scroller;
+    if (smooth && Settings.get('ui.animSpeed') > 0) { sc.scrollTo({ top, behavior: 'smooth' }); this.renderVisible(force); return; }
+    // a jump: where the list ends up is known now, so the scroll event that follows needn't ask the page again (after
+    // the panels below were added, asking laid the whole page out a second time)
+    const before = sc.scrollTop;
+    sc.scrollTop = top;
+    const at = sc.scrollTop;
+    if (at !== before) this._jumpTo = at;
+    this.renderVisible(force, at);
   },
   // keyboard navigation
   /** The sets the arrow keys go through, each with its group: those listed — with groups, every group's in turn, so
@@ -934,7 +977,11 @@ const SongSelect = {
   /** The selected difficulty's own background (each difficulty's [Events] can name a different picture). */
   async showBackground(m) {
     const tok = this._bgTok = {};
-    const url = await BeatmapManager.bgURL(m).catch(() => null) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId));
+    // (Performance mode or thumbnail backgrounds: the song's card picture — already read for its panel — not the full
+    // picture read from storage and decoded again for every song stopped on)
+    const set = BeatmapManager.setById.get(m.setId), light = Settings.get('graphics.performanceMode') || Settings.get('graphics.bgQuality') === 'low';
+    const url = light ? await BeatmapManager.thumbURL(set) || await BeatmapManager.bgURL(m).catch(() => null)
+      : await BeatmapManager.bgURL(m).catch(() => null) || await BeatmapManager.thumbURL(set);
     if (tok === this._bgTok && this.selectedId === m.id && url !== Background.current) Background.set(url);
   },
   /** The same key the player gives a track (set / audio file), to tell whether this difficulty's song is playing. */
@@ -1046,11 +1093,15 @@ const SongSelect = {
     };
     const modsOn = !!Settings.get('songselect.lbMods'), sortBy = Settings.get('songselect.lbSort') || 'score';
     const scope = ['global', 'friends'].includes(Settings.get('songselect.lbScope')) ? Settings.get('songselect.lbScope') : 'local';
-    const head = h('div.lb-head', h('div.lb-tabs', tabBtn('details', 'Details'), tabBtn('ranking', 'Ranking')),
+    // (the tabs and dropdowns are the same for every beatmap: kept from one to the next — two dropdowns built again
+    // for each beatmap stepped onto cost more to draw than the rest of the panel)
+    const headKey = `${tab}|${modsOn}|${sortBy}|${scope}`;
+    const head = this._lbHeadKey === headKey && this._lbHead ? this._lbHead : h('div.lb-head', h('div.lb-tabs', tabBtn('details', 'Details'), tabBtn('ranking', 'Ranking')),
       tab === 'ranking' ? h('div.lb-ctl',
         h(`button.lb-modsel${modsOn ? '.on' : ''}`, { onclick: () => { UISounds.click(); Settings.set('songselect.lbMods', !modsOn); this._lbKey = null; this.updateInfo(); } }, 'Selected Mods'),
         lbSel('Sort', [['score', 'Score'], ['accuracy', 'Accuracy'], ['maxCombo', 'Max Combo'], ['misses', 'Misses'], ['date', 'Date']], sortBy, v => { Settings.set('songselect.lbSort', v); this._lbKey = null; this.updateInfo(); }),
         lbSel('Scope', [['local', 'Local'], ['global', 'Global'], ['country', 'Country', 1], ['friends', 'Friends'], ['team', 'Team', 1]], scope, v => { Settings.set('songselect.lbScope', v); this._lbKey = null; this.updateInfo(); })) : null);
+    this._lbHead = head; this._lbHeadKey = headKey;
     const lb = h(`div.lb.lb-${tab}`, head);
     if (tab === 'details') lb.append(this.metadataWedge(m, set));
     else if (scope !== 'local') lb.append(this.onlineBoard(m, scope, modsOn));
