@@ -204,6 +204,10 @@ const HomeScreen = {
   hoverIn(b) {
     if (!b.classList.contains('exp')) return;
     UISounds.hover();
+    // (animations off — Performance mode —: the icon stays as it is. Tipping it over and back, each hover read the
+    // page's styles three times over for nothing that showed)
+    if (!Settings.get('ui.animSpeed')) return;
+    b._tipped = true;
     const ico = b._ico, until = clamp(this._nextBeatIn || 300, 60, 1000);
     this._rightward = !!this._rightward;
     ico.getAnimations().forEach(a => a.cancel());
@@ -212,6 +216,8 @@ const HomeScreen = {
     ico.firstChild.animate([{ scale: '1 1' }, { scale: '1.2 1.08' }], { duration: until, easing: 'cubic-bezier(.5, 1, .89, 1)', fill: 'forwards' });
   },
   hoverOut(b) {
+    if (!b._tipped) return;
+    b._tipped = false;
     const ico = b._ico, inner = ico.firstChild;
     const r = getComputedStyle(ico).rotate, s = getComputedStyle(inner).scale, t = getComputedStyle(inner).translate;
     ico.getAnimations().forEach(a => a.cancel()); inner.getAnimations().forEach(a => a.cancel());
@@ -221,8 +227,9 @@ const HomeScreen = {
   /** On each beat the hovered button's icon swings to the other side over the beat and hops up 10px and back. */
   onBeat(beatLength) {
     this._rightward = !this._rightward;
-    const b = this.el && this.btns.find(x => x.matches(':hover') && x.classList.contains('exp'));
+    const b = this.el && Settings.get('ui.animSpeed') && this.btns.find(x => x.matches(':hover') && x.classList.contains('exp'));
     if (!b) return;
+    b._tipped = true;
     const ico = b._ico, inner = ico.firstChild, half = beatLength / 2;
     const r = getComputedStyle(ico).rotate;
     ico.getAnimations().forEach(a => a.cancel()); inner.getAnimations().forEach(a => a.cancel());

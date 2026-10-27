@@ -382,6 +382,10 @@ const ImageWorker = {
       x.filter = 'blur(' + r.toFixed(2) + 'px)';
       x.drawImage(bm, -r * 2, -r * 2, W + r * 4, H + r * 4); bm.close();
       postMessage({ id: m.id, blob: await c.convertToBlob({ type: 'image/jpeg', quality: 0.9 }) });
+    } else if (m.op === 'shrink') {
+      const bm = await createImageBitmap(m.blob, { resizeWidth: m.W, resizeQuality: 'high' });
+      const c = new OffscreenCanvas(bm.width, bm.height); c.getContext('2d').drawImage(bm, 0, 0); bm.close();
+      postMessage({ id: m.id, blob: await c.convertToBlob({ type: 'image/jpeg', quality: m.q }) });
     } else postMessage({ id: m.id, err: 'unknown job' });
   } catch (e) { postMessage({ id: m.id, err: String(e) }); }
 };`;
@@ -398,7 +402,6 @@ const ImageWorker = {
   },
 };
 
-/** Object-URL cache so blobs from IndexedDB are only materialised once. */
 /** Performance mode: an animation started from script ends at once, as the stylesheet makes every CSS one do
  *  (:root.perf) — on a slow computer the menus' hover wobbles, pops and slides were still played out in full, frame
  *  by frame. One meant to run forever plays once. */
@@ -420,12 +423,15 @@ const Endless = {
   list: [],
   add(a, el) { this.list.push([a, el]); if (!this._t) this._t = setInterval(() => this.sweep(), 2000); return a; },
   sweep() {
-    this.list = this.list.filter(([a, el]) => { if (el.isConnected && a.playState !== 'idle') return true; a.cancel(); return false; });
+    // (whether each one's element is still on the page — not the animation's own state: asking that made the browser
+    // bring its styles up to date first)
+    this.list = this.list.filter(([a, el]) => { if (el.isConnected) return true; a.cancel(); return false; });
     if (!this.list.length) { clearInterval(this._t); this._t = 0; }
   },
 };
 function endless(el, keyframes, opts) { return Endless.add(el.animate(keyframes, { ...opts, iterations: Infinity }), el); }
 
+/** Object-URL cache so blobs from IndexedDB are only materialised once. */
 const BlobURLs = {
   map: new Map(),
   get(key, blob) {

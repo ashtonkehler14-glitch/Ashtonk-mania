@@ -666,6 +666,11 @@ html.touch .settings-panel .set-row .reset::after { content: ""; position: absol
 .carousel { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .carousel-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; outline: none; }
 .carousel-scroll.under { -webkit-mask-image: linear-gradient(transparent, #000 36px); mask-image: linear-gradient(transparent, #000 36px); }
+/* (Performance mode, while the list scrolls: a clear sheet over it that takes the pointer — see song select's scroll
+   listener. Held to the top of the list as it scrolls; as tall as the list) */
+.cs-shield-at { position: sticky; top: 0; height: 0; z-index: 5; }
+.cs-shield { position: absolute; left: 0; right: 0; top: 0; display: none; }
+.cs-shield.on { display: block; }
 .carousel-inner { position: relative; overflow-x: clip; } /* (the panels run past the right edge, but give the list nothing to scroll sideways to — a click focusing one used to slide the whole list over) */
 .c-item { position: absolute; left: 0; right: 0; will-change: transform, translate; transition: transform calc(400ms * var(--anim)) var(--ease-out), translate calc(400ms * var(--anim)) var(--ease-out), opacity calc(300ms * var(--anim)) ease-out; }
 .carousel-scroll.scrolling .c-item { transition: transform calc(400ms * var(--anim)) var(--ease-out), opacity calc(300ms * var(--anim)) ease-out; }
@@ -4619,7 +4624,9 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 :root.perf .screen-body, :root.perf .bso-scroll, :root.perf .res-body, :root.perf .mp-body, :root.perf .cl-body, :root.perf .ab-grid, :root.perf .setup-body, :root.perf .mc-list, :root.perf .nf-list, :root.perf .np-list, :root.perf .ch-lines,
 :root.slow .screen-body, :root.slow .bso-scroll, :root.slow .res-body, :root.slow .mp-body, :root.slow .cl-body, :root.slow .ab-grid { will-change: scroll-position; }
 :root.perf #bg-a, :root.perf #bg-b { will-change: auto; }
-:root.perf .carousel-inner.still { pointer-events: none; } /* (song select's list while it scrolls: see its scroll listener) */
+/* (song select's list cut off under the filters rather than fading out there: the fade, a mask over a scrolling list,
+   was a good part of every step of a scroll) */
+:root.perf .carousel-scroll.under { -webkit-mask-image: none; mask-image: none; }
 /* the beatmap listing at its lightest: flat cards (no cover behind them, shade, shadow or hover lift) */
 :root.perf .ex-card, :root.slow .ex-card { box-shadow: none !important; transform: none !important; isolation: auto; } /* (nothing drawn behind it to keep apart) */
 :root.perf .ex-cardbg, :root.perf .ex-cardshade, :root.slow .ex-cardbg, :root.slow .ex-cardshade { display: none; }

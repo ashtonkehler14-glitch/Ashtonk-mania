@@ -79,6 +79,34 @@ const BeatmapManager = {
     const b = await DB.get('files', `${set.id}/__thumb.jpg`);
     return BlobURLs.get(`thumb:${set.id}`, b);
   },
+  /** Performance mode's song panels: a smaller copy of the card picture (CARD_W), made once in the picture worker and
+   *  kept with the set. The 1280px one — decoded for every panel scrolled into view, and each kept decoded at almost
+   *  4 MB — was most of what scrolling the song list cost on a slow computer. (Where it can't be made, or while the
+   *  card picture itself is being remade: that one.) */
+  CARD_W: 768, CARD_Q: 0.85,
+  async cardURL(set) {
+    if (!set || !set.thumb) return null;
+    const key = `card:${set.id}`;
+    if (BlobURLs.map.has(key)) return BlobURLs.map.get(key);
+    if (set.thumbV !== this.THUMB_V) return this.thumbURL(set);
+    const making = this._cards || (this._cards = new Map());
+    if (!making.has(set.id)) making.set(set.id, (async () => {
+      let b = set.card === this.THUMB_V ? await DB.get('files', `${set.id}/__card.jpg`).catch(() => null) : null;
+      if (!b) {
+        const big = await DB.get('files', `${set.id}/__thumb.jpg`).catch(() => null);
+        const r = big && await ImageWorker.run({ op: 'shrink', blob: big, W: this.CARD_W, q: this.CARD_Q });
+        b = r && r.blob;
+        if (b && this.setById.get(set.id) === set) {
+          await DB.put('files', b, `${set.id}/__card.jpg`);
+          set.card = this.THUMB_V;
+          await DB.put('sets', { ...set, maps: undefined, _thumbUp: undefined });
+        }
+      }
+      return b;
+    })().catch(() => null).finally(() => making.delete(set.id)));
+    const b = await making.get(set.id);
+    return b ? BlobURLs.get(key, b) : this.thumbURL(set);
+  },
   async bgURL(map) {
     if (!map || !map.bgFile) return null;
     const key = `bg:${map.setId}/${map.bgFile}`;
@@ -97,7 +125,7 @@ const BeatmapManager = {
       const b = m && await this.getFile(set.id, m.bgFile).catch(() => null);
       const t = b && await makeThumbnail(b, this.THUMB_W, this.THUMB_Q).catch(() => null);
       if (this.setById.get(set.id) !== set) return;
-      if (t) { await DB.put('files', t, `${set.id}/__thumb.jpg`); set.thumb = true; BlobURLs.drop(`thumb:${set.id}`); }
+      if (t) { await DB.put('files', t, `${set.id}/__thumb.jpg`); set.thumb = true; set.card = 0; BlobURLs.drop(`thumb:${set.id}`); BlobURLs.drop(`card:${set.id}`); }
       set.thumbV = this.THUMB_V;
       await DB.put('sets', { ...set, maps: undefined, _thumbUp: undefined });
       if (t) Bus.emit('thumb:changed', set.id);
@@ -403,7 +431,7 @@ const BeatmapManager = {
     set.maps = set.mapIds.map(id => this.maps.get(id)).filter(Boolean).sort((a, b) => a.stars - b.stars);
     if (existing) this.sets[this.sets.indexOf(existing)] = set; else this.sets.push(set);
     this.setById.set(setId, set);
-    BlobURLs.drop(`thumb:${setId}`); BlobURLs.drop(`bg:${setId}/`);
+    BlobURLs.drop(`thumb:${setId}`); BlobURLs.drop(`card:${setId}`); BlobURLs.drop(`bg:${setId}/`);
     return set;
   },
 
@@ -467,7 +495,7 @@ const BeatmapManager = {
     await DB.delPrefix('files', `${setId}/`);
     this.sets = this.sets.filter(s => s !== set);
     this.setById.delete(setId);
-    BlobURLs.drop(`thumb:${setId}`); BlobURLs.drop(`bg:${setId}/`);
+    BlobURLs.drop(`thumb:${setId}`); BlobURLs.drop(`card:${setId}`); BlobURLs.drop(`bg:${setId}/`);
     Bus.emit('library:changed');
   },
   async clearAll() {

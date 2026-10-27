@@ -96,17 +96,21 @@ const SongSelect = {
     this.info = h('div.ss-info');
     // right carousel
     this.inner = h('div.carousel-inner');
-    this.scroller = h('div.carousel-scroll', { tabindex: '-1' }, this.inner);
+    // (Performance mode, while the list scrolls: a clear sheet over it takes the pointer — see the scroll listener)
+    this.shield = h('div.cs-shield');
+    this.scroller = h('div.carousel-scroll', { tabindex: '-1' }, h('div.cs-shield-at', this.shield), this.inner);
     // (the list only ever scrolls up and down: see .carousel-inner)
     this.scroller.addEventListener('scroll', () => {
       this._scrollAt = performance.now();
       const jump = this._jumpTo != null; // (the list jumping to the selected beatmap, not you scrolling it)
-      // (Performance mode: the panels ignore the pointer while you scroll the list — after every step the browser
-      // otherwise worked out again which panel was under it, lit it up and told the ones it left. Not for a jump: a
-      // single step, and switching it on and off restyles the whole list.)
+      // (Performance mode: while you scroll the list a clear sheet over it takes the pointer — after every step the
+      // browser otherwise worked out again which panel was under it, lit it up and told the ones it left. A sheet: the
+      // panels themselves set to ignore the pointer, every one was restyled each time that went on or off — over and
+      // over in one scroll on a slow computer. Not for a jump: a single step.)
       if (!jump && document.documentElement.classList.contains('perf')) {
-        if (!this._still) { this._still = true; this.inner.classList.add('still'); }
-        clearTimeout(this._stillT); this._stillT = setTimeout(() => { this._still = false; this.inner.classList.remove('still'); }, 150);
+        // (as tall as the list: no taller, or near its end it would give the list more to scroll)
+        if (!this._still) { this._still = true; this.shield.style.height = (this._vh || 600) + 'px'; this.shield.classList.add('on'); }
+        clearTimeout(this._stillT); this._stillT = setTimeout(() => this.unshield(), 150);
       }
       // while the list scrolls the panels follow the curve at once; otherwise (a panel opening) they ease along. (With
       // nothing easing — animations off — there's nothing to mark: marking it restyled every panel twice a scroll.)
@@ -125,7 +129,7 @@ const SongSelect = {
     // lazer's right-mouse absolute scroll: hold the right button beside the panels and the list jumps to that point
     // (top of the area = start of the list, bottom = end), following the pointer while held
     this.scroller.addEventListener('pointerdown', e => {
-      if (e.button !== 2 || e.target.closest('.set-panel, .diff-panel')) return;
+      if (e.button !== 2 || this.under(e).closest('.set-panel, .diff-panel')) return;
       const sc = this.scroller;
       const to = ev => { const r = sc.getBoundingClientRect(), f = clamp((ev.clientY - r.top) / r.height, 0, 1); sc.scrollTop = f * (sc.scrollHeight - sc.clientHeight); };
       const up = () => { sc.removeEventListener('pointermove', to); sc.removeEventListener('pointerup', up); sc.removeEventListener('pointercancel', up); };
@@ -138,15 +142,17 @@ const SongSelect = {
     let press = null, synth = -1e9;
     const PANEL = '.set-panel, .diff-panel, .group-panel';
     this.scroller.addEventListener('pointerdown', e => {
-      const p = e.button === 0 && e.target.closest(PANEL);
-      press = p ? { el: p, key: p.parentNode._key, x: e.clientX, y: e.clientY, t: performance.now() } : null;
+      // (pressed on the sheet over a list that's just been scrolled: the panel under it has the press — the browser
+      // clicks the list itself, so the click is the panel's from here)
+      const sheet = e.target === this.shield, p = e.button === 0 && this.under(e).closest(PANEL);
+      press = p ? { el: p, key: p.parentNode._key, x: e.clientX, y: e.clientY, t: performance.now(), sheet } : null;
     });
     this.scroller.addEventListener('pointerup', e => {
       const d = press; press = null;
       if (!d || e.button !== 0 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10 || performance.now() - d.t > 700) return;
       const wrap = this.pool && this.pool.get(d.key), p = wrap && wrap.isConnected && wrap.firstChild;
       if (!p) return;
-      if (p === d.el && p.contains(e.target)) return; // (an ordinary click: the browser has it)
+      if (p === d.el && p.contains(e.target) && !d.sheet) return; // (an ordinary click: the browser has it)
       synth = performance.now();
       p.click();
     });
@@ -154,7 +160,7 @@ const SongSelect = {
     // (and the browser's own click, if it sends one too, isn't a second click: that would select, then play)
     this.scroller.addEventListener('click', e => { if (e.isTrusted && performance.now() - synth < 100) e.stopPropagation(); }, true);
     // (the viewport height, kept by a ResizeObserver: reading clientHeight right after re-rendering rows forced a layout)
-    this._vh = 0;
+    this._vh = 0; this._still = false; clearTimeout(this._stillT);
     new ResizeObserver(es => { this._vh = es[0].contentRect.height; }).observe(this.scroller);
     this.carousel = h('div.carousel', this.scroller);
     this.emptyEl = h('div.ss-empty');
@@ -211,7 +217,11 @@ const SongSelect = {
     // device; the screen is still fading in, so the list joining a frame later doesn't show)
     requestAnimationFrame(() => requestAnimationFrame(() => {
       if (Screens.current !== this) return;
+      // (Performance mode: the panels on screen first; those just above and below it — there for a scroll — a frame
+      // or two later: all of them at once made one long stall of opening song select on a slow computer)
+      this._lean = document.documentElement.classList.contains('perf');
       this.rebuild(); // (which scrolls to the selected beatmap)
+      if (this._lean) requestAnimationFrame(() => setTimeout(() => { this._lean = false; if (Screens.current === this) this.renderVisible(); }, 0));
       // (a beatmap asked for — Play in the library, a download's "view" — that the search or filters hide: they're
       // cleared so it's the one selected, rather than whatever came first)
       const want = params.mapId && BeatmapManager.maps.get(params.mapId);
@@ -659,7 +669,7 @@ const SongSelect = {
   renderVisible(force = false, at = null) {
     if (!this.rows) return;
     const st = at ?? this.scroller.scrollTop, vh = this._vh || this.scroller.clientHeight || 600;
-    const from = st - 200, to = st + vh + 200;
+    const over = this._lean ? 0 : 200, from = st - over, to = st + vh + over;
     // lazer's carousel runs along a circle: a panel slides right the further it is from the middle of the list
     // (Carousel.offsetX: radius 3, in units of half the visible height)
     // (Performance mode: a straight list — every panel moving sideways on every step of a scroll was most of what
@@ -667,9 +677,21 @@ const SongSelect = {
     const flat = document.documentElement.classList.contains('perf');
     const half = vh / 2, arc = y => { if (flat) return 0; const d = Math.abs(1 - (y - st) / half); return Math.round((3 - Math.sqrt(Math.max(0, 9 - d * d))) * half); };
     const needed = new Set(), moving = Settings.get('ui.animSpeed') > 0; // (nothing slides with the animations off)
+    // (Performance mode: panels scrolled out of sight are kept a while — a screen or two — rather than thrown away, so
+    // scrolling back up and down the list doesn't build them all again. Not after a search or another sort: what they
+    // show may have changed.)
+    const keep = flat && !force ? 1500 : 0;
     for (const row of this.rows) {
-      if (row.y + row.h < from || row.y > to) continue;
+      if (row.y + row.h < from - keep || row.y > to + keep) continue;
       const key = row.type === 'group' ? 'g:' + row.g.key : row.type === 'set' ? 's:' + row.r.set.id : row.type === 'std' ? 'b:' + row.m.id : 'd:' + row.m.id;
+      if (row.y + row.h < from || row.y > to) {
+        // (out of sight but near: one already built stays — at its place in the list as it is now)
+        const el = this.pool.get(key);
+        if (!el || el.parentNode !== this.inner) continue;
+        needed.add(key); this.refreshRow(el, row);
+        if (el._y !== row.y) { el._y = row.y; el.style.transform = `translateY(${row.y}px)`; }
+        continue;
+      }
       needed.add(key);
       let el = this.pool.get(key);
       // (redrawn — a search, another sort — a panel showing just what it showed before stays: rebuilding every panel on
@@ -727,6 +749,19 @@ const SongSelect = {
     if (row.type === 'set' || row.type === 'group' || row.type === 'std') b.classList.toggle('expanded', row.open);
     else b.classList.toggle('selected', row.m.id === this.selectedId);
   },
+  /** A song panel's picture: its card picture — in Performance mode the smaller copy made for panels (see
+   *  BeatmapManager.cardURL). */
+  panelPicture(set, bg) {
+    (Settings.get('graphics.performanceMode') ? BeatmapManager.cardURL(set) : BeatmapManager.thumbURL(set)).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
+  },
+  /** The sheet over the list (while it scrolls) taken away: the panels have the pointer again. */
+  unshield() { clearTimeout(this._stillT); if (!this._still) return; this._still = false; this.shield.classList.remove('on'); },
+  /** What a pointer event on the list is on: a press on the sheet over it is the panel's under it (the sheet goes). */
+  under(e) {
+    if (e.target !== this.shield) return e.target;
+    this.unshield();
+    return document.elementFromPoint(e.clientX, e.clientY) || e.target;
+  },
   /** A panel's hover sound — not for the panels a scrolling list slides under a still pointer (a click each). */
   hoverSound() { if (performance.now() - (this._scrollAt || 0) > 150) UISounds.hover(); },
   renderRow(row) {
@@ -749,7 +784,7 @@ const SongSelect = {
       // [keys] difficulty "mapped by …", and the star rating; a strip in the difficulty's colour on the left
       const m = row.m, set = row.r.set, stars = this.modStars(m) ?? m.stars, best = ScoreManager.best(m.hash);
       const bg = h('div.sp-bg');
-      BeatmapManager.thumbURL(set).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
+      this.panelPicture(set, bg);
       const btn = h(`button.set-panel.std-panel${row.open ? '.expanded' : ''}`, {
         style: { '--sc': starColour(stars) },
         onclick: () => { if (this.selectedId === m.id) this.play(); else { UISounds.select('difficulty'); this.select(m.id); } },
@@ -765,7 +800,7 @@ const SongSelect = {
       const { set, maps } = row.r;
       const broken = maps.every(m => m.problems.length);
       const bg = h('div.sp-bg');
-      BeatmapManager.thumbURL(set).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
+      this.panelPicture(set, bg);
       const btn = h(`button.set-panel${row.open ? '.expanded' : ''}${broken ? '.broken' : ''}`, {
         onclick: () => {
           // (the row as it is now: this panel stays on screen while other sets open and close)
