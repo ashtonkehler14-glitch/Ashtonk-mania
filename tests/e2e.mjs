@@ -1688,9 +1688,11 @@ await page.keyboard.press('Control+o');
 await page.waitForTimeout(600);
 await shot('12-settings');
 const rows = await page.evaluate(() => document.querySelectorAll('.settings-panel .set-row').length);
-// (room for the hit position and note offset, asked to be regular settings, and lazer's Prefer downloads without video)
-check('settings are a short list (no "show all" split)', rows >= 25 && rows <= 47, String(rows));
-check('niche options are gone from the panel but keep working', await page.evaluate(() => !document.querySelector('.sp-more') && ![...document.querySelectorAll('.settings-panel .set-row')].some(r => /Unpause countdown|Renderer scale|Lane spacing/.test(r.textContent)) && AshtonkMania.Settings.get('gameplay.unpauseDelay') === 1200));
+// (room for the hit position and note offset, asked to be regular settings, lazer's Prefer downloads without video, and
+// the resolution options — Picture quality, Renderer scale, Automatic resolution — asked to be settings)
+check('settings are a short list (no "show all" split)', rows >= 25 && rows <= 50, String(rows));
+check('niche options are gone from the panel but keep working', await page.evaluate(() => !document.querySelector('.sp-more') && ![...document.querySelectorAll('.settings-panel .set-row')].some(r => /Unpause countdown|Lane spacing/.test(r.textContent)) && AshtonkMania.Settings.get('gameplay.unpauseDelay') === 1200));
+check('the resolution options are in the panel: Picture quality, Renderer scale, Automatic resolution', await page.evaluate(() => { const t = [...document.querySelectorAll('.settings-panel .set-row')].map(r => r.textContent).join('|'); return /Picture quality/.test(t) && /Renderer scale/.test(t) && /Automatic resolution/.test(t); }));
 await page.fill('.sp-search', 'offset');
 await page.waitForTimeout(200);
 check('settings search finds options', await page.evaluate(() => [...document.querySelectorAll('.settings-panel .set-row')].some(r => /Audio offset/.test(r.textContent))));
