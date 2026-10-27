@@ -510,7 +510,8 @@ const MediaKeys = {
       clearTimeout(artT);
       artT = setTimeout(async () => {
         const bs = BeatmapManager.setById.get(m.setId), url = await (bs && BeatmapManager.thumbURL(bs).catch(() => null)) || await BeatmapManager.bgURL(m).catch(() => null);
-        if (url && MenuMusic.current === m) meta([{ src: url }]);
+        // (not once a song's being played: decoding it then could cost a frame of the notes)
+        if (url && MenuMusic.current === m && Screens.currentName !== 'gameplay') meta([{ src: url }]);
       }, 2000);
     });
   },

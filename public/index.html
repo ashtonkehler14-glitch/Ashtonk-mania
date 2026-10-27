@@ -18971,6 +18971,7 @@ const GameplayScreen = {
     // turning the phone mid-song stops it for a tap, so the new layout (or the prompt to turn it back) doesn't cost notes
     this._upright = typeof Mobile !== 'undefined' && Mobile.portrait;
     this._orient = () => {
+      this.checkOverStage(); // (the board may lie over the columns now, or no longer)
       const up = typeof Mobile !== 'undefined' && Mobile.portrait;
       if (up === this._upright) return;
       this._upright = up;
@@ -19933,7 +19934,9 @@ const GameplayScreen = {
     const above = this._lbRows.filter(r => r.score >= sc).length;
     if (me._pos !== above + 1) {
       // (rows slide to their new places — lazer's leaderboard animates each score's move — instead of jumping)
-      const rows = [me, ...this._lbRows], before = me._pos ? rows.map(r => r.el.getBoundingClientRect().top) : null;
+      // (not while the song plays — the board shows just the places then — where measuring the rows laid the page out
+      // in the middle of a frame: they swap places)
+      const rows = [me, ...this._lbRows], before = me._pos && this.lbEl._full !== false ? rows.map(r => r.el.getBoundingClientRect().top) : null;
       me._pos = above + 1; setText(me.pos, `#${above + 1}`); me.el.style.order = above * 2 + 1; me.el.classList.toggle('first', above === 0);
       this._lbRows.forEach((r, i) => { const p = i + 1 + (i >= above ? 1 : 0); setText(r.pos, `#${p}`); r.el.style.order = i * 2 + (i >= above ? 2 : 0); r.el.classList.toggle('first', p === 1); });
       if (before) rows.forEach((r, i) => {
@@ -20591,22 +20594,35 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const board = this.board();
     if (board) {
       const full = !s.running || s.finished || !!s.feed || !!s.spectate || this._inBreak || now < s.firstNote - 500 * s.rate || !!this._ctrl;
-      if (full !== board._full) { board._full = full; board.classList.toggle('compact', !full); if (full && board === this.lbEl) this.updateLeaderboard(true); board._overAt = 0; }
-      // (a board over the columns — a phone held upright, where they fill the width — fades while you play, so the
-      // notes under it can be seen; looked at again every few seconds, the screen may have turned)
-      const t = performance.now();
-      if (!full && t - (board._overAt || 0) > 2500) { board._overAt = t; const over = this.overStage(board); if (over !== !!board._over) { board._over = over; board.classList.toggle('over-stage', over); } }
-      else if (full && board._over) { board._over = false; board.classList.remove('over-stage'); }
+      if (full !== board._full) {
+        board._full = full; board.classList.toggle('compact', !full); if (full && board === this.lbEl) this.updateLeaderboard(true);
+        if (full) { if (board._over) { board._over = false; board.classList.remove('over-stage'); } } else this.checkOverStage(board);
+      }
     }
+  },
+  /** A board over the columns — a phone held upright, where they fill the width — fades while you play, so the notes
+   *  under it can be seen. Looked at once as the song starts and again when the screen turns, after the frame: never
+   *  in the middle of one (asked every few seconds while the song played, the page was laid out mid-frame and the
+   *  notes hitched). Only the touch layout's columns can reach under it. */
+  checkOverStage(board = this.board()) {
+    clearTimeout(this._overT);
+    if (!board || !this.renderer || !this.renderer.narrow) return;
+    this._overT = setTimeout(() => {
+      if (board._full !== false || !board.isConnected) return;
+      const over = this.overStage(board);
+      if (over !== !!board._over) { board._over = over; board.classList.toggle('over-stage', over); }
+    }, 0);
   },
   /** Whether a HUD element lies across the columns, side to side. */
   overStage(el) {
     const r = this.renderer;
     if (!r || !r.canvas || !r.canvas.parentElement || !Number.isFinite(r.stageX) || !r.W) return false;
     // (the canvas may be cropped to the stage: its host has the whole width the renderer's numbers are for)
-    const c = r.canvas.parentElement.getBoundingClientRect(), b = el.getBoundingClientRect(), k = c.width / r.W;
+    // (its rows, not the board itself: they stand out of it, which can be no width at all)
+    const c = r.canvas.parentElement.getBoundingClientRect(), k = c.width / r.W;
+    const rs = [...el.children].map(x => x.getBoundingClientRect()).filter(b => b.width > 0);
     const L = c.left + r.stageX * k, R = L + r.stageW * k;
-    return b.width > 0 && b.right > L + 4 && b.left < R - 4;
+    return rs.some(b => b.right > L + 4 && b.left < R - 4);
   },
   // ─────────────────────────────── breaks ───────────────────────────────
   /** Break overlay between distant notes (gaps of at least the minimum break length). */
@@ -31222,7 +31238,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '3ee03d741d5f';
+const APP_BUILD = '0525f12c894a';
 
 const App = {
   lastReport: null,
@@ -31728,7 +31744,8 @@ const MediaKeys = {
       clearTimeout(artT);
       artT = setTimeout(async () => {
         const bs = BeatmapManager.setById.get(m.setId), url = await (bs && BeatmapManager.thumbURL(bs).catch(() => null)) || await BeatmapManager.bgURL(m).catch(() => null);
-        if (url && MenuMusic.current === m) meta([{ src: url }]);
+        // (not once a song's being played: decoding it then could cost a frame of the notes)
+        if (url && MenuMusic.current === m && Screens.currentName !== 'gameplay') meta([{ src: url }]);
       }, 2000);
     });
   },
