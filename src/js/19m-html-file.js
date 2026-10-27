@@ -104,6 +104,16 @@ const HtmlFile = {
   },
   /** The version a page of the game is (its APP_BUILD). */
   async buildOf(blob) { const m = /const APP_BUILD = '([0-9a-f]+)'/.exec(await blob.text()); return m ? m[1] : null; },
+  /** Whether the file `handle` names holds all of the version just written (`size` bytes, build `build`) — given a few
+   *  seconds to get there. */
+  WRITE_WAIT: 8000,
+  async written(handle, size, build) {
+    for (const until = Date.now() + this.WRITE_WAIT; ;) {
+      try { const f = await handle.getFile(); if (f.size === size && await this.buildOf(f) === build) return true; } catch { /* not readable yet */ }
+      if (Date.now() > until) return false;
+      await new Promise(r => setTimeout(r, 400));
+    }
+  },
   /** Whether a file on the device is this very one — the copy you're playing from, not another with the same name
    *  (each saved copy carries the moment it was saved). */
   async isThisFile(handle) {
@@ -183,8 +193,20 @@ const HtmlFile = {
         if (!handle) { downloadBlob(blob, this.NAME); Toast.show('Put the new file in place of this one', `Then open ${this.NAME} again to play the new version.`, { timeout: 10000 }); return; }
         p = Toast.progress('Updating Ashtonk!mania', 'Saving…');
       }
-      const w = await handle.createWritable();
-      await w.write(blob); await w.close();
+      // (written, then read back before restarting: on some drives — Google Drive on a Chromebook — the new file
+      // isn't all there the moment it's written, and restarting then opened a blank white page. Not all there after a
+      // while, it's written again; still not, nothing restarts and the new version downloads instead.)
+      let there = false;
+      for (let i = 0; i < 2 && !there; i++) {
+        const w = await handle.createWritable();
+        await w.write(blob); await w.close();
+        there = await this.written(handle, blob.size, build);
+      }
+      if (!there) {
+        p.fail('The file didn\'t save properly', `Don't close this tab. The new version downloads as ${this.NAME}: put it in place of this file.`);
+        downloadBlob(blob, this.NAME);
+        return;
+      }
       DB.kvSet('htmlFile.handle', handle).catch(() => {});
       // (restarted, the file says whether it's the new version — see watch())
       if (handle.name === name) { try { localStorage.setItem('am.fileUpdated', JSON.stringify({ build, at: Date.now(), name: handle.name })); } catch { /* private mode */ } p.done('Updated', 'Starting the new version…'); setTimeout(() => location.reload(), 1200); }

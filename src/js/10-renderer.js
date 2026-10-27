@@ -338,6 +338,16 @@ class ManiaRenderer {
     }
     this.ctx.drawImage(img, x, yTop, w, h);
   }
+  /** The top `part` of `img` (a fraction of its height) stretched over the rect: its top edge at yTop (the far end
+   *  in upscroll, where flipY turns it to face the same way). */
+  _imgTop(img, x, yTop, w, h, part, flipY = false) {
+    if (!img || w <= 0 || h <= 0) return;
+    const sh = Math.min(img.height, Math.max(1e-3, img.height * part));
+    if (this.up) yTop = this.H - yTop - h;
+    const c = this.ctx;
+    if (flipY) { c.save(); c.translate(x, yTop + h); c.scale(1, -1); c.drawImage(img, 0, 0, img.width, sh, 0, 0, w, h); c.restore(); return; }
+    c.drawImage(img, 0, 0, img.width, sh, x, yTop, w, h);
+  }
   _rect(x, yTop, w, h) { if (this.up) yTop = this.H - yTop - h; this.ctx.fillRect(x, yTop, w, h); }
   _noteH(tex, i) {
     const L = this.layout;
@@ -722,6 +732,10 @@ class ManiaRenderer {
     const img = !this.legacy || tex.frames.length < 2 ? tex.frameAt(realNow) : this._bodyT == null ? tex.frames[0] : tex.frames[Math.floor(this._bodyT / 30) % tex.frames.length];
     const len = bottom - top;
     if (style === 0) { this._img(img, x, top, w, len, flip); return; }
+    // osu! (stable, and lazer for skins) draws every other style as the image stretched 32800 units long from the
+    // tail end and cut off at the head: a long body image with its tail end cut away ("Percy" skins) shortens
+    // every hold by the same amount, however wide or tall the image is
+    if (this.legacy) { this._imgTop(img, x, top, w, len, len / Math.max(len, 32800 * this.u) / (tex.kept || 1), flip); return; }
     const th = Math.max(2, tex.h * (w / tex.w));
     const ctx = this.ctx;
     ctx.save();

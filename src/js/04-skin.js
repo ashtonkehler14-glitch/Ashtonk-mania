@@ -187,15 +187,19 @@ class Skin {
     }
     if (!frames.length) return null;
     // textures taller or wider than GPUs accept (some skins ship 20000-px long-note bodies) are cut to 8192 px,
-    // which keeps the part that's ever seen and avoids a slow fallback path on every draw
+    // which keeps the part that's ever seen and avoids a slow fallback path on every draw (a body remembers how
+    // much of its height it kept: it's drawn as a share of the whole)
+    let kept = 1;
     for (let i = 0; i < frames.length; i++) {
       const f = frames[i], w = f.width, hh = f.height;
       if ((w > 8192 || hh > 8192) && typeof createImageBitmap === 'function') {
-        try { frames[i] = await createImageBitmap(f, 0, 0, Math.min(w, 8192), Math.min(hh, 8192)); if (f.close) f.close(); } catch (e) { /* keep it */ }
+        try { frames[i] = await createImageBitmap(f, 0, 0, Math.min(w, 8192), Math.min(hh, 8192)); if (f.close) f.close(); if (!i) kept = Math.min(hh, 8192) / hh; } catch (e) { /* keep it */ }
       }
     }
     // 1x1 transparent placeholders are used by skinners to hide elements: keep them (they're intentional).
-    return new Texture(frames, scale, fps);
+    const tex = new Texture(frames, scale, fps);
+    if (kept < 1) tex.kept = kept;
+    return tex;
   }
 
   async sound(name) {
@@ -867,24 +871,30 @@ const ManiaLayout = {
     // the skin's own health bar (osu! scorebar-bg / scorebar-colour, animated or not); built-in skins have none
     if (!skin.builtin) {
       const tx = n => skin.texture(n).catch(() => null);
+      // (a piece the skin has that's empty or can't be read — a 0-byte file, how plenty of skins hide the health bar —
+      // is drawn as nothing, as in osu!: never taken for a missing one and swapped for another health bar)
+      const blank = () => new Texture([DefaultSkin.canvas(1, 1, () => {})], 1);
+      const own = async n => skin.has(n) ? (await tx(n)) || blank() : null;
+      const shows = t => !!t && (t.pw > 2 || t.ph > 2);
       // (lazer: the skin's AnimationFramerate, or the whole animation once a second)
-      L.tex.scorebarColour = await skin.texture('scorebar-colour').catch(() => null);
+      L.tex.scorebarColour = await own('scorebar-colour');
       if (L.tex.scorebarColour && L.tex.scorebarColour.frames.length > 1) {
         const r = parseFloat(skin.ini.general.AnimationFramerate);
         L.tex.scorebarColour.fps = r > 0 ? r : L.tex.scorebarColour.frames.length;
       }
       if (L.tex.scorebarColour) {
-        L.tex.scorebarBg = await tx('scorebar-bg');
+        L.tex.scorebarBg = await own('scorebar-bg');
         // "new style" skins have a scorebar-marker; older ones use the ki sprites (osu!lazer LegacyHealthDisplay)
         L.tex.scorebarMarker = await tx('scorebar-marker');
         L.tex.scorebarKi = [await tx('scorebar-ki'), await tx('scorebar-kidanger'), await tx('scorebar-kidanger2')];
       } else if (skin.has('scorebar-bg') || skin.has('scorebar-marker') || skin.has('scorebar-ki')) {
         // the skin has health bar pieces but no fill: osu! uses its default fill there, so this skin still gets its
-        // own health bar (drawn on its background, with its marker) rather than the lazer one
-        L.tex.scorebarBg = await tx('scorebar-bg');
+        // own health bar (drawn on its background, with its marker) rather than the lazer one — none at all when every
+        // piece it has is blank (hidden)
+        L.tex.scorebarBg = await own('scorebar-bg');
         L.tex.scorebarMarker = await tx('scorebar-marker');
         L.tex.scorebarKi = [await tx('scorebar-ki'), await tx('scorebar-kidanger'), await tx('scorebar-kidanger2')];
-        L.tex.scorebarColour = new Texture([DefaultSkin.canvas(1240, 30, (x, w, h) => {
+        L.tex.scorebarColour = ![L.tex.scorebarBg, L.tex.scorebarMarker, ...L.tex.scorebarKi].some(shows) ? blank() : new Texture([DefaultSkin.canvas(1240, 30, (x, w, h) => {
           const g = x.createLinearGradient(0, 0, w, 0);
           g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, '#d9f1ff'); g.addColorStop(1, '#8fd3ff');
           x.fillStyle = g; DefaultSkin.rr(x, 0, 4, w, h - 8, (h - 8) / 2); x.fill();

@@ -913,6 +913,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.27c', title: 'Fixes', sections: [
+    { icon: 'sparkle', title: 'Fixes', items: ['Notes scroll without the little hitches every few seconds', 'Percy skins: long notes are cut short by the same amount, like in osu!', 'Skins that hide the health bar with empty images hide it, instead of getting another bar', 'Updating the HTML file checks the new version saved properly before restarting, instead of opening a blank page'] },
+    { icon: 'heart', title: 'Neru', items: ['Playing as Miku or Teto, single clicks don\'t set her off: the leek, the baguette or a picture comes when she\'d get angry', 'She only twirls in Neru mode', 'The thought bubble goes before she changes back'] },
+  ] },
   { id: '2026.10.27b', title: 'Fixes', sections: [
     { icon: 'download', title: 'Fixes', items: ['Updating the HTML file updates the file you\'re playing, instead of restarting into the old version and asking again', 'Pictures and songs stay at full resolution: lower them in Settings → Graphics (Picture quality, Renderer scale, Automatic resolution)'] },
   ] },

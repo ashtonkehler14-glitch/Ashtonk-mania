@@ -337,11 +337,11 @@ await shot('01-home-empty');
       pat.during === 'happy' && pat.hearts && pat.stroked === 'happy|false' && pat.after === 'sassy|false' && pat.blush === 2 && !/^happy/.test(pat.body) && pat.body.endsWith('|0'), JSON.stringify(pat));
   }
   // double-clicked: a hop each time; clicked over and over — the eighth click in a row, however slowly (each within a
-  // little over a second of the last), never by chance — angry or, as often, a spin; one of her own (the Neru gang)
-  // always a spin, that a click mid-spin doesn't cut short; by a Teto or Miku fan,
-  // mostly angry or a spin, now and then a photo of their character held up or their thing crossed out in a thought bubble — which
-  // clicking again doesn't cut short, and a photo or what she said is gone before her pose changes back; the hundredth
-  // click this visit, even mid-huff: her happy face and hearts — she gives up
+  // little over a second of the last), never by chance — angry; one of her own (the Neru gang, Neru mode) always a
+  // spin, that a click mid-spin doesn't cut short (nobody else gets one); by a Teto or Miku fan, nothing before the
+  // eighth click, then a photo of their character held up or their thing crossed out in a thought bubble, half and
+  // half — which clicking again doesn't cut short, and the photo or the thought is gone before her pose changes back;
+  // the hundredth click this visit, even mid-huff: her happy face and hearts — she gives up
   {
     const tw = await page.evaluate(async () => {
       const M = NeruMascot, E = NeruEggs, P = AshtonkMania.ProfileManager, name = P.profile.name, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
@@ -351,7 +351,8 @@ await shot('01-home-empty');
         await calm(); const jab = E.jab, rnd = Math.random; E.jab = () => {}; E._onBeat = false;
         try {
           Math.random = () => v;
-          try { for (let i = 0; i < 8; i++) { M.el.click(); await wait(110); } } finally { Math.random = rnd; }
+          let pre = false;
+          try { for (let i = 0; i < 8; i++) { if (i === 7) pre = !!M.el.querySelector(':scope > .neru-photo, :scope > .neru-bread') || !!M.el._fanBusy; M.el.click(); await wait(110); } } finally { Math.random = rnd; }
           const n = E._clicked, pose = M.img.dataset.pose;
           for (let i = 0; i < 4; i++) { M.el.classList.remove('hop'); M.el.click(); await wait(60); }
           const ignored = E._clicked === n && !M.el.classList.contains('hop') && M.img.dataset.pose === pose;
@@ -361,12 +362,13 @@ await shot('01-home-empty');
             if (M.el.querySelector(':scope > .neru-vein')) kind = 'angry';
             if (M.el.classList.contains('twirl')) { kind = 'spin'; what = M.img.dataset.pose; }
             if (bd) { kind = 'thought'; what = (/nb-(teto|miku)/.exec(bd.className) || [])[1] || '?'; }
-            if (ph) { kind = 'photo'; what = (/neru-photos\/(teto|miku)-/.exec(ph.querySelector('img').src) || [])[1] || '?'; if (held == null) held = M.img.dataset.pose; else if (M.img.dataset.pose !== held) early = true; }
+            if (ph) { kind = 'photo'; what = (/neru-photos\/(teto|miku)-/.exec(ph.querySelector('img').src) || [])[1] || '?'; }
+            if (ph || bd) { if (held == null) held = M.img.dataset.pose; else if (M.img.dataset.pose !== held) early = true; }
             await wait(50);
           }
           const gone = !M.el.querySelector(':scope > .neru-photo, :scope > .neru-bread');
           await wait(500);
-          return `${kind}|${what}|${ignored}|${!early && gone}|${held || '-'}|${M.img.dataset.pose || 'usual'}`;
+          return `${pre}|${kind}|${what}|${ignored}|${!early && gone}|${held || '-'}|${M.img.dataset.pose || 'usual'}`;
         } finally { E.jab = jab; }
       };
       // (`v`: what chance gives — a half or more, a spin instead of a huff)
@@ -385,11 +387,9 @@ await shot('01-home-empty');
         out.gang = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
         out.gangSpam = await spam();
         M.el.classList.remove('hop'); M.el.click(); await wait(30); out.midTwirl = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
-        // (the odds — angry 4, the thought 1, a photo 1, a spin 4 — laid end to end: 0 angry, .45 the thought, .55 a photo, .8 a spin;
-        // with no thought or photo, angry or a spin half and half)
-        P.profile.name = 'TetoFan'; out.teto = [await fanSpam(0), await fanSpam(0.45), await fanSpam(0.55), await fanSpam(0.8)];
-        P.profile.name = 'MikuFan'; out.miku = [await fanSpam(0.45), await fanSpam(0.55)];
-        out.odds = JSON.stringify(E.ODDS);
+        // (a fan: under a half a photo, else the thought)
+        P.profile.name = 'TetoFan'; out.teto = [await fanSpam(0.2), await fanSpam(0.7)];
+        P.profile.name = 'MikuFan'; out.miku = [await fanSpam(0.2), await fanSpam(0.7)];
       } finally { P.profile.name = name; }
       out.plain = await spam(0.1); out.plainSpin = await spam(0.9);
       await calm(); E._clicked = 98; M.el.click(); await wait(300); out.n99 = M.img.dataset.pose;
@@ -400,10 +400,9 @@ await shot('01-home-empty');
       E._seen = performance.now(); await wait(3200); out.after = M.img.dataset.pose || 'usual';
       return out;
     });
-    check('Neru: double-clicked, a hop; the eighth click in a row, however slowly, always gets her going — angry or (as often) a spin; the Neru gang always a spin (not cut short by another click); a Teto or Miku fan mostly angry or a spin, now and then a photo or their thing crossed out, that clicking again doesn\'t cut short, the photo or words gone before her pose changes; the hundredth click in a visit (not one mid-huff: nothing counts then) gets her happy face and a shower of hearts',
-      tw.once === 'true|false' && tw.twice === 'true|false' && tw.slow7 === false && tw.slow8 === true && tw.gang === 'true|false' && tw.midTwirl === 'false|true' && tw.gangSpam === 'false|-|false|true' && tw.plain === 'true|-|false|false' && tw.plainSpin === 'false|-|false|true'
-      && tw.teto.join() === 'angry||true|true|-|usual,thought|teto|true|true|-|usual,photo|teto|true|true|mock|usual,spin|happy|true|true|-|usual' && tw.miku.join() === 'thought|miku|true|true|-|usual,photo|miku|true|true|mock|usual'
-      && tw.odds === '{"angry":4,"thought":1,"photo":1,"spin":4}'
+    check('Neru: double-clicked, a hop; the eighth click in a row, however slowly, always gets her going — angry, never a spin; the Neru gang always a spin (not cut short by another click); a Teto or Miku fan nothing before the eighth, then a photo or their thing crossed out, half and half, that clicking again doesn\'t cut short, the photo or thought gone before her pose changes; the hundredth click in a visit (not one mid-huff: nothing counts then) gets her happy face and a shower of hearts',
+      tw.once === 'true|false' && tw.twice === 'true|false' && tw.slow7 === false && tw.slow8 === true && tw.gang === 'true|false' && tw.midTwirl === 'false|true' && tw.gangSpam === 'false|-|false|true' && tw.plain === 'true|-|false|false' && tw.plainSpin === 'true|-|false|false'
+      && tw.teto.join() === 'false|photo|teto|true|true|mock|usual,false|thought|teto|true|true|sassy|usual' && tw.miku.join() === 'false|photo|miku|true|true|mock|usual,false|thought|miku|true|true|sassy|usual'
       && tw.n99 === 'happy' && tw.busy === 99 && tw.n100 === 'happy|true' && tw.after === 'usual', JSON.stringify(tw));
   }
   // dizzy: the pointer circled round her head three times — a blank look, a wobble, stars going round her head; flung,
@@ -609,7 +608,7 @@ await shot('01-home-empty');
   // on the main menu as the year turns: at midnight on New Year's Eve, a cheer and confetti
   const nye = await page.evaluate(async () => {
     const E = NeruEggs, M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
-    M._actUntil = M._happyUntil = 0; await M.show(null);
+    M._actUntil = M._happyUntil = 0; M.el.querySelectorAll(':scope > .neru-bread, :scope > .neru-photo').forEach(x => x.remove()); await M.show(null);
     E.newYearsEve(M.el, new Date(2026, 11, 31, 23, 59, 58, 500)); await wait(600); out.before = M.img.dataset.pose || 'usual';
     await wait(1700); out.at = M.img.dataset.pose; out.confetti = !!M.el.querySelector('.neru-drift.nd-confetti') || document.documentElement.classList.contains('slow');
     await wait(3800);
@@ -2278,6 +2277,21 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   });
   check('the bundled Kori uses its own health bar (scorebar images), eased like osu!lazer', hpStyles.bar.every(Boolean) && hpStyles.modes[0] === 'skinstage', JSON.stringify(hpStyles));
   check('health bar styles: skin beside the stage (default, as in osu!mania) / skin top-left / osu!lazer / slim; skins without a scorebar fall back to osu!lazer', hpStyles.modes.join() === 'skinstage,lazer,skin,lazer,stage,lazer,', JSON.stringify(hpStyles.modes));
+  // a skin hiding its health bar with empty (0-byte) scorebar images: none drawn — never the osu!lazer bar or a stand-in
+  // fill in its place; health bar pieces but no fill still get osu!'s default fill
+  const hidden = await page.evaluate(async () => {
+    const A = AshtonkMania, ini = { general: {}, colours: {}, fonts: {}, mania: {}, maniaList: [] }, out = {};
+    const mk = async (id, files) => { await A.DB.putMany(Object.entries(files).map(([f, b]) => ({ store: 'files', key: `skin:${id}/${f}`, value: b }))); const L = await new Skin({ id, name: id, files: Object.keys(files), ini }).mania(4); await A.DB.delPrefix('files', `skin:${id}/`); return L; };
+    const png = await new Promise(r => { const c = document.createElement('canvas'); c.width = 200; c.height = 20; c.getContext('2d').fillRect(0, 0, 200, 20); c.toBlob(r); });
+    let L = await mk('t-hide-all', { 'scorebar-bg.png': new Blob([]), 'scorebar-colour.png': new Blob([]) });
+    out.hidden = `${A.healthModeFor(L)}|${L.tex.scorebarColour.pw}x${L.tex.scorebarColour.ph}|${L.tex.scorebarBg.pw}`;
+    L = await mk('t-hide-pieces', { 'scorebar-bg.png': new Blob([]), 'scorebar-ki.png': new Blob([]) });
+    out.pieces = `${A.healthModeFor(L)}|${L.tex.scorebarColour.pw}`;
+    L = await mk('t-bg-only', { 'scorebar-bg.png': png });
+    out.bgOnly = `${A.healthModeFor(L)}|${L.tex.scorebarColour.pw > 100}`;
+    return out;
+  });
+  check('a skin hiding its health bar with empty scorebar images shows none (not the osu!lazer bar or a stand-in fill); a background without a fill still gets the default fill', hidden.hidden === 'skinstage|1x1|1' && hidden.pieces === 'skinstage|1' && hidden.bgOnly === 'skinstage|true', JSON.stringify(hidden));
   check('older installs of the bundled Kori get its health bar images once (upgrade)', await page.evaluate(async () => {
     const A = AshtonkMania, SM = A.SkinManager, meta = SM.skins.find(m => /Kori 3\.0$/.test(m.name));
     meta.files = meta.files.filter(f => !/^scorebar-/i.test(f)); await A.DB.put('skins', meta);

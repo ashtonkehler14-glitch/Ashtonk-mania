@@ -174,7 +174,7 @@ try {
   await fp.evaluate(() => {
     AshtonkMania.HtmlFile.latest = async () => 'feedfacecafe';
     // (the browser's save box can't be clicked in a test: it hands back a file that records what's written)
-    window.showSaveFilePicker = async o => { window.__picked = o.suggestedName; return { name: 'Ashtonk!mania (2).html', requestPermission: async () => 'granted', createWritable: async () => ({ write: async b => { window.__written = b.size; }, close: async () => {} }) }; };
+    window.showSaveFilePicker = async o => { window.__picked = o.suggestedName; let file = new File([], 'x'); return { name: 'Ashtonk!mania (2).html', requestPermission: async () => 'granted', getFile: async () => file, createWritable: async () => { let b = null; return { write: async x => { b = x; }, close: async () => { file = b; window.__written = b.size; } }; } }; };
     return AshtonkMania.HtmlFile.check();
   });
   const asked = await fp.evaluate(() => (document.querySelector('.dialog h2') || {}).textContent || '');
@@ -189,6 +189,23 @@ try {
   await fp.waitForFunction(() => window.__written > 0, null, { timeout: 60000 }).catch(() => {});
   const wrote = await fp.evaluate(() => ({ picked: window.__picked, size: window.__written || 0 }));
   check('"Update" writes the newest version to the file (the save box opens on this file\'s name)', wrote.picked === 'Ashtonk!mania.html' && wrote.size > 6e6, JSON.stringify(wrote));
+  // a write that doesn't stick (the drive not having the new file all there, read back): written again, then — still
+  // not there — nothing restarts (that opened a blank white page) and the new version downloads instead
+  await fp.waitForFunction(() => !AshtonkMania.HtmlFile.busy, null, { timeout: 30000 }).catch(() => {});
+  const lost = await fp.evaluate(async () => {
+    const F = AshtonkMania.HtmlFile, kv = AshtonkMania.DB.kvGet, dl = window.downloadBlob, reload = F.WRITE_WAIT;
+    let writes = 0, downloaded = null, unloaded = false;
+    const onUnload = () => { unloaded = true; }; window.addEventListener('beforeunload', onUnload);
+    const fake = { name: F.fileName(), queryPermission: async () => 'granted', requestPermission: async () => 'granted', getFile: async () => new File([`<script>window.AM_SAVED=${window.AM_SAVED};</script>`], F.fileName()), createWritable: async () => ({ write: async () => { writes++; }, close: async () => {} }) };
+    AshtonkMania.DB.kvGet = async (k, d) => k === 'htmlFile.handle' ? fake : kv.call(AshtonkMania.DB, k, d);
+    window.downloadBlob = (b, n) => { downloaded = `${n}|${b.size > 6e6}`; };
+    F.WRITE_WAIT = 600;
+    try { await F.update(); } finally { AshtonkMania.DB.kvGet = kv; window.downloadBlob = dl; F.WRITE_WAIT = reload; }
+    await new Promise(r => setTimeout(r, 1500));
+    window.removeEventListener('beforeunload', onUnload);
+    return { writes, downloaded, unloaded, toasts: [...document.querySelectorAll('#toasts .t-title')].map(e => e.textContent).join('|') };
+  });
+  check('a write that doesn\'t stick is tried again, then nothing restarts and the new version downloads instead', lost.writes === 2 && lost.downloaded === 'Ashtonk!mania.html|true' && !lost.unloaded && /didn.t save properly/.test(lost.toasts), JSON.stringify(lost));
   // restarted after an update that went over another copy (still the old version here): it says so, and forgets that
   // file, instead of offering the update again and again; restarted as the new version, it says it's updated
   await fp.evaluate(() => localStorage.setItem('am.fileUpdated', JSON.stringify({ build: 'feedfacecafe', at: Date.now(), name: 'Ashtonk!mania.html' })));
