@@ -749,10 +749,10 @@ const SongSelect = {
     if (row.type === 'set' || row.type === 'group' || row.type === 'std') b.classList.toggle('expanded', row.open);
     else b.classList.toggle('selected', row.m.id === this.selectedId);
   },
-  /** A song panel's picture: its card picture — in Performance mode the smaller copy made for panels (see
+  /** A song panel's picture: its card picture — with Picture quality on Lower, the smaller copy made for panels (see
    *  BeatmapManager.cardURL). */
   panelPicture(set, bg) {
-    (Settings.get('graphics.performanceMode') ? BeatmapManager.cardURL(set) : BeatmapManager.thumbURL(set)).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
+    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.cardURL(set) : BeatmapManager.thumbURL(set)).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
   },
   /** The sheet over the list (while it scrolls) taken away: the panels have the pointer again. */
   unshield() { clearTimeout(this._stillT); if (!this._still) return; this._still = false; this.shield.classList.remove('on'); },
@@ -1015,9 +1015,9 @@ const SongSelect = {
   /** The selected difficulty's own background (each difficulty's [Events] can name a different picture). */
   async showBackground(m) {
     const tok = this._bgTok = {};
-    // (Performance mode or thumbnail backgrounds: the song's card picture — already read for its panel — not the full
-    // picture read from storage and decoded again for every song stopped on)
-    const set = BeatmapManager.setById.get(m.setId), light = Settings.get('graphics.performanceMode') || Settings.get('graphics.bgQuality') === 'low';
+    // (Picture quality: Lower — the song's card picture, already read for its panel, not the full picture read from
+    // storage and decoded again for every song stopped on)
+    const set = BeatmapManager.setById.get(m.setId), light = Settings.get('graphics.bgQuality') === 'low';
     const url = light ? await BeatmapManager.thumbURL(set) || await BeatmapManager.bgURL(m).catch(() => null)
       : await BeatmapManager.bgURL(m).catch(() => null) || await BeatmapManager.thumbURL(set);
     if (tok === this._bgTok && this.selectedId === m.id && url !== Background.current) Background.set(url);

@@ -126,12 +126,12 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Renderer', k: 'graphics.fpsLimit', l: 'Frame limiter', t: 'select', d: 0, o: [[0, 'VSync / Unlimited'], [60, '60 fps'], [120, '120 fps'], [144, '144 fps'], [165, '165 fps'], [240, '240 fps'], [360, '360 fps']], num: true },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.lowLatency', l: 'Low-latency playfield', t: 'bool', d: false, hint: 'Draws the playfield without waiting for the display\'s refresh. It can show a frame sooner, but the stage may tear, which makes notes look like they stutter. Applies from the next play.' },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: kbHint('Ctrl+F11 toggles it anywhere.') },
-  { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: true, hint: 'When a beatmap can\'t keep up (under ~45 fps), the playfield is drawn at a lower resolution until it can, and the device remembers it. After a smooth play it tries a little higher again.' },
+  { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: false, hint: 'Off: the playfield is always drawn at full resolution. On: when a beatmap can\'t keep up (under ~45 fps), it\'s drawn at a lower resolution until it can, and the device remembers it; after a smooth play it tries a little higher again.' },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no particles, hit lighting or stage light while playing, and the menus without animations, blur, glow or moving backgrounds.' },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
-  { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Background quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Thumbnail (fast)']] },
+  { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Picture quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Lower (faster)']], hint: 'Song backgrounds and the pictures in song select. Lower is faster on slow computers.' },
   // ── Input
   { s: 'Input', g: 'Mouse', k: 'input.noWheelVolumeInGame', l: 'Disable mouse wheel adjusting volume during gameplay', t: 'bool', d: false },
   { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key binding configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
@@ -257,6 +257,17 @@ const Settings = {
     v['migr.perfBack'] = true;
     // (safe mode is gone: what it left behind goes too)
     if (!v['migr.noSafe']) { delete v['online.safeMode']; delete v['online.safeModeAuto']; try { localStorage.removeItem('am.session'); } catch { /* storage blocked */ } v['migr.noSafe'] = true; }
+    // (the Performance choice in setup — and Chromebooks, given it by themselves — no longer lowers the pictures' or
+    // the playfield's resolution: what it set goes back to full, once; Picture quality and Renderer scale lower them)
+    if (!v['migr.fullRes']) {
+      if (v['setup.device'] === 'chromebook') {
+        if (v['graphics.bgQuality'] === 'low') delete v['graphics.bgQuality'];
+        if (typeof lowEndRenderScale === 'function' && v['graphics.renderScale'] < 1 && v['graphics.renderScale'] === lowEndRenderScale()) delete v['graphics.renderScale'];
+      }
+      // (nor does a song that can't keep up, unless Automatic resolution is turned on: the level it had come down to goes)
+      delete v['perf.autoScale'];
+      v['migr.fullRes'] = true;
+    }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     // a Chromebook that never picked a device (or skipped setup before it asked) gets the Chromebook settings, once
     if (!v['migr.crosAuto']) {

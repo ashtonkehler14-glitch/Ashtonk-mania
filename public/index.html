@@ -8522,12 +8522,12 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Renderer', k: 'graphics.fpsLimit', l: 'Frame limiter', t: 'select', d: 0, o: [[0, 'VSync / Unlimited'], [60, '60 fps'], [120, '120 fps'], [144, '144 fps'], [165, '165 fps'], [240, '240 fps'], [360, '360 fps']], num: true },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.lowLatency', l: 'Low-latency playfield', t: 'bool', d: false, hint: 'Draws the playfield without waiting for the display\'s refresh. It can show a frame sooner, but the stage may tear, which makes notes look like they stutter. Applies from the next play.' },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: kbHint('Ctrl+F11 toggles it anywhere.') },
-  { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: true, hint: 'When a beatmap can\'t keep up (under ~45 fps), the playfield is drawn at a lower resolution until it can, and the device remembers it. After a smooth play it tries a little higher again.' },
+  { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: false, hint: 'Off: the playfield is always drawn at full resolution. On: when a beatmap can\'t keep up (under ~45 fps), it\'s drawn at a lower resolution until it can, and the device remembers it; after a smooth play it tries a little higher again.' },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no particles, hit lighting or stage light while playing, and the menus without animations, blur, glow or moving backgrounds.' },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
-  { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Background quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Thumbnail (fast)']] },
+  { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Picture quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Lower (faster)']], hint: 'Song backgrounds and the pictures in song select. Lower is faster on slow computers.' },
   // ── Input
   { s: 'Input', g: 'Mouse', k: 'input.noWheelVolumeInGame', l: 'Disable mouse wheel adjusting volume during gameplay', t: 'bool', d: false },
   { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key binding configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
@@ -8653,6 +8653,17 @@ const Settings = {
     v['migr.perfBack'] = true;
     // (safe mode is gone: what it left behind goes too)
     if (!v['migr.noSafe']) { delete v['online.safeMode']; delete v['online.safeModeAuto']; try { localStorage.removeItem('am.session'); } catch { /* storage blocked */ } v['migr.noSafe'] = true; }
+    // (the Performance choice in setup — and Chromebooks, given it by themselves — no longer lowers the pictures' or
+    // the playfield's resolution: what it set goes back to full, once; Picture quality and Renderer scale lower them)
+    if (!v['migr.fullRes']) {
+      if (v['setup.device'] === 'chromebook') {
+        if (v['graphics.bgQuality'] === 'low') delete v['graphics.bgQuality'];
+        if (typeof lowEndRenderScale === 'function' && v['graphics.renderScale'] < 1 && v['graphics.renderScale'] === lowEndRenderScale()) delete v['graphics.renderScale'];
+      }
+      // (nor does a song that can't keep up, unless Automatic resolution is turned on: the level it had come down to goes)
+      delete v['perf.autoScale'];
+      v['migr.fullRes'] = true;
+    }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     // a Chromebook that never picked a device (or skipped setup before it asked) gets the Chromebook settings, once
     if (!v['migr.crosAuto']) {
@@ -8806,10 +8817,10 @@ const BeatmapManager = {
     const b = await DB.get('files', `${set.id}/__thumb.jpg`);
     return BlobURLs.get(`thumb:${set.id}`, b);
   },
-  /** Performance mode's song panels: a smaller copy of the card picture (CARD_W), made once in the picture worker and
-   *  kept with the set. The 1280px one — decoded for every panel scrolled into view, and each kept decoded at almost
-   *  4 MB — was most of what scrolling the song list cost on a slow computer. (Where it can't be made, or while the
-   *  card picture itself is being remade: that one.) */
+  /** Song panels with Picture quality on Lower: a smaller copy of the card picture (CARD_W), made once in the picture
+   *  worker and kept with the set. The 1280px one — decoded for every panel scrolled into view, and each kept decoded
+   *  at almost 4 MB — was most of what scrolling the song list cost on a slow computer. (Where it can't be made, or
+   *  while the card picture itself is being remade: that one.) */
   CARD_W: 768, CARD_Q: 0.85,
   async cardURL(set) {
     if (!set || !set.thumb) return null;
@@ -18015,10 +18026,10 @@ const SongSelect = {
     if (row.type === 'set' || row.type === 'group' || row.type === 'std') b.classList.toggle('expanded', row.open);
     else b.classList.toggle('selected', row.m.id === this.selectedId);
   },
-  /** A song panel's picture: its card picture — in Performance mode the smaller copy made for panels (see
+  /** A song panel's picture: its card picture — with Picture quality on Lower, the smaller copy made for panels (see
    *  BeatmapManager.cardURL). */
   panelPicture(set, bg) {
-    (Settings.get('graphics.performanceMode') ? BeatmapManager.cardURL(set) : BeatmapManager.thumbURL(set)).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
+    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.cardURL(set) : BeatmapManager.thumbURL(set)).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
   },
   /** The sheet over the list (while it scrolls) taken away: the panels have the pointer again. */
   unshield() { clearTimeout(this._stillT); if (!this._still) return; this._still = false; this.shield.classList.remove('on'); },
@@ -18281,9 +18292,9 @@ const SongSelect = {
   /** The selected difficulty's own background (each difficulty's [Events] can name a different picture). */
   async showBackground(m) {
     const tok = this._bgTok = {};
-    // (Performance mode or thumbnail backgrounds: the song's card picture — already read for its panel — not the full
-    // picture read from storage and decoded again for every song stopped on)
-    const set = BeatmapManager.setById.get(m.setId), light = Settings.get('graphics.performanceMode') || Settings.get('graphics.bgQuality') === 'low';
+    // (Picture quality: Lower — the song's card picture, already read for its panel, not the full picture read from
+    // storage and decoded again for every song stopped on)
+    const set = BeatmapManager.setById.get(m.setId), light = Settings.get('graphics.bgQuality') === 'low';
     const url = light ? await BeatmapManager.thumbURL(set) || await BeatmapManager.bgURL(m).catch(() => null)
       : await BeatmapManager.bgURL(m).catch(() => null) || await BeatmapManager.thumbURL(set);
     if (tok === this._bgTok && this.selectedId === m.id && url !== Background.current) Background.set(url);
@@ -23123,6 +23134,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.27b', title: 'Fixes', sections: [
+    { icon: 'download', title: 'Fixes', items: ['Updating the HTML file updates the file you\'re playing, instead of restarting into the old version and asking again', 'Pictures and songs stay at full resolution: lower them in Settings → Graphics (Picture quality, Renderer scale, Automatic resolution)'] },
+  ] },
   { id: '2026.10.27', title: 'Smoother menus', sections: [
     { icon: 'sparkle', title: 'Performance mode', items: ['Song select stutters far less on slow computers: stepping through songs, scrolling the list and opening it', 'A song\'s preview starts once you stop on it, so flicking past songs stays smooth', 'The main menu\'s buttons hover without a hitch'] },
     { icon: 'heart', title: 'Neru', items: ['Clicking Neru over and over sets her off after the same number of clicks every time', 'Once she\'s going, more clicks can\'t cut her short', 'Playing as Neru, she twirls instead'] },
@@ -24954,8 +24968,8 @@ const lowEndRenderScale = () => clamp(Math.round(20 / (window.devicePixelRatio |
 /** Performance or graphics (saved as setup.device: 'chromebook' / 'pc', the names earlier versions used). */
 const SETUP_DEVICES = {
   chromebook: { label: 'Performance', sub: 'Smoothest everywhere: Performance mode on — no heavy effects in songs or menus', icon: 'bolt',
-    values: () => ({ 'graphics.performanceMode': true, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
-      'graphics.menuBlur': 12, 'ui.parallax': false }) },
+    // (the pictures and the playfield stay at full resolution: Picture quality and Renderer scale lower them, if wanted)
+    values: () => ({ 'graphics.performanceMode': true, 'gameplay.video': false, 'graphics.menuBlur': 12, 'ui.parallax': false }) },
   pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sec-graphics',
     values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
       'graphics.bgQuality': 'high', 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
@@ -30320,13 +30334,16 @@ const HtmlFile = {
   busy: false,
   /** The website the file is put together from. */
   base() { return Host.standalone ? Host.server() : new URL('.', location.href).href; },
-  async build(onProgress = () => {}) {
+  async build(onProgress = () => {}, fresh = false) {
     const base = this.base();
     if (!base) throw new Error('Set the game\'s website address first.');
     const get = async (path, as) => {
       let r;
+      // (`fresh`: past any copy kept on the way — the address made new, so nothing kept answers for it)
+      const at = new URL(path, base);
+      if (fresh && /\.(html|json)$/.test(path)) at.searchParams.set('v', Date.now().toString(36));
       // (a file that stops coming part-way is given up on, not waited for with the save stuck at its percent)
-      try { r = await fetchStalled(new URL(path, base), { cache: 'no-cache' }, 30000); } catch { throw new Error('Couldn\'t reach the game\'s website. Check your connection and try again.'); }
+      try { r = await fetchStalled(at, { cache: fresh ? 'reload' : 'no-cache' }, 30000); } catch { throw new Error('Couldn\'t reach the game\'s website. Check your connection and try again.'); }
       if (!r.ok) throw new Error(`${path}: ${r.status}`);
       try { return await (as === 'text' ? r.text() : as === 'json' ? r.json() : r.blob()); }
       catch (e) { if (e instanceof SyntaxError) throw e; throw new Error('The download stopped part-way. Check your connection and try again.'); }
@@ -30399,10 +30416,34 @@ const HtmlFile = {
   },
   /** This file's name on the device (the update is written over it). */
   fileName() { try { return decodeURIComponent(location.pathname.split('/').pop()) || this.NAME; } catch { return this.NAME; } },
+  /** Where this file is on the device, written as you'd find it (to pick it in the save box). */
+  where() {
+    let p = location.pathname;
+    try { p = decodeURIComponent(p); } catch { /* as it is */ }
+    const cros = /\/MyFiles\/(.*)$/.exec(p), drive = /\/drivefs-[^/]+\/root\/(.*)$/.exec(p);
+    if (cros) return 'My files/' + cros[1];
+    if (drive) return 'Google Drive/' + drive[1];
+    return /^\/[A-Za-z]:\//.test(p) ? p.slice(1).replace(/\//g, '\\') : p;
+  },
+  /** The version a page of the game is (its APP_BUILD). */
+  async buildOf(blob) { const m = /const APP_BUILD = '([0-9a-f]+)'/.exec(await blob.text()); return m ? m[1] : null; },
+  /** Whether a file on the device is this very one — the copy you're playing from, not another with the same name
+   *  (each saved copy carries the moment it was saved). */
+  async isThisFile(handle) {
+    try { const f = await handle.getFile(); return !!f.size && (!window.AM_SAVED || (await f.text()).includes(`window.AM_SAVED=${window.AM_SAVED};`)); }
+    catch { return false; }
+  },
   /** A saved file looks for a newer version as it opens and every few hours while it stays open, and asks — not in
    *  the middle of a song (as lazer holds notifications back), and "Not now" holds for a day. */
   watch() {
     if (!Host.standalone || !Host.server()) return;
+    // (just restarted after an update: the new version — or, still the old one, the update was written over another
+    // copy with this file's name, and this one's left as it was. It's said so, rather than offered again and again.)
+    let upd = null; try { upd = JSON.parse(localStorage.getItem('am.fileUpdated') || 'null'); localStorage.removeItem('am.fileUpdated'); } catch { /* none */ }
+    if (upd && Date.now() - upd.at < 10 * 60e3) {
+      if (upd.build === APP_BUILD) setTimeout(() => Toast.ok('Updated', 'You\'re playing the newest version.'), 1500);
+      else { this._asked = upd.build; DB.kvSet('htmlFile.handle', null).catch(() => {}); setTimeout(() => this.wrongCopy(upd), 2500); }
+    }
     const check = this.check = async () => {
       const v = await this.latest().catch(() => null);
       if (!v || v === APP_BUILD || this._asked === v) return;
@@ -30417,6 +30458,12 @@ const HtmlFile = {
     };
     setTimeout(check, 6000);
     setInterval(check, 3 * 3600e3);
+  },
+  /** The update went over another copy of the file (one in Downloads, say): this one's still the old version. */
+  async wrongCopy(upd) {
+    if (Screens.currentName === 'gameplay' || document.querySelector('.dialog')) { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); setTimeout(() => this.wrongCopy(upd), 1500); } }); return; }
+    const ok = await Dialog.confirm('This file wasn\'t updated', `The new version was saved over another file named ${upd.name}, not the one you're playing from. This one is at ${this.where()}. Update again and pick this file in the box that opens.`, { ok: 'Update again', cancel: 'Not now', icon: 'download' });
+    if (ok) this.update();
   },
   async offer(v) {
     const ok = await Dialog.confirm('A new version of Ashtonk!mania is out', `This file is out of date. Update it now? The new version is written over ${this.fileName()} — your beatmaps, scores and settings stay as they are.`, { ok: 'Update', cancel: 'Not now', icon: 'download' });
@@ -30434,15 +30481,24 @@ const HtmlFile = {
     this.busy = true;
     let p = Toast.progress('Updating Ashtonk!mania', 'Getting the newest version…');
     try {
-      const blob = await this.build(f => p.set(f * 0.97));
+      let blob = await this.build(f => p.set(f * 0.97));
+      // (the website handing back the version this file already is — a copy of the page kept somewhere on the way —
+      // is asked again past any such copy; still the same, nothing's written: written and restarted, the file was the
+      // old version again and asked to update again, over and over)
+      if (await this.buildOf(blob) === APP_BUILD) blob = await this.build(f => p.set(f * 0.97), true);
+      const build = await this.buildOf(blob);
+      if (build === APP_BUILD) { p.fail('No newer version yet', 'The website is still putting it up. Try again in a few minutes.'); return; }
       let handle = window.showSaveFilePicker ? await DB.kvGet('htmlFile.handle', null).catch(() => null) : null;
       if (handle && handle.name !== name) handle = null;
       let ok = false; try { ok = !!handle && await handle.queryPermission({ mode: 'readwrite' }) === 'granted'; } catch { /* asked below */ }
+      // (the file it was written to last time, only if that's this very one: another copy with the same name — in
+      // Downloads, say — was updated while this one stayed as it was)
+      if (ok && !await this.isThisFile(handle)) { handle = null; ok = false; }
       if (!ok) {
         // (the browser only opens the save box, or asks to let the game write the file, straight after a click)
         p.cancelled();
-        if (!await Dialog.confirm('The new version is ready', window.showSaveFilePicker ? `Save it over ${name}? Pick that file in the box that opens. Your beatmaps, scores and settings stay as they are.` : `It downloads as ${this.NAME}: put it in place of this file, then open it to play the new version.`, { ok: window.showSaveFilePicker ? 'Save' : 'Download', cancel: 'Not now', icon: 'download' })) return;
-        if (handle) { try { if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') handle = null; } catch { handle = null; } }
+        if (!await Dialog.confirm('The new version is ready', window.showSaveFilePicker ? `Save it over this file? In the box that opens, pick ${this.where()}. Your beatmaps, scores and settings stay as they are.` : `It downloads as ${this.NAME}: put it in place of this file, then open it to play the new version.`, { ok: window.showSaveFilePicker ? 'Save' : 'Download', cancel: 'Not now', icon: 'download' })) return;
+        if (handle) { try { if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted' || !await this.isThisFile(handle)) handle = null; } catch { handle = null; } }
         if (!handle && window.showSaveFilePicker) {
           try { handle = await window.showSaveFilePicker({ suggestedName: name, startIn: 'downloads', types: [{ description: 'Ashtonk!mania', accept: { 'text/html': ['.html'] } }] }); }
           catch (e) { if (e && e.name === 'AbortError') return; handle = null; }
@@ -30453,7 +30509,8 @@ const HtmlFile = {
       const w = await handle.createWritable();
       await w.write(blob); await w.close();
       DB.kvSet('htmlFile.handle', handle).catch(() => {});
-      if (handle.name === name) { p.done('Updated', 'Starting the new version…'); setTimeout(() => location.reload(), 1200); }
+      // (restarted, the file says whether it's the new version — see watch())
+      if (handle.name === name) { try { localStorage.setItem('am.fileUpdated', JSON.stringify({ build, at: Date.now(), name: handle.name })); } catch { /* private mode */ } p.done('Updated', 'Starting the new version…'); setTimeout(() => location.reload(), 1200); }
       else p.done('New version saved', `As ${handle.name}: open it to play the new version.`);
     } catch (e) { p.fail('Couldn\'t update the file', friendlyError(e)); }
     finally { this.busy = false; }
@@ -31165,7 +31222,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'fd891ffd8550';
+const APP_BUILD = '3ee03d741d5f';
 
 const App = {
   lastReport: null,

@@ -139,6 +139,38 @@ try {
     return !picked && !document.querySelector('.dialog');
   });
   check('an update that can\'t get the new version never touches the file', kept);
+  // the website with nothing newer than the file (a copy of the old page kept on the way): nothing is written — written
+  // and restarted, the file was the same version again and asked to update again, over and over
+  const noNew = await fp.evaluate(async () => {
+    const F = AshtonkMania.HtmlFile, pick = window.showSaveFilePicker; let picked = false;
+    window.showSaveFilePicker = async () => { picked = true; throw new DOMException('no', 'AbortError'); };
+    try { await F.update(); } finally { window.showSaveFilePicker = pick; }
+    await new Promise(r => setTimeout(r, 300));
+    return { picked, dialog: !!document.querySelector('.dialog'), toasts: [...document.querySelectorAll('#toasts .t-title')].map(e => e.textContent).join('|') };
+  });
+  check('an update with nothing newer on the website writes nothing (no restart into the same version)', !noNew.picked && !noNew.dialog && /No newer version/.test(noNew.toasts), JSON.stringify(noNew));
+  // (from here on the website has a newer version: what it sends is stamped as another build)
+  await fp.evaluate(() => {
+    const F = AshtonkMania.HtmlFile, build = F.build;
+    F.build = async (...a) => { const b = await build.apply(F, a); return new Blob([(await b.text()).replace(/const APP_BUILD = '[0-9a-f]+'/, "const APP_BUILD = 'feedfacecafe'")], { type: 'text/html' }); };
+  });
+  // the file it was written to last time being another copy with this name (in Downloads, say): not written to — the
+  // save box is asked for, saying where this file is
+  const other = await fp.evaluate(async () => {
+    const F = AshtonkMania.HtmlFile, kv = AshtonkMania.DB.kvGet;
+    let wrote = 0;
+    const fake = { name: F.fileName(), queryPermission: async () => 'granted', requestPermission: async () => 'granted', getFile: async () => new File(['<script>window.AM_SAVED=1;</script>'], F.fileName()), createWritable: async () => ({ write: async () => { wrote++; }, close: async () => {} }) };
+    AshtonkMania.DB.kvGet = async (k, d) => k === 'htmlFile.handle' ? fake : kv.call(AshtonkMania.DB, k, d);
+    const done = F.update();
+    for (let i = 0; i < 600 && !document.querySelector('.dialog'); i++) await new Promise(r => setTimeout(r, 100));
+    const text = (document.querySelector('.dialog') || {}).textContent || '';
+    const notNow = [...document.querySelectorAll('.dialog button')].find(b => b.textContent.trim() === 'Not now');
+    if (notNow) notNow.click();
+    await done; AshtonkMania.DB.kvGet = kv;
+    for (let i = 0; i < 40 && document.querySelector('.dialog'); i++) await new Promise(r => setTimeout(r, 100)); // (faded away)
+    return { wrote, text, where: F.where() };
+  });
+  check('the file remembered from last time, if it\'s another copy, isn\'t written over — the save box is asked for, saying where this file is', other.wrote === 0 && other.text.includes(other.where), JSON.stringify(other).slice(0, 300));
   await fp.evaluate(() => {
     AshtonkMania.HtmlFile.latest = async () => 'feedfacecafe';
     // (the browser's save box can't be clicked in a test: it hands back a file that records what's written)
@@ -157,6 +189,19 @@ try {
   await fp.waitForFunction(() => window.__written > 0, null, { timeout: 60000 }).catch(() => {});
   const wrote = await fp.evaluate(() => ({ picked: window.__picked, size: window.__written || 0 }));
   check('"Update" writes the newest version to the file (the save box opens on this file\'s name)', wrote.picked === 'Ashtonk!mania.html' && wrote.size > 6e6, JSON.stringify(wrote));
+  // restarted after an update that went over another copy (still the old version here): it says so, and forgets that
+  // file, instead of offering the update again and again; restarted as the new version, it says it's updated
+  await fp.evaluate(() => localStorage.setItem('am.fileUpdated', JSON.stringify({ build: 'feedfacecafe', at: Date.now(), name: 'Ashtonk!mania.html' })));
+  await fp.reload(); await fp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 60000 });
+  await fp.waitForFunction(() => /wasn.t updated/.test((document.querySelector('.dialog h2') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => {});
+  const wrong = await fp.evaluate(async () => ({ dialog: (document.querySelector('.dialog') || {}).textContent || '', handle: await AshtonkMania.DB.kvGet('htmlFile.handle', 'none') }));
+  check('restarted as the old version after an update, it says that file wasn\'t the one updated (and forgets it)', /wasn.t updated/.test(wrong.dialog) && wrong.handle === null, JSON.stringify(wrong).slice(0, 300));
+  await fp.evaluate(() => { const b = [...document.querySelectorAll('.dialog button')].find(x => x.textContent.trim() === 'Not now'); if (b) b.click(); });
+  await fp.evaluate(() => localStorage.setItem('am.fileUpdated', JSON.stringify({ build: APP_BUILD, at: Date.now(), name: 'Ashtonk!mania.html' })));
+  await fp.reload(); await fp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 60000 });
+  await fp.waitForFunction(() => [...document.querySelectorAll('#toasts .t-title')].some(e => e.textContent === 'Updated'), null, { timeout: 15000 }).catch(() => {});
+  const okNow = await fp.evaluate(() => ({ toast: [...document.querySelectorAll('#toasts .t-title')].some(e => e.textContent === 'Updated'), dialog: !!document.querySelector('.dialog') }));
+  check('restarted as the new version, it says it\'s updated and asks nothing', okNow.toast && !okNow.dialog, JSON.stringify(okNow));
 } catch (e) { check('ran to the end', false, e.stack); }
 
 check('no page errors', !errors.length, errors.join(' | '));

@@ -2489,7 +2489,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   check('setup: device step is just PC or Chromebook', (await sp.$$('.setup-step-device .setup-choice')).length === 2 && !(await sp.$('.setup-detect')));
   await sp.click('.setup-choice[data-id="chromebook"]');
   await sp.waitForSelector('.setup-step-look', { timeout: 3000 });
-  check('setup: Performance turns Performance mode on (menus and all) and moves on', await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === true && AshtonkMania.Settings.get('graphics.particles') === false && document.documentElement.classList.contains('perf')));
+  check('setup: Performance turns Performance mode on (menus and all) and moves on — pictures and the playfield at full resolution, and no automatic lowering', await sp.evaluate(() => { const S = AshtonkMania.Settings; return S.get('graphics.performanceMode') === true && S.get('graphics.particles') === false && document.documentElement.classList.contains('perf') && S.get('graphics.bgQuality') === 'high' && S.get('graphics.renderScale') === 1 && S.get('graphics.autoScale') === false; }));
   check('setup: no colour question (as in lazer); size is a slider', !(await sp.$('.setup-swatch')) && !!(await sp.$('.setup-step-look input.slider')));
   await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-gameplay');
   await sp.waitForTimeout(600);

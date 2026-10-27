@@ -913,6 +913,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.27b', title: 'Fixes', sections: [
+    { icon: 'download', title: 'Fixes', items: ['Updating the HTML file updates the file you\'re playing, instead of restarting into the old version and asking again', 'Pictures and songs stay at full resolution: lower them in Settings → Graphics (Picture quality, Renderer scale, Automatic resolution)'] },
+  ] },
   { id: '2026.10.27', title: 'Smoother menus', sections: [
     { icon: 'sparkle', title: 'Performance mode', items: ['Song select stutters far less on slow computers: stepping through songs, scrolling the list and opening it', 'A song\'s preview starts once you stop on it, so flicking past songs stays smooth', 'The main menu\'s buttons hover without a hitch'] },
     { icon: 'heart', title: 'Neru', items: ['Clicking Neru over and over sets her off after the same number of clicks every time', 'Once she\'s going, more clicks can\'t cut her short', 'Playing as Neru, she twirls instead'] },

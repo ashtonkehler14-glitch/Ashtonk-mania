@@ -10,8 +10,8 @@ const lowEndRenderScale = () => clamp(Math.round(20 / (window.devicePixelRatio |
 /** Performance or graphics (saved as setup.device: 'chromebook' / 'pc', the names earlier versions used). */
 const SETUP_DEVICES = {
   chromebook: { label: 'Performance', sub: 'Smoothest everywhere: Performance mode on — no heavy effects in songs or menus', icon: 'bolt',
-    values: () => ({ 'graphics.performanceMode': true, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
-      'graphics.menuBlur': 12, 'ui.parallax': false }) },
+    // (the pictures and the playfield stay at full resolution: Picture quality and Renderer scale lower them, if wanted)
+    values: () => ({ 'graphics.performanceMode': true, 'gameplay.video': false, 'graphics.menuBlur': 12, 'ui.parallax': false }) },
   pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sec-graphics',
     values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
       'graphics.bgQuality': 'high', 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
