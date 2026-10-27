@@ -43,9 +43,14 @@
 :root[data-theme="midnight"] { --accent: #66ccff; --accent-2: #2f7fff; --accent-3: #c6e2ff; --accent-rgb: 102, 204, 255; }
 :root[data-theme="kori"] { --accent: #aa88ff; --accent-2: #7d3cff; --accent-3: #d9c2ff; --accent-rgb: 170, 136, 255; }
 :root[data-theme="neru"] .btn.primary { color: #2a1d00; }
-:root.no-anim *, :root.no-anim *::before, :root.no-anim *::after { transition: none !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
+/* (rules for every element under one class on the page are sheets of their own, switched on with it: "@sheet NAME"
+   blocks, split out by the build and switched by cssSheet() in src/js/00-util.js. Written ":root.no-anim *", the
+   browser looked up through the parents of every element it restyled, on every change.) */
+/*@sheet no-anim*/
+*, *::before, *::after { transition: none !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
+/*@end*/
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: #888 transparent; } /* (the scrollbars: see OsuScrollContainer below — one rule for every element, not two) */
 /* (a component's own display rule must never show something marked hidden — an empty pill used to) */
 [hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
@@ -58,13 +63,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 a { color: var(--accent); }
 ::selection { background: rgba(var(--accent-rgb), .4); }
-/* Scrollbars: vertical ones are hidden everywhere (wheel / drag / keyboard still scroll); only sideways
-   scrolling areas (e.g. the mod select columns) show a thin bar. */
-* { scrollbar-width: none; }
 .modsel-cols { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .28) transparent; }
-::-webkit-scrollbar { width: 0; height: 8px; }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .28); border-radius: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -2179,7 +2178,6 @@ body.f-np #toasts, body.f-menu #toasts { opacity: 0; pointer-events: none; }
 .lz-tip { position: fixed; left: 0; top: 0; z-index: 200; max-width: 500px; padding: 5px 9px; border-radius: 5px; background: rgba(51, 51, 51, .9); color: #fff; font-size: .875rem; font-weight: 400; line-height: 1.35; white-space: pre-line; box-shadow: 0 2px 10px rgba(0, 0, 0, .16); pointer-events: none; opacity: 0; transition: opacity 300ms cubic-bezier(.22, 1, .36, 1) 150ms; }
 .lz-tip.show { opacity: 1; transition: opacity 300ms cubic-bezier(.22, 1, .36, 1); } /* (lazer: in over 300ms OutQuint; out after 150ms) */
 /* OsuScrollContainer: a 10px rounded scrollbar (3px margin), grey, white on hover */
-* { scrollbar-width: thin; scrollbar-color: #888 transparent; }
 ::-webkit-scrollbar { width: 16px; height: 16px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 8px; background: #888 padding-box; }
@@ -2405,7 +2403,9 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .vo-mute .i { width: 18px; height: 18px; }
 
 /* the lazer cursor everywhere outside gameplay (text fields keep the text cursor) */
-body.lz-cursor, body.lz-cursor * { cursor: none !important; }
+/*@sheet lz-cursor*/
+* { cursor: none !important; }
+/*@end*/
 /* lazer's menu cursor (LazerCursor): its texture, tip at the pointer; the pink additive glow while pressed */
 #lz-cur { position: fixed; left: 0; top: 0; z-index: 2147483647; pointer-events: none; will-change: transform; }
 #lz-cur[hidden] { display: none; }
@@ -4605,7 +4605,9 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 
 /* ── Performance mode: the menus at their lightest — nothing moves by itself, no blur, glass or glow, no decoration
    layers. (Gameplay's own effects are turned off by the settings it forces; the playfield itself is untouched.) */
-:root.perf *, :root.perf *::before, :root.perf *::after { transition: none !important; animation-duration: 1ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; scroll-behavior: auto !important; }
+/*@sheet perf*/
+*, *::before, *::after { transition: none !important; animation-duration: 1ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; scroll-behavior: auto !important; }
+/*@end*/
 :root.perf .lz-vis, :root.perf .lz-fountain, :root.perf .ov-waves, :root.perf .rkm-bgmap, :root.perf .up-cover { display: none !important; }
 :root.perf .panel.glass, :root.perf .bso-card { background-color: rgba(18, 16, 24, .94); }
 /* (big soft shadows are repainted with whatever moves under them) */
@@ -4613,8 +4615,9 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 :root.perf #bg-layer { transform: none !important; }
 /* (scrolled on the compositor: on a screen that isn't high-DPI the browser otherwise repaints and re-layers the whole
    list for every step of the wheel — the most expensive thing in the menus on a slow computer) */
-:root.perf :is(.screen-body, .bso-scroll, .res-body, .mp-body, .cl-body, .ab-grid, .setup-body, .mc-list, .nf-list, .np-list, .ch-lines),
-:root.slow :is(.screen-body, .bso-scroll, .res-body, .mp-body, .cl-body, .ab-grid) { will-change: scroll-position; }
+/* (each written out: in one :is() the rule was tried against every element restyled, whatever its class) */
+:root.perf .screen-body, :root.perf .bso-scroll, :root.perf .res-body, :root.perf .mp-body, :root.perf .cl-body, :root.perf .ab-grid, :root.perf .setup-body, :root.perf .mc-list, :root.perf .nf-list, :root.perf .np-list, :root.perf .ch-lines,
+:root.slow .screen-body, :root.slow .bso-scroll, :root.slow .res-body, :root.slow .mp-body, :root.slow .cl-body, :root.slow .ab-grid { will-change: scroll-position; }
 :root.perf #bg-a, :root.perf #bg-b { will-change: auto; }
 :root.perf .carousel-inner.still { pointer-events: none; } /* (song select's list while it scrolls: see its scroll listener) */
 /* the beatmap listing at its lightest: flat cards (no cover behind them, shade, shadow or hover lift) */

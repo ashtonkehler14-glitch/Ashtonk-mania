@@ -499,10 +499,19 @@ const MediaKeys = {
     set('pause', () => { if (Music.playing) { MenuMusic.toggle(); OSD.show('Music playback', 'Pause track'); } });
     set('nexttrack', () => { MenuMusic.next(); OSD.show('Music playback', 'Next track'); });
     set('previoustrack', () => { const restart = Music.loaded && Music.time >= 5000; MenuMusic.prev(); OSD.show('Music playback', restart ? 'Restart track' : 'Previous track'); });
-    Bus.on('music:changed', async m => {
+    let artT = 0;
+    Bus.on('music:changed', m => {
       if (!m || typeof MediaMetadata === 'undefined') return;
-      const url = await BeatmapManager.bgURL(m).catch(() => null);
-      try { ms.metadata = new MediaMetadata({ title: m.title, artist: m.artist, album: APP_NAME, artwork: url ? [{ src: url }] : [] }); } catch { /* ignore */ }
+      const meta = artwork => { try { ms.metadata = new MediaMetadata({ title: m.title, artist: m.artist, album: APP_NAME, artwork }); } catch { /* ignore */ } };
+      meta([]);
+      // its picture once the song's been on a moment: the browser reads and decodes it on the page's own thread, and for
+      // every song stepped past in song select that was a good part of what changing songs cost on a slow computer. (The
+      // song's card picture, already read for its panel, not the full background.)
+      clearTimeout(artT);
+      artT = setTimeout(async () => {
+        const bs = BeatmapManager.setById.get(m.setId), url = await (bs && BeatmapManager.thumbURL(bs).catch(() => null)) || await BeatmapManager.bgURL(m).catch(() => null);
+        if (url && MenuMusic.current === m) meta([{ src: url }]);
+      }, 2000);
     });
   },
 };

@@ -321,9 +321,9 @@ const Settings = {
     r.style.setProperty('--anim', sp <= 0 ? 0 : (1 / sp));
     r.dataset.theme = 'kori';
     r.classList.toggle('no-effects', !this.get('graphics.effects'));
-    r.classList.toggle('no-anim', sp <= 0);
+    r.classList.toggle('no-anim', sp <= 0); cssSheet('no-anim', sp <= 0);
     // Performance mode: the lightest of everything, menus too — no animation, blur, glass, glow or moving backgrounds
     // (without it the menus still lighten by themselves on a device that can't keep up — see .slow)
-    r.classList.toggle('perf', !!this.get('graphics.performanceMode'));
+    r.classList.toggle('perf', !!this.get('graphics.performanceMode')); cssSheet('perf', !!this.get('graphics.performanceMode'));
   },
 };

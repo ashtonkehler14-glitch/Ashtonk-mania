@@ -19,8 +19,12 @@ const js = `const IMPORT_WORKER_SRC = ${JSON.stringify(workerSrc)};\n` + readdir
 // Neru's other poses (public/neru-<name>.png): listed in the page, so the game knows which there are
 const neruPoses = readdirSync(join(root, 'public')).map(f => /^neru-([a-z]+)\.png$/.exec(f)).filter(Boolean).map(m => m[1]).sort();
 if (!js.includes('POSES: [/*__NERU_POSES__*/]')) throw new Error('NeruMascot.POSES is missing from src/js/13b-neru.js');
+// src/styles.css's "@sheet NAME" blocks: style sheets of their own after the main one, off (media "not all") until the
+// game switches them on with the class they go with (cssSheet() in src/js/00-util.js)
+const sheets = [];
+const mainCss = css.replace(/\/\*@sheet ([\w-]+)\*\/([\s\S]*?)\/\*@end\*\//g, (_, name, body) => { sheets.push(`</style>\n<style id="css-${name}" media="not all">${body}`); return ''; });
 let out = tpl
-  .replace('/*__CSS__*/', () => css)
+  .replace('/*__CSS__*/', () => mainCss + sheets.join(''))
   .replace('/*__JS__*/', () => '"use strict";\n' + js.replace('POSES: [/*__NERU_POSES__*/]', () => `POSES: ${JSON.stringify(neruPoses)}`));
 // the build's hash: in the service worker (so browsers update it after each deploy) and in the page (APP_BUILD in
 // src/js/20-app.js), so the game can tell a new version from the one it's showing

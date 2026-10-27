@@ -50,6 +50,10 @@ function appendChildren(el, children) {
     else el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
   }
 }
+/** A style sheet of its own (src/styles.css's "@sheet" blocks, split out by the build) switched on or off: rules for
+ *  every element that go with one class on the page — Performance mode, animations off, the game's cursor — written as
+ *  plain "*". (Written ":root.perf *", the browser looked up through the parents of every element it restyled.) */
+function cssSheet(name, on) { const el = document.getElementById('css-' + name), m = on ? 'all' : 'not all'; if (el && el.media !== m) el.media = m; }
 function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;

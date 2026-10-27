@@ -202,7 +202,7 @@ const SongSelect = {
       // while the play was still being checked stayed without it for half a minute)
       Bus.on('verified', d => { const m = this.selectedId && BeatmapManager.maps.get(this.selectedId); if (m && d && d.key === m.hash) { this._lbKey = null; this.updateInfo(); } }),
       // an online leaderboard arriving for the beatmap on show
-      Bus.on('lb', d => { if (d.id) return; this._online = d; /* (one asked for by beatmap id is the beatmap overlay's) */ const m = this.selectedId && BeatmapManager.maps.get(this.selectedId); if (m && d.key === m.hash) { this._lbKey = null; this.updateInfo(); } }),
+      Bus.on('lb', d => { if (d.id) return; this._online = d; /* (one asked for by beatmap id is the beatmap overlay's) */ const m = this.selectedId && BeatmapManager.maps.get(this.selectedId); if (m && d.key === m.hash) this.refreshBoard(m); }),
     ];
     this._ro = new ResizeObserver(() => this.renderVisible());
     this._ro.observe(this.scroller);
@@ -265,6 +265,7 @@ const SongSelect = {
     (this._unsub || []).forEach(f => f());
     this._ro && this._ro.disconnect();
     clearTimeout(this._previewT); clearTimeout(this._infoT); this._infoT = 0; clearTimeout(this._typeT); this._typeT = 0;
+    if (this._timing) this._timing();
     this._previewTok = {}; // (a preview still loading stops where it is)
   },
   /** lazer's DifficultyRangeSlider: the star spectrum as a track, darkened outside the range, a Highlight1 frame round
@@ -830,7 +831,9 @@ const SongSelect = {
     else this.updateInfo();
     // a difficulty can have its own song file (and background): the preview follows the difficulty, not just the set
     clearTimeout(this._bgT);
-    if (setChanged || !Music.meta || Music.meta.setId !== m.setId || this.trackKey(m) !== (Music.key || '').toLowerCase()) this.schedulePreview(m, held ? 200 : 60);
+    // (Performance mode: a moment longer before the song's read and started — a song stepped past isn't loaded at all,
+    // and loading one was the biggest part of what changing songs cost on a slow computer)
+    if (setChanged || !Music.meta || Music.meta.setId !== m.setId || this.trackKey(m) !== (Music.key || '').toLowerCase()) this.schedulePreview(m, perf ? 350 : held ? 200 : 60);
     else if (perf) this._bgT = setTimeout(() => { if (this.selectedId === m.id) { this.showBackground(m); this.loopTrack(m); } }, wait);
     else { this.showBackground(m); this.loopTrack(m); } // (another difficulty of the same set can have its own background)
   },
@@ -1002,7 +1005,11 @@ const SongSelect = {
       Music.play(previewStart(m), { fadeIn: 400 });
       this.loopTrack(m);
       MenuMusic.setCurrent(m);
-      beatTiming(m).then(timing => { if (tok === this._previewTok && Music.meta && Music.meta.setId === m.setId) Music.meta.timing = timing; });
+      // the beats to pulse to. (Performance mode: once the song's been on a moment — stepping through songs needn't read
+      // and parse each one's beatmap — or straight away on leaving, for the main menu)
+      clearTimeout(this._timingT);
+      this._timing = () => { this._timing = null; clearTimeout(this._timingT); beatTiming(m).then(timing => { if (Music.meta && Music.meta.mapId === m.id) Music.meta.timing = timing; }); };
+      if (Settings.get('graphics.performanceMode')) this._timingT = setTimeout(() => { if (tok === this._previewTok && this._timing) this._timing(); }, 900); else this._timing();
       // decode the full track in the background once the player lingers, so pressing Play starts quickly
       clearTimeout(this._warmT);
       this._warmT = setTimeout(() => { if (tok === this._previewTok) TrackCache.get(m.setId, m.audioFile).catch(() => {}); }, 900);
@@ -1044,87 +1051,139 @@ const SongSelect = {
   },
   updateInfo() {
     if (!this.info) return;
-    clearEl(this.info);
     const m = this.selectedId && BeatmapManager.maps.get(this.selectedId);
-    if (!m) { this.playBtn && (this.playBtn.disabled = true); return; }
+    if (!m) { clearEl(this.info); this.playBtn && (this.playBtn.disabled = true); return; }
     this.playBtn.disabled = m.problems.length > 0;
     const set = BeatmapManager.setById.get(m.setId);
     const fav = Favorites.has(set.id);
-    const favBtn = h(`button.w-fav${fav ? '.on' : ''}`, { title: fav ? 'Remove from favourites' : 'Favourite', 'aria-label': 'Favourite', onclick: async () => { UISounds.click(); await Favorites.toggle(set.id); } }, icon('heart', fav ? 'fill' : ''));
-    const collBtn = h('button.w-fav', { title: 'Add to collection', 'aria-label': 'Add to collection', onclick: e => this.collectionMenu(e, m) }, icon('folder'));
     const mods = Settings.get('songselect.mods') || [];
     const rate = ModSystem.rate(mods);
-    const bpm = m.bpmMin !== m.bpmMax ? `${Math.round(m.bpmMin * rate)}–${Math.round(m.bpmMax * rate)}` : Math.round(m.bpm * rate);
-    const st = (ic, label, v) => h('span.w-stat', { title: label }, icon(ic), String(v));
-    // lazer's BeatmapTitleWedge: a sheared dark wedge over the (full-screen) beatmap background with the title, artist,
-    // play count / favourite / length / BPM; then the DifficultyDisplay in the difficulty's colour
-    const plays = ScoreManager.playCount(m.hash);
+    const bpm = m.bpmMin !== m.bpmMax ? `${Math.round(m.bpmMin * rate)}–${Math.round(m.bpmMax * rate)}` : String(Math.round(m.bpm * rate));
+    const plays = ScoreManager.playCount(m.hash), len = fmtTime(m.length / rate);
     // the wedges fade over only for another beatmap set / difficulty, not when something else redraws them (mods, a favourite)
     const sameSet = this._infoSet === m.setId, sameMap = this._infoMap === m.id;
     this._infoSet = m.setId; this._infoMap = m.id;
+    const sc = starColour(m.stars), ink = m.stars >= 6.5 ? '#ffd966' : sc;
+    const stars = this.modStars(m) ?? m.stars, from = this._wdStars; this._wdStars = stars;
+    // (the five numbers under the difficulty: each one's bar, as a share of the most it can be, and as written)
+    const objs = Math.max(1, m.objectCount || m.noteCount + m.lnCount);
+    const stats = [['Notes', m.noteCount, objs, fmtInt(m.noteCount)], ['Hold notes', m.lnCount, objs, fmtInt(m.lnCount)], ['Keys', this.keysOf(m), 10], ['HP drain', m.hp, 10], ['Accuracy', m.od, 10]]
+      .map(([k, v, max, text]) => ({ k, w: clamp(v / max * 100, 0, 100), title: `${k}: ${text ?? v}`, text: String(text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)) }));
+    // lazer's BeatmapDetailsArea: a "Details | Ranking" WedgeSelector (text tabs, a 2px strip under the current one);
+    // Ranking has the "Selected Mods" toggle and the Sort and Scope dropdowns on the right (scores here are all local)
+    const tab = Settings.get('songselect.detailTab') === 'details' ? 'details' : 'ranking';
+    const modsOn = !!Settings.get('songselect.lbMods'), sortBy = Settings.get('songselect.lbSort') || 'score';
+    const scope = ['global', 'friends'].includes(Settings.get('songselect.lbScope')) ? Settings.get('songselect.lbScope') : 'local';
+    const headKey = `${tab}|${modsOn}|${sortBy}|${scope}`;
+    const v = { m, set, fav, plays, len, bpm, sc, ink, stars, from, stats, tab, modsOn, sortBy, scope, headKey };
+    // Performance mode: the panels showing take the new beatmap in place — texts, numbers and colours changed on the
+    // same elements — rather than being built again: a hundred new elements styled and laid out for every beatmap
+    // stepped onto was most of what showing one cost on a slow computer. (Elsewhere they're built again: they fade over.)
+    if (Settings.get('graphics.performanceMode') && this.patchInfo(v)) return;
+    clearEl(this.info);
+    const favBtn = h(`button.w-fav${fav ? '.on' : ''}`, { title: fav ? 'Remove from favourites' : 'Favourite', 'aria-label': 'Favourite', onclick: async () => { UISounds.click(); const cur = BeatmapManager.maps.get(this._infoMap); if (cur) await Favorites.toggle(cur.setId); } }, icon('heart', fav ? 'fill' : ''));
+    const collBtn = h('button.w-fav', { title: 'Add to collection', 'aria-label': 'Add to collection', onclick: e => { const cur = BeatmapManager.maps.get(this._infoMap); if (cur) this.collectionMenu(e, cur); } }, icon('folder'));
+    const st = (ic, label, x) => h('span.w-stat', { title: label }, icon(ic), x);
+    // lazer's BeatmapTitleWedge: a sheared dark wedge over the (full-screen) beatmap background with the title, artist,
+    // play count / favourite / length / BPM; then the DifficultyDisplay in the difficulty's colour
     const wedge = h(`div.wedge${sameSet ? '.still' : ''}`, h('div.w-body',
-      h('div.w-top', statusPill((BeatmapManager.setById.get(m.setId) || {}).status), m.problems.length ? h('span.tag.warn', 'Unplayable') : null),
+      h('div.w-top', statusPill(set.status), m.problems.length ? h('span.tag.warn', 'Unplayable') : null),
       h('div.w-title', m.title), h('div.w-artist', m.artist),
       h('div.w-stats', h('span.w-plays', { title: 'Your plays' }, icon('lzplay'), fmtInt(plays)), favBtn, collBtn,
-        st('clock', 'Length', fmtTime(m.length / rate)), st('metronome', 'BPM', bpm))));
-    const sc = starColour(m.stars), ink = m.stars >= 6.5 ? '#ffd966' : sc;
+        st('clock', 'Length', len), st('metronome', 'BPM', bpm))));
+    wedge._status = set.status;
     // (lazer's StatisticDifficulty: each bar slides from where it was to the new value, 300ms OutQuint — the panel is
     // rebuilt for a new difficulty, so the bars start at the old widths and move on the next frame)
     const prevW = this._wdW || {}, nextW = this._wdW = {};
     const bar = (k, w) => { nextW[k] = w; const i = h('i', { style: { width: (prevW[k] ?? w) + '%' } }); if (prevW[k] != null && prevW[k] !== w) requestAnimationFrame(() => requestAnimationFrame(() => { i.style.width = w + '%'; })); else i.style.width = w + '%'; return i; };
-    const stat = (k, v, max, text) => h('div.wd-stat', { title: `${k}: ${text ?? v}` }, h('div.wd-bar', bar(k, clamp(v / max * 100, 0, 100))), h('div.wd-k', k), h('div.wd-v', text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)));
-    const objs = Math.max(1, m.objectCount || m.noteCount + m.lnCount);
+    const stat = x => h('div.wd-stat', { title: x.title }, h('div.wd-bar', bar(x.k, x.w)), h('div.wd-k', x.k), h('div.wd-v', x.text));
     let diff = null;
     diff = h(`div.wd${sameMap ? '.still' : ''}`, { style: { '--sc': sc, '--ink': ink } },
-      h('div.wd-name', (() => { const v = this.modStars(m) ?? m.stars, from = this._wdStars; this._wdStars = v;
-        return starBadgeRoll(from, v, x => { if (!diff) return; const c = starColour(x); diff.style.setProperty('--sc', c); diff.style.setProperty('--ink', x >= 6.5 ? '#ffd966' : c); }); })(), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
+      h('div.wd-name', this.wdBadge(from, stars, () => diff), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
       h('div.wd-box',
-        h('div.wd-counts', stat('Notes', m.noteCount, objs, fmtInt(m.noteCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),
-        h('div.wd-diffs', stat('Keys', this.keysOf(m), 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
+        h('div.wd-counts', stat(stats[0]), stat(stats[1])),
+        h('div.wd-diffs', stat(stats[2]), stat(stats[3]), stat(stats[4]))));
+    this._wd = diff;
     const problems = m.problems.length ? h('div.ss-problem', icon('info'), h('div', h('b', 'This difficulty can\'t be played'), h('div.muted', m.problems.join(' · ')))) : null;
-    // lazer's BeatmapDetailsArea: a "Details | Ranking" WedgeSelector (text tabs, a 2px strip under the current one);
-    // Ranking has the "Selected Mods" toggle and the Sort and Scope dropdowns on the right (scores here are all local)
-    const tab = Settings.get('songselect.detailTab') === 'details' ? 'details' : 'ranking';
     const tabBtn = (id, label) => h(`button.lb-tab${tab === id ? '.on' : ''}`, { onclick: () => { if (tab === id) return; UISounds.click(); Settings.set('songselect.detailTab', id); this._lbKey = null; this.updateInfo(); } }, label);
     const lbSel = (label, opts, cur, fn) => {
-      const el = h('select.select', { 'aria-label': label, title: label }, ...opts.map(([v, l, dis]) => h('option', { value: v, selected: cur === v, disabled: !!dis }, l)));
+      const el = h('select.select', { 'aria-label': label, title: label }, ...opts.map(([x, l, dis]) => h('option', { value: x, selected: cur === x, disabled: !!dis }, l)));
       el.addEventListener('change', () => { UISounds.click(); fn(el.value); });
       return h('label.ss-sel', h('span', label), el);
     };
-    const modsOn = !!Settings.get('songselect.lbMods'), sortBy = Settings.get('songselect.lbSort') || 'score';
-    const scope = ['global', 'friends'].includes(Settings.get('songselect.lbScope')) ? Settings.get('songselect.lbScope') : 'local';
     // (the tabs and dropdowns are the same for every beatmap: kept from one to the next — two dropdowns built again
     // for each beatmap stepped onto cost more to draw than the rest of the panel)
-    const headKey = `${tab}|${modsOn}|${sortBy}|${scope}`;
     const head = this._lbHeadKey === headKey && this._lbHead ? this._lbHead : h('div.lb-head', h('div.lb-tabs', tabBtn('details', 'Details'), tabBtn('ranking', 'Ranking')),
       tab === 'ranking' ? h('div.lb-ctl',
         h(`button.lb-modsel${modsOn ? '.on' : ''}`, { onclick: () => { UISounds.click(); Settings.set('songselect.lbMods', !modsOn); this._lbKey = null; this.updateInfo(); } }, 'Selected Mods'),
-        lbSel('Sort', [['score', 'Score'], ['accuracy', 'Accuracy'], ['maxCombo', 'Max Combo'], ['misses', 'Misses'], ['date', 'Date']], sortBy, v => { Settings.set('songselect.lbSort', v); this._lbKey = null; this.updateInfo(); }),
-        lbSel('Scope', [['local', 'Local'], ['global', 'Global'], ['country', 'Country', 1], ['friends', 'Friends'], ['team', 'Team', 1]], scope, v => { Settings.set('songselect.lbScope', v); this._lbKey = null; this.updateInfo(); })) : null);
+        lbSel('Sort', [['score', 'Score'], ['accuracy', 'Accuracy'], ['maxCombo', 'Max Combo'], ['misses', 'Misses'], ['date', 'Date']], sortBy, x => { Settings.set('songselect.lbSort', x); this._lbKey = null; this.updateInfo(); }),
+        lbSel('Scope', [['local', 'Local'], ['global', 'Global'], ['country', 'Country', 1], ['friends', 'Friends'], ['team', 'Team', 1]], scope, x => { Settings.set('songselect.lbScope', x); this._lbKey = null; this.updateInfo(); })) : null);
     this._lbHead = head; this._lbHeadKey = headKey;
-    const lb = h(`div.lb.lb-${tab}`, head);
-    if (tab === 'details') lb.append(this.metadataWedge(m, set));
-    else if (scope !== 'local') lb.append(this.onlineBoard(m, scope, modsOn));
-    else {
-      const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();
-      const misses = s => (s.counts || [])[5] || 0;
-      const order = { score: (a, b) => ScoreManager.value(b) - ScoreManager.value(a), accuracy: (a, b) => b.accuracy - a.accuracy || ScoreManager.value(b) - ScoreManager.value(a),
-        maxCombo: (a, b) => b.maxCombo - a.maxCombo || ScoreManager.value(b) - ScoreManager.value(a), misses: (a, b) => misses(a) - misses(b) || ScoreManager.value(b) - ScoreManager.value(a), date: (a, b) => b.date - a.date }[sortBy] || ((a, b) => ScoreManager.value(b) - ScoreManager.value(a));
-      const scores = ScoreManager.forMap(m.hash).filter(x => !modsOn || [...(x.mods || [])].sort().join() === sel).sort(order).slice(0, 25);
-      // the rows slide in for a new beatmap or new scores, not when something else redraws the panel (a favourite click)
-      const lbKey = m.id + '|' + scores.map(x => x.id).join(), same = this._lbKey === lbKey;
-      this._lbKey = lbKey;
-      const list = h(`div.lb-list${same ? '.still' : ''}`);
-      const best = ScoreManager.best(m.hash);
-      // lazer's MessagePlaceholder: an exclamation in a circle, then "No records yet!" (22px)
-      if (!scores.length) list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), 'No records yet!'));
-      const who = ProfileManager.profile.name;
-      scores.forEach((s, i) => list.append(this.lbScore(s, i, who, m)));
-      lb.append(list);
-    }
+    const lb = this._lbEl = h(`div.lb.lb-${tab}`, head, this.boardList(v));
     this.info.append(...[wedge, diff, problems, lb].filter(Boolean));
   },
+  /** The difficulty's star rating (rolling to it from the one before, as lazer's) — the difficulty panel's colour following. */
+  wdBadge(from, stars, panel) {
+    return starBadgeRoll(from, stars, x => { const d = panel(); if (!d) return; const c = starColour(x); d.style.setProperty('--sc', c); d.style.setProperty('--ink', x >= 6.5 ? '#ffd966' : c); });
+  },
+  /** Performance mode's updateInfo: the title wedge, the difficulty panel and the leaderboard's list showing take the
+   *  beatmap `v.m` in place. False when they can't — nothing there yet, an unplayable beatmap's other layout, the
+   *  leaderboard's tabs or dropdowns changed — and they're built again as usual. */
+  patchInfo(v) {
+    const { m, set, fav, stats } = v, info = this.info, [wedge, diff, lb] = info.children;
+    if (info.children.length !== 3 || m.problems.length || !wedge.classList.contains('wedge') || diff !== this._wd || lb !== this._lbEl || this._lbHeadKey !== v.headKey) return false;
+    const q = (el, sel) => el.querySelector(sel);
+    const put = (el, x) => { if (el && el.textContent !== x) el.textContent = x; };
+    const last = (el, x) => { const t = el && el.lastChild; if (t && t.nodeValue !== x) t.nodeValue = x; }; // (an icon, then its number)
+    if (wedge._status !== set.status) { wedge._status = set.status; q(wedge, '.w-top').replaceChildren(...[statusPill(set.status)].filter(Boolean)); }
+    put(q(wedge, '.w-title'), m.title); put(q(wedge, '.w-artist'), m.artist);
+    last(q(wedge, '.w-plays'), fmtInt(v.plays));
+    const fb = q(wedge, '.w-fav');
+    if (fb.classList.contains('on') !== fav) { fb.classList.toggle('on', fav); fb.title = fav ? 'Remove from favourites' : 'Favourite'; fb.replaceChildren(icon('heart', fav ? 'fill' : '')); }
+    const [len, bpm] = wedge.querySelectorAll('.w-stat');
+    last(len, v.len); last(bpm, v.bpm);
+    diff.style.setProperty('--sc', v.sc); diff.style.setProperty('--ink', v.ink);
+    const name = q(diff, '.wd-name');
+    name.firstChild.replaceWith(this.wdBadge(v.from, v.stars, () => diff));
+    put(q(name, '.wd-v'), m.version); put(q(name, '.wd-mapper'), m.creator);
+    const nextW = this._wdW = {};
+    diff.querySelectorAll('.wd-stat').forEach((el, i) => {
+      const x = stats[i]; nextW[x.k] = x.w;
+      if (el.title !== x.title) el.title = x.title;
+      q(el, '.wd-bar i').style.width = x.w + '%';
+      put(q(el, '.wd-v'), x.text);
+    });
+    lb.lastElementChild.replaceWith(this.boardList(v));
+    return true;
+  },
+  /** What the leaderboard area shows under its tabs: the Details tab's metadata, the online board, or your own scores. */
+  boardList({ m, set, tab, scope, modsOn, sortBy }) {
+    if (tab === 'details') return this.metadataWedge(m, set);
+    if (scope !== 'local') return this.onlineBoard(m, scope, modsOn);
+    const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();
+    const misses = s => (s.counts || [])[5] || 0;
+    const order = { score: (a, b) => ScoreManager.value(b) - ScoreManager.value(a), accuracy: (a, b) => b.accuracy - a.accuracy || ScoreManager.value(b) - ScoreManager.value(a),
+      maxCombo: (a, b) => b.maxCombo - a.maxCombo || ScoreManager.value(b) - ScoreManager.value(a), misses: (a, b) => misses(a) - misses(b) || ScoreManager.value(b) - ScoreManager.value(a), date: (a, b) => b.date - a.date }[sortBy] || ((a, b) => ScoreManager.value(b) - ScoreManager.value(a));
+    const scores = ScoreManager.forMap(m.hash).filter(x => !modsOn || [...(x.mods || [])].sort().join() === sel).sort(order).slice(0, 25);
+    // the rows slide in for a new beatmap or new scores, not when something else redraws the panel (a favourite click)
+    const lbKey = m.id + '|' + scores.map(x => x.id).join(), same = this._lbKey === lbKey;
+    this._lbKey = lbKey;
+    const list = h(`div.lb-list${same ? '.still' : ''}`);
+    // lazer's MessagePlaceholder: an exclamation in a circle, then "No records yet!" (22px)
+    if (!scores.length) list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), 'No records yet!'));
+    const who = ProfileManager.profile.name;
+    scores.forEach((s, i) => list.append(this.lbScore(s, i, who, m)));
+    return list;
+  },
 
+  /** The online leaderboard arriving for the beatmap on show: only its list is built again, not the whole panel (the
+   *  panel built twice for every beatmap stepped onto was a good part of what changing one cost on a slow computer). */
+  refreshBoard(m) {
+    const lb = this._lbEl, old = lb && lb.isConnected && this._infoMap === m.id ? lb.lastElementChild : null;
+    const scope = Settings.get('songselect.lbScope'), tab = Settings.get('songselect.detailTab');
+    if (!old || !old.classList.contains('lb-list') || !['global', 'friends'].includes(scope) || tab === 'details') { this._lbKey = null; this.updateInfo(); return; }
+    old.replaceWith(this.onlineBoard(m, scope, !!Settings.get('songselect.lbMods')));
+  },
   /** lazer's BeatmapLeaderboardScore (50px, sheared): the "#1" rank (on a green gradient for your own scores), then
    *  the avatar, the time since ("3hrs") over the name, COMBO and ACCURACY (lime when perfect), and on the right the
    *  score with its mods over a gradient into the grade's colour, the grade letter in a 35px strip of it. Narrower

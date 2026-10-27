@@ -600,7 +600,11 @@ const Background = {
     apply(show);
   },
   parallax(e) {
-    if (!Settings.get('ui.parallax') || $('#app').classList.contains('in-game')) { $('#bg-layer').style.transform = ''; return; }
+    // (Performance mode holds the background still: nothing to move — and setting it anyway restyled it on every move of
+    // the pointer)
+    const off = !Settings.get('ui.parallax') || Settings.get('graphics.performanceMode') || $('#app').classList.contains('in-game');
+    if (off) { if (this._px) { this._px = false; $('#bg-layer').style.transform = ''; } return; }
+    this._px = true;
     const x = (e.clientX / innerWidth - 0.5) * -16, y = (e.clientY / innerHeight - 0.5) * -12;
     $('#bg-layer').style.transform = `translate(${x}px, ${y}px) scale(1.02)`;
   },
@@ -919,7 +923,7 @@ const NowPlaying = {
       window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
     });
     $('#app').appendChild(this.el);
-    Bus.on('music:changed', () => this.render());
+    Bus.on('music:changed', () => { if (this.open) this.render(); }); // (closed, it's brought up to date when it opens)
     document.addEventListener('pointerdown', e => {
       if (this.open && !this.el.contains(e.target) && !Toolbar.npBtn.contains(e.target)) this.hide();
     }, true);
@@ -1109,7 +1113,7 @@ const LazerCursor = {
   ease(fn) { const pts = []; for (let i = 0; i <= 48; i++) pts.push(fn(i / 48).toFixed(4)); return `linear(${pts.join(', ')})`; },
   apply() {
     const on = !this.missing && Settings.get('ui.lazerCursor') !== false && matchMedia('(hover: hover)').matches;
-    document.body.classList.toggle('lz-cursor', on);
+    document.body.classList.toggle('lz-cursor', on); cssSheet('lz-cursor', on);
     if (!on) { if (this.el) this.el.hidden = true; return; }
     if (!this.el) this.build();
     this.size();
