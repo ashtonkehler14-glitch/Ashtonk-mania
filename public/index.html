@@ -26237,7 +26237,7 @@ const Multiplayer = {
     if (Array.isArray(m.players) && !m.players.includes(this.me)) { Toast.show('Sitting this round out', 'You didn\'t have the beatmap in time — you\'re back in next round.'); return; }
     const local = this.localMap(m.map) && this.myMap();
     if (!local) { Toast.err('Missing beatmap', 'You need the beatmap to play this match.'); this.send({ t: 'quit' }); return; }
-    this.opps = new Map();
+    this.opps = new Map(); this._lastFinish = null; // (a new song: nothing of ours finished in it yet)
     const startAt = performance.now() + m.delay - this.rtt / 2;
     // the room's speed mod plus this player's own mods
     const mods = ModSystem.normalize([...(m.mods || []), ...((m.playerMods && m.playerMods[this.me]) || [])]);
@@ -26892,7 +26892,8 @@ const MultiplayerScreen = {
       else if (m && m.onlineSetId > 0) panelBg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(m.onlineSetId, 'cover')}")`;
     }
     clearEl(this.headEl).append(h('div.mp-roompanel.toast-clear', panelBg, h('div.mp-rshade'),
-      h(`span.mp-rstate${playing ? '.on' : ''}`, playing ? 'Playing' : 'Open'),
+      // (you're here in the room: a match going on is the others', not something you're playing)
+      h(`span.mp-rstate${playing ? '.on' : ''}`, playing ? 'Match in progress' : 'Open'),
       h('div.mp-rbody', h('div.mp-rname', Multiplayer.quick ? 'Quick 1v1' : `${hostP ? hostP.name : 'Someone'}'s room`, reconnecting), rules),
       h('div.mp-roompanel-code', h('small', 'Room code'), h('b.mp-room-code', r.code)),
       invite, copy,
@@ -26965,7 +26966,8 @@ const MultiplayerScreen = {
       const isMe = p.id === Multiplayer.me;
       // (a beatmap still downloading isn't shown: it installs in the background; a dropped connection is, while the
       // room keeps their seat for them to come back)
-      const state = p.away && !isMe ? 'reconnecting' : p.playing ? (p.fin ? (p.fin.forfeit ? 'quit' : 'finished') : 'playing') : r.map && p.ready ? 'ready' : '';
+      // (yourself, here in the room, is never "playing": back from the song, you finished it or left it)
+      const state = p.away && !isMe ? 'reconnecting' : p.playing ? (p.fin ? (p.fin.forfeit ? 'quit' : 'finished') : isMe ? (Multiplayer._lastFinish ? 'finished' : 'quit') : 'playing') : r.map && p.ready ? 'ready' : '';
       return h('div.mp-slot', h('span.mp-crown', p.id === r.host ? h('span', { title: 'Host' }, icon('crown')) : null), h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
         h('span.mp-pav', isMe ? ProfileManager.avatarEl(40) : Presence.avatarEl(p, 40)),
         // (the name, and under it the difficulty they're playing — side by side, a ready player's difficulty was cut off)
@@ -31422,7 +31424,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '62a5ef0a4e13';
+const APP_BUILD = '398ece61a9a2';
 
 const App = {
   lastReport: null,
