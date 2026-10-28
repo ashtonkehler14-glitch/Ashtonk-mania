@@ -23339,10 +23339,7 @@ const CHANGELOG = [
     { icon: 'download', title: 'Saved as an HTML file', items: ['Save the game as an HTML file while you have a code and the file opens as you the first time — your scores, settings, collections, favourites and skin come with it, no code to type (it works once, within a day)'] },
   ] },
   { id: '2026.10.28i', title: 'Polish', sections: [
-    { icon: 'sparkle', title: 'Polish', items: ['On a phone with wide columns, the chat during a multiplayer song only shows new messages, so it stays off your notes', 'Neru no longer pops up over the back button after a match'] },
-  ] },
-  { id: '2026.10.28h', title: 'Polish', sections: [
-    { icon: 'sparkle', title: 'Polish', items: ['The Spectator Mode screen fits a phone held sideways', 'In Ranked Play, Neru steps down into the corner while a round\'s results are shown'] },
+    { icon: 'sparkle', title: 'Polish', items: ['On a phone with wide columns, the chat during a multiplayer song only shows new messages, so it stays off your notes', 'Neru no longer pops up over the back button after a match', 'The Spectator Mode screen fits a phone held sideways', 'In Ranked Play, Neru steps down into the corner while a round\'s results are shown', 'Duels in the Ranked Play lounge no longer show a rating (they\'re unrated)'] },
   ] },
   { id: '2026.10.28g', title: 'Song select', sections: [
     { icon: 'sparkle', title: 'Song select', items: ['The scores on a beatmap look as in lazer: they lean as a column, each a step in from the one below, with "MAX COMBO" and a bigger grade', 'Your own scores are only lit up on the online boards'] },
@@ -26957,7 +26954,7 @@ const MultiplayerScreen = {
       } }, bg, h('div.mp-rshade'),
         h(`span.mp-rstate${playing ? '.on' : ''}${r.ranked ? '.ranked' : ''}`, r.ranked ? (playing ? 'Ranked Play · playing' : 'Ranked Play') : playing ? 'Playing' : 'Open'),
         h('div.mp-rbody', h('div.mp-rname', r.name),
-          r.ranked ? h('div.mp-rmap', h('span', `1v1 Ranked Play duel · ${r.keys || 4}K${r.rating ? ` · host rating ${fmtInt(r.rating)}` : ''}`))
+          r.ranked ? h('div.mp-rmap', h('span', `1v1 Ranked Play duel · ${r.keys || 4}K`))
             : h('div.mp-rmap', r.map ? [starBadge(r.map.stars), h('span', `${r.map.artist} - ${r.map.title} [${r.map.version}]`), h('span.keys-tag', `${r.map.keys}K`)] : h('span.muted', 'No beatmap picked yet')),
           h('div.mp-rmeta', r.type === 'teams' && !r.ranked ? h('span.mp-rteams', h('i.red'), h('i.blue')) : null,
             h('span', r.ranked ? 'Beatmap cards · 1,000,000 life · unrated' : `${r.type === 'teams' ? 'Team Versus' : 'Head to Head'} · ${({ pp: 'most pp', score: 'highest score', accuracy: 'best accuracy', combo: 'longest combo' })[r.win] || 'highest score'} wins`))),
@@ -31388,7 +31385,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'd3c1ff1f8479';
+const APP_BUILD = '8ad9bce339a4';
 
 const App = {
   lastReport: null,

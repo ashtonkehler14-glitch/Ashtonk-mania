@@ -921,10 +921,7 @@ const CHANGELOG = [
     { icon: 'download', title: 'Saved as an HTML file', items: ['Save the game as an HTML file while you have a code and the file opens as you the first time — your scores, settings, collections, favourites and skin come with it, no code to type (it works once, within a day)'] },
   ] },
   { id: '2026.10.28i', title: 'Polish', sections: [
-    { icon: 'sparkle', title: 'Polish', items: ['On a phone with wide columns, the chat during a multiplayer song only shows new messages, so it stays off your notes', 'Neru no longer pops up over the back button after a match'] },
-  ] },
-  { id: '2026.10.28h', title: 'Polish', sections: [
-    { icon: 'sparkle', title: 'Polish', items: ['The Spectator Mode screen fits a phone held sideways', 'In Ranked Play, Neru steps down into the corner while a round\'s results are shown'] },
+    { icon: 'sparkle', title: 'Polish', items: ['On a phone with wide columns, the chat during a multiplayer song only shows new messages, so it stays off your notes', 'Neru no longer pops up over the back button after a match', 'The Spectator Mode screen fits a phone held sideways', 'In Ranked Play, Neru steps down into the corner while a round\'s results are shown', 'Duels in the Ranked Play lounge no longer show a rating (they\'re unrated)'] },
   ] },
   { id: '2026.10.28g', title: 'Song select', sections: [
     { icon: 'sparkle', title: 'Song select', items: ['The scores on a beatmap look as in lazer: they lean as a column, each a step in from the one below, with "MAX COMBO" and a bigger grade', 'Your own scores are only lit up on the online boards'] },
