@@ -1939,8 +1939,7 @@ body.f-chat .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260
 .ov-icon { display: grid; place-items: center; width: 40px; height: 40px; margin: 0 2px 0 -5px; border-radius: 50%; background: hsl(var(--o-h) 30% 22%); color: var(--ohl); }
 .ov-icon .i { width: 20px; height: 20px; }
 .ov-head h1 { margin: 0; font-size: 1.25rem; font-weight: 400; text-transform: lowercase; letter-spacing: .01em; }
-.ov-head h1 .ov-name { text-transform: none; }
-.ov-sub { color: var(--oc2); opacity: .65; font-size: .9rem; margin-left: 4px; }
+.ov-head h1 .ov-page { color: #fc2; }
 .ov-head .grow { flex: 1; }
 .ov-head .btn:not(.primary) { background: var(--ob3); }
 .ov-head .btn:not(.primary):hover { background: var(--ob2); }
@@ -1968,7 +1967,7 @@ body.f-chat .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260
 .ov-tab:hover::after, .ov-tab.on::after { transform: scaleY(1); opacity: 1; transition: transform 400ms var(--el-out), opacity 100ms cubic-bezier(.22, 1, .36, 1); }
 .ov-tab { transition: color 120ms cubic-bezier(.55, .085, .68, .53); }
 .ov-tab.on { color: #fff; font-weight: 700; }
-@media (max-width: 700px) and (hover: none) and (orientation: portrait) { .ov-inner { padding: 0 16px; } .ov-content { padding: 16px 16px 90px; } .ov-sub { display: none; } }
+@media (max-width: 700px) and (hover: none) and (orientation: portrait) { .ov-inner { padding: 0 16px; } .ov-content { padding: 16px 16px 90px; } }
 /* beatmap listing (explorer): lazer's BeatmapListingSearchControl — a full-width Dark6 band with the big search box
    and the filter rows (label on the left, text tabs; the active one bold with a Highlight1 underline) */
 .explorer.ov .ex-header { margin: -24px 0 22px; padding: 20px 0 16px; border: 0; background: var(--od6); box-shadow: 0 0 0 100vmax var(--od6); clip-path: inset(0 -100vmax); }
@@ -4041,15 +4040,14 @@ html.touch .ch-item.on .ch-x { display: grid; place-items: center; width: 26px; 
 .rk-row > span { text-align: center; white-space: nowrap; }
 .rk-row.click { cursor: pointer; }
 .rk-row:not(.rk-head):hover { background: hsl(var(--o-h) 10% 25%); }
-.rk-row .hl { color: #fff; font-weight: 600; }
-.rk-head { height: auto; padding-bottom: 2px; background: none; font-weight: 600; color: hsl(var(--o-h) 10% 60%); }
-.rk-head .g { color: hsl(var(--o-h) 40% 75%); }
-.rk-row .rk-rank { text-align: left; color: #fff; font-weight: 600; font-size: 13px; }
-.rk-user { display: flex; align-items: center; gap: 8px; min-width: 0; text-align: left !important; color: #fff; font-size: 13px; font-weight: 600; }
+.rk-row .hl { color: #fff; font-weight: 500; }
+.rk-head { height: auto; padding-bottom: 2px; background: none; font-weight: 500; color: hsl(var(--o-h) 10% 60%); }
+.rk-row .rk-rank { text-align: left; color: #fff; font-weight: 600; font-size: 12px; }
+.rk-user { display: flex; align-items: center; gap: 8px; min-width: 0; text-align: left !important; color: #fff; font-size: 12px; font-weight: 500; }
+.rk-table:not(.dc-table) .rk-name { font-style: italic; } /* (lazer's rankings: the names in italics, as on the website) */
 .rk-user .avatar { flex: none; border-radius: 5px; font-size: 11px !important; }
 .rk-name { overflow: hidden; text-overflow: ellipsis; }
 .rk-on { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #b3d944; }
-.rk-row.me { box-shadow: inset 3px 0 0 hsl(var(--o-h) 100% 70%); background: hsl(var(--o-h) 20% 22%); }
 .rk-sep { text-align: center; color: hsl(var(--o-h) 10% 40%); }
 .rk-foot { max-width: 1100px; margin: 14px auto 0; color: hsl(var(--o-h) 10% 40%); font-size: 12px; text-align: right; }
 .rk-empty { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px 20px; color: hsl(var(--o-h) 10% 60%); }
@@ -8611,10 +8609,9 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: kbHint('Ctrl+F11 toggles it anywhere.') },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: false, hint: 'When a song can\'t keep up, the playfield is drawn at a lower resolution until it can.' },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'How sharp the playfield is drawn. Lower is faster on slow computers.' },
-  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no particles, hit lighting or stage light while playing, and the menus without animations, blur, glow or moving backgrounds.' },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no particles, hit lighting or stage light while playing, the menus without animations, blur, glow or moving backgrounds, and song pictures at a lower resolution.' },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
-  { s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Picture quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Lower (faster)']], hint: 'Song backgrounds and the pictures in song select. Lower is faster on slow computers.' },
   // ── Input
   { s: 'Input', g: 'Mouse', k: 'input.noWheelVolumeInGame', l: 'Disable mouse wheel adjusting volume during gameplay', t: 'bool', d: false },
   { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key binding configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
@@ -8764,6 +8761,8 @@ const Settings = {
   },
   get(k) {
     if (this.values['graphics.performanceMode'] && Settings.PERF_OFF.has(k)) return false;
+    // (song backgrounds and song select's pictures at a lower resolution: part of Performance mode, not a setting)
+    if (k === 'graphics.bgQuality') return this.values['graphics.performanceMode'] ? 'low' : 'high';
     if (k === 'ui.animSpeed' && this.values['graphics.performanceMode']) return 0; // (Performance mode: no menu animations)
     if (k in this.values) return this.values[k];
     const s = this.schema.get(k);
@@ -8905,8 +8904,8 @@ const BeatmapManager = {
     const b = await DB.get('files', `${set.id}/__thumb.jpg`);
     return BlobURLs.get(`thumb:${set.id}`, b);
   },
-  /** Song panels with Picture quality on Lower: a smaller copy of the card picture (CARD_W), made once in the picture
-   *  worker and kept with the set. The 1280px one — decoded for every panel scrolled into view, and each kept decoded
+  /** Song panels in Performance mode (pictures at a lower resolution): a smaller copy of the card picture (CARD_W),
+   *  made once in the picture worker and kept with the set. The 1280px one — decoded for every panel scrolled into view, and each kept decoded
    *  at almost 4 MB — was most of what scrolling the song list cost on a slow computer. (Where it can't be made, or
    *  while the card picture itself is being remade: that one.) */
   CARD_W: 768, CARD_Q: 0.85,
@@ -10543,9 +10542,10 @@ function visibleBox(img) {
 /** Phones and tablets: a column's width as a fraction of the screen's height (FNF's arrow is 112 of 720, ~0.156;
  *  a little larger here, easier to read and to hit). */
 const TOUCH_COL = 0.2;
-/** Settings → Mobile layout's "Landscape (expanded columns)", as lazer widens them: 2.83 times the skin's column (less
- *  past 7 keys), times how much wider the screen is than a phone's usual 1.92 : 1. */
-const EXPANDED_COL = 2.83, EXPANDED_KEYS = 7, PHONE_ASPECT = 1.92;
+/** Settings → Mobile layout's "Landscape (expanded columns)", as lazer's looks on a phone: each column a fifth of the
+ *  screen's height on a phone's usual 1.92 : 1 (wider in proportion on a wider screen, narrower past 7 keys), a hairline
+ *  apart. (Not the skin's own width widened, as lazer does: a skin with wide columns came out half the screen tall.) */
+const EXPANDED_COL = 0.2, EXPANDED_GAP = 0.003, EXPANDED_KEYS = 7, PHONE_ASPECT = 1.92;
 
 class ManiaRenderer {
   /** crop: size the canvas to just the stage (plus room for the health bar / key display) instead of the whole
@@ -10705,15 +10705,16 @@ class ManiaRenderer {
     // side with no gaps, in the middle, with the receptors as near the edge as FNF's (below). Held upright, each column
     // as wide as an FNF arrow (112 of 720, about a sixth of the screen's height), narrowed to fit across it; held
     // sideways, as Settings → Mobile layout says (lazer's): "Landscape" is the stage as on a computer, "Landscape
-    // (expanded columns)" the skin's columns widened by lazer's reckoning (EXPANDED_COL); "Automatic" keeps the arrows'
-    // size either way up
+    // (expanded columns)" lazer's wider columns a hairline apart (EXPANDED_COL); "Automatic" keeps the arrows' size
+    // either way up
     const touch = this.touchLayout && typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
     const upright = this.H > this.W, layout = Settings.get('gameplay.mobileLayout');
     this.fnf = touch && (upright || layout !== 'landscape');
     if (this.fnf) {
       this._fnfCol = Math.min(this.H * TOUCH_COL * lw, this.W * 0.96 / L.keys);
-      const size = upright || layout !== 'expanded' ? this._fnfCol : Math.min((L.columnWidth[0] || 30) * s * EXPANDED_COL * Math.min(1, EXPANDED_KEYS / L.keys) * (this.W / this.H) / PHONE_ASPECT * lw, this.W * 0.96 / L.keys);
-      this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * size); this.stageW = size * L.keys;
+      const wide = !upright && layout === 'expanded', gap = wide ? Math.round(this.H * EXPANDED_GAP) : 0;
+      const size = !wide ? this._fnfCol : Math.min(this.H * EXPANDED_COL * Math.min(1, EXPANDED_KEYS / L.keys) * (this.W / this.H) / PHONE_ASPECT * lw, (this.W * 0.96 - gap * (L.keys - 1)) / L.keys);
+      this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * (size + gap)); this.stageW = size * L.keys + gap * (L.keys - 1);
       this.narrow = true;
     } else {
       const fit = this.W * 0.98 / x;
@@ -18188,7 +18189,7 @@ const SongSelect = {
     if (row.type === 'set' || row.type === 'group' || row.type === 'std') b.classList.toggle('expanded', row.open);
     else b.classList.toggle('selected', row.m.id === this.selectedId);
   },
-  /** A song panel's picture: its card picture — with Picture quality on Lower, the smaller copy made for panels (see
+  /** A song panel's picture: its card picture — in Performance mode, the smaller copy made for panels (see
    *  BeatmapManager.cardURL). */
   panelPicture(set, bg) {
     (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.cardURL(set) : BeatmapManager.thumbURL(set)).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
@@ -18454,7 +18455,7 @@ const SongSelect = {
   /** The selected difficulty's own background (each difficulty's [Events] can name a different picture). */
   async showBackground(m) {
     const tok = this._bgTok = {};
-    // (Picture quality: Lower — the song's card picture, already read for its panel, not the full picture read from
+    // (Performance mode — the song's card picture, already read for its panel, not the full picture read from
     // storage and decoded again for every song stopped on)
     const set = BeatmapManager.setById.get(m.setId), light = Settings.get('graphics.bgQuality') === 'low';
     const url = light ? await BeatmapManager.thumbURL(set) || await BeatmapManager.bgURL(m).catch(() => null)
@@ -22547,10 +22548,12 @@ const Charts = {
  *  lowercase title, the actions on the right, optional tabs on Dark4 underneath, then the body in Background5.
  *  `hue` picks the overlay colour scheme (lazer: Blue 200, Pink 333, Plum 320, Orange 45, Aquamarine 160, …). */
 const OVERLAY_HUES = { red: 0, orange: 45, lime: 90, green: 125, aquamarine: 160, blue: 200, purple: 255, plum: 320, pink: 333 };
+/** lazer's OverlayHeader: its icon and title on the title bar (the description is only the title's tooltip, as lazer
+ *  keeps it for the toolbar's), then the tabs. */
 function overlayHeader(title, { icon: ic = 'star', sub = null, actions = [], tabs = null } = {}) {
   return h('div.ov-head',
     h('div.ov-titlebar', h('div.ov-inner',
-      h('span.ov-icon', icon(ic)), h('h1', title), sub ? h('span.ov-sub', sub) : null, h('div.grow'), ...actions)),
+      h('span.ov-icon', icon(ic)), h('h1', sub ? { title: sub } : {}, title), h('div.grow'), ...actions)),
     tabs ? h('div.ov-tabs', h('div.ov-inner', tabs)) : null);
 }
 function pageShell(title, sub, actions = [], { icon: ic = 'star', hue = 'purple', tabs = null, wide = false } = {}) {
@@ -22979,7 +22982,7 @@ const ProfileScreen = {
     const other = params.pid && params.pid !== (typeof Presence !== 'undefined' && Presence.pid());
     // (coming back from one of their scores: what was already loaded shows straight away, then is brought up to date)
     this.remote = other ? (params.cache && params.cache.pid === params.pid ? params.cache : { pid: params.pid, name: params.name, avatar: params.avatar, data: null }) : null;
-    const { el, page } = pageShell(other ? [h('span.ov-name', params.name || 'player'), '\'s profile'] : 'Profile', null, [], { icon: 'user', hue: 'pink', wide: true }); // (their name as they spell it: the title's lowercase is lazer's style, not theirs)
+    const { el, page } = pageShell('player info', null, [], { icon: 'user', hue: 'pink', wide: true }); // (lazer's UserProfileHeader title, yours or anyone's)
     this.page = page;
     this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
       Bus.on('verified:verdicts', () => { if (!this.remote) this.render(); }), // (the catch-up's answers: why a play wasn't counted)
@@ -23460,6 +23463,11 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28l', title: 'Phones and performance', sections: [
+    { icon: 'sparkle', title: 'Phones', items: ['Landscape (expanded columns) as lazer\'s looks on a phone: wider columns a hairline apart, the same size whatever the skin (a skin with wide columns no longer fills the screen)'] },
+    { icon: 'bolt', title: 'Performance mode', items: ['Performance mode shows song pictures at a lower resolution too — the separate Picture quality option is gone', 'Picking Performance in first-run setup also turns on Automatic resolution'] },
+    { icon: 'sparkle', title: 'More like lazer', items: ['Page titles as in lazer: just the name ("player info", "multiplayer · lounge"), with what the page is for when you hover it'] },
+  ] },
   { id: '2026.10.28k', title: 'Results and song select', sections: [
     { icon: 'trophy', title: 'Results', items: ['Every score on the beatmap sits in a row beside yours, as in lazer: scroll, drag or use ← / → to look through them, yours and the online ones, and click one to open it', 'In multiplayer, your score sits in the middle with everyone else\'s either side, as in lazer'] },
     { icon: 'sparkle', title: 'Song select', items: ['Typing a search no longer starts playing a song — it plays once you pick a beatmap', 'A long list of scores no longer cuts off the grades at the top of the list', 'Your own score is no longer highlighted on the online boards'] },
@@ -25333,11 +25341,12 @@ const lowEndRenderScale = () => clamp(Math.round(20 / (window.devicePixelRatio |
 /** Performance or graphics (saved as setup.device: 'chromebook' / 'pc', the names earlier versions used). */
 const SETUP_DEVICES = {
   chromebook: { label: 'Performance', sub: 'Smoothest everywhere: Performance mode on — no heavy effects in songs or menus', icon: 'bolt',
-    // (the pictures and the playfield stay at full resolution: Picture quality and Renderer scale lower them, if wanted)
-    values: () => ({ 'graphics.performanceMode': true, 'gameplay.video': false, 'graphics.menuBlur': 12, 'ui.parallax': false }) },
+    // (Performance mode brings the pictures down to a lower resolution; the playfield's comes down only while a song
+    // can't keep up — Automatic resolution, turned on here)
+    values: () => ({ 'graphics.performanceMode': true, 'graphics.autoScale': true, 'gameplay.video': false, 'graphics.menuBlur': 12, 'ui.parallax': false }) },
   pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sec-graphics',
     values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
-      'graphics.bgQuality': 'high', 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
+      'graphics.autoScale': false, 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
 };
 
 /** ChromeOS: Chromebooks get the lighter settings without having to know to ask for them. */
@@ -25347,19 +25356,20 @@ const IS_CHROMEBOOK = typeof navigator !== 'undefined' && /\bCrOS\b/.test(naviga
 const SETUP_LAYOUTS = [
   { id: 'portrait', label: 'Portrait', sub: 'Upright, the columns across the screen' },
   { id: 'landscape', label: 'Landscape', sub: 'Sideways, the stage as on a computer' },
-  { id: 'expanded', label: 'Landscape (expanded)', sub: 'Sideways, the columns filling the screen' },
+  { id: 'expanded', label: 'Landscape (expanded)', sub: 'Sideways, wider columns a little apart' },
 ];
 /** A little picture of a phone playing a song in a layout: the screen, its four columns (with the receptors) and a few
  *  notes on their way down. */
 function phoneMock(kind) {
   const up = kind === 'portrait', W = up ? 64 : 124, H = up ? 116 : 64, pad = 5, sw = W - pad * 2, sh = H - pad * 2;
-  const stageW = up ? sw : kind === 'expanded' ? sw * 0.9 : sw * 0.34, col = stageW / 4, x0 = pad + (sw - stageW) / 2;
+  // (expanded: lazer's wider columns, a hairline apart)
+  const gap = kind === 'expanded' ? 0.8 : 0, stageW = up ? sw : kind === 'expanded' ? sw * 0.46 : sw * 0.3, col = (stageW - gap * 3) / 4, x0 = pad + (sw - stageW) / 2;
   const rx = col * 0.18, recY = pad + sh - col * 0.72, notes = [[0, 0.18], [2, 0.36], [1, 0.58], [3, 0.12], [3, 0.7]];
   let s = `<svg viewBox="0 0 ${W} ${H}" width="${W * 1.25}" height="${H * 1.25}" aria-hidden="true">`;
   s += `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="9" fill="#14121a" stroke="rgba(255,255,255,.35)" stroke-width="2"/>`;
-  s += `<rect x="${x0}" y="${pad}" width="${stageW}" height="${sh}" fill="rgba(255,255,255,.05)"/>`;
-  for (let c = 0; c < 4; c++) s += `<rect x="${x0 + c * col + col * 0.12}" y="${recY}" width="${col * 0.76}" height="${col * 0.5}" rx="${rx}" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.2"/>`;
-  for (const [c, f] of notes) { const y = pad + (recY - pad - col * 0.5) * f; s += `<rect x="${x0 + c * col + col * 0.12}" y="${y}" width="${col * 0.76}" height="${col * 0.5}" rx="${rx}" fill="var(--accent)"/>`; }
+  for (let c = 0; c < 4; c++) s += `<rect x="${x0 + c * (col + gap)}" y="${pad}" width="${col}" height="${sh}" fill="rgba(255,255,255,.06)"/>`;
+  for (let c = 0; c < 4; c++) s += `<rect x="${x0 + c * (col + gap) + col * 0.12}" y="${recY}" width="${col * 0.76}" height="${col * 0.5}" rx="${rx}" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.2"/>`;
+  for (const [c, f] of notes) { const y = pad + (recY - pad - col * 0.5) * f; s += `<rect x="${x0 + c * (col + gap) + col * 0.12}" y="${y}" width="${col * 0.76}" height="${col * 0.5}" rx="${rx}" fill="var(--accent)"/>`; }
   return s + '</svg>';
 }
 
@@ -26989,7 +26999,8 @@ const MultiplayerScreen = {
     // a room code only opens a room of this lounge's kind (Ranked Play rooms aren't reachable from the lounge)
     const joinBtn = h('button.btn.mp-join', { onclick: () => code.value.length >= 4 && busy('Joining room…', () => this.joinHere(code.value)) }, 'Join');
     const offline = !Multiplayer.available();
-    this.body.append(overlayHeader(ranked ? 'Ranked Play' : 'Multiplayer', { icon: ranked ? 'crown' : 'multi', sub: ranked ? 'open a 1v1 duel, or join one' : 'lounge — join a room, or make your own',
+    // (lazer's online play header: "Multiplayer · Lounge", the screen's name in yellow)
+    this.body.append(overlayHeader(ranked ? 'Ranked Play' : ['Multiplayer', h('span.ov-page', ' · lounge')], { icon: ranked ? 'crown' : 'multi', sub: ranked ? 'open a 1v1 duel, or join one' : 'join a room, or make your own',
       // (Ranked Play's rules, and what keeps a match fair, on one page)
       actions: ranked ? [h('button.btn.sm.ghost.rq-how', { onclick: () => { UISounds.click(); rankedRules(); } }, icon('info'), 'How it works')] : [] }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
@@ -31564,7 +31575,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'fb4cd69efd40';
+const APP_BUILD = 'd0d11d657ac7';
 
 const App = {
   lastReport: null,

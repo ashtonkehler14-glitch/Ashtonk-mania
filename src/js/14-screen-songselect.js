@@ -761,7 +761,7 @@ const SongSelect = {
     if (row.type === 'set' || row.type === 'group' || row.type === 'std') b.classList.toggle('expanded', row.open);
     else b.classList.toggle('selected', row.m.id === this.selectedId);
   },
-  /** A song panel's picture: its card picture — with Picture quality on Lower, the smaller copy made for panels (see
+  /** A song panel's picture: its card picture — in Performance mode, the smaller copy made for panels (see
    *  BeatmapManager.cardURL). */
   panelPicture(set, bg) {
     (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.cardURL(set) : BeatmapManager.thumbURL(set)).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
@@ -1027,7 +1027,7 @@ const SongSelect = {
   /** The selected difficulty's own background (each difficulty's [Events] can name a different picture). */
   async showBackground(m) {
     const tok = this._bgTok = {};
-    // (Picture quality: Lower — the song's card picture, already read for its panel, not the full picture read from
+    // (Performance mode — the song's card picture, already read for its panel, not the full picture read from
     // storage and decoded again for every song stopped on)
     const set = BeatmapManager.setById.get(m.setId), light = Settings.get('graphics.bgQuality') === 'low';
     const url = light ? await BeatmapManager.thumbURL(set) || await BeatmapManager.bgURL(m).catch(() => null)

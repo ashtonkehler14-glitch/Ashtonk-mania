@@ -10,11 +10,12 @@ const lowEndRenderScale = () => clamp(Math.round(20 / (window.devicePixelRatio |
 /** Performance or graphics (saved as setup.device: 'chromebook' / 'pc', the names earlier versions used). */
 const SETUP_DEVICES = {
   chromebook: { label: 'Performance', sub: 'Smoothest everywhere: Performance mode on — no heavy effects in songs or menus', icon: 'bolt',
-    // (the pictures and the playfield stay at full resolution: Picture quality and Renderer scale lower them, if wanted)
-    values: () => ({ 'graphics.performanceMode': true, 'gameplay.video': false, 'graphics.menuBlur': 12, 'ui.parallax': false }) },
+    // (Performance mode brings the pictures down to a lower resolution; the playfield's comes down only while a song
+    // can't keep up — Automatic resolution, turned on here)
+    values: () => ({ 'graphics.performanceMode': true, 'graphics.autoScale': true, 'gameplay.video': false, 'graphics.menuBlur': 12, 'ui.parallax': false }) },
   pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sec-graphics',
     values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
-      'graphics.bgQuality': 'high', 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
+      'graphics.autoScale': false, 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
 };
 
 /** ChromeOS: Chromebooks get the lighter settings without having to know to ask for them. */
@@ -24,19 +25,20 @@ const IS_CHROMEBOOK = typeof navigator !== 'undefined' && /\bCrOS\b/.test(naviga
 const SETUP_LAYOUTS = [
   { id: 'portrait', label: 'Portrait', sub: 'Upright, the columns across the screen' },
   { id: 'landscape', label: 'Landscape', sub: 'Sideways, the stage as on a computer' },
-  { id: 'expanded', label: 'Landscape (expanded)', sub: 'Sideways, the columns filling the screen' },
+  { id: 'expanded', label: 'Landscape (expanded)', sub: 'Sideways, wider columns a little apart' },
 ];
 /** A little picture of a phone playing a song in a layout: the screen, its four columns (with the receptors) and a few
  *  notes on their way down. */
 function phoneMock(kind) {
   const up = kind === 'portrait', W = up ? 64 : 124, H = up ? 116 : 64, pad = 5, sw = W - pad * 2, sh = H - pad * 2;
-  const stageW = up ? sw : kind === 'expanded' ? sw * 0.9 : sw * 0.34, col = stageW / 4, x0 = pad + (sw - stageW) / 2;
+  // (expanded: lazer's wider columns, a hairline apart)
+  const gap = kind === 'expanded' ? 0.8 : 0, stageW = up ? sw : kind === 'expanded' ? sw * 0.46 : sw * 0.3, col = (stageW - gap * 3) / 4, x0 = pad + (sw - stageW) / 2;
   const rx = col * 0.18, recY = pad + sh - col * 0.72, notes = [[0, 0.18], [2, 0.36], [1, 0.58], [3, 0.12], [3, 0.7]];
   let s = `<svg viewBox="0 0 ${W} ${H}" width="${W * 1.25}" height="${H * 1.25}" aria-hidden="true">`;
   s += `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="9" fill="#14121a" stroke="rgba(255,255,255,.35)" stroke-width="2"/>`;
-  s += `<rect x="${x0}" y="${pad}" width="${stageW}" height="${sh}" fill="rgba(255,255,255,.05)"/>`;
-  for (let c = 0; c < 4; c++) s += `<rect x="${x0 + c * col + col * 0.12}" y="${recY}" width="${col * 0.76}" height="${col * 0.5}" rx="${rx}" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.2"/>`;
-  for (const [c, f] of notes) { const y = pad + (recY - pad - col * 0.5) * f; s += `<rect x="${x0 + c * col + col * 0.12}" y="${y}" width="${col * 0.76}" height="${col * 0.5}" rx="${rx}" fill="var(--accent)"/>`; }
+  for (let c = 0; c < 4; c++) s += `<rect x="${x0 + c * (col + gap)}" y="${pad}" width="${col}" height="${sh}" fill="rgba(255,255,255,.06)"/>`;
+  for (let c = 0; c < 4; c++) s += `<rect x="${x0 + c * (col + gap) + col * 0.12}" y="${recY}" width="${col * 0.76}" height="${col * 0.5}" rx="${rx}" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.2"/>`;
+  for (const [c, f] of notes) { const y = pad + (recY - pad - col * 0.5) * f; s += `<rect x="${x0 + c * (col + gap) + col * 0.12}" y="${y}" width="${col * 0.76}" height="${col * 0.5}" rx="${rx}" fill="var(--accent)"/>`; }
   return s + '</svg>';
 }
 

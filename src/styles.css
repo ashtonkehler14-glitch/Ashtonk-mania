@@ -1922,8 +1922,7 @@ body.f-chat .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260
 .ov-icon { display: grid; place-items: center; width: 40px; height: 40px; margin: 0 2px 0 -5px; border-radius: 50%; background: hsl(var(--o-h) 30% 22%); color: var(--ohl); }
 .ov-icon .i { width: 20px; height: 20px; }
 .ov-head h1 { margin: 0; font-size: 1.25rem; font-weight: 400; text-transform: lowercase; letter-spacing: .01em; }
-.ov-head h1 .ov-name { text-transform: none; }
-.ov-sub { color: var(--oc2); opacity: .65; font-size: .9rem; margin-left: 4px; }
+.ov-head h1 .ov-page { color: #fc2; }
 .ov-head .grow { flex: 1; }
 .ov-head .btn:not(.primary) { background: var(--ob3); }
 .ov-head .btn:not(.primary):hover { background: var(--ob2); }
@@ -1951,7 +1950,7 @@ body.f-chat .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260
 .ov-tab:hover::after, .ov-tab.on::after { transform: scaleY(1); opacity: 1; transition: transform 400ms var(--el-out), opacity 100ms cubic-bezier(.22, 1, .36, 1); }
 .ov-tab { transition: color 120ms cubic-bezier(.55, .085, .68, .53); }
 .ov-tab.on { color: #fff; font-weight: 700; }
-@media (max-width: 700px) and (hover: none) and (orientation: portrait) { .ov-inner { padding: 0 16px; } .ov-content { padding: 16px 16px 90px; } .ov-sub { display: none; } }
+@media (max-width: 700px) and (hover: none) and (orientation: portrait) { .ov-inner { padding: 0 16px; } .ov-content { padding: 16px 16px 90px; } }
 /* beatmap listing (explorer): lazer's BeatmapListingSearchControl — a full-width Dark6 band with the big search box
    and the filter rows (label on the left, text tabs; the active one bold with a Highlight1 underline) */
 .explorer.ov .ex-header { margin: -24px 0 22px; padding: 20px 0 16px; border: 0; background: var(--od6); box-shadow: 0 0 0 100vmax var(--od6); clip-path: inset(0 -100vmax); }
@@ -4026,15 +4025,14 @@ html.touch .ch-item.on .ch-x { display: grid; place-items: center; width: 26px; 
 .rk-row > span { text-align: center; white-space: nowrap; }
 .rk-row.click { cursor: pointer; }
 .rk-row:not(.rk-head):hover { background: hsl(var(--o-h) 10% 25%); }
-.rk-row .hl { color: #fff; font-weight: 600; }
-.rk-head { height: auto; padding-bottom: 2px; background: none; font-weight: 600; color: hsl(var(--o-h) 10% 60%); }
-.rk-head .g { color: hsl(var(--o-h) 40% 75%); }
-.rk-row .rk-rank { text-align: left; color: #fff; font-weight: 600; font-size: 13px; }
-.rk-user { display: flex; align-items: center; gap: 8px; min-width: 0; text-align: left !important; color: #fff; font-size: 13px; font-weight: 600; }
+.rk-row .hl { color: #fff; font-weight: 500; }
+.rk-head { height: auto; padding-bottom: 2px; background: none; font-weight: 500; color: hsl(var(--o-h) 10% 60%); }
+.rk-row .rk-rank { text-align: left; color: #fff; font-weight: 600; font-size: 12px; }
+.rk-user { display: flex; align-items: center; gap: 8px; min-width: 0; text-align: left !important; color: #fff; font-size: 12px; font-weight: 500; }
+.rk-table:not(.dc-table) .rk-name { font-style: italic; } /* (lazer's rankings: the names in italics, as on the website) */
 .rk-user .avatar { flex: none; border-radius: 5px; font-size: 11px !important; }
 .rk-name { overflow: hidden; text-overflow: ellipsis; }
 .rk-on { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #b3d944; }
-.rk-row.me { box-shadow: inset 3px 0 0 hsl(var(--o-h) 100% 70%); background: hsl(var(--o-h) 20% 22%); }
 .rk-sep { text-align: center; color: hsl(var(--o-h) 10% 40%); }
 .rk-foot { max-width: 1100px; margin: 14px auto 0; color: hsl(var(--o-h) 10% 40%); font-size: 12px; text-align: right; }
 .rk-empty { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px 20px; color: hsl(var(--o-h) 10% 60%); }

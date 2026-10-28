@@ -128,10 +128,9 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: kbHint('Ctrl+F11 toggles it anywhere.') },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: false, hint: 'When a song can\'t keep up, the playfield is drawn at a lower resolution until it can.' },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'How sharp the playfield is drawn. Lower is faster on slow computers.' },
-  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no particles, hit lighting or stage light while playing, and the menus without animations, blur, glow or moving backgrounds.' },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no particles, hit lighting or stage light while playing, the menus without animations, blur, glow or moving backgrounds, and song pictures at a lower resolution.' },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
-  { s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Picture quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Lower (faster)']], hint: 'Song backgrounds and the pictures in song select. Lower is faster on slow computers.' },
   // ── Input
   { s: 'Input', g: 'Mouse', k: 'input.noWheelVolumeInGame', l: 'Disable mouse wheel adjusting volume during gameplay', t: 'bool', d: false },
   { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key binding configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
@@ -281,6 +280,8 @@ const Settings = {
   },
   get(k) {
     if (this.values['graphics.performanceMode'] && Settings.PERF_OFF.has(k)) return false;
+    // (song backgrounds and song select's pictures at a lower resolution: part of Performance mode, not a setting)
+    if (k === 'graphics.bgQuality') return this.values['graphics.performanceMode'] ? 'low' : 'high';
     if (k === 'ui.animSpeed' && this.values['graphics.performanceMode']) return 0; // (Performance mode: no menu animations)
     if (k in this.values) return this.values[k];
     const s = this.schema.get(k);

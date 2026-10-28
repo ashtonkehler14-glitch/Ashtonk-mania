@@ -54,9 +54,10 @@ function visibleBox(img) {
 /** Phones and tablets: a column's width as a fraction of the screen's height (FNF's arrow is 112 of 720, ~0.156;
  *  a little larger here, easier to read and to hit). */
 const TOUCH_COL = 0.2;
-/** Settings → Mobile layout's "Landscape (expanded columns)", as lazer widens them: 2.83 times the skin's column (less
- *  past 7 keys), times how much wider the screen is than a phone's usual 1.92 : 1. */
-const EXPANDED_COL = 2.83, EXPANDED_KEYS = 7, PHONE_ASPECT = 1.92;
+/** Settings → Mobile layout's "Landscape (expanded columns)", as lazer's looks on a phone: each column a fifth of the
+ *  screen's height on a phone's usual 1.92 : 1 (wider in proportion on a wider screen, narrower past 7 keys), a hairline
+ *  apart. (Not the skin's own width widened, as lazer does: a skin with wide columns came out half the screen tall.) */
+const EXPANDED_COL = 0.2, EXPANDED_GAP = 0.003, EXPANDED_KEYS = 7, PHONE_ASPECT = 1.92;
 
 class ManiaRenderer {
   /** crop: size the canvas to just the stage (plus room for the health bar / key display) instead of the whole
@@ -216,15 +217,16 @@ class ManiaRenderer {
     // side with no gaps, in the middle, with the receptors as near the edge as FNF's (below). Held upright, each column
     // as wide as an FNF arrow (112 of 720, about a sixth of the screen's height), narrowed to fit across it; held
     // sideways, as Settings → Mobile layout says (lazer's): "Landscape" is the stage as on a computer, "Landscape
-    // (expanded columns)" the skin's columns widened by lazer's reckoning (EXPANDED_COL); "Automatic" keeps the arrows'
-    // size either way up
+    // (expanded columns)" lazer's wider columns a hairline apart (EXPANDED_COL); "Automatic" keeps the arrows' size
+    // either way up
     const touch = this.touchLayout && typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
     const upright = this.H > this.W, layout = Settings.get('gameplay.mobileLayout');
     this.fnf = touch && (upright || layout !== 'landscape');
     if (this.fnf) {
       this._fnfCol = Math.min(this.H * TOUCH_COL * lw, this.W * 0.96 / L.keys);
-      const size = upright || layout !== 'expanded' ? this._fnfCol : Math.min((L.columnWidth[0] || 30) * s * EXPANDED_COL * Math.min(1, EXPANDED_KEYS / L.keys) * (this.W / this.H) / PHONE_ASPECT * lw, this.W * 0.96 / L.keys);
-      this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * size); this.stageW = size * L.keys;
+      const wide = !upright && layout === 'expanded', gap = wide ? Math.round(this.H * EXPANDED_GAP) : 0;
+      const size = !wide ? this._fnfCol : Math.min(this.H * EXPANDED_COL * Math.min(1, EXPANDED_KEYS / L.keys) * (this.W / this.H) / PHONE_ASPECT * lw, (this.W * 0.96 - gap * (L.keys - 1)) / L.keys);
+      this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * (size + gap)); this.stageW = size * L.keys + gap * (L.keys - 1);
       this.narrow = true;
     } else {
       const fit = this.W * 0.98 / x;

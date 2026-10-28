@@ -79,8 +79,8 @@ const BeatmapManager = {
     const b = await DB.get('files', `${set.id}/__thumb.jpg`);
     return BlobURLs.get(`thumb:${set.id}`, b);
   },
-  /** Song panels with Picture quality on Lower: a smaller copy of the card picture (CARD_W), made once in the picture
-   *  worker and kept with the set. The 1280px one — decoded for every panel scrolled into view, and each kept decoded
+  /** Song panels in Performance mode (pictures at a lower resolution): a smaller copy of the card picture (CARD_W),
+   *  made once in the picture worker and kept with the set. The 1280px one — decoded for every panel scrolled into view, and each kept decoded
    *  at almost 4 MB — was most of what scrolling the song list cost on a slow computer. (Where it can't be made, or
    *  while the card picture itself is being remade: that one.) */
   CARD_W: 768, CARD_Q: 0.85,

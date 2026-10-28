@@ -4,10 +4,12 @@
  *  lowercase title, the actions on the right, optional tabs on Dark4 underneath, then the body in Background5.
  *  `hue` picks the overlay colour scheme (lazer: Blue 200, Pink 333, Plum 320, Orange 45, Aquamarine 160, …). */
 const OVERLAY_HUES = { red: 0, orange: 45, lime: 90, green: 125, aquamarine: 160, blue: 200, purple: 255, plum: 320, pink: 333 };
+/** lazer's OverlayHeader: its icon and title on the title bar (the description is only the title's tooltip, as lazer
+ *  keeps it for the toolbar's), then the tabs. */
 function overlayHeader(title, { icon: ic = 'star', sub = null, actions = [], tabs = null } = {}) {
   return h('div.ov-head',
     h('div.ov-titlebar', h('div.ov-inner',
-      h('span.ov-icon', icon(ic)), h('h1', title), sub ? h('span.ov-sub', sub) : null, h('div.grow'), ...actions)),
+      h('span.ov-icon', icon(ic)), h('h1', sub ? { title: sub } : {}, title), h('div.grow'), ...actions)),
     tabs ? h('div.ov-tabs', h('div.ov-inner', tabs)) : null);
 }
 function pageShell(title, sub, actions = [], { icon: ic = 'star', hue = 'purple', tabs = null, wide = false } = {}) {
@@ -436,7 +438,7 @@ const ProfileScreen = {
     const other = params.pid && params.pid !== (typeof Presence !== 'undefined' && Presence.pid());
     // (coming back from one of their scores: what was already loaded shows straight away, then is brought up to date)
     this.remote = other ? (params.cache && params.cache.pid === params.pid ? params.cache : { pid: params.pid, name: params.name, avatar: params.avatar, data: null }) : null;
-    const { el, page } = pageShell(other ? [h('span.ov-name', params.name || 'player'), '\'s profile'] : 'Profile', null, [], { icon: 'user', hue: 'pink', wide: true }); // (their name as they spell it: the title's lowercase is lazer's style, not theirs)
+    const { el, page } = pageShell('player info', null, [], { icon: 'user', hue: 'pink', wide: true }); // (lazer's UserProfileHeader title, yours or anyone's)
     this.page = page;
     this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
       Bus.on('verified:verdicts', () => { if (!this.remote) this.render(); }), // (the catch-up's answers: why a play wasn't counted)
@@ -917,6 +919,11 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28l', title: 'Phones and performance', sections: [
+    { icon: 'sparkle', title: 'Phones', items: ['Landscape (expanded columns) as lazer\'s looks on a phone: wider columns a hairline apart, the same size whatever the skin (a skin with wide columns no longer fills the screen)'] },
+    { icon: 'bolt', title: 'Performance mode', items: ['Performance mode shows song pictures at a lower resolution too — the separate Picture quality option is gone', 'Picking Performance in first-run setup also turns on Automatic resolution'] },
+    { icon: 'sparkle', title: 'More like lazer', items: ['Page titles as in lazer: just the name ("player info", "multiplayer · lounge"), with what the page is for when you hover it'] },
+  ] },
   { id: '2026.10.28k', title: 'Results and song select', sections: [
     { icon: 'trophy', title: 'Results', items: ['Every score on the beatmap sits in a row beside yours, as in lazer: scroll, drag or use ← / → to look through them, yours and the online ones, and click one to open it', 'In multiplayer, your score sits in the middle with everyone else\'s either side, as in lazer'] },
     { icon: 'sparkle', title: 'Song select', items: ['Typing a search no longer starts playing a song — it plays once you pick a beatmap', 'A long list of scores no longer cuts off the grades at the top of the list', 'Your own score is no longer highlighted on the online boards'] },

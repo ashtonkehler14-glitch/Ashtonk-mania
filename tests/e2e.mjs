@@ -1695,10 +1695,11 @@ await page.waitForTimeout(600);
 await shot('12-settings');
 const rows = await page.evaluate(() => document.querySelectorAll('.settings-panel .set-row').length);
 // (room for the hit position and note offset, asked to be regular settings, lazer's Prefer downloads without video, and
-// the resolution options — Picture quality, Renderer scale, Automatic resolution — asked to be settings)
+// the resolution options — Renderer scale, Automatic resolution — asked to be settings; the pictures' lower resolution
+// is part of Performance mode instead)
 check('settings are a short list (no "show all" split)', rows >= 25 && rows <= 50, String(rows));
 check('niche options are gone from the panel but keep working', await page.evaluate(() => !document.querySelector('.sp-more') && ![...document.querySelectorAll('.settings-panel .set-row')].some(r => /Unpause countdown|Lane spacing/.test(r.textContent)) && AshtonkMania.Settings.get('gameplay.unpauseDelay') === 1200));
-check('the resolution options are in the panel: Picture quality, Renderer scale, Automatic resolution', await page.evaluate(() => { const t = [...document.querySelectorAll('.settings-panel .set-row')].map(r => r.textContent).join('|'); return /Picture quality/.test(t) && /Renderer scale/.test(t) && /Automatic resolution/.test(t); }));
+check('the resolution options are in the panel: Renderer scale, Automatic resolution (lower-resolution pictures come with Performance mode, not an option)', await page.evaluate(() => { const S = AshtonkMania.Settings, t = [...document.querySelectorAll('.settings-panel .set-row')].map(r => r.textContent).join('|'), was = S.get('graphics.performanceMode'); const off = S.get('graphics.bgQuality'); S.values['graphics.performanceMode'] = true; const on = S.get('graphics.bgQuality'); S.values['graphics.performanceMode'] = was; return !/Picture quality/.test(t) && /Renderer scale/.test(t) && /Automatic resolution/.test(t) && (was || off === 'high') && on === 'low'; }));
 await page.fill('.sp-search', 'offset');
 await page.waitForTimeout(200);
 check('settings search finds options', await page.evaluate(() => [...document.querySelectorAll('.settings-panel .set-row')].some(r => /Audio offset/.test(r.textContent))));
@@ -2511,7 +2512,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   check('setup: device step is just PC or Chromebook', (await sp.$$('.setup-step-device .setup-choice')).length === 2 && !(await sp.$('.setup-detect')));
   await sp.click('.setup-choice[data-id="chromebook"]');
   await sp.waitForSelector('.setup-step-look', { timeout: 3000 });
-  check('setup: Performance turns Performance mode on (menus and all) and moves on — pictures and the playfield at full resolution, and no automatic lowering', await sp.evaluate(() => { const S = AshtonkMania.Settings; return S.get('graphics.performanceMode') === true && S.get('graphics.particles') === false && document.documentElement.classList.contains('perf') && S.get('graphics.bgQuality') === 'high' && S.get('graphics.renderScale') === 1 && S.get('graphics.autoScale') === false; }));
+  check('setup: Performance turns Performance mode on (menus and all, the pictures at a lower resolution) and Automatic resolution, and moves on — the playfield at full resolution until a song can\'t keep up', await sp.evaluate(() => { const S = AshtonkMania.Settings; return S.get('graphics.performanceMode') === true && S.get('graphics.particles') === false && document.documentElement.classList.contains('perf') && S.get('graphics.bgQuality') === 'low' && S.get('graphics.renderScale') === 1 && S.get('graphics.autoScale') === true; }));
   check('setup: no colour question (as in lazer); size is a slider', !(await sp.$('.setup-swatch')) && !!(await sp.$('.setup-step-look input.slider')));
   await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-gameplay');
   await sp.waitForTimeout(600);
@@ -2802,7 +2803,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.waitForFunction(() => AshtonkMania.Screens.currentName === 'results', null, { timeout: 40000 });
   await mp.waitForTimeout(500);
   check('phone upright: the results after a song stay upright (no prompt to turn sideways), Retry in reach', await mp.evaluate(() => document.querySelector('.rot-prompt').hidden && !!document.querySelector('.results')));
-  // sideways, the other two: "Landscape (expanded columns)" — the skin's columns widened as lazer does — and
+  // sideways, the other two: "Landscape (expanded columns)" — wider columns a hairline apart, as lazer's on a phone — and
   // "Landscape", the stage as on a computer; either way the screen's width is split evenly between the columns for
   // touches. Turned upright mid-song, it stops for a tap
   await mp.setViewportSize({ width: 844, height: 390 });
@@ -2810,12 +2811,12 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
   const sideways = () => mp.evaluate(() => {
     const G = AshtonkMania.GameplayScreen, r = G.renderer, b = G.canvas.parentElement.getBoundingClientRect(), lw = AshtonkMania.Settings.get('gameplay.laneWidth');
-    const wide = Math.min(r.layout.columnWidth[0] * r.s * lw * 2.83 * (r.W / r.H) / 1.92, r.W * 0.96 / 4);
+    const gap = Math.round(r.H * 0.003), wide = Math.min(r.H * 0.2 * lw * (r.W / r.H) / 1.92, (r.W * 0.96 - gap * 3) / 4);
     return { prompt: !document.querySelector('.rot-prompt').hidden, running: !!(G.s && G.s.running), cols: [0.1, 0.3, 0.6, 0.9].map(f => r.columnAt(b.left + b.width * f)).join(), fnf: r.fnf,
-      expanded: r.colW.every(w => Math.abs(w - wide) < 0.5), sameFall: Math.abs(r.scrollLength - 402 * Math.min(r.H * 0.2 * lw, r.W * 0.96 / 4) / r.layout.columnWidth[0]) < 0.01, skin: r.colW.every((w, i) => Math.abs(w - r.layout.columnWidth[i] * r.s * lw) < 0.5), span: +(r.stageW / r.W).toFixed(2) };
+      expanded: r.colW.every(w => Math.abs(w - wide) < 0.5) && r.colX.every((x, i) => Math.abs(x - i * (wide + gap)) < 0.5), sameFall: Math.abs(r.scrollLength - 402 * Math.min(r.H * 0.2 * lw, r.W * 0.96 / 4) / r.layout.columnWidth[0]) < 0.01, skin: r.colW.every((w, i) => Math.abs(w - r.layout.columnWidth[i] * r.s * lw) < 0.5), span: +(r.stageW / r.W).toFixed(2) };
   });
   const ex = await sideways();
-  check('phone sideways, Landscape (expanded columns): no prompt, lazer\'s widened columns across most of the screen (notes as long to read as ever), each quarter of it a column', !ex.prompt && ex.running && ex.cols === '0,1,2,3' && ex.fnf && ex.expanded && ex.sameFall && ex.span > 0.6, JSON.stringify(ex));
+  check('phone sideways, Landscape (expanded columns): no prompt, lazer\'s wider columns a hairline apart, as on a phone (notes as long to read as ever), each quarter of the screen a column', !ex.prompt && ex.running && ex.cols === '0,1,2,3' && ex.fnf && ex.expanded && ex.sameFall && ex.span > 0.35 && ex.span < 0.6, JSON.stringify(ex));
   await mp.evaluate(() => AshtonkMania.Settings.set('gameplay.mobileLayout', 'landscape')); await mp.waitForTimeout(400);
   const flat = await sideways();
   check('phone sideways, Landscape: the stage as on a computer (the skin\'s own column widths), touches still split across the screen', !flat.prompt && flat.running && flat.cols === '0,1,2,3' && !flat.fnf && flat.skin && flat.span < ex.span, JSON.stringify(flat));
@@ -2833,15 +2834,15 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   const land = await mp.evaluate(() => ({ rot: !document.querySelector('.rot-prompt').hidden, z: AshtonkMania.Zoom.z, w: document.querySelector('#app').offsetWidth }));
   check('phone sideways: the desktop interface scaled to the screen as on lazer for Android, at the phone\'s 125% UI scale (no rotate prompt)', !land.rot && land.z > 1.3 && Math.abs(land.w - 844 / (Math.min(844 / 1366, 390 / 768) * 1.25)) < 6, JSON.stringify(land));
   {
-    // a tablet-shaped screen and many keys, expanded: the stage spans it, so the skin's health bar beside it would be off
-    // the edge — lazer's bar at the top instead; a stage as on a computer keeps the skin's bar beside it
+    // a tablet-shaped screen and many keys, expanded at the widest lanes: the stage spans it, so the skin's health bar
+    // beside it would be off the edge — lazer's bar at the top instead; a stage as on a computer keeps the skin's bar
     await mp.setViewportSize({ width: 1024, height: 768 }); await mp.waitForTimeout(400);
-    const hpFor = async (v, layout) => {
-      await mp.evaluate(([v, layout]) => { AshtonkMania.Settings.set('gameplay.mobileLayout', layout); const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === v); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); }, [v, layout]);
+    const hpFor = async (v, layout, lw = 1) => {
+      await mp.evaluate(([v, layout, lw]) => { AshtonkMania.Settings.set('gameplay.laneWidth', lw); AshtonkMania.Settings.set('gameplay.mobileLayout', layout); const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === v); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); }, [v, layout, lw]);
       await mp.waitForFunction(v => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running && AshtonkMania.GameplayScreen.s.rec.version === v, v, { timeout: 20000 });
       return mp.evaluate(() => { const G = AshtonkMania.GameplayScreen, r = G.renderer; return { hm: G.healthMode, off: !!r.healthMode && r.stageX + r.stageW + r._cropMargins()[1] > r.W }; });
     };
-    const nine = await hpFor('9K Expert', 'expanded'), four = await hpFor('4K Normal', 'landscape');
+    const nine = await hpFor('9K Expert', 'expanded', 2), four = await hpFor('4K Normal', 'landscape');
     check('touch screen: a stage spanning the screen (expanded columns) gets lazer\'s health bar at the top (the skin\'s beside it would be off the edge)', nine.hm === 'lazer' && !nine.off && four.hm !== 'lazer' && !four.off, JSON.stringify({ nine, four }));
   }
   {

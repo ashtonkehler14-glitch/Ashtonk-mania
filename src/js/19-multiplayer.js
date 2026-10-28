@@ -863,7 +863,8 @@ const MultiplayerScreen = {
     // a room code only opens a room of this lounge's kind (Ranked Play rooms aren't reachable from the lounge)
     const joinBtn = h('button.btn.mp-join', { onclick: () => code.value.length >= 4 && busy('Joining room…', () => this.joinHere(code.value)) }, 'Join');
     const offline = !Multiplayer.available();
-    this.body.append(overlayHeader(ranked ? 'Ranked Play' : 'Multiplayer', { icon: ranked ? 'crown' : 'multi', sub: ranked ? 'open a 1v1 duel, or join one' : 'lounge — join a room, or make your own',
+    // (lazer's online play header: "Multiplayer · Lounge", the screen's name in yellow)
+    this.body.append(overlayHeader(ranked ? 'Ranked Play' : ['Multiplayer', h('span.ov-page', ' · lounge')], { icon: ranked ? 'crown' : 'multi', sub: ranked ? 'open a 1v1 duel, or join one' : 'join a room, or make your own',
       // (Ranked Play's rules, and what keeps a match fair, on one page)
       actions: ranked ? [h('button.btn.sm.ghost.rq-how', { onclick: () => { UISounds.click(); rankedRules(); } }, icon('info'), 'How it works')] : [] }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
