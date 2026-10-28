@@ -1216,7 +1216,7 @@ const SongSelect = {
     // the rows slide in for a new beatmap or new scores, not when something else redraws the panel (a favourite click)
     const lbKey = m.id + '|' + scores.map(x => x.id).join(), same = this._lbKey === lbKey;
     this._lbKey = lbKey;
-    const list = h(`div.lb-list${same ? '.still' : ''}`);
+    const list = h(`div.lb-list.shear${same ? '.still' : ''}`);
     // lazer's MessagePlaceholder: an exclamation in a circle, then "No records yet!" (22px)
     if (!scores.length) list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), 'No records yet!'));
     const who = ProfileManager.profile.name;
@@ -1242,7 +1242,8 @@ const SongSelect = {
     const stat = (k, v, perfect) => h('span.lbs-stat', h('i', k), h(`b${perfect ? '.perfect' : ''}`, v));
     const c = s.counts || [];
     const pp = s.passed ? ScoreManager.ppOf(s) : 0;
-    const row = h(`button.lbs${own ? '.own' : ''}`, {
+    // (lazer lights your own score up on the online boards; on your own, every score is yours)
+    const row = h(`button.lbs${own && s.online ? '.own' : ''}`, {
       style: { animationDelay: `${Math.min(delay, 20) * 25}ms`, '--rc': RANK_COLOURS[g] || '#3f3f3f', '--rt': RANK_INK[g] || '#fff' },
       title: `${s.player || who} · ${fmtScore(ScoreManager.value(s))} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${pp ? ` · ${fmtInt(pp)}pp` : ''}\n${new Date(s.date).toLocaleString()}`,
       onclick: () => { UISounds.click(); Screens.go('results', s.online ? { score: { ...s, mapHash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: s.stars || m.stars, counts: s.counts || [0, 0, 0, 0, 0, 0], replayId: null }, fromList: true, browse: true, watched: 'online' } : { score: s, fromList: true, browse: true }, { transition: 'right' }); },
@@ -1252,7 +1253,7 @@ const SongSelect = {
       h('span.lbs-mid',
         h('span.lbs-av', own ? ProfileManager.avatarEl(50) : s.online ? Presence.avatarEl({ name: s.player, avatar: s.avatar }, 50) : h('div.avatar.avatar-mono', { style: { width: '50px', height: '50px', fontSize: '20px' } }, String(s.player || '?').slice(0, 1).toUpperCase())),
         h('span.lbs-user', h('span.lbs-date', shortAgo(s.date)), h('span.lbs-name', s.player || who)),
-        h('span.lbs-stats', stat('COMBO', `${fmtInt(s.maxCombo)}x`, c.length && !c[5]), stat('ACCURACY', fmtAcc(s.accuracy), s.accuracy >= 1))),
+        h('span.lbs-stats', stat('MAX COMBO', `${fmtInt(s.maxCombo)}x`, c.length && !c[5]), stat('ACCURACY', fmtAcc(s.accuracy), s.accuracy >= 1))),
       h('span.lbs-right',
         h('span.lbs-sc', h('span.lbs-score', fmtScore(ScoreManager.value(s))), (s.mods || []).length ? h('span.lbs-mods', ...s.mods.map(x => ModSystem.badge(x, true))) : null),
         h('span.lbs-grade', h('b', letter))));
@@ -1268,7 +1269,7 @@ const SongSelect = {
     if (!fresh || performance.now() - (this._onlineAsked || 0) > 30000 || this._onlineFor !== m.hash + scope) {
       if (this._onlineFor !== m.hash + scope || performance.now() - (this._onlineAsked || 0) > 2000) { this._onlineFor = m.hash + scope; this._onlineAsked = performance.now(); this._onlineAskedAt = Date.now(); Presence.start(); Presence.send({ t: 'lb', key: m.hash, scope }); }
     }
-    const list = h('div.lb-list');
+    const list = h('div.lb-list.shear');
     if (!Presence.ws) { list.append(offlineState('The online leaderboard', { compact: true })); return list; }
     if (!fresh) { list.append(h('div.lb-empty.lb-loading', h('span.spinner'))); return list; }
     const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();

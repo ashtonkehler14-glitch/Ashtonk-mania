@@ -624,7 +624,7 @@ html.touch .settings-panel .set-row .reset::after { content: ""; position: absol
 .lbs-name { font-size: 18px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lbs-stats { flex: none; display: flex; gap: 20px; padding-right: 10px; transform-origin: right center; }
 .lbs-stat { display: flex; flex-direction: column; min-width: 55px; }
-.lbs-stat:first-child { min-width: 60px; }
+.lbs-stat:first-child { min-width: 72px; }
 .lbs-stat i { font-style: normal; font-size: 12px; font-weight: 600; color: var(--c2); }
 .lbs-stat b { font-size: 16px; font-weight: 400; line-height: 1.15; white-space: nowrap; }
 .lbs-stat b.perfect { color: #b2ff66; }
@@ -632,13 +632,19 @@ html.touch .settings-panel .set-row .reset::after { content: ""; position: absol
 .lbs-sc { position: absolute; inset: 0 35px 0 0; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; padding: 0 10px; border-radius: 10px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--rc) 50%, transparent)), linear-gradient(90deg, hsl(var(--ss-h) 10% 25% / 0), var(--bg3)); transform: none; }
 .lbs:hover .lbs-sc { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--rc) 50%, transparent)), linear-gradient(90deg, hsl(var(--ss-h) 10% 35% / 0), hsl(var(--ss-h) 10% 35%)); }
 .lbs-sc > * { transform: skewX(var(--unshear)); }
-.lbs-score { font-size: 26px; font-weight: 300; line-height: 1; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lbs-score { font-size: 28px; font-weight: 300; line-height: 1; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lbs-mods { display: flex; margin-top: 3px; }
 .lbs-mods .mod-badge + .mod-badge { margin-left: -4px; }
 .lbs-mods .mb-t { display: none; }
 .lbs-grade { position: absolute; top: 0; right: 0; bottom: 0; width: 35px; display: grid; place-items: center; }
-.lbs-grade b { font-size: 14px; font-weight: 800; letter-spacing: -1px; color: var(--rt); text-shadow: 0 1px 1px rgba(0, 0, 0, .3); }
+.lbs-grade b { font-size: 19px; font-weight: 700; letter-spacing: -1px; color: var(--rt); text-shadow: none; }
 /* (narrower: no rank label, then the statistics stacked and smaller, then none — lazer's display modes) */
+/* (lazer: the scores lean with the shear as a column — each a little further left than the one above, the list
+   scrolling along the slant; what isn't a score stands upright in it. Anchored at the list's foot, so the lowest
+   scores keep to the screen's edge and the ones above step in from it) */
+.lb-list.shear { transform: skewX(var(--shear)); transform-origin: 0 100%; padding-right: 64px; }
+.lb-list.shear > .lbs { transform: none; }
+.lb-list.shear > :not(.lbs) { transform: skewX(var(--unshear)); transform-origin: 50% 50%; }
 @container (max-width: 485px) { .lbs { padding-left: 30px; } .lbs-rank { display: none; } }
 @container (max-width: 445px) { .lbs-stats { flex-direction: column; gap: 0; scale: .8; } .lbs-stat { flex-direction: row; gap: 6px; align-items: baseline; min-width: 0; } }
 @container (max-width: 370px) { .lbs-stats { display: none; } }
@@ -18603,7 +18609,7 @@ const SongSelect = {
     // the rows slide in for a new beatmap or new scores, not when something else redraws the panel (a favourite click)
     const lbKey = m.id + '|' + scores.map(x => x.id).join(), same = this._lbKey === lbKey;
     this._lbKey = lbKey;
-    const list = h(`div.lb-list${same ? '.still' : ''}`);
+    const list = h(`div.lb-list.shear${same ? '.still' : ''}`);
     // lazer's MessagePlaceholder: an exclamation in a circle, then "No records yet!" (22px)
     if (!scores.length) list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), 'No records yet!'));
     const who = ProfileManager.profile.name;
@@ -18629,7 +18635,8 @@ const SongSelect = {
     const stat = (k, v, perfect) => h('span.lbs-stat', h('i', k), h(`b${perfect ? '.perfect' : ''}`, v));
     const c = s.counts || [];
     const pp = s.passed ? ScoreManager.ppOf(s) : 0;
-    const row = h(`button.lbs${own ? '.own' : ''}`, {
+    // (lazer lights your own score up on the online boards; on your own, every score is yours)
+    const row = h(`button.lbs${own && s.online ? '.own' : ''}`, {
       style: { animationDelay: `${Math.min(delay, 20) * 25}ms`, '--rc': RANK_COLOURS[g] || '#3f3f3f', '--rt': RANK_INK[g] || '#fff' },
       title: `${s.player || who} · ${fmtScore(ScoreManager.value(s))} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${pp ? ` · ${fmtInt(pp)}pp` : ''}\n${new Date(s.date).toLocaleString()}`,
       onclick: () => { UISounds.click(); Screens.go('results', s.online ? { score: { ...s, mapHash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: s.stars || m.stars, counts: s.counts || [0, 0, 0, 0, 0, 0], replayId: null }, fromList: true, browse: true, watched: 'online' } : { score: s, fromList: true, browse: true }, { transition: 'right' }); },
@@ -18639,7 +18646,7 @@ const SongSelect = {
       h('span.lbs-mid',
         h('span.lbs-av', own ? ProfileManager.avatarEl(50) : s.online ? Presence.avatarEl({ name: s.player, avatar: s.avatar }, 50) : h('div.avatar.avatar-mono', { style: { width: '50px', height: '50px', fontSize: '20px' } }, String(s.player || '?').slice(0, 1).toUpperCase())),
         h('span.lbs-user', h('span.lbs-date', shortAgo(s.date)), h('span.lbs-name', s.player || who)),
-        h('span.lbs-stats', stat('COMBO', `${fmtInt(s.maxCombo)}x`, c.length && !c[5]), stat('ACCURACY', fmtAcc(s.accuracy), s.accuracy >= 1))),
+        h('span.lbs-stats', stat('MAX COMBO', `${fmtInt(s.maxCombo)}x`, c.length && !c[5]), stat('ACCURACY', fmtAcc(s.accuracy), s.accuracy >= 1))),
       h('span.lbs-right',
         h('span.lbs-sc', h('span.lbs-score', fmtScore(ScoreManager.value(s))), (s.mods || []).length ? h('span.lbs-mods', ...s.mods.map(x => ModSystem.badge(x, true))) : null),
         h('span.lbs-grade', h('b', letter))));
@@ -18655,7 +18662,7 @@ const SongSelect = {
     if (!fresh || performance.now() - (this._onlineAsked || 0) > 30000 || this._onlineFor !== m.hash + scope) {
       if (this._onlineFor !== m.hash + scope || performance.now() - (this._onlineAsked || 0) > 2000) { this._onlineFor = m.hash + scope; this._onlineAsked = performance.now(); this._onlineAskedAt = Date.now(); Presence.start(); Presence.send({ t: 'lb', key: m.hash, scope }); }
     }
-    const list = h('div.lb-list');
+    const list = h('div.lb-list.shear');
     if (!Presence.ws) { list.append(offlineState('The online leaderboard', { compact: true })); return list; }
     if (!fresh) { list.append(h('div.lb-empty.lb-loading', h('span.spinner'))); return list; }
     const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();
@@ -23302,6 +23309,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28g', title: 'Song select', sections: [
+    { icon: 'sparkle', title: 'Song select', items: ['The scores on a beatmap look as in lazer: they lean as a column, each a step in from the one below, with "MAX COMBO" and a bigger grade', 'Your own scores are only lit up on the online boards'] },
+  ] },
   { id: '2026.10.28f', title: 'Spectating, as in lazer', sections: [
     { icon: 'film', title: 'Spectating', items: ['Spectate someone and you get lazer\'s Spectator Mode screen: who you\'re watching, the beatmap they\'re playing, and Start Watching', 'Their song starts by itself once you have the beatmap — download it from the card, or turn on "Automatically download missing beatmaps"', 'While watching: "Watching (them) play (song) live" at the top, and their results at the end (no retry — it\'s their play)', 'Esc takes you back to the Spectator Mode screen; their next song starts there too', 'Their screen is no longer copied onto yours between songs'] },
   ] },
@@ -31319,7 +31329,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'd9d10a5a3861';
+const APP_BUILD = 'eca576f2ce06';
 
 const App = {
   lastReport: null,

@@ -607,7 +607,7 @@ html.touch .settings-panel .set-row .reset::after { content: ""; position: absol
 .lbs-name { font-size: 18px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lbs-stats { flex: none; display: flex; gap: 20px; padding-right: 10px; transform-origin: right center; }
 .lbs-stat { display: flex; flex-direction: column; min-width: 55px; }
-.lbs-stat:first-child { min-width: 60px; }
+.lbs-stat:first-child { min-width: 72px; }
 .lbs-stat i { font-style: normal; font-size: 12px; font-weight: 600; color: var(--c2); }
 .lbs-stat b { font-size: 16px; font-weight: 400; line-height: 1.15; white-space: nowrap; }
 .lbs-stat b.perfect { color: #b2ff66; }
@@ -615,13 +615,19 @@ html.touch .settings-panel .set-row .reset::after { content: ""; position: absol
 .lbs-sc { position: absolute; inset: 0 35px 0 0; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; padding: 0 10px; border-radius: 10px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--rc) 50%, transparent)), linear-gradient(90deg, hsl(var(--ss-h) 10% 25% / 0), var(--bg3)); transform: none; }
 .lbs:hover .lbs-sc { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--rc) 50%, transparent)), linear-gradient(90deg, hsl(var(--ss-h) 10% 35% / 0), hsl(var(--ss-h) 10% 35%)); }
 .lbs-sc > * { transform: skewX(var(--unshear)); }
-.lbs-score { font-size: 26px; font-weight: 300; line-height: 1; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lbs-score { font-size: 28px; font-weight: 300; line-height: 1; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lbs-mods { display: flex; margin-top: 3px; }
 .lbs-mods .mod-badge + .mod-badge { margin-left: -4px; }
 .lbs-mods .mb-t { display: none; }
 .lbs-grade { position: absolute; top: 0; right: 0; bottom: 0; width: 35px; display: grid; place-items: center; }
-.lbs-grade b { font-size: 14px; font-weight: 800; letter-spacing: -1px; color: var(--rt); text-shadow: 0 1px 1px rgba(0, 0, 0, .3); }
+.lbs-grade b { font-size: 19px; font-weight: 700; letter-spacing: -1px; color: var(--rt); text-shadow: none; }
 /* (narrower: no rank label, then the statistics stacked and smaller, then none — lazer's display modes) */
+/* (lazer: the scores lean with the shear as a column — each a little further left than the one above, the list
+   scrolling along the slant; what isn't a score stands upright in it. Anchored at the list's foot, so the lowest
+   scores keep to the screen's edge and the ones above step in from it) */
+.lb-list.shear { transform: skewX(var(--shear)); transform-origin: 0 100%; padding-right: 64px; }
+.lb-list.shear > .lbs { transform: none; }
+.lb-list.shear > :not(.lbs) { transform: skewX(var(--unshear)); transform-origin: 50% 50%; }
 @container (max-width: 485px) { .lbs { padding-left: 30px; } .lbs-rank { display: none; } }
 @container (max-width: 445px) { .lbs-stats { flex-direction: column; gap: 0; scale: .8; } .lbs-stat { flex-direction: row; gap: 6px; align-items: baseline; min-width: 0; } }
 @container (max-width: 370px) { .lbs-stats { display: none; } }

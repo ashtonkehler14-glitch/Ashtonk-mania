@@ -917,6 +917,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28g', title: 'Song select', sections: [
+    { icon: 'sparkle', title: 'Song select', items: ['The scores on a beatmap look as in lazer: they lean as a column, each a step in from the one below, with "MAX COMBO" and a bigger grade', 'Your own scores are only lit up on the online boards'] },
+  ] },
   { id: '2026.10.28f', title: 'Spectating, as in lazer', sections: [
     { icon: 'film', title: 'Spectating', items: ['Spectate someone and you get lazer\'s Spectator Mode screen: who you\'re watching, the beatmap they\'re playing, and Start Watching', 'Their song starts by itself once you have the beatmap — download it from the card, or turn on "Automatically download missing beatmaps"', 'While watching: "Watching (them) play (song) live" at the top, and their results at the end (no retry — it\'s their play)', 'Esc takes you back to the Spectator Mode screen; their next song starts there too', 'Their screen is no longer copied onto yours between songs'] },
   ] },
