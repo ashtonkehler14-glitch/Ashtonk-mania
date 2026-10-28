@@ -689,7 +689,7 @@ test('Ranked Play: leaving the match mid-song ends it there (the other player is
   assert.deepEqual(Object.keys(q.rp.users).sort(), ['a', 'b']);
 });
 
-test('Ranked Play: leaving the song scores 0 for the round; the other player plays on', () => {
+test('Ranked Play: leaving the song keeps the score you had then (not 0, not a draw); the other player plays on', () => {
   const clock = { t: 0 };
   const { r } = rpMatch(clock);
   tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
@@ -703,9 +703,24 @@ test('Ranked Play: leaving the song scores 0 for the round; the other player pla
   assert.equal(r.state, 'playing', 'Bob is still playing');
   fin(r, 'b', { score: 300000 });
   assert.equal(r.rp.stage, 'results');
-  assert.equal(r.rp.results.scores.a, 0);
-  assert.equal(r.rp.user('a').life, RP.LIFE - (300000 + 50000));
+  assert.equal(r.rp.results.scores.a, 400000, 'the score Alice had when she left');
+  assert.equal(r.rp.results.quit.a, true);
+  assert.equal(r.rp.results.winner, 'a', 'and it beats a lower score');
+  assert.equal(r.rp.user('b').life, RP.LIFE - (100000 + 50000));
   assert.equal(r.players.length, 2, 'the match goes on');
+  // both leave: still decided on the scores they had, not a draw
+  tickTo(r, clock);
+  r.message('a', { t: 'play', card: r.rp.user('a').hand[0] });
+  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
+  r.message('a', { t: 'rpready', ready: true }); r.message('b', { t: 'rpready', ready: true });
+  tickTo(r, clock);
+  r.message('a', { t: 'score', score: 120000, acc: 0.9, combo: 20, maxCombo: 40 });
+  r.message('b', { t: 'score', score: 250000, acc: 0.95, combo: 60, maxCombo: 60 });
+  r.message('a', { t: 'quit' }); r.message('b', { t: 'quit' });
+  assert.equal(r.rp.stage, 'results');
+  assert.deepEqual([r.rp.results.scores.a, r.rp.results.scores.b], [120000, 250000]);
+  assert.equal(r.rp.results.winner, 'b');
+  assert.equal(r.rp.user('a').life, RP.LIFE - (130000 + 50000), 'the leaver who lost takes the whole difference');
 });
 
 test('Ranked Play: leaving the match loses it (and a rated one bans from the queue); a dropped connection can come back', () => {

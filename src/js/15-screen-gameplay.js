@@ -1346,15 +1346,18 @@ const GameplayScreen = {
     const s = this.s;
     if (!s || s.finished) { Screens.go('multiplayer', {}, { replace: true }); return; }
     if (this._quitO) return; // (already asking)
-    // Ranked Play (as lazer): leaving the song scores 0 for this round — your opponent plays on, and you take the damage
+    // Ranked Play: leaving the song keeps the score you have now for this round — your opponent plays on, and the round
+    // is decided on that
     const ranked = Multiplayer.isRP(), opp = ranked && Multiplayer.opponent();
-    const asked = ranked ? Dialog.confirm('Leave the song?', `You'll score 0 this round and take the damage while ${opp ? opp.name : 'your opponent'} plays on. The match carries on afterwards.`, { ok: 'Leave song', danger: true, icon: 'warn' })
+    const asked = ranked ? Dialog.confirm('Leave the song?', `Your score stops where it is now, and the round is decided on it once ${opp ? opp.name : 'your opponent'} finishes — you can watch them play on.`, { ok: 'Leave song', danger: true, icon: 'warn' })
       : Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true, icon: 'warn' });
     // (the song can end while it's asking — the results come up: the question goes with the song, see leave())
     this._quitO = Overlays.top();
     const ok = await asked;
     this._quitO = null;
     if (!ok || this.s !== s) return;
+    // (your score as it is right now goes first: in Ranked Play that's what the round counts)
+    if (s.engine) { const e = s.engine; Multiplayer.send({ t: 'score', score: e.score.scoreStd, acc: e.score.accuracy, combo: e.score.combo, maxCombo: e.score.maxCombo, hp: e.health.value, pp: s.mpFailed ? 0 : this.livePp(e) }); }
     Multiplayer.send({ t: 'quit' });
     s.finished = true; s.running = false;
     Music.stop(150);

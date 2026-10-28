@@ -2958,6 +2958,10 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .rkm-live span { color: rgba(255, 255, 255, .6); font-size: .85rem; }
 .rkm-live b { font-size: 2.2rem; font-weight: 600; font-variant-numeric: tabular-nums; color: #ff8198; }
 .rkm-live small { color: rgba(255, 255, 255, .6); }
+/* watch your opponent play on (their red, as their corner) */
+.rkm-spec { display: flex; align-items: center; gap: 8px; margin-top: 20px; height: 38px; padding: 0 20px; border: 0; border-radius: 99px; background: rgba(255, 129, 152, .16); color: #ff8198; font: inherit; font-size: .95rem; font-weight: 700; cursor: pointer; transition: background var(--t-fast), color var(--t-fast); }
+.rkm-spec:hover { background: #ff8198; color: #2b0b14; }
+.rkm-spec .i { width: 16px; height: 16px; }
 
 /* a duel waiting for the friend */
 .rkm-duel { width: min(620px, calc(100% - 32px)); display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 32px 34px 28px; border-radius: 18px; background: rgba(36, 34, 42, .92); box-shadow: 0 14px 50px rgba(0, 0, 0, .35); animation: rkUp 500ms var(--ease-out) both; }
@@ -20289,15 +20293,18 @@ const GameplayScreen = {
     const s = this.s;
     if (!s || s.finished) { Screens.go('multiplayer', {}, { replace: true }); return; }
     if (this._quitO) return; // (already asking)
-    // Ranked Play (as lazer): leaving the song scores 0 for this round — your opponent plays on, and you take the damage
+    // Ranked Play: leaving the song keeps the score you have now for this round — your opponent plays on, and the round
+    // is decided on that
     const ranked = Multiplayer.isRP(), opp = ranked && Multiplayer.opponent();
-    const asked = ranked ? Dialog.confirm('Leave the song?', `You'll score 0 this round and take the damage while ${opp ? opp.name : 'your opponent'} plays on. The match carries on afterwards.`, { ok: 'Leave song', danger: true, icon: 'warn' })
+    const asked = ranked ? Dialog.confirm('Leave the song?', `Your score stops where it is now, and the round is decided on it once ${opp ? opp.name : 'your opponent'} finishes — you can watch them play on.`, { ok: 'Leave song', danger: true, icon: 'warn' })
       : Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true, icon: 'warn' });
     // (the song can end while it's asking — the results come up: the question goes with the song, see leave())
     this._quitO = Overlays.top();
     const ok = await asked;
     this._quitO = null;
     if (!ok || this.s !== s) return;
+    // (your score as it is right now goes first: in Ranked Play that's what the round counts)
+    if (s.engine) { const e = s.engine; Multiplayer.send({ t: 'score', score: e.score.scoreStd, acc: e.score.accuracy, combo: e.score.combo, maxCombo: e.score.maxCombo, hp: e.health.value, pp: s.mpFailed ? 0 : this.livePp(e) }); }
     Multiplayer.send({ t: 'quit' });
     s.finished = true; s.running = false;
     Music.stop(150);
@@ -23488,6 +23495,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28n', title: 'Ranked Play', sections: [
+    { icon: 'trophy', title: 'Ranked Play', items: ['Leave a song and the score you had so far counts for the round, instead of 0', 'Once your song is over, Spectate your opponent as they play on'] },
+  ] },
   { id: '2026.10.28m', title: 'Mod multipliers and smoother menus', sections: [
     { icon: 'sparkle', title: 'Mods', items: ['Score multipliers match lazer\'s: Half Time and Daycore 0.30x, key mods 0.90x, Wind Up, Wind Down and Adaptive Speed 0.50x, and Song Speed below 1× counts as Half Time at that speed'] },
     { icon: 'bolt', title: 'Performance', items: ['After a song, the menus no longer keep your computer busy in the background', 'Scrolling the settings is smoother'] },
@@ -27796,6 +27806,7 @@ const RankedMatch = {
       Bus.on('rp:hand', m => this.onHand(m)),
       Bus.on('mp:fetch', () => this.paintCorners(true)),
       Bus.on('mp:opp', () => { if (this.g && this.g.stage === 'playing') this.refreshPlaying(); }),
+      Bus.on('presence:changed', () => { if (this.g && this.g.stage === 'playing') this.refreshPlaying(); }),
       Bus.on('ui:scaled', () => this.fit()),
     ];
     const onResize = () => this.fit();
@@ -28337,16 +28348,33 @@ const RankedMatch = {
     } catch (e) { /* no preview: the warmup goes on in silence */ }
   },
 
-  /** Your song is done (or you left it) and your opponent is still playing: their live score as it comes in. */
+  /** Your song is done (or you left it) and your opponent is still playing: their live score as it comes in, and
+   *  Spectate — their song live, then back here (as spectating from a multiplayer room). */
   renderPlaying(m, g) {
     this._liveEl = h('div.rkm-live');
-    m.append(h('div.rkm-wait', h('span.spinner'), h('div', 'Gameplay is in progress...')), this._liveEl);
+    this._specLbl = h('span');
+    this._specBtn = h('button.rkm-spec', { hidden: true, onclick: () => this.spectateOpp() }, icon('film'), this._specLbl);
+    m.append(h('div.rkm-wait', h('span.spinner'), h('div', 'Gameplay is in progress...')), this._liveEl, this._specBtn);
     this.refreshPlaying(g);
   },
   refreshPlaying() {
     if (!this._liveEl) return;
     const opp = this.oppId(), o = opp && Multiplayer.opps.get(opp);
     clearEl(this._liveEl).append(o ? h('div', h('span', this.name(opp)), h('b', fmtScore(o.score || 0)), h('small', `${fmtAcc(o.acc ?? 1)} · ${fmtInt(o.combo || 0)}x`)) : null);
+    // (once your own song is over — finished, or left — while theirs goes on, and they're on the online service)
+    const mine = this.player(Multiplayer.me), them = opp && this.player(opp);
+    const can = !!(mine && mine.fin && them && them.playing && !them.fin && this.oppPresence() && Screens.currentName === 'multiplayer');
+    if (this._specBtn.hidden === can) this._specBtn.hidden = !can;
+    const lbl = `Spectate ${this.name(opp)}`;
+    if (this._specLbl.textContent !== lbl) this._specLbl.textContent = lbl;
+  },
+  /** Your opponent on the online list (spectating goes through it). */
+  oppPresence() { const p = this.player(this.oppId()); return p && p.pid ? Presence.players.find(x => x.pid === p.pid) || null : null; },
+  spectateOpp() {
+    const pp = this.oppPresence();
+    if (!pp) { Toast.err('Can\'t spectate right now', `${this.name(this.oppId())} isn't on the online service.`); return; }
+    UISounds.click();
+    Spectate.watch(pp);
   },
 
   /** The round's results (lazer's ResultsScreen): both scores count up side by side, then the loser takes the damage —
@@ -31604,7 +31632,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '530ddb639b85';
+const APP_BUILD = '6bc7f4e5a6c9';
 
 const App = {
   lastReport: null,

@@ -2943,6 +2943,10 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .rkm-live span { color: rgba(255, 255, 255, .6); font-size: .85rem; }
 .rkm-live b { font-size: 2.2rem; font-weight: 600; font-variant-numeric: tabular-nums; color: #ff8198; }
 .rkm-live small { color: rgba(255, 255, 255, .6); }
+/* watch your opponent play on (their red, as their corner) */
+.rkm-spec { display: flex; align-items: center; gap: 8px; margin-top: 20px; height: 38px; padding: 0 20px; border: 0; border-radius: 99px; background: rgba(255, 129, 152, .16); color: #ff8198; font: inherit; font-size: .95rem; font-weight: 700; cursor: pointer; transition: background var(--t-fast), color var(--t-fast); }
+.rkm-spec:hover { background: #ff8198; color: #2b0b14; }
+.rkm-spec .i { width: 16px; height: 16px; }
 
 /* a duel waiting for the friend */
 .rkm-duel { width: min(620px, calc(100% - 32px)); display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 32px 34px 28px; border-radius: 18px; background: rgba(36, 34, 42, .92); box-shadow: 0 14px 50px rgba(0, 0, 0, .35); animation: rkUp 500ms var(--ease-out) both; }

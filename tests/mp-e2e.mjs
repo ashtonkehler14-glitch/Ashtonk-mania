@@ -674,7 +674,8 @@ check('round 1: the lower score takes the difference + 50,000 damage — at most
 await bob.waitForFunction(() => document.querySelector('.rkr-col.hit'), null, { timeout: 12000 });
 check('results: both scores side by side, then the damage lands on the loser', await bob.evaluate(() => document.querySelectorAll('.rkr-col').length === 2 && /Damage/.test(document.querySelector('.rkr-break').textContent)));
 await shot(bob, 'mp-rp-results');
-// round 2: the other player's turn (turns alternate); they leave the song part-way and score 0
+// round 2: the other player's turn (turns alternate); Bob leaves the song part-way, keeping the score he had, and
+// spectates Alice playing on
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Multiplayer.room.rp.stage === 'pick' && AshtonkMania.Multiplayer.room.rp.round === 2, null, { timeout: 25000 })));
 check('round 2 is the other player\'s turn; the round multiplier is now ×1', await alice.evaluate(n => { const r = AshtonkMania.Multiplayer.room; return r.players.find(p => p.id === r.rp.active).name !== n && r.rp.mult === 1; }, active));
 await otherPage.waitForTimeout(1500);
@@ -682,18 +683,31 @@ await otherPage.click('.rkm-myhand .rkh-slot:nth-child(1)');
 await otherPage.click('.rkm-myhand .rkh-slot.sel .rkh-play');
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.mp && AshtonkMania.Music.playing, null, { timeout: 45000 })));
 await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes, s.keys).flat(); s.feedIdx = 0; });
+// (Bob hits every other note for a bit before he gives up)
+await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes.filter((n, i) => i % 2), s.keys).flat(); s.feedIdx = 0;
+  const M = AshtonkMania.Multiplayer, send = M.send.bind(M); M.send = m => { if (m && m.t === 'score') window.__lastScore = m.score; if (m && m.t === 'quit') window.__quitScore = window.__lastScore; return send(m); }; });
+await bob.waitForFunction(() => AshtonkMania.GameplayScreen.s.engine.score.scoreStd > 0, null, { timeout: 20000 });
 const lifeBefore = await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room; return r.rp.users[r.players.find(p => p.name === 'Bob').id].life; });
 await bob.keyboard.press('Escape');
 await bob.waitForSelector('.dialog', { timeout: 5000 });
-check('leaving the song in Ranked Play warns that it scores 0 for the round', await bob.evaluate(() => /score 0/.test(document.querySelector('.dialog').textContent)));
+check('leaving the song in Ranked Play: your score stops where it is, and you can watch them play on', await bob.evaluate(() => /score stops where it is now/.test(document.querySelector('.dialog').textContent) && /watch them play on/.test(document.querySelector('.dialog').textContent)));
 await bob.waitForTimeout(100); await bob.keyboard.down('Enter'); await bob.waitForTimeout(750); await bob.keyboard.up('Enter'); // (a dangerous button: held)
 await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.rp.stage === 'playing', null, { timeout: 10000 });
 check('…you wait in the match while your opponent plays on', await bob.evaluate(() => /Gameplay is in progress/.test(document.querySelector('.rkm-stage').textContent)));
 await bob.waitForFunction(() => /[1-9]/.test((document.querySelector('.rkm-live b') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => {});
 check('…watching their score climb as they play', await bob.evaluate(() => /[1-9]/.test((document.querySelector('.rkm-live b') || {}).textContent || '')), await bob.evaluate(() => (document.querySelector('.rkm-live') || {}).textContent));
+await bob.waitForSelector('.rkm-spec:not([hidden])', { timeout: 10000 }).catch(() => {});
+check('…with Spectate (Alice) on the waiting screen', await bob.evaluate(() => { const b = document.querySelector('.rkm-spec'); return !!b && !b.hidden && /Spectate Alice/.test(b.textContent); }));
+await shot(bob, 'mp-rp-gaveup');
+await bob.click('.rkm-spec');
+await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.spectate, null, { timeout: 15000 }).catch(() => {});
+check('…which plays her song live, as she plays it', await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return AshtonkMania.Screens.currentName === 'gameplay' && !!s && !!s.spectate && !s.mp && /Watching Alice play/.test((document.querySelector('.spec-live') || {}).textContent || ''); }));
+await bob.waitForTimeout(1500); await shot(bob, 'mp-rp-spectating');
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.rp.stage === 'results' && AshtonkMania.Multiplayer.room.rp.round === 2, null, { timeout: 45000 })));
-const r2 = await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room, b = r.players.find(p => p.name === 'Bob').id; return { score: r.rp.results.scores[b], life: r.rp.users[b].life }; });
-check('…and take the damage for a score of 0', r2.score === 0 && r2.life < lifeBefore, JSON.stringify({ ...r2, lifeBefore }));
+check('…and back to the match for the round\'s results when her song ends', !(await bob.evaluate(() => !!AshtonkMania.Spectate.target)));
+const r2 = await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room, b = r.players.find(p => p.name === 'Bob').id, a = r.players.find(p => p.name === 'Alice').id; return { score: r.rp.results.scores[b], alice: r.rp.results.scores[a], winner: r.rp.results.winner === a ? 'Alice' : r.rp.results.winner, life: r.rp.users[b].life }; });
+const quitScore = await bob.evaluate(() => window.__quitScore);
+check('…the round counts the score he had when he left (not 0), and he takes the damage', r2.score > 0 && r2.score === Math.round(quitScore) && r2.winner === 'Alice' && r2.life < lifeBefore, JSON.stringify({ ...r2, quitScore, lifeBefore }));
 // Bob leaves the match: he loses it (nothing rated)
 await bob.evaluate(() => AshtonkMania.Multiplayer.leave());
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room && AshtonkMania.Multiplayer.room.rp.stage === 'ended', null, { timeout: 30000 });

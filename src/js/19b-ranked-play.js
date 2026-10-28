@@ -213,6 +213,7 @@ const RankedMatch = {
       Bus.on('rp:hand', m => this.onHand(m)),
       Bus.on('mp:fetch', () => this.paintCorners(true)),
       Bus.on('mp:opp', () => { if (this.g && this.g.stage === 'playing') this.refreshPlaying(); }),
+      Bus.on('presence:changed', () => { if (this.g && this.g.stage === 'playing') this.refreshPlaying(); }),
       Bus.on('ui:scaled', () => this.fit()),
     ];
     const onResize = () => this.fit();
@@ -754,16 +755,33 @@ const RankedMatch = {
     } catch (e) { /* no preview: the warmup goes on in silence */ }
   },
 
-  /** Your song is done (or you left it) and your opponent is still playing: their live score as it comes in. */
+  /** Your song is done (or you left it) and your opponent is still playing: their live score as it comes in, and
+   *  Spectate — their song live, then back here (as spectating from a multiplayer room). */
   renderPlaying(m, g) {
     this._liveEl = h('div.rkm-live');
-    m.append(h('div.rkm-wait', h('span.spinner'), h('div', 'Gameplay is in progress...')), this._liveEl);
+    this._specLbl = h('span');
+    this._specBtn = h('button.rkm-spec', { hidden: true, onclick: () => this.spectateOpp() }, icon('film'), this._specLbl);
+    m.append(h('div.rkm-wait', h('span.spinner'), h('div', 'Gameplay is in progress...')), this._liveEl, this._specBtn);
     this.refreshPlaying(g);
   },
   refreshPlaying() {
     if (!this._liveEl) return;
     const opp = this.oppId(), o = opp && Multiplayer.opps.get(opp);
     clearEl(this._liveEl).append(o ? h('div', h('span', this.name(opp)), h('b', fmtScore(o.score || 0)), h('small', `${fmtAcc(o.acc ?? 1)} · ${fmtInt(o.combo || 0)}x`)) : null);
+    // (once your own song is over — finished, or left — while theirs goes on, and they're on the online service)
+    const mine = this.player(Multiplayer.me), them = opp && this.player(opp);
+    const can = !!(mine && mine.fin && them && them.playing && !them.fin && this.oppPresence() && Screens.currentName === 'multiplayer');
+    if (this._specBtn.hidden === can) this._specBtn.hidden = !can;
+    const lbl = `Spectate ${this.name(opp)}`;
+    if (this._specLbl.textContent !== lbl) this._specLbl.textContent = lbl;
+  },
+  /** Your opponent on the online list (spectating goes through it). */
+  oppPresence() { const p = this.player(this.oppId()); return p && p.pid ? Presence.players.find(x => x.pid === p.pid) || null : null; },
+  spectateOpp() {
+    const pp = this.oppPresence();
+    if (!pp) { Toast.err('Can\'t spectate right now', `${this.name(this.oppId())} isn't on the online service.`); return; }
+    UISounds.click();
+    Spectate.watch(pp);
   },
 
   /** The round's results (lazer's ResultsScreen): both scores count up side by side, then the loser takes the damage —

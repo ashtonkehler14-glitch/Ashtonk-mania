@@ -12,7 +12,8 @@
 //    Whoever isn't ready in time takes 100,000 and the round is skipped.
 //  - The lower total score takes damage: the score difference plus 50,000 (no multipliers: every round counts the
 //    same), at most 500,000 for a song both played (one bad song can't decide the match; leaving one costs all of
-//    it). A hit taken at full life always leaves 1 (last stand).
+//    it). Leaving a song keeps the score you had when you left it: the round is decided on that. A hit taken at full
+//    life always leaves 1 (last stand).
 //  - Fair from the start: both hands are dealt from matched pairs of cards (the same difficulty each), and the deck
 //    leans towards the lower of the two star ratings chosen.
 //  - Leaving mid-song ends the match there (the other player goes back to the match screen and wins).

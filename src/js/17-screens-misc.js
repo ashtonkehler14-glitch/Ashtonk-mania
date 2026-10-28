@@ -919,6 +919,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28n', title: 'Ranked Play', sections: [
+    { icon: 'trophy', title: 'Ranked Play', items: ['Leave a song and the score you had so far counts for the round, instead of 0', 'Once your song is over, Spectate your opponent as they play on'] },
+  ] },
   { id: '2026.10.28m', title: 'Mod multipliers and smoother menus', sections: [
     { icon: 'sparkle', title: 'Mods', items: ['Score multipliers match lazer\'s: Half Time and Daycore 0.30x, key mods 0.90x, Wind Up, Wind Down and Adaptive Speed 0.50x, and Song Speed below 1× counts as Half Time at that speed'] },
     { icon: 'bolt', title: 'Performance', items: ['After a song, the menus no longer keep your computer busy in the background', 'Scrolling the settings is smoother'] },
