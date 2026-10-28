@@ -385,6 +385,10 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .dialog .body { color: var(--text-2); margin-bottom: 18px; line-height: 1.5; }
 .dialog .actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 .dialog .actions:empty { display: none; }
+/* (a long one — the keyboard shortcuts — scrolls inside, its title and buttons staying in view) */
+.dialog:not(.popup) { display: flex; flex-direction: column; }
+.dialog:not(.popup) > h2, .dialog:not(.popup) > .actions { flex: none; }
+.dialog:not(.popup) > .body { flex: 0 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .menu { position: fixed; min-width: 220px; padding: 6px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line-2); box-shadow: var(--shadow); z-index: 70; animation: menuIn calc(300ms * var(--anim, 1)) cubic-bezier(.22, 1, .36, 1) both; }
 /* lazer's OsuMenu: fades in over 280ms OutQuint while its height unrolls over 300ms OutQuint (from the top, or from the
    bottom for one opened upwards); closing waits 50ms, then fades out */

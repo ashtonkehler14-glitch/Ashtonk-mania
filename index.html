@@ -402,6 +402,10 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .dialog .body { color: var(--text-2); margin-bottom: 18px; line-height: 1.5; }
 .dialog .actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 .dialog .actions:empty { display: none; }
+/* (a long one — the keyboard shortcuts — scrolls inside, its title and buttons staying in view) */
+.dialog:not(.popup) { display: flex; flex-direction: column; }
+.dialog:not(.popup) > h2, .dialog:not(.popup) > .actions { flex: none; }
+.dialog:not(.popup) > .body { flex: 0 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .menu { position: fixed; min-width: 220px; padding: 6px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line-2); box-shadow: var(--shadow); z-index: 70; animation: menuIn calc(300ms * var(--anim, 1)) cubic-bezier(.22, 1, .36, 1) both; }
 /* lazer's OsuMenu: fades in over 280ms OutQuint while its height unrolls over 300ms OutQuint (from the top, or from the
    bottom for one opened upwards); closing waits 50ms, then fades out */
@@ -23212,6 +23216,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28b', title: 'Look and feel', sections: [
+    { icon: 'sparkle', title: 'Look and feel', items: ['Long windows, like Keyboard shortcuts, scroll inside and keep their Close button in view'] },
+  ] },
   { id: '2026.10.28', title: 'Multiplayer', sections: [
     { icon: 'multi', title: 'Multiplayer', items: ['Not the host? Recommend a beatmap from your own library', 'The host changes speed mods (DT, HT…) without a vote', 'Room buttons no longer wrap, and difficulties don\'t say the key count twice'] },
   ] },
@@ -31343,7 +31350,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '634b0a78cbee';
+const APP_BUILD = '40295923b0a1';
 
 const App = {
   lastReport: null,

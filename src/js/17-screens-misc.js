@@ -914,6 +914,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28b', title: 'Look and feel', sections: [
+    { icon: 'sparkle', title: 'Look and feel', items: ['Long windows, like Keyboard shortcuts, scroll inside and keep their Close button in view'] },
+  ] },
   { id: '2026.10.28', title: 'Multiplayer', sections: [
     { icon: 'multi', title: 'Multiplayer', items: ['Not the host? Recommend a beatmap from your own library', 'The host changes speed mods (DT, HT…) without a vote', 'Room buttons no longer wrap, and difficulties don\'t say the key count twice'] },
   ] },
