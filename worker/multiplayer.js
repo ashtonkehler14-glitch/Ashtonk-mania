@@ -738,6 +738,8 @@ export function cleanPlayerCode(s) {
   return /^[0-9A-HJKMNP-TV-Z]{16}$/.test(c) ? c : '';
 }
 export const codeHash = c => sha256hex('ashtonk-code:' + c);
+/** How long a ticket in a saved HTML file signs it in for (Matchmaker.account). */
+export const TICKET_MS = 24 * 3600 * 1000;
 /** The hash of the server owner's code (the ADMIN_CODE secret), or '' when there's none. */
 export const adminCodeHash = env => { const c = cleanPlayerCode(env && env.ADMIN_CODE); return c ? codeHash(c) : ''; };
 
@@ -2286,7 +2288,11 @@ export class Matchmaker {
   /** Player codes: code {pid, key} → a new code for this player (the old one stops working); link {code, pid, key} →
    *  this device becomes the code's player (a key of its own; the player it was goes into them); logout {pid, key} →
    *  this device's key stops working; others {pid, key} → every other device's does. Codes are tried a few times per
-   *  address and only so often overall; a wrong one gets the same answer, after the same pause, as any other. */
+   *  address and only so often overall; a wrong one gets the same answer, after the same pause, as any other.
+   *  ticket {pid, key} → a one-time ticket for the game saved as an HTML file on this device: link {ticket, pid, key}
+   *  makes the device opening that file this player, once, within TICKET_MS, while their code is still the same.
+   *  Their code isn't in the file as it is — only mixed with a pad that link hands back with the ticket — and the
+   *  server keeps only the ticket's fingerprint. */
   async account(what, request) {
     await this.loadFriends();
     const body = await request.json().catch(() => null);
@@ -2304,6 +2310,32 @@ export class Matchmaker {
       do code = newPlayerCode(); while (P.codes.has(codeHash(code)));
       P.setCode(pid, codeHash(code));
       return json({ ok: true, code });
+    }
+    if (what === 'ticket') {
+      if (!mine || !P.codeOf.has(pid)) return json({ error: 'Get your code first: the file signs in with it.' }, 403);
+      if (!this.allowTry('tk:' + pid, 10)) return json({ error: 'Too many at once. Try again in a few minutes.' }, 429);
+      // (tickets never used — a file saved and never opened — are cleared as new ones are made)
+      const kept = await this.state.storage.list({ prefix: 'tk:', limit: 200 }).catch(() => new Map());
+      for (const [k, v] of kept) if (!v || v.exp < Date.now()) await this.state.storage.delete(k).catch(() => {});
+      const ticket = randomHex(16), pad = newPlayerCode();
+      await this.state.storage.put(`tk:${codeHash(ticket)}`, { pid, ch: P.codeOf.get(pid), pad, exp: Date.now() + TICKET_MS });
+      return json({ ok: true, ticket, pad });
+    }
+    if (what === 'link' && typeof body.ticket === 'string') {
+      const t0 = Date.now(), ticket = body.ticket.slice(0, 64);
+      const settle = async () => { const w = 400 - (Date.now() - t0); if (w > 0) await new Promise(r => setTimeout(r, w)); };
+      if (this.triesOf('lw:' + ip) >= 10 || !this.allowTry('l:' + ip, 100)) { await settle(); return json({ error: 'Too many codes tried from here. Wait a few minutes and try again.' }, 429); }
+      const at = `tk:${codeHash(ticket)}`, t = /^[0-9a-f]{32}$/.test(ticket) ? await this.state.storage.get(at).catch(() => null) : null;
+      if (t) await this.state.storage.delete(at).catch(() => {}); // (once only, whatever comes of it)
+      // (gone, used, out of date, or the player has had a new code since)
+      if (!t || t.exp < Date.now() || P.codeOf.get(t.pid) !== t.ch) { this.allowTry('lw:' + ip, 1e9); await settle(); return json({ error: 'This file\'s sign-in has run out. Type your code to play as yourself here.' }, 401); }
+      if (/^[a-z0-9]{6,24}$/.test(pid) && pid !== t.pid && P.keyOk(pid, key)) await Promise.all([this.preloadPlayer(pid), this.preloadPlayer(t.pid, false)]);
+      else await this.preloadPlayer(t.pid, false);
+      const newKey = randomHex(32), r = P.linkDevice(t.pid, pid, key, newKey);
+      this.send(r.out);
+      if (r.merged && pid !== r.pid && this.env && this.env.VAULT) this.env.VAULT.get(this.env.VAULT.idFromName(pid)).fetch('https://vault/wipe', { method: 'POST' }).catch(() => {});
+      await settle();
+      return json({ ok: true, pid: r.pid, key: newKey, name: r.name, merged: r.merged, pad: t.pad });
     }
     if (what === 'link') {
       const t0 = Date.now(), c = cleanPlayerCode(body.code);
@@ -2334,6 +2366,9 @@ export class Matchmaker {
     }
     if (what === 'others') {
       if (!mine) return json({ error: 'This device isn\'t signed in as that player.' }, 403);
+      // (an HTML file saved with a sign-in in it, not opened yet: that's shut out too)
+      const kept = await this.state.storage.list({ prefix: 'tk:' }).catch(() => new Map());
+      for (const [k, v] of kept) if (v && (v.pid === pid || v.exp < Date.now())) await this.state.storage.delete(k).catch(() => {});
       const r = P.onlyKey(pid, key);
       this.send(r.out);
       setTimeout(() => this.closeGone(r.gone), 200); // (after they've been told)
@@ -2838,10 +2873,10 @@ export async function beatmapStatus(r, md5, env, get = officialGet, again = true
  *  keeps them (each once), scores {pid, key, after} sends the ones kept after that sequence number, a page at a time. */
 export async function handleAccount(request, env, url) {
   if (!env.MATCHMAKER) return json({ error: 'Accounts aren\'t available on this server.' }, 503);
-  const m = /^\/api\/account\/(code|link|logout|others|settings|restore|skin|skin-up|scores|scores-up)$/.exec(url.pathname);
+  const m = /^\/api\/account\/(code|link|ticket|logout|others|settings|restore|skin|skin-up|scores|scores-up)$/.exec(url.pathname);
   if (request.method !== 'POST' || !m) return json({ error: 'Not found' }, 404);
   const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global')), what = m[1];
-  if (/^(code|link|logout|others)$/.test(what)) {
+  if (/^(code|link|ticket|logout|others)$/.test(what)) {
     const body = (await request.text()).slice(0, 4096);
     return stub.fetch(new Request(new URL(url.pathname, url), { method: 'POST', body, headers: { 'content-type': 'application/json', 'x-ip': request.headers.get('cf-connecting-ip') || '' } }));
   }

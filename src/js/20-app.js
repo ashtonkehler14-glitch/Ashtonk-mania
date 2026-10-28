@@ -75,6 +75,7 @@ const App = {
     if (BeatmapManager.sets.length) this.keepStorage({ start: true }); // (a library to keep: see keepStorage)
     setTimeout(() => this.checkSpace().catch(() => {}), 8000);
     const returning = !!ProfileManager.profile.onboarded;
+    if (!returning) await this.signInFromFile();
     if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }
     else setTimeout(() => WhatsNew.maybeShow(), 1200);
     this.takeShared();
@@ -394,6 +395,18 @@ const App = {
       const files = await Promise.all(params.files.map(f => f.getFile()));
       this.importFiles(files);
     });
+  },
+  /** The game saved as an HTML file by a player with a code, opened here for the first time: its ticket makes this
+   *  device them (Account.linkCarry) before the setup, which then starts at "Welcome back" and brings their things.
+   *  Tried once a file: one that's run out (a day on, or opened already) is the usual setup. */
+  async signInFromFile() {
+    const carry = window.AM_CARRY;
+    if (!Host.standalone || !Host.online() || !carry || !carry.t || Account.linked()) return;
+    try { if (localStorage.getItem('am.carryTried') === carry.t) return; localStorage.setItem('am.carryTried', carry.t); } catch { return; }
+    const p = setTimeout(() => Toast.show('Signing in…', 'Bringing your scores, settings and skin into this file.'), 1500);
+    try { await Account.linkCarry(carry); }
+    catch (e) { console.warn('file sign-in', e); }
+    finally { clearTimeout(p); }
   },
   /** Files shared to the installed app from another app (Android's share sheet): the service worker kept them. */
   async takeShared() {

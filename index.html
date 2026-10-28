@@ -23335,6 +23335,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28j', title: 'HTML file', sections: [
+    { icon: 'download', title: 'Saved as an HTML file', items: ['Save the game as an HTML file while you have a code and the file opens as you the first time — your scores, settings, collections, favourites and skin come with it, no code to type (it works once, within a day)'] },
+  ] },
   { id: '2026.10.28i', title: 'Polish', sections: [
     { icon: 'sparkle', title: 'Polish', items: ['On a phone with wide columns, the chat during a multiplayer song only shows new messages, so it stays off your notes', 'Neru no longer pops up over the back button after a match'] },
   ] },
@@ -30451,7 +30454,8 @@ const HtmlFile = {
   busy: false,
   /** The website the file is put together from. */
   base() { return Host.standalone ? Host.server() : new URL('.', location.href).href; },
-  async build(onProgress = () => {}, fresh = false) {
+  /** `carry`: the sign-in it opens with the first time (Account.carry), when it's saved by a player with a code. */
+  async build(onProgress = () => {}, fresh = false, carry = null) {
     const base = this.base();
     if (!base) throw new Error('Set the game\'s website address first.');
     const get = async (path, as) => {
@@ -30485,7 +30489,7 @@ const HtmlFile = {
     // the page's own references to bundled files (favicon, the cursor's glow in the CSS); the manifest is for the website
     for (const [path, data] of Object.entries(assets)) page = page.split(`url(${path})`).join(`url("${data}")`).split(`href="${path}"`).join(`href="${data}"`);
     page = page.replace(/<link rel="manifest"[^>]*>\n?/, '');
-    const head = `<script>window.AM_SERVER=${jsString(base)};window.AM_SAVED=${Date.now()};window.AM_ASSETS=${jsString(assets)};<\/script>\n`;
+    const head = `<script>window.AM_SERVER=${jsString(base)};window.AM_SAVED=${Date.now()};${carry ? `window.AM_CARRY=${JSON.stringify({ t: String(carry.t).replace(/[^0-9a-f]/g, ''), c: String(carry.c).replace(/[^0-9A-Z]/g, '') })};` : ''}window.AM_ASSETS=${jsString(assets)};<\/script>\n`;
     // (before the game's script, which reads them as it starts; after the loading screen, so that shows first)
     const at = page.lastIndexOf('<script>\n"use strict"');
     page = at >= 0 ? page.slice(0, at) + head + page.slice(at) : page.replace('</head>', head + '</head>');
@@ -30517,7 +30521,10 @@ const HtmlFile = {
     this.busy = true;
     const p = Toast.progress(Host.standalone ? 'Getting the newest version' : 'Saving the game as an HTML file', 'Packing the skins and pictures…');
     try {
-      const blob = await this.build(f => p.set(f));
+      // (saved from the website by a player with a code: the file opens as them — once, within a day — and brings
+      // their things along, rather than starting as a new player)
+      const carry = Host.standalone ? null : await Account.carry().catch(e => { console.warn('file sign-in', e); return null; });
+      const blob = await this.build(f => p.set(f), false, carry);
       downloadBlob(blob, this.NAME);
       p.done('HTML file saved', `${this.NAME} (${fmtBytes(blob.size)}): open it in a browser to play — no website needed.`);
     } catch (e) { p.fail('Couldn\'t save the HTML file', friendlyError(e)); }
@@ -30739,10 +30746,30 @@ const Account = {
     if (!c) throw new Error('A code is 16 letters and numbers, like K7QM-3XRA-9DPZ-W2HF. Check it and try again.');
     const was = this.linked() && !this.signedOut() ? this.me().pid : null;
     const d = await this.call('link', { code: c, ...this.me() });
+    return this.became(d, c, was);
+  },
+  /** For the game saved as an HTML file here: a one-time ticket that signs the file in as you the first time it's
+   *  opened, within a day (Matchmaker.account) — with your code mixed with the server's pad, so the file shows it
+   *  once it's signed in but doesn't hold it as it is. Null when this device has no code to go with it. */
+  async carry() {
+    const c = this.clean(this.code());
+    if (!c || !this.linked() || this.signedOut()) return null;
+    const d = await this.call('ticket', this.me()), A = this.ALPHABET;
+    return { t: d.ticket, c: [...c].map((x, i) => A[(A.indexOf(x) + A.indexOf(d.pad[i])) % 32]).join('') };
+  },
+  /** A saved HTML file opened for the first time: the ticket it was saved with makes this device you. */
+  async linkCarry(carry) {
+    const d = await this.call('link', { ticket: String(carry.t || ''), ...this.me() }), A = this.ALPHABET;
+    const c = this.clean([...String(carry.c || '')].map((x, i) => A[(A.indexOf(x) - A.indexOf((d.pad || '')[i]) + 32) % 32]).join(''));
+    return this.became(d, c, null);
+  },
+  /** The server has made this device `d.pid` (with the code `c`, '' if it isn't known here). */
+  async became(d, c, was) {
     if (was && d.pid !== was) await this.wipeLocal();
     try {
       localStorage.setItem('am.pid', d.pid); localStorage.setItem('am.key', d.key);
-      localStorage.setItem('am.code', this.format(c)); localStorage.setItem('am.linked', '1');
+      if (c) localStorage.setItem('am.code', this.format(c)); else localStorage.removeItem('am.code');
+      localStorage.setItem('am.linked', '1');
       localStorage.removeItem('am.signedOut');
       localStorage.setItem('am.restore', '1'); // (your settings and skin to come: Sync.restore)
     } catch { /* private mode */ }
@@ -31361,7 +31388,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '67a90f8f9dab';
+const APP_BUILD = 'd3c1ff1f8479';
 
 const App = {
   lastReport: null,
@@ -31432,6 +31459,7 @@ const App = {
     if (BeatmapManager.sets.length) this.keepStorage({ start: true }); // (a library to keep: see keepStorage)
     setTimeout(() => this.checkSpace().catch(() => {}), 8000);
     const returning = !!ProfileManager.profile.onboarded;
+    if (!returning) await this.signInFromFile();
     if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }
     else setTimeout(() => WhatsNew.maybeShow(), 1200);
     this.takeShared();
@@ -31751,6 +31779,18 @@ const App = {
       const files = await Promise.all(params.files.map(f => f.getFile()));
       this.importFiles(files);
     });
+  },
+  /** The game saved as an HTML file by a player with a code, opened here for the first time: its ticket makes this
+   *  device them (Account.linkCarry) before the setup, which then starts at "Welcome back" and brings their things.
+   *  Tried once a file: one that's run out (a day on, or opened already) is the usual setup. */
+  async signInFromFile() {
+    const carry = window.AM_CARRY;
+    if (!Host.standalone || !Host.online() || !carry || !carry.t || Account.linked()) return;
+    try { if (localStorage.getItem('am.carryTried') === carry.t) return; localStorage.setItem('am.carryTried', carry.t); } catch { return; }
+    const p = setTimeout(() => Toast.show('Signing in…', 'Bringing your scores, settings and skin into this file.'), 1500);
+    try { await Account.linkCarry(carry); }
+    catch (e) { console.warn('file sign-in', e); }
+    finally { clearTimeout(p); }
   },
   /** Files shared to the installed app from another app (Android's share sheet): the service worker kept them. */
   async takeShared() {

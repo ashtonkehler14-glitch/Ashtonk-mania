@@ -51,6 +51,8 @@ async function open(ctx, where, name) {
   await page.goto(where);
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 60000 });
   await page.waitForTimeout(300);
+  // (a file signing itself in first: its setup comes once that's been tried)
+  if (where.startsWith('file:')) await page.waitForSelector('.onboarding', { timeout: 5000 }).catch(() => {});
   if (await page.$('.onboarding')) { await setupName(page, name); await page.waitForSelector('.setup-step-wom, .setup-step-mobile'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300); }
   await page.evaluate(async () => {
     const M = AshtonkMania.Medals;
@@ -72,6 +74,7 @@ try {
     return !!b;
   });
   check('Settings → Maintenance has "Save as an HTML file"', btn);
+  await site.waitForFunction(() => !!AshtonkMania.Account.code() && AshtonkMania.Account.linked(), null, { timeout: 20000 }).catch(() => {});
   const [download] = await Promise.all([site.waitForEvent('download', { timeout: 60000 }), site.evaluate(() => AshtonkMania.HtmlFile.save())]);
   const dir = mkdtempSync(join(tmpdir(), 'am-html-'));
   const file = join(dir, download.suggestedFilename());
@@ -88,13 +91,30 @@ try {
   const viaKey = await Promise.all([site.waitForEvent('download', { timeout: 60000 }), site.keyboard.press('Control+s')]).then(([d]) => d.suggestedFilename()).catch(e => 'ERR ' + e.message);
   check('Ctrl+S saves the game as the HTML file', viaKey === 'Ashtonk!mania.html', viaKey);
 
-  // 2) opened from the device
+  // 1b) saved by a player with a code: the file signs itself in as them the first time it's opened — once
+  const siteMe = await site.evaluate(() => ({ code: AshtonkMania.Account.code(), pid: AshtonkMania.Presence.pid() }));
+  const carried = /window\.AM_CARRY=\{"t":"[0-9a-f]{32}","c":"[0-9A-Z]{16}"\}/.test(html) && !!siteMe.code && !html.includes(siteMe.code.replace(/-/g, ''));
+  check('saved by a player with a code, the file carries a one-time sign-in (not the code as it is)', carried, siteMe.code);
+  {
+    const cctx = await browser.newContext({ viewport: { width: 1400, height: 800 } });
+    const cp = await cctx.newPage();
+    cp.on('pageerror', e => errors.push(`FirstOpen pageerror: ${e.message}`));
+    await cp.goto(pathToFileURL(file).href);
+    await cp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 60000 });
+    await cp.waitForFunction(() => /Playing as/.test((document.querySelector('.onboarding') || {}).textContent || ''), null, { timeout: 20000 }).catch(() => {});
+    const first = await cp.evaluate(() => ({ text: ((document.querySelector('.onboarding') || {}).textContent || '').slice(0, 160), pid: AshtonkMania.Presence.pid(), code: AshtonkMania.Account.code() }));
+    check('opened for the first time, it\'s that player: the setup says welcome back and brings their things', /Welcome back/.test(first.text) && /Playing as Site/.test(first.text) && first.pid === siteMe.pid && first.code === siteMe.code, JSON.stringify(first));
+    await cctx.close();
+  }
+
+  // 2) opened from the device (another one: the file's sign-in is spent, so the usual setup — a new player)
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 800 } });
   const failed = [];
   ctx.on('requestfailed', r => failed.push(r.url().slice(0, 120) + ' ' + (r.failure() || {}).errorText));
   const fp = await open(ctx, pathToFileURL(file).href, 'FileCopy');
   const st = await fp.evaluate(() => ({ standalone: AshtonkMania.Host.standalone, server: AshtonkMania.Host.server(), proto: location.protocol }));
   check('opened from the device, it runs as the saved copy and talks to the website', st.proto === 'file:' && st.standalone && st.server === url + '/', JSON.stringify(st));
+  check('…opened again elsewhere, its sign-in is spent: a new player, set up as usual', await fp.evaluate(p => AshtonkMania.Presence.pid() !== p && AshtonkMania.ProfileManager.profile.name === 'FileCopy', siteMe.pid));
   const skins = await fp.evaluate(() => ({ current: AshtonkMania.SkinManager.current.name, all: AshtonkMania.SkinManager.skins.map(s => s.name) }));
   check('Kori is installed and selected from inside the file', /kori/i.test(skins.current), JSON.stringify(skins));
   const looks = await fp.evaluate(() => ({ cursor: (document.querySelector('.lzc-img') || {}).src || '', avatar: AshtonkMania.AvatarPresets.url('miku') || '', neru: (document.querySelector('.neru-img') || {}).src || '' }));

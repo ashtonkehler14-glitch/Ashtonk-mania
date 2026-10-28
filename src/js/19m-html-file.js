@@ -11,7 +11,8 @@ const HtmlFile = {
   busy: false,
   /** The website the file is put together from. */
   base() { return Host.standalone ? Host.server() : new URL('.', location.href).href; },
-  async build(onProgress = () => {}, fresh = false) {
+  /** `carry`: the sign-in it opens with the first time (Account.carry), when it's saved by a player with a code. */
+  async build(onProgress = () => {}, fresh = false, carry = null) {
     const base = this.base();
     if (!base) throw new Error('Set the game\'s website address first.');
     const get = async (path, as) => {
@@ -45,7 +46,7 @@ const HtmlFile = {
     // the page's own references to bundled files (favicon, the cursor's glow in the CSS); the manifest is for the website
     for (const [path, data] of Object.entries(assets)) page = page.split(`url(${path})`).join(`url("${data}")`).split(`href="${path}"`).join(`href="${data}"`);
     page = page.replace(/<link rel="manifest"[^>]*>\n?/, '');
-    const head = `<script>window.AM_SERVER=${jsString(base)};window.AM_SAVED=${Date.now()};window.AM_ASSETS=${jsString(assets)};<\/script>\n`;
+    const head = `<script>window.AM_SERVER=${jsString(base)};window.AM_SAVED=${Date.now()};${carry ? `window.AM_CARRY=${JSON.stringify({ t: String(carry.t).replace(/[^0-9a-f]/g, ''), c: String(carry.c).replace(/[^0-9A-Z]/g, '') })};` : ''}window.AM_ASSETS=${jsString(assets)};<\/script>\n`;
     // (before the game's script, which reads them as it starts; after the loading screen, so that shows first)
     const at = page.lastIndexOf('<script>\n"use strict"');
     page = at >= 0 ? page.slice(0, at) + head + page.slice(at) : page.replace('</head>', head + '</head>');
@@ -77,7 +78,10 @@ const HtmlFile = {
     this.busy = true;
     const p = Toast.progress(Host.standalone ? 'Getting the newest version' : 'Saving the game as an HTML file', 'Packing the skins and pictures…');
     try {
-      const blob = await this.build(f => p.set(f));
+      // (saved from the website by a player with a code: the file opens as them — once, within a day — and brings
+      // their things along, rather than starting as a new player)
+      const carry = Host.standalone ? null : await Account.carry().catch(e => { console.warn('file sign-in', e); return null; });
+      const blob = await this.build(f => p.set(f), false, carry);
       downloadBlob(blob, this.NAME);
       p.done('HTML file saved', `${this.NAME} (${fmtBytes(blob.size)}): open it in a browser to play — no website needed.`);
     } catch (e) { p.fail('Couldn\'t save the HTML file', friendlyError(e)); }
