@@ -64,21 +64,25 @@ const MpResults = {
     this._key = key; this._final = !!res;
     const me = Multiplayer.me, mine = rows.find(r => r.id === me);
     // (everyone's song is over and the server is still checking the plays: say so, not "waiting for the others")
-    let verdict = rows.some(r => r.pending) ? 'Waiting for the others to finish…' : 'Checking the scores…', cls = 'wait';
+    let verdict = rows.some(r => r.pending) ? 'Waiting for the others to finish…' : 'Checking the scores…', cls = 'wait', teams = null;
     if (res) {
       if (res.teams) {
         const my = mine ? mine.team : null;
         verdict = res.winnerTeam === null ? 'Draw' : `${res.winnerTeam ? 'Blue' : 'Red'} team wins!`;
         cls = res.winnerTeam === null ? 'draw' : res.winnerTeam === my ? 'won' : 'lost';
+        // (lazer's team results: the winning team's name in its colour, and both teams' totals under it)
+        if (res.winnerTeam !== null) cls += res.winnerTeam ? ' team-blue' : ' team-red';
+        const fmt = v => res.win === 'score' ? fmtScore(v) : res.win === 'accuracy' ? fmtAcc(v) : res.win === 'combo' ? `${fmtInt(v)}x` : `${fmtInt(v)}pp`;
+        teams = h('div.mpr-teams', h(`span.red${res.winnerTeam === 0 ? '.win' : ''}`, 'Red', h('b', fmt(res.teams[0].total))), h('span.vs', 'vs'), h(`span.blue${res.winnerTeam === 1 ? '.win' : ''}`, h('b', fmt(res.teams[1].total)), 'Blue'));
       } else {
         verdict = res.winner === null ? 'Draw' : res.winner === me ? 'You win!' : rows.length > 2 && mine ? `You placed #${mine.place}` : 'You lose';
         cls = res.winner === null ? 'draw' : res.winner === me ? 'won' : 'lost';
       }
     }
     const map = (res && res.map) || (Multiplayer.room && Multiplayer.room.map);
-    clearEl(this.head).append(h(`div.mpr-verdict.${cls}`, verdict), map ? h('div.mpr-map', `${map.artist} - ${map.title}`, map.version ? h('span', ` [${map.version}]`) : null) : null);
+    clearEl(this.head).append(h('div', { class: `mpr-verdict ${cls}` }, verdict), teams, map ? h('div.mpr-map', `${map.artist} - ${map.title}`, map.version ? h('span', ` [${map.version}]`) : null) : null);
     // (the match decided: Neru peeks up — sunglasses on for a win, laughing at a loss, a blank look at a draw)
-    if (res && first && typeof NeruEggs !== 'undefined') NeruEggs.matchOver(cls);
+    if (res && first && typeof NeruEggs !== 'undefined') NeruEggs.matchOver(cls.split(' ')[0]);
     let at = rows.findIndex(r => r.id === this.focus);
     if (at < 0) { this.focus = me; at = rows.findIndex(r => r.id === me); }
     // (any other panel can be picked: it becomes the big one in the middle, as lazer's results do)

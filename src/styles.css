@@ -1297,7 +1297,13 @@ html.touch .practice-bar .kbd { display: none; }
 .mp-chat-list { flex: 1; min-height: 120px; overflow: auto; display: flex; flex-direction: column; gap: 4px; font-size: .9rem; }
 .mp-msg b { color: var(--accent-3); font-weight: 600; margin-right: 8px; }
 .mp-msg.sys { color: var(--muted); font-size: .8rem; }
-.mp-footer { display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 24px; background: rgba(0, 0, 0, .8); flex: none; }
+.mp-msg.mine b { color: var(--accent); }
+.mp-footer { position: relative; display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 24px; background: rgba(0, 0, 0, .8); flex: none; }
+/* (a new chat message while the chat's off the screen: a pill above the footer) */
+.mp-chat-new { position: absolute; left: 50%; bottom: calc(100% + 10px); translate: -50% 0; z-index: 6; display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; font: inherit; font-size: .9rem; font-weight: 700; white-space: nowrap; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); cursor: pointer; animation: mpChatIn 280ms var(--ease-out) both; }
+.mp-chat-new[hidden] { display: none; }
+.mp-chat-new .i { width: 16px; height: 16px; }
+@keyframes mpChatIn { from { opacity: 0; translate: -50% 12px; } }
 .mp-ready, .mp-start { height: 44px; min-width: 180px; padding: 0 24px; border: 0; border-radius: 8px; font-size: 1rem; font-weight: 600; color: #fff; background: #88b300; transition: filter var(--t-fast), transform var(--t-fast); }
 .mp-ready.on { background: #555; }
 .mp-start { background: var(--accent); }
@@ -3803,6 +3809,12 @@ body.spec-rk-on > #app { visibility: hidden; } /* (only your own: the copy of th
 .mpr { position: absolute; inset: var(--toolbar-h) 0 0; display: flex; flex-direction: column; }
 .mpr-verdict { font-size: 40px; font-weight: 600; line-height: 1.1; }
 .mpr-verdict.won { color: #b2ff66; } .mpr-verdict.lost { color: #ff6666; } .mpr-verdict.draw { color: #ffcc22; } .mpr-verdict.wait { font-size: 24px; font-weight: 400; color: hsl(200 40% 90%); }
+.mpr-verdict.team-red { color: #ff6b6b; } .mpr-verdict.team-blue { color: #66ccff; }
+.mpr-teams { display: flex; align-items: baseline; justify-content: center; gap: 14px; margin-top: 6px; font-size: 15px; font-weight: 600; }
+.mpr-teams b { margin: 0 6px; font-size: 22px; font-variant-numeric: tabular-nums; }
+.mpr-teams .red { color: #ff8080; } .mpr-teams .blue { color: #80d4ff; }
+.mpr-teams span:not(.win):not(.vs) { opacity: .65; }
+.mpr-teams .vs { color: hsl(200 40% 90%); font-size: 13px; font-weight: 400; }
 .mpr-map { margin-top: 4px; font-size: 16px; color: hsl(200 40% 90%); }
 .mpr-map span { color: #fff; font-weight: 600; }
 .cp { flex: none; display: flex; flex-direction: column; width: 130px; height: 385px; transition: transform 400ms var(--ease-out); }

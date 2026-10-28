@@ -1123,7 +1123,14 @@ const NeruEggs = {
     if (side === 'right') el.classList.add('right');
     // (the chat open: up from behind its top edge, never over what's being said)
     const chat = document.querySelector('.chat:not(.out)');
-    if (chat) { el.classList.add('behind'); el.style.bottom = `${((1 - chat.getBoundingClientRect().top / innerHeight) * 100).toFixed(2)}%`; }
+    let edge = chat ? chat.getBoundingClientRect().top : innerHeight;
+    // (a bar along the bottom where she comes up — the back button, the results' buttons: from behind its top edge
+    // too, rather than over them)
+    if (!chat) for (const e of document.elementsFromPoint(side === 'right' ? innerWidth - 120 : 120, innerHeight - 3)) {
+      const r = e.getBoundingClientRect();
+      if (r.bottom >= innerHeight - 4 && r.height > 8 && r.height < innerHeight * 0.2) edge = Math.min(edge, r.top);
+    }
+    if (edge < innerHeight - 4) { el.classList.add('behind'); el.style.bottom = `${((1 - edge / innerHeight) * 100).toFixed(2)}%`; }
     document.body.append(el);
     if (found) this.found('peek');
     const up = [{ transform: 'translateY(105%)' }, { transform: 'translateY(38%)', offset: 0.55 }, { transform: 'translateY(42%)' }];

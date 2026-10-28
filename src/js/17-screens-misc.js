@@ -916,6 +916,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28c', title: 'Multiplayer', sections: [
+    { icon: 'multi', title: 'Multiplayer', items: ['The playfield shows during the countdown before a match', 'Team Versus results show both teams\' totals in their colours', 'On a phone, a new chat message pops up when the chat is off the screen', 'Neru no longer peeks up over the back button'] },
+  ] },
   { id: '2026.10.28b', title: 'Look and feel', sections: [
     { icon: 'sparkle', title: 'Look and feel', items: ['Long windows, like Keyboard shortcuts, scroll inside and keep their Close button in view', 'First-run setup: the Web-Osu-Mania question looks like the others'] },
   ] },

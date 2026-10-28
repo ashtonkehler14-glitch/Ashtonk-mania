@@ -1498,6 +1498,8 @@ test('the host can hand the room over and kick players between matches (lazer\'s
   const out = r.message('a', { t: 'kick', id: 'c' });
   assert.deepEqual(out[0], { to: 'c', msg: { t: 'kicked' } });
   assert.deepEqual(r.players.map(p => p.id), ['a', 'b']);
+  // (the room's told once why Cat's gone — not "removed" and then "left" as well)
+  assert.deepEqual(msgs(out, 'chat').map(m => m.msg.text), ['Cat was removed from the room']);
   assert.deepEqual(r.message('b', { t: 'giveHost', id: 'b' }), [], 'only the host hands it over');
   assert.equal(msgs(r.message('a', { t: 'giveHost', id: 'b' }), 'room').length, 1);
   assert.equal(r.hostId, 'b');

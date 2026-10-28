@@ -1314,7 +1314,13 @@ html.touch .practice-bar .kbd { display: none; }
 .mp-chat-list { flex: 1; min-height: 120px; overflow: auto; display: flex; flex-direction: column; gap: 4px; font-size: .9rem; }
 .mp-msg b { color: var(--accent-3); font-weight: 600; margin-right: 8px; }
 .mp-msg.sys { color: var(--muted); font-size: .8rem; }
-.mp-footer { display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 24px; background: rgba(0, 0, 0, .8); flex: none; }
+.mp-msg.mine b { color: var(--accent); }
+.mp-footer { position: relative; display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 24px; background: rgba(0, 0, 0, .8); flex: none; }
+/* (a new chat message while the chat's off the screen: a pill above the footer) */
+.mp-chat-new { position: absolute; left: 50%; bottom: calc(100% + 10px); translate: -50% 0; z-index: 6; display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; font: inherit; font-size: .9rem; font-weight: 700; white-space: nowrap; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); cursor: pointer; animation: mpChatIn 280ms var(--ease-out) both; }
+.mp-chat-new[hidden] { display: none; }
+.mp-chat-new .i { width: 16px; height: 16px; }
+@keyframes mpChatIn { from { opacity: 0; translate: -50% 12px; } }
 .mp-ready, .mp-start { height: 44px; min-width: 180px; padding: 0 24px; border: 0; border-radius: 8px; font-size: 1rem; font-weight: 600; color: #fff; background: #88b300; transition: filter var(--t-fast), transform var(--t-fast); }
 .mp-ready.on { background: #555; }
 .mp-start { background: var(--accent); }
@@ -3818,6 +3824,12 @@ body.spec-rk-on > #app { visibility: hidden; } /* (only your own: the copy of th
 .mpr { position: absolute; inset: var(--toolbar-h) 0 0; display: flex; flex-direction: column; }
 .mpr-verdict { font-size: 40px; font-weight: 600; line-height: 1.1; }
 .mpr-verdict.won { color: #b2ff66; } .mpr-verdict.lost { color: #ff6666; } .mpr-verdict.draw { color: #ffcc22; } .mpr-verdict.wait { font-size: 24px; font-weight: 400; color: hsl(200 40% 90%); }
+.mpr-verdict.team-red { color: #ff6b6b; } .mpr-verdict.team-blue { color: #66ccff; }
+.mpr-teams { display: flex; align-items: baseline; justify-content: center; gap: 14px; margin-top: 6px; font-size: 15px; font-weight: 600; }
+.mpr-teams b { margin: 0 6px; font-size: 22px; font-variant-numeric: tabular-nums; }
+.mpr-teams .red { color: #ff8080; } .mpr-teams .blue { color: #80d4ff; }
+.mpr-teams span:not(.win):not(.vs) { opacity: .65; }
+.mpr-teams .vs { color: hsl(200 40% 90%); font-size: 13px; font-weight: 400; }
 .mpr-map { margin-top: 4px; font-size: 16px; color: hsl(200 40% 90%); }
 .mpr-map span { color: #fff; font-weight: 600; }
 .cp { flex: none; display: flex; flex-direction: column; width: 130px; height: 385px; transition: transform 400ms var(--ease-out); }
@@ -16462,7 +16474,14 @@ const NeruEggs = {
     if (side === 'right') el.classList.add('right');
     // (the chat open: up from behind its top edge, never over what's being said)
     const chat = document.querySelector('.chat:not(.out)');
-    if (chat) { el.classList.add('behind'); el.style.bottom = `${((1 - chat.getBoundingClientRect().top / innerHeight) * 100).toFixed(2)}%`; }
+    let edge = chat ? chat.getBoundingClientRect().top : innerHeight;
+    // (a bar along the bottom where she comes up — the back button, the results' buttons: from behind its top edge
+    // too, rather than over them)
+    if (!chat) for (const e of document.elementsFromPoint(side === 'right' ? innerWidth - 120 : 120, innerHeight - 3)) {
+      const r = e.getBoundingClientRect();
+      if (r.bottom >= innerHeight - 4 && r.height > 8 && r.height < innerHeight * 0.2) edge = Math.min(edge, r.top);
+    }
+    if (edge < innerHeight - 4) { el.classList.add('behind'); el.style.bottom = `${((1 - edge / innerHeight) * 100).toFixed(2)}%`; }
     document.body.append(el);
     if (found) this.found('peek');
     const up = [{ transform: 'translateY(105%)' }, { transform: 'translateY(38%)', offset: 0.55 }, { transform: 'translateY(42%)' }];
@@ -19704,6 +19723,14 @@ const GameplayScreen = {
     c.t = Math.max(last, t); c.ts = ts;                           // (never backwards)
     return c.t;
   },
+  /** The playfield as it is at `t`, drawn once and left still (before a multiplayer match's synchronised start). */
+  stillFrame(t) {
+    const s = this.s, r = this.renderer;
+    if (!s || !r || !s.scroll) return;
+    const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
+    r.render({ now: t, posNow: s.scroll.pos(t), scroll: s.scroll, pxPerMs: r.scrollLength / (timeRange * s.rate), engine: s.engine, held: s.held, hidden: s.hidden,
+      realNow: performance.now(), keyLabels: s.keyLabels, percy: s.percy, bars: s.bars, flashlight: s.flashlight, snapRed: s.snapRed });
+  },
   loop() {
     // one frame description, reused every frame (no garbage for the collector to pause on mid-song)
     const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null, flashlight: 0, snapRed: null };
@@ -20098,13 +20125,15 @@ const GameplayScreen = {
       T.diff.textContent = red === blue ? '' : `${red > blue ? '◀' : ''} ${fmt(Math.abs(red - blue))} ${blue > red ? '▶' : ''}`;
     }
   },
-  /** Wait for the synchronised start; everyone begins at the same moment. */
+  /** Wait for the synchronised start; everyone begins at the same moment. (The playfield's there meanwhile, still, as it
+   *  starts — the countdown used to run over an empty screen.) */
   async mpWait(s) {
     const el = h('div.mp-countdown');
     this.el.appendChild(el);
     while (this.s === s) {
       const left = s.mp.startAt - performance.now();
       if (left <= 0) break;
+      if (!s.running) this.stillFrame(s.startPos);
       const txt = left > 3000 ? 'Get ready…' : String(Math.ceil(left / 1000));
       if (txt !== el.textContent && left <= 3000) SkinManager.skinOnly(`count${txt}s`);
       el.textContent = txt;
@@ -23219,6 +23248,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28c', title: 'Multiplayer', sections: [
+    { icon: 'multi', title: 'Multiplayer', items: ['The playfield shows during the countdown before a match', 'Team Versus results show both teams\' totals in their colours', 'On a phone, a new chat message pops up when the chat is off the screen', 'Neru no longer peeks up over the back button'] },
+  ] },
   { id: '2026.10.28b', title: 'Look and feel', sections: [
     { icon: 'sparkle', title: 'Look and feel', items: ['Long windows, like Keyboard shortcuts, scroll inside and keep their Close button in view', 'First-run setup: the Web-Osu-Mania question looks like the others'] },
   ] },
@@ -26632,11 +26664,13 @@ const MultiplayerScreen = {
     this.render();
     return this.el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; RankedMatch.unmount(); },
+  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; RankedMatch.unmount(); if (this._chatIO) { this._chatIO.disconnect(); this._chatIO = null; } },
   onBack() {
     if (Multiplayer.inRoom() && Multiplayer.isRP()) { RankedMatch.confirmLeave(); return true; }
     if (Multiplayer.inRoom()) {
-      Dialog.confirm('Leave room?', 'You will leave this multiplayer room.', { ok: 'Leave' }).then(ok => { if (ok) { Multiplayer.leave(); } });
+      // (the host leaving others behind: who takes over)
+      const r = Multiplayer.room, next = Multiplayer.isHost() && r.players.find(p => p.id !== Multiplayer.me);
+      Dialog.confirm('Leave room?', `You'll leave this multiplayer room.${next ? ` ${next.name} becomes the host.` : ''}`, { ok: 'Leave' }).then(ok => { if (ok) { Multiplayer.leave(); } });
       return true;
     }
     return false;
@@ -26810,6 +26844,18 @@ const MultiplayerScreen = {
     input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') Multiplayer.say(input); if (e.key === 'Escape') input.blur(); });
     const chat = h('div.mp-tabpane', this.chatList, input);
     const side = h('div.mp-side', chat);
+    // (where the chat is off the screen — a phone, where it's below the rest — a new message says so above the footer;
+    // a tap scrolls down to it)
+    this._chatNew = 0; this._chatVis = true;
+    this.chatPill = h('button.mp-chat-new', { hidden: true, onclick: () => { UISounds.click(); chat.scrollIntoView({ block: 'end', behavior: 'smooth' }); this.chatPill.hidden = true; this._chatNew = 0; } }, icon('chat'), h('span'));
+    if (this._chatIO) this._chatIO.disconnect();
+    if (typeof IntersectionObserver !== 'undefined') {
+      this._chatIO = new IntersectionObserver(([e]) => {
+        this._chatVis = e.isIntersecting;
+        if (this._chatVis) { this.chatPill.hidden = true; this._chatNew = 0; }
+      }, { threshold: 0.35 });
+      this._chatIO.observe(chat);
+    }
     this.roomEl = h('div.mp-room', this.headEl, this.resEl, h('div.mp-grid.cols3', h('div.mp-col', this.playersEl), h('div.mp-col.mp-left', h('h3.mp-sect', 'Beatmap'), this.mapEl), h('div.mp-col', h('h3.mp-sect', 'Chat'), side)));
     this.body.append(this.roomEl, this.footEl);
     requestAnimationFrame(() => { if (this.chatList) this.chatList.scrollTop = this.chatList.scrollHeight; });
@@ -26930,7 +26976,7 @@ const MultiplayerScreen = {
         host && !isMe ? h('button.mp-pact', { title: `Give host to ${p.name}`, 'aria-label': `Give host to ${p.name}`, onclick: () => { UISounds.click(); Multiplayer.send({ t: 'giveHost', id: p.id }); } }, icon('crown')) : null,
         host && !isMe && !r.players.some(x => x.playing) ? h('button.mp-pact.kick', { title: `Kick ${p.name}`, 'aria-label': `Kick ${p.name}`, onclick: async () => {
           UISounds.click();
-          if (await Dialog.confirm(`Kick ${p.name}?`, 'They\'re removed from the room (they can join again with the code).', { ok: 'Kick', danger: true })) Multiplayer.send({ t: 'kick', id: p.id });
+          if (await Dialog.confirm(`Kick ${p.name}?`, 'They\'re removed from the room (they can join again with the code).', { ok: 'Kick', danger: true, icon: 'user-times' })) Multiplayer.send({ t: 'kick', id: p.id });
         } }, icon('user-times')) : null));
     };
     const open = r.players.length < st.size ? slot(null) : null;
@@ -26968,7 +27014,7 @@ const MultiplayerScreen = {
       b.textContent = fmtTime(Math.max(0, this._autoEnd - Date.now()));
     }, 250);
     // lazer's MultiplayerMatchFooter: the ready / start button wide in the middle (600 at most), the countdown beside it
-    clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn, h('div.grow'));
+    clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn, h('div.grow'), this.chatPill);
   },
 
   /** The mod select, for this player's mods in the room; a speed mod picked there is the room's (the host's) or
@@ -27001,9 +27047,18 @@ const MultiplayerScreen = {
         pick.disabled = false; pick.textContent = 'Pick';
       } }, 'Pick') : null;
       el = h('div.mp-msg.suggest', h('b', m.name), h('span', 'recommended ', h('i', `${map.artist} - ${map.title} [${map.version}]`)), pick);
-    } else el = m.from ? h('div.mp-msg', h('b', m.name), h('span', m.text)) : h('div.mp-msg.sys', m.text);
-    this.chatList.append(el);
-    if (scroll) this.chatList.scrollTop = this.chatList.scrollHeight;
+    } else el = m.from ? h(`div.mp-msg${m.from === Multiplayer.me ? '.mine' : ''}`, h('b', m.name), h('span', m.text)) : h('div.mp-msg.sys', m.text);
+    // (when it was said, on hover — as lazer's chat lines carry their time)
+    if (m.ts) el.title = new Date(m.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    // (scrolled up to read something earlier: a new line doesn't yank the list back down — unless it's yours)
+    const l = this.chatList, atEnd = l.scrollHeight - l.scrollTop - l.clientHeight < 48;
+    l.append(el);
+    if (scroll && (atEnd || m.from === Multiplayer.me)) l.scrollTop = l.scrollHeight;
+    if (scroll && m.from && m.from !== Multiplayer.me && !this._chatVis && this.chatPill) {
+      this._chatNew++;
+      this.chatPill.lastChild.textContent = this._chatNew > 1 ? `${this._chatNew} new messages` : 'New message';
+      this.chatPill.hidden = false;
+    }
   },
   resultsPanel(res) {
     const meId = Multiplayer.me, mine = res.rows.find(x => x.id === meId);
@@ -29474,21 +29529,25 @@ const MpResults = {
     this._key = key; this._final = !!res;
     const me = Multiplayer.me, mine = rows.find(r => r.id === me);
     // (everyone's song is over and the server is still checking the plays: say so, not "waiting for the others")
-    let verdict = rows.some(r => r.pending) ? 'Waiting for the others to finish…' : 'Checking the scores…', cls = 'wait';
+    let verdict = rows.some(r => r.pending) ? 'Waiting for the others to finish…' : 'Checking the scores…', cls = 'wait', teams = null;
     if (res) {
       if (res.teams) {
         const my = mine ? mine.team : null;
         verdict = res.winnerTeam === null ? 'Draw' : `${res.winnerTeam ? 'Blue' : 'Red'} team wins!`;
         cls = res.winnerTeam === null ? 'draw' : res.winnerTeam === my ? 'won' : 'lost';
+        // (lazer's team results: the winning team's name in its colour, and both teams' totals under it)
+        if (res.winnerTeam !== null) cls += res.winnerTeam ? ' team-blue' : ' team-red';
+        const fmt = v => res.win === 'score' ? fmtScore(v) : res.win === 'accuracy' ? fmtAcc(v) : res.win === 'combo' ? `${fmtInt(v)}x` : `${fmtInt(v)}pp`;
+        teams = h('div.mpr-teams', h(`span.red${res.winnerTeam === 0 ? '.win' : ''}`, 'Red', h('b', fmt(res.teams[0].total))), h('span.vs', 'vs'), h(`span.blue${res.winnerTeam === 1 ? '.win' : ''}`, h('b', fmt(res.teams[1].total)), 'Blue'));
       } else {
         verdict = res.winner === null ? 'Draw' : res.winner === me ? 'You win!' : rows.length > 2 && mine ? `You placed #${mine.place}` : 'You lose';
         cls = res.winner === null ? 'draw' : res.winner === me ? 'won' : 'lost';
       }
     }
     const map = (res && res.map) || (Multiplayer.room && Multiplayer.room.map);
-    clearEl(this.head).append(h(`div.mpr-verdict.${cls}`, verdict), map ? h('div.mpr-map', `${map.artist} - ${map.title}`, map.version ? h('span', ` [${map.version}]`) : null) : null);
+    clearEl(this.head).append(h('div', { class: `mpr-verdict ${cls}` }, verdict), teams, map ? h('div.mpr-map', `${map.artist} - ${map.title}`, map.version ? h('span', ` [${map.version}]`) : null) : null);
     // (the match decided: Neru peeks up — sunglasses on for a win, laughing at a loss, a blank look at a draw)
-    if (res && first && typeof NeruEggs !== 'undefined') NeruEggs.matchOver(cls);
+    if (res && first && typeof NeruEggs !== 'undefined') NeruEggs.matchOver(cls.split(' ')[0]);
     let at = rows.findIndex(r => r.id === this.focus);
     if (at < 0) { this.focus = me; at = rows.findIndex(r => r.id === me); }
     // (any other panel can be picked: it becomes the big one in the middle, as lazer's results do)
@@ -31354,7 +31413,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '6cc28b7603cf';
+const APP_BUILD = '490c20aab644';
 
 const App = {
   lastReport: null,

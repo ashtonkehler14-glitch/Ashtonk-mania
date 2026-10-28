@@ -274,7 +274,8 @@ export class RoomLogic {
     this.hostId = next.id;
     return [this.system(`${next.name} is now the host`)];
   }
-  leave(id) {
+  /** (`said`: the room's already been told why they're gone — kicked — so no "left the room" after it) */
+  leave(id, { said = false } = {}) {
     const p = this.get(id);
     if (!p) return [];
     const out = [], wasPlaying = !!p.playing;
@@ -292,7 +293,7 @@ export class RoomLogic {
     if (wasHost) this.hostId = this.players[0].id;
     this.unreadyAll();
     if (this.vote) { this.vote = null; out.push(this.system('Speed mod vote cancelled')); }
-    out.push(this.system(`${p.name} left the room`));
+    if (!said) out.push(this.system(`${p.name} left the room`));
     const q = this.qp;
     if (q && this.state !== 'playing') {
       if (q.phase === 'gather') this.qpGather();
@@ -340,7 +341,7 @@ export class RoomLogic {
       case 'kick': {
         const t = this.get(String(m.id || ''));
         if (!host || !t || t === p || this.state !== 'lobby') return [];
-        return [{ to: t.id, msg: { t: 'kicked' } }, this.system(`${t.name} was removed from the room`), ...this.leave(t.id)];
+        return [{ to: t.id, msg: { t: 'kicked' } }, this.system(`${t.name} was removed from the room`), ...this.leave(t.id, { said: true })];
       }
       case 'giveHost': {
         const t = this.get(String(m.id || ''));

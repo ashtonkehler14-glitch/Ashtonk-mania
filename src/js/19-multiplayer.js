@@ -812,11 +812,13 @@ const MultiplayerScreen = {
     this.render();
     return this.el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; RankedMatch.unmount(); },
+  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; RankedMatch.unmount(); if (this._chatIO) { this._chatIO.disconnect(); this._chatIO = null; } },
   onBack() {
     if (Multiplayer.inRoom() && Multiplayer.isRP()) { RankedMatch.confirmLeave(); return true; }
     if (Multiplayer.inRoom()) {
-      Dialog.confirm('Leave room?', 'You will leave this multiplayer room.', { ok: 'Leave' }).then(ok => { if (ok) { Multiplayer.leave(); } });
+      // (the host leaving others behind: who takes over)
+      const r = Multiplayer.room, next = Multiplayer.isHost() && r.players.find(p => p.id !== Multiplayer.me);
+      Dialog.confirm('Leave room?', `You'll leave this multiplayer room.${next ? ` ${next.name} becomes the host.` : ''}`, { ok: 'Leave' }).then(ok => { if (ok) { Multiplayer.leave(); } });
       return true;
     }
     return false;
@@ -990,6 +992,18 @@ const MultiplayerScreen = {
     input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') Multiplayer.say(input); if (e.key === 'Escape') input.blur(); });
     const chat = h('div.mp-tabpane', this.chatList, input);
     const side = h('div.mp-side', chat);
+    // (where the chat is off the screen — a phone, where it's below the rest — a new message says so above the footer;
+    // a tap scrolls down to it)
+    this._chatNew = 0; this._chatVis = true;
+    this.chatPill = h('button.mp-chat-new', { hidden: true, onclick: () => { UISounds.click(); chat.scrollIntoView({ block: 'end', behavior: 'smooth' }); this.chatPill.hidden = true; this._chatNew = 0; } }, icon('chat'), h('span'));
+    if (this._chatIO) this._chatIO.disconnect();
+    if (typeof IntersectionObserver !== 'undefined') {
+      this._chatIO = new IntersectionObserver(([e]) => {
+        this._chatVis = e.isIntersecting;
+        if (this._chatVis) { this.chatPill.hidden = true; this._chatNew = 0; }
+      }, { threshold: 0.35 });
+      this._chatIO.observe(chat);
+    }
     this.roomEl = h('div.mp-room', this.headEl, this.resEl, h('div.mp-grid.cols3', h('div.mp-col', this.playersEl), h('div.mp-col.mp-left', h('h3.mp-sect', 'Beatmap'), this.mapEl), h('div.mp-col', h('h3.mp-sect', 'Chat'), side)));
     this.body.append(this.roomEl, this.footEl);
     requestAnimationFrame(() => { if (this.chatList) this.chatList.scrollTop = this.chatList.scrollHeight; });
@@ -1110,7 +1124,7 @@ const MultiplayerScreen = {
         host && !isMe ? h('button.mp-pact', { title: `Give host to ${p.name}`, 'aria-label': `Give host to ${p.name}`, onclick: () => { UISounds.click(); Multiplayer.send({ t: 'giveHost', id: p.id }); } }, icon('crown')) : null,
         host && !isMe && !r.players.some(x => x.playing) ? h('button.mp-pact.kick', { title: `Kick ${p.name}`, 'aria-label': `Kick ${p.name}`, onclick: async () => {
           UISounds.click();
-          if (await Dialog.confirm(`Kick ${p.name}?`, 'They\'re removed from the room (they can join again with the code).', { ok: 'Kick', danger: true })) Multiplayer.send({ t: 'kick', id: p.id });
+          if (await Dialog.confirm(`Kick ${p.name}?`, 'They\'re removed from the room (they can join again with the code).', { ok: 'Kick', danger: true, icon: 'user-times' })) Multiplayer.send({ t: 'kick', id: p.id });
         } }, icon('user-times')) : null));
     };
     const open = r.players.length < st.size ? slot(null) : null;
@@ -1148,7 +1162,7 @@ const MultiplayerScreen = {
       b.textContent = fmtTime(Math.max(0, this._autoEnd - Date.now()));
     }, 250);
     // lazer's MultiplayerMatchFooter: the ready / start button wide in the middle (600 at most), the countdown beside it
-    clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn, h('div.grow'));
+    clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn, h('div.grow'), this.chatPill);
   },
 
   /** The mod select, for this player's mods in the room; a speed mod picked there is the room's (the host's) or
@@ -1181,9 +1195,18 @@ const MultiplayerScreen = {
         pick.disabled = false; pick.textContent = 'Pick';
       } }, 'Pick') : null;
       el = h('div.mp-msg.suggest', h('b', m.name), h('span', 'recommended ', h('i', `${map.artist} - ${map.title} [${map.version}]`)), pick);
-    } else el = m.from ? h('div.mp-msg', h('b', m.name), h('span', m.text)) : h('div.mp-msg.sys', m.text);
-    this.chatList.append(el);
-    if (scroll) this.chatList.scrollTop = this.chatList.scrollHeight;
+    } else el = m.from ? h(`div.mp-msg${m.from === Multiplayer.me ? '.mine' : ''}`, h('b', m.name), h('span', m.text)) : h('div.mp-msg.sys', m.text);
+    // (when it was said, on hover — as lazer's chat lines carry their time)
+    if (m.ts) el.title = new Date(m.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    // (scrolled up to read something earlier: a new line doesn't yank the list back down — unless it's yours)
+    const l = this.chatList, atEnd = l.scrollHeight - l.scrollTop - l.clientHeight < 48;
+    l.append(el);
+    if (scroll && (atEnd || m.from === Multiplayer.me)) l.scrollTop = l.scrollHeight;
+    if (scroll && m.from && m.from !== Multiplayer.me && !this._chatVis && this.chatPill) {
+      this._chatNew++;
+      this.chatPill.lastChild.textContent = this._chatNew > 1 ? `${this._chatNew} new messages` : 'New message';
+      this.chatPill.hidden = false;
+    }
   },
   resultsPanel(res) {
     const meId = Multiplayer.me, mine = res.rows.find(x => x.id === meId);

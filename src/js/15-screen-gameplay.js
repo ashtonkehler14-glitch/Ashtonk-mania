@@ -912,6 +912,14 @@ const GameplayScreen = {
     c.t = Math.max(last, t); c.ts = ts;                           // (never backwards)
     return c.t;
   },
+  /** The playfield as it is at `t`, drawn once and left still (before a multiplayer match's synchronised start). */
+  stillFrame(t) {
+    const s = this.s, r = this.renderer;
+    if (!s || !r || !s.scroll) return;
+    const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
+    r.render({ now: t, posNow: s.scroll.pos(t), scroll: s.scroll, pxPerMs: r.scrollLength / (timeRange * s.rate), engine: s.engine, held: s.held, hidden: s.hidden,
+      realNow: performance.now(), keyLabels: s.keyLabels, percy: s.percy, bars: s.bars, flashlight: s.flashlight, snapRed: s.snapRed });
+  },
   loop() {
     // one frame description, reused every frame (no garbage for the collector to pause on mid-song)
     const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null, flashlight: 0, snapRed: null };
@@ -1306,13 +1314,15 @@ const GameplayScreen = {
       T.diff.textContent = red === blue ? '' : `${red > blue ? '◀' : ''} ${fmt(Math.abs(red - blue))} ${blue > red ? '▶' : ''}`;
     }
   },
-  /** Wait for the synchronised start; everyone begins at the same moment. */
+  /** Wait for the synchronised start; everyone begins at the same moment. (The playfield's there meanwhile, still, as it
+   *  starts — the countdown used to run over an empty screen.) */
   async mpWait(s) {
     const el = h('div.mp-countdown');
     this.el.appendChild(el);
     while (this.s === s) {
       const left = s.mp.startAt - performance.now();
       if (left <= 0) break;
+      if (!s.running) this.stillFrame(s.startPos);
       const txt = left > 3000 ? 'Get ready…' : String(Math.ceil(left / 1000));
       if (txt !== el.textContent && left <= 3000) SkinManager.skinOnly(`count${txt}s`);
       el.textContent = txt;
