@@ -50,7 +50,7 @@ const SongSelect = {
     setTimeout(() => el.classList.remove('entering'), 900);
     this.searchInput = h('input.input', { type: 'search', placeholder: 'type to search', title: 'Filters: keys=7 stars>4 bpm>180 od>8 length<2m30s ln>30 diff=hard', value: this.query, 'aria-label': 'Search beatmaps', spellcheck: 'false' });
     // (on a slow device the list is filtered once typing pauses, as lazer's carousel does, rather than for every letter)
-    const typed = () => { clearTimeout(this._typeT); this._typeT = 0; this.rebuild(true); };
+    const typed = () => { clearTimeout(this._typeT); this._typeT = 0; this.searched(); };
     this.searchInput.addEventListener('input', () => {
       this.query = this.searchInput.value;
       const root = document.documentElement.classList;
@@ -61,7 +61,7 @@ const SongSelect = {
       if (e.isComposing || e.keyCode === 229) { e.stopPropagation(); return; } // (an input method's own keys)
       if (['ArrowUp', 'ArrowDown', 'Enter', 'F1', 'F2', 'F3', 'F4'].includes(e.key) || (e.key === 'Escape')) {
         if (this._typeT) typed(); // (what's typed so far, filtered before the key acts on it)
-        if (e.key === 'Escape' && this.searchInput.value) { this.searchInput.value = ''; this.query = ''; this.rebuild(true); e.stopPropagation(); e.preventDefault(); return; }
+        if (e.key === 'Escape' && this.searchInput.value) { this.searchInput.value = ''; this.query = ''; this.searched(); e.stopPropagation(); e.preventDefault(); return; }
         this.searchInput.blur();
       } else e.stopPropagation();
     });
@@ -492,10 +492,18 @@ const SongSelect = {
     const sel = this.selectedId && BeatmapManager.maps.get(this.selectedId);
     // (back from that very song: it's loaded but stopped — it plays again, unless you paused the music yourself)
     const silent = !Music.playing && !(typeof MenuMusic !== 'undefined' && MenuMusic.paused);
-    if (sel && (silent || !Music.meta || Music.meta.setId !== sel.setId || this.trackKey(sel) !== (Music.key || '').toLowerCase())) this.schedulePreview(sel);
+    // (a search typed or cleared: the list and the details move to the first match, but the song playing goes on — the
+    // song changes once you pick a beatmap, not with every letter)
+    if (sel && this._searching) this.showBackground(sel);
+    else if (sel && (silent || !Music.meta || Music.meta.setId !== sel.setId || this.trackKey(sel) !== (Music.key || '').toLowerCase())) this.schedulePreview(sel);
     else if (sel) { this.showBackground(sel); this.loopTrack(sel); }
     if (stay) return;
     this.scrollToSelected(keepScroll, true);
+  },
+  /** The list filtered again for what's in the search box (see rebuild: the song playing stays). */
+  searched() {
+    this._searching = true;
+    try { this.rebuild(true); } finally { this._searching = false; }
   },
   /** The difficulty a song opens on: the one you last played from it (remembered when a play starts; for plays from
    *  before that, the one with the latest score), else `fallback`, else its first playable one. */
@@ -661,7 +669,7 @@ const SongSelect = {
       const q = this.query.trim(), lo = +Settings.get('songselect.starsMin') || 0, hi = +Settings.get('songselect.starsMax') || 10.1;
       const link = (text, fn) => h('a.nr-link', { href: '#', onclick: e => { e.preventDefault(); UISounds.click(); fn(); } }, text);
       const tips = [];
-      if (q) tips.push(['Try ', link('clearing', () => { this.query = ''; this.searchInput.value = ''; this.rebuild(true); }), ' your current search criteria.']);
+      if (q) tips.push(['Try ', link('clearing', () => { this.query = ''; this.searchInput.value = ''; this.searched(); }), ' your current search criteria.']);
       if (lo > 0 || hi < 10.1) tips.push(['Try ', link('removing', () => { Settings.set('songselect.starsMin', 0); Settings.set('songselect.starsMax', 10.1); Screens.go('songselect', { force: true, mpPick: this.mpPick, practice: this.practiceMode }, { replace: true }); }), ` the ${lo.toFixed(1)} - ${hi < 10.1 ? hi.toFixed(1) : '∞'} star difficulty filter.`]);
       if (q) tips.push(['Try ', link('searching online', () => { ExplorerScreen.state.q = q; ExplorerScreen.results = []; Screens.go('explore'); }), ` for "${q}".`]);
       this.emptyEl.append(h('div.nr',
@@ -998,7 +1006,7 @@ const SongSelect = {
   /** Mod select; picking a beatmap for a multiplayer room greys out the mods a room doesn't allow (Auto). */
   openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: MODS.filter(x => x.unranked).map(x => x.id), why: 'not available in multiplayer' } : {}); },
   onBack() {
-    if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); return true; }
+    if (this.query) { this.query = ''; this.searchInput.value = ''; this.searched(); return true; }
     return false;
   },
 
@@ -1212,11 +1220,12 @@ const SongSelect = {
     const misses = s => (s.counts || [])[5] || 0;
     const order = { score: (a, b) => ScoreManager.value(b) - ScoreManager.value(a), accuracy: (a, b) => b.accuracy - a.accuracy || ScoreManager.value(b) - ScoreManager.value(a),
       maxCombo: (a, b) => b.maxCombo - a.maxCombo || ScoreManager.value(b) - ScoreManager.value(a), misses: (a, b) => misses(a) - misses(b) || ScoreManager.value(b) - ScoreManager.value(a), date: (a, b) => b.date - a.date }[sortBy] || ((a, b) => ScoreManager.value(b) - ScoreManager.value(a));
-    const scores = ScoreManager.forMap(m.hash).filter(x => !modsOn || [...(x.mods || [])].sort().join() === sel).sort(order).slice(0, 25);
+    const scores = ScoreManager.forMap(m.hash).filter(x => !modsOn || [...(x.mods || [])].sort().join() === sel).sort(order).slice(0, 50);
     // the rows slide in for a new beatmap or new scores, not when something else redraws the panel (a favourite click)
     const lbKey = m.id + '|' + scores.map(x => x.id).join(), same = this._lbKey === lbKey;
     this._lbKey = lbKey;
     const list = h(`div.lb-list.shear${same ? '.still' : ''}`);
+    this.shearRoom(list);
     // lazer's MessagePlaceholder: an exclamation in a circle, then "No records yet!" (22px)
     if (!scores.length) list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), 'No records yet!'));
     const who = ProfileManager.profile.name;
@@ -1232,7 +1241,7 @@ const SongSelect = {
     if (!old || !old.classList.contains('lb-list') || !['global', 'friends'].includes(scope) || tab === 'details') { this._lbKey = null; this.updateInfo(); return; }
     old.replaceWith(this.onlineBoard(m, scope, !!Settings.get('songselect.lbMods')));
   },
-  /** lazer's BeatmapLeaderboardScore (50px, sheared): the "#1" rank (on a green gradient for your own scores), then
+  /** lazer's BeatmapLeaderboardScore (50px, sheared): the "#1" rank, then
    *  the avatar, the time since ("3hrs") over the name, COMBO and ACCURACY (lime when perfect), and on the right the
    *  score with its mods over a gradient into the grade's colour, the grade letter in a 35px strip of it. Narrower
    *  leaderboards drop the rank, then stack the statistics, then hide them (as lazer's display modes do). */
@@ -1242,8 +1251,7 @@ const SongSelect = {
     const stat = (k, v, perfect) => h('span.lbs-stat', h('i', k), h(`b${perfect ? '.perfect' : ''}`, v));
     const c = s.counts || [];
     const pp = s.passed ? ScoreManager.ppOf(s) : 0;
-    // (lazer lights your own score up on the online boards; on your own, every score is yours)
-    const row = h(`button.lbs${own && s.online ? '.own' : ''}`, {
+    const row = h('button.lbs', {
       style: { animationDelay: `${Math.min(delay, 20) * 25}ms`, '--rc': RANK_COLOURS[g] || '#3f3f3f', '--rt': RANK_INK[g] || '#fff' },
       title: `${s.player || who} · ${fmtScore(ScoreManager.value(s))} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${pp ? ` · ${fmtInt(pp)}pp` : ''}\n${new Date(s.date).toLocaleString()}`,
       onclick: () => { UISounds.click(); Screens.go('results', s.online ? { score: { ...s, mapHash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: s.stars || m.stars, counts: s.counts || [0, 0, 0, 0, 0, 0], replayId: null }, fromList: true, browse: true, watched: 'online' } : { score: s, fromList: true, browse: true }, { transition: 'right' }); },
@@ -1259,7 +1267,20 @@ const SongSelect = {
         h('span.lbs-grade', h('b', letter))));
     return row;
   },
-  /** lazer's Global and Friends scopes: everyone's best on this beatmap from the server (yours lit as your own). */
+  /** The sheared list leans further right the higher up it goes (it's anchored at its foot, so the lowest scores keep
+   *  to the edge): room on its right for its top row's slant, as tall as it gets — a long list never pushes a score's
+   *  grade off the panel. Measured as it changes size, before it's drawn. */
+  shearRoom(list) {
+    const ro = this._shearRO || (this._shearRO = new ResizeObserver(es => {
+      for (const e of es) {
+        const l = e.target, want = Math.max(64, Math.ceil(l.clientHeight * 0.2) + 16); // (tan 11.31° = 0.2: --shear)
+        if (Math.abs((parseFloat(l.style.paddingRight) || 0) - want) > 1) l.style.paddingRight = want + 'px';
+      }
+    }));
+    if (this._shearList && this._shearList !== list) ro.unobserve(this._shearList);
+    this._shearList = list; ro.observe(list);
+  },
+  /** lazer's Global and Friends scopes: everyone's best on this beatmap from the server. */
   onlineBoard(m, scope, modsOn) {
     const d = this._online;
     const fresh = d && d.key === m.hash && d.scope === scope;
@@ -1270,6 +1291,7 @@ const SongSelect = {
       if (this._onlineFor !== m.hash + scope || performance.now() - (this._onlineAsked || 0) > 2000) { this._onlineFor = m.hash + scope; this._onlineAsked = performance.now(); this._onlineAskedAt = Date.now(); Presence.start(); Presence.send({ t: 'lb', key: m.hash, scope }); }
     }
     const list = h('div.lb-list.shear');
+    this.shearRoom(list);
     if (!Presence.ws) { list.append(offlineState('The online leaderboard', { compact: true })); return list; }
     if (!fresh) { list.append(h('div.lb-empty.lb-loading', h('span.spinner'))); return list; }
     const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();

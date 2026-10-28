@@ -20,22 +20,64 @@ const MpResults = {
     this._t = setInterval(() => this.paint(), 500);
     this.paint();
   },
-  unmount() { (this._unsub || []).forEach(f => f()); this._unsub = []; clearInterval(this._t); },
-  /** A solo play's results (lazer's SoloResultsScreen): your other local scores on this beatmap as contracted panels
-   *  either side of yours, in leaderboard order (clicking one opens it). */
-  mountLocal(grid, card, s) {
-    const others = ScoreManager.forMap(s.mapHash).filter(x => x.id !== s.id && x.passed);
-    if (!others.length) return;
-    const all = [...others, s].sort((a, b) => ScoreManager.value(b) - ScoreManager.value(a) || b.accuracy - a.accuracy);
-    const row = (x, i) => ({ id: x.id, local: true, name: x.player || ProfileManager.profile.name, score: ScoreManager.value(x), accuracy: x.accuracy, maxCombo: x.maxCombo, counts: x.counts, grade: x.grade, mods: x.mods, place: i + 1, src: x });
-    // (the two either side of yours, so your own panel keeps its size)
-    const mine = all.indexOf(s), from = Math.max(0, mine - 2);
-    const rows = all.map(row).slice(from, mine + 3), at = mine - from;
+  unmount() { (this._unsub || []).forEach(f => f()); this._unsub = []; clearInterval(this._t); this.unmountLocal(); },
+  /** A solo play's results (lazer's SoloResultsScreen): every score on this beatmap as contracted panels either side
+   *  of yours, in leaderboard order — your other plays here, and everyone's from the online leaderboard (its top 50,
+   *  asked for as the screen opens and kept while it's open) — one row you scroll through (ResultsScreen.scrollRow);
+   *  clicking one opens it in the middle. */
+  LOCAL_MAX: 50,
+  boards: new Map(),
+  mountLocal(grid, card, s, fresh = false) {
+    this.unmountLocal();
+    this.solo = { grid, card, s };
+    this._painted = !!ResultsScreen._swapping; // (the panels slide in as the screen opens, not again as one is picked)
+    this.paintLocal();
+    const key = s.mapHash, have = this.boards.get(key);
+    if (!key || typeof Presence === 'undefined') return;
+    this._lbOff = Bus.on('lb', d => {
+      if (d.id || d.key !== key || d.scope !== 'global') return; // (one asked for by beatmap id, or for friends, is someone else's)
+      this.boards.set(key, { at: Date.now(), scores: d.scores || [] });
+      if (this.solo && this.solo.grid.isConnected) this.paintLocal();
+    });
+    // (asked again after a while, and just after a play of yours here — it may be on the board now)
+    if (!have || Date.now() - have.at > 30000 || fresh) { Presence.start(); Presence.send({ t: 'lb', key, scope: 'global' }); }
+  },
+  unmountLocal() { if (this._lbOff) { this._lbOff(); this._lbOff = null; } this.solo = null; },
+  /** The row as it stands: yours, your other plays, and the online board's (yours on it left out: they're here as
+   *  your own plays), best first. */
+  paintLocal() {
+    const { grid, card, s } = this.solo;
+    const body = grid.closest('.res-body');
+    const sameMap = x => x.id !== s.id && x.passed;
+    const mineHere = ScoreManager.forMap(s.mapHash).filter(sameMap).slice(0, this.LOCAL_MAX);
+    const map = BeatmapManager.mapByHash(s.mapHash) || {};
+    const me = typeof Presence !== 'undefined' ? Presence.pid() : null, board = this.boards.get(s.mapHash);
+    // (someone else's best from the server, as a score the results screen can open)
+    const asScore = e => ({ id: 'o-' + e.pid, online: true, player: e.name, avatar: e.avatar, score: e.score, scoreStd: e.score, accuracy: e.acc, maxCombo: e.combo,
+      grade: e.grade, mods: e.mods || [], counts: e.counts && e.counts.length === 6 ? e.counts : [0, 0, 0, 0, 0, 0], pp: e.pp, srVersion: SR_VERSION, passed: true, date: e.date, replayId: null,
+      mapHash: s.mapHash, title: map.title || s.title, artist: map.artist || s.artist, version: map.version || s.version, creator: map.creator || s.creator, keys: map.keys || s.keys, stars: map.stars || s.stars });
+    const theirs = board ? board.scores.filter(e => e.pid !== me && 'o-' + e.pid !== s.id).map(asScore) : [];
+    const all = [...mineHere, ...theirs, s].sort((a, b) => ScoreManager.value(b) - ScoreManager.value(a) || b.accuracy - a.accuracy);
+    const row = (x, i) => ({ id: x.id, local: !x.online, name: x.player || ProfileManager.profile.name, avatar: x.avatar, score: ScoreManager.value(x), accuracy: x.accuracy, maxCombo: x.maxCombo,
+      counts: x.online && !(x.counts || []).some(Boolean) ? null : x.counts, grade: x.grade, mods: x.mods, place: i + 1, src: x });
+    const rows = all.map(row), at = all.indexOf(s);
     // (clicking one makes it the big panel, swapped in place as lazer's results do)
-    const el = (r, i) => { const e = this.panel(r, i, true, null); e.classList.add('cp-click'); e.dataset.sid = String(r.id); e.title = new Date(r.src.date).toLocaleString(); e.onclick = () => { UISounds.click(); ResultsScreen.swapTo(r.src, e); }; return e; };
-    const before = h('div.res-mp-side.before', ...rows.slice(0, at).map((r, k) => el(r, k))), after = h('div.res-mp-side.after', ...rows.slice(at + 1).map((r, k) => el(r, at + 1 + k)));
-    grid.prepend(before); card.after(after);
-    grid.closest('.res-body').classList.add('mp', 'solo-list');
+    const el = (r, k) => {
+      const e = this.panel(r, k, !this._painted, null, Math.min(Math.abs(k - at), 8)); // (sliding in outwards from yours)
+      e.classList.add('cp-click'); e.dataset.sid = String(r.id);
+      e.title = r.src.online ? `${r.name}${r.src.date ? ' · ' + new Date(r.src.date).toLocaleDateString() : ''}` : new Date(r.src.date).toLocaleString();
+      e.onclick = () => { if (ResultsScreen._dragged) return; UISounds.click(); ResultsScreen.swapTo(r.src, e); };
+      return e;
+    };
+    const before = grid.querySelector(':scope > .res-mp-side.before') || h('div.res-mp-side.before'), after = grid.querySelector(':scope > .res-mp-side.after') || h('div.res-mp-side.after');
+    if (!before.isConnected) grid.prepend(before);
+    if (!after.isConnected) card.after(after);
+    clearEl(before).append(...rows.slice(0, at).map((r, k) => el(r, k)));
+    clearEl(after).append(...rows.slice(at + 1).map((r, k) => el(r, at + 1 + k)));
+    this._painted = true;
+    // (nothing else on the beatmap: the screen as a lone score has it)
+    body.classList.toggle('mp', rows.length > 1); body.classList.toggle('solo-list', rows.length > 1);
+    ResultsScreen.recentre && ResultsScreen.recentre();
   },
   /** The match's results once everyone's done; until then the live scores of those still playing. */
   rows() {
@@ -106,11 +148,13 @@ const MpResults = {
     this.focus = r.id; this._key = null;
     this.paint();
     requestAnimationFrame(() => {
+      ResultsScreen.recentre(false, true); // (the picked panel to the middle of the row)
+      const z = this.grid ? parseFloat(this.grid.style.zoom) || 1 : 1; // (inside a zoomed row a panel's translate is zoomed too)
       const fly = (el, from) => {
         if (!el || !from) return;
         const to = el.getBoundingClientRect();
         if (!to.width || !to.height) return;
-        el.animate([{ transformOrigin: '0 0', transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})`, opacity: 0.6 }, { transformOrigin: '0 0', transform: 'none', opacity: 1 }], { duration: 450, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+        el.animate([{ transformOrigin: '0 0', transform: `translate(${(from.left - to.left) / z}px, ${(from.top - to.top) / z}px) scale(${from.width / to.width}, ${from.height / to.height})`, opacity: 0.6 }, { transformOrigin: '0 0', transform: 'none', opacity: 1 }], { duration: 450, easing: 'cubic-bezier(.22, 1, .36, 1)' });
       };
       fly(card, fromRect);
       fly(this.grid && this.grid.parentNode && this.grid.parentNode.querySelector(`.cp[data-sid="${CSS.escape(String(oldId))}"]`), oldRect);
@@ -137,17 +181,17 @@ const MpResults = {
     return score;
   },
   /** lazer's contracted ScorePanel (130 × 385). */
-  panel(r, i, animate, res) {
+  panel(r, i, animate, res, delay = i) {
     const me = r.id === Multiplayer.me;
     const room = Multiplayer.room, p = room && room.players.find(x => x.id === r.id);
     const g = r.forfeit ? 'F' : r.grade || null;
     const NAMES = ['Perfect', 'Great', 'Good', 'Ok', 'Meh', 'Miss'];
     const stat = (k, v) => h('div.cp-stat', h('span', k), h('b', v));
     const win = res && (res.teams ? r.team === res.winnerTeam : r.id === res.winner);
-    return h(`div.cp${me ? '.me' : ''}${win ? '.win' : ''}${r.team === 0 ? '.red' : r.team === 1 ? '.blue' : ''}`, { style: { '--rc': RANK_COLOURS[g] || '#444', animationDelay: animate ? `${i * 80}ms` : '0ms' }, 'data-anim': animate ? '1' : null },
+    return h(`div.cp${me ? '.me' : ''}${win ? '.win' : ''}${r.team === 0 ? '.red' : r.team === 1 ? '.blue' : ''}`, { style: { '--rc': RANK_COLOURS[g] || '#444', animationDelay: animate ? `${Math.min(delay, 12) * 80}ms` : '0ms' }, 'data-anim': animate ? '1' : null },
       h('div.cp-place', `#${r.place || i + 1}`),
       h('div.cp-mid',
-        h('div.cp-av', r.local ? (!r.name || r.name === ProfileManager.profile.name ? ProfileManager.avatarEl(110) : Presence.avatarEl({ name: r.name }, 110)) : me ? ProfileManager.avatarEl(110) : Presence.avatarEl(p || { name: r.name }, 110)),
+        h('div.cp-av', r.local ? (!r.name || r.name === ProfileManager.profile.name ? ProfileManager.avatarEl(110) : Presence.avatarEl({ name: r.name }, 110)) : me ? ProfileManager.avatarEl(110) : Presence.avatarEl(p || { name: r.name, avatar: r.avatar }, 110)),
         h('div.cp-name', r.name, me ? h('small', ' (you)') : null),
         r.counts ? h('div.cp-stats', ...r.counts.map((c, k) => stat(NAMES[k], fmtInt(c)))) : h('div.cp-stats.cp-live', r.pending ? 'still playing…' : ''),
         h('div.cp-stats.cp-sum', stat('Combo', `x${fmtInt(r.maxCombo || 0)}`), stat('Accuracy', fmtAcc(r.accuracy || 0))),

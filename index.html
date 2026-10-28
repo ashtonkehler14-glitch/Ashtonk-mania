@@ -616,9 +616,6 @@ html.touch .settings-panel .set-row .reset::after { content: ""; position: absol
 .lbs > * > *, .lbs-av > * { transform: skewX(var(--unshear)); }
 .lbs-rank { position: relative; flex: none; width: 50px; margin-right: -10px; padding-right: 10px; display: grid; place-items: center; }
 .lbs-rank b { font-size: 18px; font-weight: 600; text-shadow: 0 1px 3px rgba(0, 0, 0, .4); white-space: nowrap; }
-.lbs.own .lbs-rank { background: linear-gradient(90deg, #66ffcc, #51a388); }
-.lbs.own:hover .lbs-rank { background: linear-gradient(90deg, #85ffd6, #74b5a0); }
-.lbs.own .lbs-rank b { color: var(--bg3); text-shadow: none; }
 .lbs-mid { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; border-radius: 10px; overflow: hidden; background: hsl(var(--ss-h) 10% 15% / .4); transition: background 200ms var(--ease-out); }
 .lbs:hover .lbs-mid { background: hsl(var(--ss-h) 10% 25% / .5); }
 .lbs-av { flex: none; width: 50px; height: 50px; border-radius: 10px; overflow: hidden; background: rgba(0, 0, 0, .5); }
@@ -3882,6 +3879,14 @@ html.touch img { -webkit-user-drag: none; }
 .res-body.mp .res-grid { display: flex; align-items: center; gap: 14px; }
 .res-body.mp .res-grid > .rs { flex: none; width: 360px; }
 .res-mp-side { display: flex; align-items: center; gap: 14px; }
+/* lazer's ScorePanelList: a row wider than the screen scrolls sideways (ResultsScreen.scrollRow); otherwise the wrappers
+   take no room of their own */
+.res-row:not(.scroll), .res-row:not(.scroll) > .res-sizer { display: contents; }
+.res-row.scroll { --side: clamp(16px, calc(3 * var(--vw)), 48px); width: calc(100% + 2 * var(--side)); max-width: none; margin-inline: calc(-1 * var(--side)); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; padding-block: 32px; margin-block: -32px; } /* (room for the panels' shadows, which a sideways scroller would otherwise cut off) */
+.res-row.scroll > .res-sizer { width: max-content; }
+.res-row.scroll > .res-sizer > .res-grid { margin: 0; }
+.res-row.drag { cursor: grabbing; user-select: none; }
+.res-row.drag .cp { pointer-events: none; }
 .res-mp-side:empty { display: none; }
 .res-body.mp .res-grid.stats-open > .res-mp-side { display: none; }
 .res-body.mp .res-grid.stats-open > .res-right { flex: 0 1 700px; }
@@ -17472,7 +17477,7 @@ const SongSelect = {
     setTimeout(() => el.classList.remove('entering'), 900);
     this.searchInput = h('input.input', { type: 'search', placeholder: 'type to search', title: 'Filters: keys=7 stars>4 bpm>180 od>8 length<2m30s ln>30 diff=hard', value: this.query, 'aria-label': 'Search beatmaps', spellcheck: 'false' });
     // (on a slow device the list is filtered once typing pauses, as lazer's carousel does, rather than for every letter)
-    const typed = () => { clearTimeout(this._typeT); this._typeT = 0; this.rebuild(true); };
+    const typed = () => { clearTimeout(this._typeT); this._typeT = 0; this.searched(); };
     this.searchInput.addEventListener('input', () => {
       this.query = this.searchInput.value;
       const root = document.documentElement.classList;
@@ -17483,7 +17488,7 @@ const SongSelect = {
       if (e.isComposing || e.keyCode === 229) { e.stopPropagation(); return; } // (an input method's own keys)
       if (['ArrowUp', 'ArrowDown', 'Enter', 'F1', 'F2', 'F3', 'F4'].includes(e.key) || (e.key === 'Escape')) {
         if (this._typeT) typed(); // (what's typed so far, filtered before the key acts on it)
-        if (e.key === 'Escape' && this.searchInput.value) { this.searchInput.value = ''; this.query = ''; this.rebuild(true); e.stopPropagation(); e.preventDefault(); return; }
+        if (e.key === 'Escape' && this.searchInput.value) { this.searchInput.value = ''; this.query = ''; this.searched(); e.stopPropagation(); e.preventDefault(); return; }
         this.searchInput.blur();
       } else e.stopPropagation();
     });
@@ -17914,10 +17919,18 @@ const SongSelect = {
     const sel = this.selectedId && BeatmapManager.maps.get(this.selectedId);
     // (back from that very song: it's loaded but stopped — it plays again, unless you paused the music yourself)
     const silent = !Music.playing && !(typeof MenuMusic !== 'undefined' && MenuMusic.paused);
-    if (sel && (silent || !Music.meta || Music.meta.setId !== sel.setId || this.trackKey(sel) !== (Music.key || '').toLowerCase())) this.schedulePreview(sel);
+    // (a search typed or cleared: the list and the details move to the first match, but the song playing goes on — the
+    // song changes once you pick a beatmap, not with every letter)
+    if (sel && this._searching) this.showBackground(sel);
+    else if (sel && (silent || !Music.meta || Music.meta.setId !== sel.setId || this.trackKey(sel) !== (Music.key || '').toLowerCase())) this.schedulePreview(sel);
     else if (sel) { this.showBackground(sel); this.loopTrack(sel); }
     if (stay) return;
     this.scrollToSelected(keepScroll, true);
+  },
+  /** The list filtered again for what's in the search box (see rebuild: the song playing stays). */
+  searched() {
+    this._searching = true;
+    try { this.rebuild(true); } finally { this._searching = false; }
   },
   /** The difficulty a song opens on: the one you last played from it (remembered when a play starts; for plays from
    *  before that, the one with the latest score), else `fallback`, else its first playable one. */
@@ -18083,7 +18096,7 @@ const SongSelect = {
       const q = this.query.trim(), lo = +Settings.get('songselect.starsMin') || 0, hi = +Settings.get('songselect.starsMax') || 10.1;
       const link = (text, fn) => h('a.nr-link', { href: '#', onclick: e => { e.preventDefault(); UISounds.click(); fn(); } }, text);
       const tips = [];
-      if (q) tips.push(['Try ', link('clearing', () => { this.query = ''; this.searchInput.value = ''; this.rebuild(true); }), ' your current search criteria.']);
+      if (q) tips.push(['Try ', link('clearing', () => { this.query = ''; this.searchInput.value = ''; this.searched(); }), ' your current search criteria.']);
       if (lo > 0 || hi < 10.1) tips.push(['Try ', link('removing', () => { Settings.set('songselect.starsMin', 0); Settings.set('songselect.starsMax', 10.1); Screens.go('songselect', { force: true, mpPick: this.mpPick, practice: this.practiceMode }, { replace: true }); }), ` the ${lo.toFixed(1)} - ${hi < 10.1 ? hi.toFixed(1) : '∞'} star difficulty filter.`]);
       if (q) tips.push(['Try ', link('searching online', () => { ExplorerScreen.state.q = q; ExplorerScreen.results = []; Screens.go('explore'); }), ` for "${q}".`]);
       this.emptyEl.append(h('div.nr',
@@ -18420,7 +18433,7 @@ const SongSelect = {
   /** Mod select; picking a beatmap for a multiplayer room greys out the mods a room doesn't allow (Auto). */
   openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: MODS.filter(x => x.unranked).map(x => x.id), why: 'not available in multiplayer' } : {}); },
   onBack() {
-    if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); return true; }
+    if (this.query) { this.query = ''; this.searchInput.value = ''; this.searched(); return true; }
     return false;
   },
 
@@ -18634,11 +18647,12 @@ const SongSelect = {
     const misses = s => (s.counts || [])[5] || 0;
     const order = { score: (a, b) => ScoreManager.value(b) - ScoreManager.value(a), accuracy: (a, b) => b.accuracy - a.accuracy || ScoreManager.value(b) - ScoreManager.value(a),
       maxCombo: (a, b) => b.maxCombo - a.maxCombo || ScoreManager.value(b) - ScoreManager.value(a), misses: (a, b) => misses(a) - misses(b) || ScoreManager.value(b) - ScoreManager.value(a), date: (a, b) => b.date - a.date }[sortBy] || ((a, b) => ScoreManager.value(b) - ScoreManager.value(a));
-    const scores = ScoreManager.forMap(m.hash).filter(x => !modsOn || [...(x.mods || [])].sort().join() === sel).sort(order).slice(0, 25);
+    const scores = ScoreManager.forMap(m.hash).filter(x => !modsOn || [...(x.mods || [])].sort().join() === sel).sort(order).slice(0, 50);
     // the rows slide in for a new beatmap or new scores, not when something else redraws the panel (a favourite click)
     const lbKey = m.id + '|' + scores.map(x => x.id).join(), same = this._lbKey === lbKey;
     this._lbKey = lbKey;
     const list = h(`div.lb-list.shear${same ? '.still' : ''}`);
+    this.shearRoom(list);
     // lazer's MessagePlaceholder: an exclamation in a circle, then "No records yet!" (22px)
     if (!scores.length) list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), 'No records yet!'));
     const who = ProfileManager.profile.name;
@@ -18654,7 +18668,7 @@ const SongSelect = {
     if (!old || !old.classList.contains('lb-list') || !['global', 'friends'].includes(scope) || tab === 'details') { this._lbKey = null; this.updateInfo(); return; }
     old.replaceWith(this.onlineBoard(m, scope, !!Settings.get('songselect.lbMods')));
   },
-  /** lazer's BeatmapLeaderboardScore (50px, sheared): the "#1" rank (on a green gradient for your own scores), then
+  /** lazer's BeatmapLeaderboardScore (50px, sheared): the "#1" rank, then
    *  the avatar, the time since ("3hrs") over the name, COMBO and ACCURACY (lime when perfect), and on the right the
    *  score with its mods over a gradient into the grade's colour, the grade letter in a 35px strip of it. Narrower
    *  leaderboards drop the rank, then stack the statistics, then hide them (as lazer's display modes do). */
@@ -18664,8 +18678,7 @@ const SongSelect = {
     const stat = (k, v, perfect) => h('span.lbs-stat', h('i', k), h(`b${perfect ? '.perfect' : ''}`, v));
     const c = s.counts || [];
     const pp = s.passed ? ScoreManager.ppOf(s) : 0;
-    // (lazer lights your own score up on the online boards; on your own, every score is yours)
-    const row = h(`button.lbs${own && s.online ? '.own' : ''}`, {
+    const row = h('button.lbs', {
       style: { animationDelay: `${Math.min(delay, 20) * 25}ms`, '--rc': RANK_COLOURS[g] || '#3f3f3f', '--rt': RANK_INK[g] || '#fff' },
       title: `${s.player || who} · ${fmtScore(ScoreManager.value(s))} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${pp ? ` · ${fmtInt(pp)}pp` : ''}\n${new Date(s.date).toLocaleString()}`,
       onclick: () => { UISounds.click(); Screens.go('results', s.online ? { score: { ...s, mapHash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: s.stars || m.stars, counts: s.counts || [0, 0, 0, 0, 0, 0], replayId: null }, fromList: true, browse: true, watched: 'online' } : { score: s, fromList: true, browse: true }, { transition: 'right' }); },
@@ -18681,7 +18694,20 @@ const SongSelect = {
         h('span.lbs-grade', h('b', letter))));
     return row;
   },
-  /** lazer's Global and Friends scopes: everyone's best on this beatmap from the server (yours lit as your own). */
+  /** The sheared list leans further right the higher up it goes (it's anchored at its foot, so the lowest scores keep
+   *  to the edge): room on its right for its top row's slant, as tall as it gets — a long list never pushes a score's
+   *  grade off the panel. Measured as it changes size, before it's drawn. */
+  shearRoom(list) {
+    const ro = this._shearRO || (this._shearRO = new ResizeObserver(es => {
+      for (const e of es) {
+        const l = e.target, want = Math.max(64, Math.ceil(l.clientHeight * 0.2) + 16); // (tan 11.31° = 0.2: --shear)
+        if (Math.abs((parseFloat(l.style.paddingRight) || 0) - want) > 1) l.style.paddingRight = want + 'px';
+      }
+    }));
+    if (this._shearList && this._shearList !== list) ro.unobserve(this._shearList);
+    this._shearList = list; ro.observe(list);
+  },
+  /** lazer's Global and Friends scopes: everyone's best on this beatmap from the server. */
   onlineBoard(m, scope, modsOn) {
     const d = this._online;
     const fresh = d && d.key === m.hash && d.scope === scope;
@@ -18692,6 +18718,7 @@ const SongSelect = {
       if (this._onlineFor !== m.hash + scope || performance.now() - (this._onlineAsked || 0) > 2000) { this._onlineFor = m.hash + scope; this._onlineAsked = performance.now(); this._onlineAskedAt = Date.now(); Presence.start(); Presence.send({ t: 'lb', key: m.hash, scope }); }
     }
     const list = h('div.lb-list.shear');
+    this.shearRoom(list);
     if (!Presence.ws) { list.append(offlineState('The online leaderboard', { compact: true })); return list; }
     if (!fresh) { list.append(h('div.lb-empty.lb-loading', h('span.spinner'))); return list; }
     const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();
@@ -21748,9 +21775,13 @@ const ResultsScreen = {
     const card = this.gradeCard(s, p);
     this.statsToggle(card, grid);
     grid.append(card, this.rightCol(s));
-    body.append(grid);
+    // (lazer's ScorePanelList: the panels in one row that scrolls sideways when they don't all fit)
+    const row = h('div.res-row', h('div.res-sizer', grid));
+    body.append(row);
+    this.scrollRow(row);
     if (p.mp) { body.classList.add('mp'); MpResults.mount(body, grid, card, s); }
-    else if (!p.watched && s.mapHash) MpResults.mountLocal(grid, card, s);
+    // (every score on the beatmap — not for a replay or Auto being watched, nor someone being spectated)
+    else if (s.mapHash && !['replay', 'auto'].includes(p.watched) && !p.spectated) MpResults.mountLocal(grid, card, s, !!p.fresh);
     const actions = this.actions(s, p, map);
     el.append(body, actions);
     // (Neru's reaction to the play you've just finished — not to a replay, someone else's play or a match)
@@ -21782,14 +21813,60 @@ const ResultsScreen = {
       card.title = grid.classList.contains('stats-open') ? 'Click to hide statistics' : 'Click for statistics';
     });
   },
-  /** Never scroll: the panels shrink as one to fit whatever space is left (opening the statistics, or more of them,
-   *  or a small window / phone), the way lazer's results always sit whole on screen — and the wide card a phone held
-   *  sideways gets grows a little into the room it has. */
+  /** lazer's ScorePanelList: a row of score panels wider than the screen scrolls sideways — the wheel, a drag, a swipe
+   *  or the arrow keys — and opens with the big panel in the middle. */
+  scrollRow(row) {
+    this._row = row; this._userScrolled = false; this._fitted = false;
+    row.addEventListener('wheel', e => {
+      if (e.ctrlKey || e.metaKey || row.scrollWidth <= row.clientWidth + 1) return;
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (!d) return;
+      e.preventDefault();
+      row.scrollLeft += d * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? row.clientWidth : 1);
+      this._userScrolled = true;
+    }, { passive: false });
+    // (dragged with the mouse — a touch screen swipes it already; a drag doesn't count as a click on a panel)
+    row.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'mouse' || e.button !== 0 || row.scrollWidth <= row.clientWidth + 1 || e.target.closest('button, a, input, .res-right')) return;
+      const x0 = e.clientX, s0 = row.scrollLeft, k = row.offsetWidth / (row.getBoundingClientRect().width || row.offsetWidth);
+      let moved = false;
+      const move = ev => {
+        if (!moved && Math.abs(ev.clientX - x0) < 6) return;
+        if (!moved) { moved = true; row.classList.add('drag'); this._userScrolled = true; }
+        row.scrollLeft = s0 - (ev.clientX - x0) * k;
+      };
+      const up = () => {
+        removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+        row.classList.remove('drag');
+        if (moved) { this._dragged = true; setTimeout(() => { this._dragged = false; }, 0); } // (the click that ends the drag)
+      };
+      addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+    });
+    row.addEventListener('scroll', () => { if (!this._centring) this._userScrolled = true; }, { passive: true });
+  },
+  /** The big panel to the middle of the row (`smooth`: scrolled there, after another panel was picked) — unless you've
+   *  scrolled the row yourself since it opened. */
+  recentre(smooth = false, force = false) {
+    const row = this._row, card = row && row.querySelector('.res-grid > .rs');
+    if (!card || !row.isConnected || !row.classList.contains('scroll') || (this._userScrolled && !force)) return;
+    // (from the layout, not the screen: a panel still flying into place mustn't be what's centred on)
+    const grid = card.parentNode, z = parseFloat(grid.style.zoom) || 1, pad = parseFloat(getComputedStyle(grid.parentNode).paddingLeft) || 0;
+    const left = pad + (card.offsetLeft + card.offsetWidth / 2) * z - row.clientWidth / 2;
+    this._centring = true;
+    row.scrollTo({ left, behavior: smooth ? 'smooth' : 'instant' });
+    clearTimeout(this._centT); this._centT = setTimeout(() => { this._centring = false; }, smooth ? 600 : 50);
+    if (force) this._userScrolled = false;
+  },
+  /** The panels shrink as one to fit whatever height is left (more of them, opening the statistics, a small window /
+   *  phone), the way lazer's results always sit whole on screen — and the wide card a phone held sideways gets grows a
+   *  little into the room it has. A row of scores wider than the screen scrolls sideways instead of shrinking (lazer's
+   *  ScorePanelList), the big panel in the middle and room either side for any other to come there; the statistics
+   *  fit the width too. */
   fitToScreen(body, grid) {
     let raf = 0, shown = false;
     // (one observer per screen: the next results screen enters before this one leaves)
     const ro = new ResizeObserver(() => { if (!raf) raf = requestAnimationFrame(fit); });
-    const fit = () => {
+    const fit = this._fit = () => {
       raf = 0;
       if (!grid.isConnected) { if (shown) ro.disconnect(); return; } // (left: done)
       shown = true;
@@ -21797,10 +21874,35 @@ const ResultsScreen = {
       const aw = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       // (a multiplayer results screen has its title and the match's lines above the panels: they take their room)
       let others = 0;
-      for (const c of body.children) if (c !== grid && c.offsetParent) others += c.offsetHeight + (parseFloat(cs.rowGap) || 0);
+      const row = grid.parentNode.parentNode, sizer = grid.parentNode;
+      for (const c of body.children) {
+        if (c === grid || c === row || !c.offsetParent) continue;
+        const m = getComputedStyle(c); // (its margins too: the title's gap under it is one)
+        others += c.offsetHeight + (parseFloat(m.marginTop) || 0) + (parseFloat(m.marginBottom) || 0) + (parseFloat(cs.rowGap) || 0);
+      }
       const ah = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - others;
       // (the wide card of a short, wide screen — a phone held sideways — may grow into the room it leaves, too)
       const grow = !grid.classList.contains('stats-open') && matchMedia('(max-height: 520px) and (min-aspect-ratio: 3/2)').matches ? 1.3 : 1;
+      const list = body.classList.contains('mp') && !grid.classList.contains('stats-open');
+      if (list) {
+        // (the row's height fits; its width scrolls — zoomed rather than scaled, so the row's scroll width is its size)
+        const card = grid.querySelector(':scope > .rs'), z0 = parseFloat(grid.style.zoom) || 1;
+        const gh = grid.offsetHeight * z0, cw = (card ? card.offsetWidth : grid.offsetWidth) * z0;
+        const k = Math.max(0.35, Math.min(grow, ah / (gh / z0), aw / (cw / z0)));
+        grid.style.scale = ''; grid.style.transformOrigin = ''; grid.style.marginBottom = '';
+        if (Math.abs(k - z0) > 0.005) grid.style.zoom = k.toFixed(4);
+        // (the row runs the screen's full width, past the body's side padding, as lazer's does — and with room either
+        // side for the big panel to sit in the middle, the others to its left and right, however few of them there are)
+        const rw = body.clientWidth, was = row.classList.contains('scroll');
+        row.classList.add('scroll');
+        sizer.style.paddingInline = `${Math.max(0, (rw - cw / z0 * k) / 2).toFixed(1)}px`;
+        // (back from the statistics too: the row starts over at its big panel)
+        if (!was || !this._fitted || !this._userScrolled) requestAnimationFrame(() => this.recentre(false, !was));
+        this._fitted = true;
+        return;
+      }
+      if (grid.style.zoom) grid.style.zoom = '';
+      row.classList.remove('scroll'); sizer.style.paddingInline = '';
       const k = Math.max(0.35, Math.min(grow, aw / grid.offsetWidth, ah / grid.offsetHeight));
       const on = Math.abs(k - 1) > 0.005;
       grid.style.scale = on ? k.toFixed(4) : '';
@@ -21820,17 +21922,22 @@ const ResultsScreen = {
     const base = this._origP, back = base && score === base.score;
     this._swapping = true;
     let built;
-    try { built = this.enter(back ? base : { ...this.p, score, fromList: true, fresh: false, replay: null }); } finally { this._swapping = false; }
+    try { built = this.enter(back ? base : { ...this.p, score, fromList: true, fresh: false, replay: null, watched: score.online ? 'online' : this.p.watched === 'online' ? null : this.p.watched }); } finally { this._swapping = false; }
     old.replaceChildren(...built.childNodes);
     if (this._neru) old.append(this._neru);
     this._el = old;
     const fresh = old;
+    // (laid out now, and the picked panel brought to the middle of the row — then it grows out of where it was)
+    if (this._fit) this._fit();
+    this.recentre(false, true);
     requestAnimationFrame(() => {
+      // (inside a zoomed row, a panel's own translate is zoomed too)
+      const z = parseFloat((fresh.querySelector('.res-grid') || {}).style?.zoom) || 1;
       const fly = (el, from) => {
         if (!el || !from) return;
         const to = el.getBoundingClientRect();
         if (!to.width || !to.height) return;
-        const sx = from.width / to.width, sy = from.height / to.height, dx = from.left - to.left, dy = from.top - to.top;
+        const sx = from.width / to.width, sy = from.height / to.height, dx = (from.left - to.left) / z, dy = (from.top - to.top) / z;
         el.animate([{ transformOrigin: '0 0', transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0.6 }, { transformOrigin: '0 0', transform: 'none', opacity: 1 }],
           { duration: 450, easing: 'cubic-bezier(.22, 1, .36, 1)' });
       };
@@ -21863,6 +21970,13 @@ const ResultsScreen = {
     this._srcs = this._srcs.filter(Boolean);
   },
   onKey(e) {
+    // (the row of scores, a panel at a time)
+    const row = this._row;
+    if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && row && row.scrollWidth > row.clientWidth + 1 && !(e.target && e.target.closest && e.target.closest('input, select, textarea'))) {
+      const cp = row.querySelector('.cp'), step = cp ? cp.getBoundingClientRect().width * row.offsetWidth / (row.getBoundingClientRect().width || 1) + 14 : 150;
+      row.scrollBy({ left: e.code === 'ArrowLeft' ? -step : step, behavior: 'smooth' }); this._userScrolled = true;
+      return true;
+    }
     if (this.p.mp || this.p.browse || this.p.spectated) return false; // (a room's match isn't yours to retry; nor, as in lazer, a score opened from a leaderboard or profile, or a play you watched)
     if (e.repeat) return true; // (a column key still held as the song ended)
     if ((e.code === 'Enter' || e.code === 'Space') && e.target && e.target.closest && e.target.closest('button, summary, a, input, select')) return false;
@@ -23346,6 +23460,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28k', title: 'Results and song select', sections: [
+    { icon: 'trophy', title: 'Results', items: ['Every score on the beatmap sits in a row beside yours, as in lazer: scroll, drag or use ← / → to look through them, yours and the online ones, and click one to open it', 'In multiplayer, your score sits in the middle with everyone else\'s either side, as in lazer'] },
+    { icon: 'sparkle', title: 'Song select', items: ['Typing a search no longer starts playing a song — it plays once you pick a beatmap', 'A long list of scores no longer cuts off the grades at the top of the list', 'Your own score is no longer highlighted on the online boards'] },
+  ] },
   { id: '2026.10.28j', title: 'HTML file', sections: [
     { icon: 'download', title: 'Saved as an HTML file', items: ['Save the game as an HTML file while you have a code and the file opens as you the first time — your scores, settings, collections, favourites and skin come with it, no code to type (it works once, within a day)'] },
   ] },
@@ -29450,22 +29568,64 @@ const MpResults = {
     this._t = setInterval(() => this.paint(), 500);
     this.paint();
   },
-  unmount() { (this._unsub || []).forEach(f => f()); this._unsub = []; clearInterval(this._t); },
-  /** A solo play's results (lazer's SoloResultsScreen): your other local scores on this beatmap as contracted panels
-   *  either side of yours, in leaderboard order (clicking one opens it). */
-  mountLocal(grid, card, s) {
-    const others = ScoreManager.forMap(s.mapHash).filter(x => x.id !== s.id && x.passed);
-    if (!others.length) return;
-    const all = [...others, s].sort((a, b) => ScoreManager.value(b) - ScoreManager.value(a) || b.accuracy - a.accuracy);
-    const row = (x, i) => ({ id: x.id, local: true, name: x.player || ProfileManager.profile.name, score: ScoreManager.value(x), accuracy: x.accuracy, maxCombo: x.maxCombo, counts: x.counts, grade: x.grade, mods: x.mods, place: i + 1, src: x });
-    // (the two either side of yours, so your own panel keeps its size)
-    const mine = all.indexOf(s), from = Math.max(0, mine - 2);
-    const rows = all.map(row).slice(from, mine + 3), at = mine - from;
+  unmount() { (this._unsub || []).forEach(f => f()); this._unsub = []; clearInterval(this._t); this.unmountLocal(); },
+  /** A solo play's results (lazer's SoloResultsScreen): every score on this beatmap as contracted panels either side
+   *  of yours, in leaderboard order — your other plays here, and everyone's from the online leaderboard (its top 50,
+   *  asked for as the screen opens and kept while it's open) — one row you scroll through (ResultsScreen.scrollRow);
+   *  clicking one opens it in the middle. */
+  LOCAL_MAX: 50,
+  boards: new Map(),
+  mountLocal(grid, card, s, fresh = false) {
+    this.unmountLocal();
+    this.solo = { grid, card, s };
+    this._painted = !!ResultsScreen._swapping; // (the panels slide in as the screen opens, not again as one is picked)
+    this.paintLocal();
+    const key = s.mapHash, have = this.boards.get(key);
+    if (!key || typeof Presence === 'undefined') return;
+    this._lbOff = Bus.on('lb', d => {
+      if (d.id || d.key !== key || d.scope !== 'global') return; // (one asked for by beatmap id, or for friends, is someone else's)
+      this.boards.set(key, { at: Date.now(), scores: d.scores || [] });
+      if (this.solo && this.solo.grid.isConnected) this.paintLocal();
+    });
+    // (asked again after a while, and just after a play of yours here — it may be on the board now)
+    if (!have || Date.now() - have.at > 30000 || fresh) { Presence.start(); Presence.send({ t: 'lb', key, scope: 'global' }); }
+  },
+  unmountLocal() { if (this._lbOff) { this._lbOff(); this._lbOff = null; } this.solo = null; },
+  /** The row as it stands: yours, your other plays, and the online board's (yours on it left out: they're here as
+   *  your own plays), best first. */
+  paintLocal() {
+    const { grid, card, s } = this.solo;
+    const body = grid.closest('.res-body');
+    const sameMap = x => x.id !== s.id && x.passed;
+    const mineHere = ScoreManager.forMap(s.mapHash).filter(sameMap).slice(0, this.LOCAL_MAX);
+    const map = BeatmapManager.mapByHash(s.mapHash) || {};
+    const me = typeof Presence !== 'undefined' ? Presence.pid() : null, board = this.boards.get(s.mapHash);
+    // (someone else's best from the server, as a score the results screen can open)
+    const asScore = e => ({ id: 'o-' + e.pid, online: true, player: e.name, avatar: e.avatar, score: e.score, scoreStd: e.score, accuracy: e.acc, maxCombo: e.combo,
+      grade: e.grade, mods: e.mods || [], counts: e.counts && e.counts.length === 6 ? e.counts : [0, 0, 0, 0, 0, 0], pp: e.pp, srVersion: SR_VERSION, passed: true, date: e.date, replayId: null,
+      mapHash: s.mapHash, title: map.title || s.title, artist: map.artist || s.artist, version: map.version || s.version, creator: map.creator || s.creator, keys: map.keys || s.keys, stars: map.stars || s.stars });
+    const theirs = board ? board.scores.filter(e => e.pid !== me && 'o-' + e.pid !== s.id).map(asScore) : [];
+    const all = [...mineHere, ...theirs, s].sort((a, b) => ScoreManager.value(b) - ScoreManager.value(a) || b.accuracy - a.accuracy);
+    const row = (x, i) => ({ id: x.id, local: !x.online, name: x.player || ProfileManager.profile.name, avatar: x.avatar, score: ScoreManager.value(x), accuracy: x.accuracy, maxCombo: x.maxCombo,
+      counts: x.online && !(x.counts || []).some(Boolean) ? null : x.counts, grade: x.grade, mods: x.mods, place: i + 1, src: x });
+    const rows = all.map(row), at = all.indexOf(s);
     // (clicking one makes it the big panel, swapped in place as lazer's results do)
-    const el = (r, i) => { const e = this.panel(r, i, true, null); e.classList.add('cp-click'); e.dataset.sid = String(r.id); e.title = new Date(r.src.date).toLocaleString(); e.onclick = () => { UISounds.click(); ResultsScreen.swapTo(r.src, e); }; return e; };
-    const before = h('div.res-mp-side.before', ...rows.slice(0, at).map((r, k) => el(r, k))), after = h('div.res-mp-side.after', ...rows.slice(at + 1).map((r, k) => el(r, at + 1 + k)));
-    grid.prepend(before); card.after(after);
-    grid.closest('.res-body').classList.add('mp', 'solo-list');
+    const el = (r, k) => {
+      const e = this.panel(r, k, !this._painted, null, Math.min(Math.abs(k - at), 8)); // (sliding in outwards from yours)
+      e.classList.add('cp-click'); e.dataset.sid = String(r.id);
+      e.title = r.src.online ? `${r.name}${r.src.date ? ' · ' + new Date(r.src.date).toLocaleDateString() : ''}` : new Date(r.src.date).toLocaleString();
+      e.onclick = () => { if (ResultsScreen._dragged) return; UISounds.click(); ResultsScreen.swapTo(r.src, e); };
+      return e;
+    };
+    const before = grid.querySelector(':scope > .res-mp-side.before') || h('div.res-mp-side.before'), after = grid.querySelector(':scope > .res-mp-side.after') || h('div.res-mp-side.after');
+    if (!before.isConnected) grid.prepend(before);
+    if (!after.isConnected) card.after(after);
+    clearEl(before).append(...rows.slice(0, at).map((r, k) => el(r, k)));
+    clearEl(after).append(...rows.slice(at + 1).map((r, k) => el(r, at + 1 + k)));
+    this._painted = true;
+    // (nothing else on the beatmap: the screen as a lone score has it)
+    body.classList.toggle('mp', rows.length > 1); body.classList.toggle('solo-list', rows.length > 1);
+    ResultsScreen.recentre && ResultsScreen.recentre();
   },
   /** The match's results once everyone's done; until then the live scores of those still playing. */
   rows() {
@@ -29536,11 +29696,13 @@ const MpResults = {
     this.focus = r.id; this._key = null;
     this.paint();
     requestAnimationFrame(() => {
+      ResultsScreen.recentre(false, true); // (the picked panel to the middle of the row)
+      const z = this.grid ? parseFloat(this.grid.style.zoom) || 1 : 1; // (inside a zoomed row a panel's translate is zoomed too)
       const fly = (el, from) => {
         if (!el || !from) return;
         const to = el.getBoundingClientRect();
         if (!to.width || !to.height) return;
-        el.animate([{ transformOrigin: '0 0', transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})`, opacity: 0.6 }, { transformOrigin: '0 0', transform: 'none', opacity: 1 }], { duration: 450, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+        el.animate([{ transformOrigin: '0 0', transform: `translate(${(from.left - to.left) / z}px, ${(from.top - to.top) / z}px) scale(${from.width / to.width}, ${from.height / to.height})`, opacity: 0.6 }, { transformOrigin: '0 0', transform: 'none', opacity: 1 }], { duration: 450, easing: 'cubic-bezier(.22, 1, .36, 1)' });
       };
       fly(card, fromRect);
       fly(this.grid && this.grid.parentNode && this.grid.parentNode.querySelector(`.cp[data-sid="${CSS.escape(String(oldId))}"]`), oldRect);
@@ -29567,17 +29729,17 @@ const MpResults = {
     return score;
   },
   /** lazer's contracted ScorePanel (130 × 385). */
-  panel(r, i, animate, res) {
+  panel(r, i, animate, res, delay = i) {
     const me = r.id === Multiplayer.me;
     const room = Multiplayer.room, p = room && room.players.find(x => x.id === r.id);
     const g = r.forfeit ? 'F' : r.grade || null;
     const NAMES = ['Perfect', 'Great', 'Good', 'Ok', 'Meh', 'Miss'];
     const stat = (k, v) => h('div.cp-stat', h('span', k), h('b', v));
     const win = res && (res.teams ? r.team === res.winnerTeam : r.id === res.winner);
-    return h(`div.cp${me ? '.me' : ''}${win ? '.win' : ''}${r.team === 0 ? '.red' : r.team === 1 ? '.blue' : ''}`, { style: { '--rc': RANK_COLOURS[g] || '#444', animationDelay: animate ? `${i * 80}ms` : '0ms' }, 'data-anim': animate ? '1' : null },
+    return h(`div.cp${me ? '.me' : ''}${win ? '.win' : ''}${r.team === 0 ? '.red' : r.team === 1 ? '.blue' : ''}`, { style: { '--rc': RANK_COLOURS[g] || '#444', animationDelay: animate ? `${Math.min(delay, 12) * 80}ms` : '0ms' }, 'data-anim': animate ? '1' : null },
       h('div.cp-place', `#${r.place || i + 1}`),
       h('div.cp-mid',
-        h('div.cp-av', r.local ? (!r.name || r.name === ProfileManager.profile.name ? ProfileManager.avatarEl(110) : Presence.avatarEl({ name: r.name }, 110)) : me ? ProfileManager.avatarEl(110) : Presence.avatarEl(p || { name: r.name }, 110)),
+        h('div.cp-av', r.local ? (!r.name || r.name === ProfileManager.profile.name ? ProfileManager.avatarEl(110) : Presence.avatarEl({ name: r.name }, 110)) : me ? ProfileManager.avatarEl(110) : Presence.avatarEl(p || { name: r.name, avatar: r.avatar }, 110)),
         h('div.cp-name', r.name, me ? h('small', ' (you)') : null),
         r.counts ? h('div.cp-stats', ...r.counts.map((c, k) => stat(NAMES[k], fmtInt(c)))) : h('div.cp-stats.cp-live', r.pending ? 'still playing…' : ''),
         h('div.cp-stats.cp-sum', stat('Combo', `x${fmtInt(r.maxCombo || 0)}`), stat('Accuracy', fmtAcc(r.accuracy || 0))),
@@ -31402,7 +31564,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '4938733c48e9';
+const APP_BUILD = 'fb4cd69efd40';
 
 const App = {
   lastReport: null,

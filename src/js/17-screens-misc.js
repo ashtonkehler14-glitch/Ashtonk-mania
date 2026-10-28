@@ -917,6 +917,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28k', title: 'Results and song select', sections: [
+    { icon: 'trophy', title: 'Results', items: ['Every score on the beatmap sits in a row beside yours, as in lazer: scroll, drag or use ← / → to look through them, yours and the online ones, and click one to open it', 'In multiplayer, your score sits in the middle with everyone else\'s either side, as in lazer'] },
+    { icon: 'sparkle', title: 'Song select', items: ['Typing a search no longer starts playing a song — it plays once you pick a beatmap', 'A long list of scores no longer cuts off the grades at the top of the list', 'Your own score is no longer highlighted on the online boards'] },
+  ] },
   { id: '2026.10.28j', title: 'HTML file', sections: [
     { icon: 'download', title: 'Saved as an HTML file', items: ['Save the game as an HTML file while you have a code and the file opens as you the first time — your scores, settings, collections, favourites and skin come with it, no code to type (it works once, within a day)'] },
   ] },

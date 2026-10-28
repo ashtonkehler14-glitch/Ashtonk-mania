@@ -599,9 +599,6 @@ html.touch .settings-panel .set-row .reset::after { content: ""; position: absol
 .lbs > * > *, .lbs-av > * { transform: skewX(var(--unshear)); }
 .lbs-rank { position: relative; flex: none; width: 50px; margin-right: -10px; padding-right: 10px; display: grid; place-items: center; }
 .lbs-rank b { font-size: 18px; font-weight: 600; text-shadow: 0 1px 3px rgba(0, 0, 0, .4); white-space: nowrap; }
-.lbs.own .lbs-rank { background: linear-gradient(90deg, #66ffcc, #51a388); }
-.lbs.own:hover .lbs-rank { background: linear-gradient(90deg, #85ffd6, #74b5a0); }
-.lbs.own .lbs-rank b { color: var(--bg3); text-shadow: none; }
 .lbs-mid { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; border-radius: 10px; overflow: hidden; background: hsl(var(--ss-h) 10% 15% / .4); transition: background 200ms var(--ease-out); }
 .lbs:hover .lbs-mid { background: hsl(var(--ss-h) 10% 25% / .5); }
 .lbs-av { flex: none; width: 50px; height: 50px; border-radius: 10px; overflow: hidden; background: rgba(0, 0, 0, .5); }
@@ -3867,6 +3864,14 @@ html.touch img { -webkit-user-drag: none; }
 .res-body.mp .res-grid { display: flex; align-items: center; gap: 14px; }
 .res-body.mp .res-grid > .rs { flex: none; width: 360px; }
 .res-mp-side { display: flex; align-items: center; gap: 14px; }
+/* lazer's ScorePanelList: a row wider than the screen scrolls sideways (ResultsScreen.scrollRow); otherwise the wrappers
+   take no room of their own */
+.res-row:not(.scroll), .res-row:not(.scroll) > .res-sizer { display: contents; }
+.res-row.scroll { --side: clamp(16px, calc(3 * var(--vw)), 48px); width: calc(100% + 2 * var(--side)); max-width: none; margin-inline: calc(-1 * var(--side)); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; padding-block: 32px; margin-block: -32px; } /* (room for the panels' shadows, which a sideways scroller would otherwise cut off) */
+.res-row.scroll > .res-sizer { width: max-content; }
+.res-row.scroll > .res-sizer > .res-grid { margin: 0; }
+.res-row.drag { cursor: grabbing; user-select: none; }
+.res-row.drag .cp { pointer-events: none; }
 .res-mp-side:empty { display: none; }
 .res-body.mp .res-grid.stats-open > .res-mp-side { display: none; }
 .res-body.mp .res-grid.stats-open > .res-right { flex: 0 1 700px; }
