@@ -919,6 +919,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28m', title: 'Mod multipliers and smoother menus', sections: [
+    { icon: 'sparkle', title: 'Mods', items: ['Score multipliers match lazer\'s: Half Time and Daycore 0.30x, key mods 0.90x, Wind Up, Wind Down and Adaptive Speed 0.50x, and Song Speed below 1× counts as Half Time at that speed'] },
+    { icon: 'bolt', title: 'Performance', items: ['After a song, the menus no longer keep your computer busy in the background', 'Scrolling the settings is smoother'] },
+  ] },
   { id: '2026.10.28l', title: 'Phones and performance', sections: [
     { icon: 'sparkle', title: 'Phones', items: ['Landscape (expanded columns) as lazer\'s looks on a phone: wider columns a hairline apart, the same size whatever the skin (a skin with wide columns no longer fills the screen)'] },
     { icon: 'bolt', title: 'Performance mode', items: ['Performance mode shows song pictures at a lower resolution too — the separate Picture quality option is gone', 'Picking Performance in first-run setup also turns on Automatic resolution'] },

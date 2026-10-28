@@ -3328,8 +3328,10 @@ body.f-onboarding .lz-tipbox { visibility: hidden; } /* (not peeking out from un
 .sp-nb.active { color: #999; }
 .sp-nb .i { position: absolute; left: 25px; top: 50%; width: 20px; height: 20px; margin-top: -10px; }
 .sp-nb > span:last-child { position: absolute; left: 53px; white-space: nowrap; } /* (15px: "user interface" fits inside the sidebar) */
-.sp-nb-ind { position: absolute; left: 9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 1.5px; background: hsl(255 100% 70%); opacity: 0; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1), height 500ms cubic-bezier(.22, 1, .36, 1), margin-top 500ms cubic-bezier(.22, 1, .36, 1); }
-.sp-nb.active .sp-nb-ind { opacity: 1; height: 18px; margin-top: -9px; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1), height 500ms linear(0, .388, .75, 1, 1.125, 1.153, 1.125, 1.077, 1.031, 1, .984, .981, .984, .99, .996, 1, 1.002, 1.002, 1.002, 1.001, 1), margin-top 500ms linear(0, .388, .75, 1, 1.125, 1.153, 1.125, 1.077, 1.031, 1, .984, .981, .984, .99, .996, 1, 1.002, 1.002, 1.002, 1.001, 1); }
+/* (the bar grows from 4px to 18px tall about its middle — scaled, not resized: a resize laid the page out again every
+   frame of it, all through a scroll of the panel) */
+.sp-nb-ind { position: absolute; left: 9px; top: 50%; width: 4px; height: 18px; margin-top: -9px; border-radius: 1.5px; background: hsl(255 100% 70%); opacity: 0; transform: scaleY(.2222); transition: opacity 500ms cubic-bezier(.22, 1, .36, 1), transform 500ms cubic-bezier(.22, 1, .36, 1); }
+.sp-nb.active .sp-nb-ind { opacity: 1; transform: none; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1), transform 500ms linear(0, .388, .75, 1, 1.125, 1.153, 1.125, 1.077, 1.031, 1, .984, .981, .984, .99, .996, 1, 1.002, 1.002, 1.002, 1.001, 1); }
 @media (max-width: 700px) and (hover: none) and (orientation: portrait) { .sp-nav { width: 60px; } .sp-nb > span:last-child { display: none; } }
 /* lazer's side overlays: the screen shifts 5% of the panel's width away (settings 570px → 28.5px; notifications
    320px → 16px), and settings leaves the screen undimmed with the toolbar still usable above it */

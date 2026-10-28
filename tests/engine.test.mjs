@@ -471,6 +471,19 @@ test('osu!lazer standardised score: 1,000,000 for all MAX, accuracy^(2+2acc), lo
   assert.equal(play(100, Array(100).fill(J.MARV)).score, 1000000);
 });
 
+test('mod score multipliers are lazer\'s (ManiaScoreMultiplierCalculator)', () => {
+  const { ModSystem } = M, mul = (mods, cfg) => +ModSystem.multiplier(mods, cfg).toFixed(4);
+  for (const [id, v] of [['EZ', 0.5], ['NF', 0.5], ['HT', 0.3], ['DC', 0.3], ['NR', 0.9], ['CS', 0.9], ['NLN', 0.9], ['DA', 0.5], ['WU', 0.5], ['WD', 0.5], ['AS', 0.5],
+    ['HR', 1], ['SD', 1], ['PF', 1], ['AC', 1], ['DT', 1], ['NC', 1], ['HD', 1], ['FI', 1], ['CO', 1], ['FL', 1], ['MR', 1], ['RD', 1], ['IN', 1], ['MU', 1], ['AT', 1], ['CN', 1]])
+    assert.equal(mul([id]), v, id);
+  for (let k = 1; k <= 10; k++) assert.equal(mul([`${k}K`]), 0.9, `${k}K`);
+  // Song Speed: slower than 1× as Half Time at that speed (rounded down to a tenth), 1× and faster as Double Time
+  for (const [rate, v] of [[0.5, 0.1], [0.75, 0.3], [0.8, 0.4], [0.95, 0.5], [1, 1], [1.25, 1], [2, 1]]) assert.equal(mul(['RT'], { rate }), v, `RT ${rate}`);
+  // they multiply together
+  assert.equal(mul(['EZ', 'HT']), 0.15);
+  assert.equal(mul(['NF', '7K', 'CS']), 0.405);
+});
+
 test('the engine summary carries both scores', () => {
   const eng = engineFor(osu([note(0, 1000), note(1, 1500), ln(2, 2000, 2600)]));
   for (const [t, c, d] of generateAutoInputs(eng.notes, 4).flat().reduce((a, x, i, arr) => (i % 3 ? a : a.concat([[arr[i], arr[i + 1], arr[i + 2]]])), [])) eng.input(c, d === 1, t);

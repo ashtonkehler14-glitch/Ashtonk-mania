@@ -667,6 +667,19 @@ const Toolbar = {
       });
       tb.addEventListener('pointerout', e => { const b = e.target.closest('.tb-btn'); if (b && !b.contains(e.relatedTarget)) b.classList.remove('tip-off'); });
       tb.addEventListener('pointerover', e => { const b = e.target.closest('.tb-btn'); if (b && !b.contains(e.relatedTarget)) UISounds.hover(); });
+      // the drifting triangles behind the ruleset: Chrome leaves a CSS animation that (re)started while the bar was
+      // hidden — after every song, as the bar slides back — running on the main thread, a style recalculation every
+      // frame on every screen from then on. Started again once the bar is back in view, it runs on the compositor.
+      const app = $('#app'), hidden = () => app.classList.contains('in-game') || app.classList.contains('hide-toolbar');
+      let was = hidden(), wake = 0;
+      new MutationObserver(() => {
+        const now = hidden(); if (now === was) return; was = now;
+        clearTimeout(wake);
+        if (!now) wake = setTimeout(() => {
+          if (hidden()) return;
+          for (const a of tb.getAnimations({ subtree: true })) if (a.animationName === 'tbTris') { const t = a.currentTime; a.cancel(); a.play(); if (t != null) a.currentTime = t; }
+        }, 600); // (the bar's 500ms slide back in)
+      }).observe(app, { attributes: true, attributeFilter: ['class'] });
     }
     const btn = (ic, title, sub, fn, { key, right, cls = '', ...extra } = {}) =>
       h(`button.tb-btn${cls}`, { 'aria-label': title, onclick: () => { UISounds.click(); fn(); }, ...extra },
