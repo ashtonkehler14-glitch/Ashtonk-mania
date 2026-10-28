@@ -354,7 +354,7 @@ const HomeScreen = {
     const tick = now => {
       this._raf = requestAnimationFrame(tick);
       const cv = this.vis;
-      if (!cv.isConnected || (typeof Spectate !== 'undefined' && Spectate.rkEl)) return; // (covered by a spectated player's screen: nothing to draw)
+      if (!cv.isConnected) return;
       const dt = Math.min(100, now - lastT); lastT = now;
       // Performance mode: no visualiser, triangles, fountains or beat — the logo sits still (only the idle return runs)
       if (Settings.get('graphics.performanceMode')) {

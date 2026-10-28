@@ -3568,17 +3568,11 @@ html.touch .explorer.ov .ex-flabel { padding-top: 7px; }
 .slow .neru.hop .neru-img { animation: neruHop 620ms linear; }
 .slow .settings-panel, .slow .np-player, .slow .np-playlist, .slow .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); } /* (the now-playing card's own edge — round the panel, it drew an empty strip below it) */
 
-.spec-pill { position: fixed; left: 50%; bottom: 14px; translate: -50% 0; z-index: 96; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 999px; background: hsl(255 10% 15% / .95); box-shadow: 0 6px 24px rgba(0, 0, 0, .45); color: #fff; max-width: calc(100 * var(--vw) - 24px); }
-.spec-pill-t { display: flex; flex-direction: column; min-width: 0; }
-.spec-pill-t b { font-size: .82rem; }
-.spec-pill-t small { font-size: .7rem; color: hsl(255 20% 75%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
-#app.in-game .spec-pill { bottom: auto; top: 10px; opacity: .8; }
 /* lazer's spectator list on the HUD (left, under the score area), and friend request bits in the online list */
 .spec-list { position: absolute; left: 12px; top: 45%; z-index: 6; display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: rgba(0, 0, 0, .35); color: #fff; pointer-events: none; font-size: 12px; }
 .spec-list-h { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
 .spec-list-n { opacity: .85; }
 .spec-list-n.more { opacity: .6; font-style: italic; }
-.spec-pause-sub { margin: -10px 0 18px; text-align: center; color: rgba(255, 255, 255, .75); font-size: 1rem; }
 
 /* osu!lazer's judgement counter (JudgementCounterDisplay): counters 10px apart, each a 16px fixed-width count over its
    8px name, in the judgement's colour — on a Kori panel (dark purple, Kori-purple edge) */
@@ -3813,24 +3807,8 @@ html.touch img { -webkit-user-drag: none; }
 .md-tag { padding: 0; border: 0; background: none; font: inherit; font-size: 14px; color: hsl(var(--ss-h) 40% 75%); cursor: pointer; }
 .md-tag:hover { color: #fff; }
 /* spectating a friend's Ranked Play screen: their page, read-only, under a bar to stop watching */
-.spec-rk { position: fixed; inset: 0; z-index: 900; background: #16151b; overflow: hidden; animation: fadeIn 200ms ease; }
-.spec-rk-view { position: absolute; inset: 0; pointer-events: none; }
 /* (their screen is only to look at: nothing on it lights up or answers to your pointer — not even the parts their own
    styles make clickable — and your own screen under it isn't drawn while it's covered) */
-.spec-rk-view *, .spec-rk-view *::before, .spec-rk-view *::after { pointer-events: none !important; cursor: inherit !important; }
-body.spec-rk-on > #app { visibility: hidden; } /* (only your own: the copy of theirs is an #app too) */
-.spec-rk-bar { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-radius: 10px; background: rgba(23, 26, 28, .85); box-shadow: 0 2px 10px rgba(0, 0, 0, .4); font-size: 14px; font-weight: 600; }
-.spec-rk-bar .i { width: 16px; height: 16px; color: #ff66ab; }
-.spec-rk-bar small { font-weight: 400; opacity: .6; font-size: 12px; }
-.spec-frame { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; }
-.spec-cur { position: absolute; left: 0; top: 0; z-index: 1; transform-origin: 0 0; pointer-events: none; transition: transform 34ms linear; will-change: transform; }
-.spec-cur img { display: block; width: 46.8px; height: 66.3px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); transition: filter 120ms; } /* (lazer's 312×442 texture at 0.15×, unstretched) */
-.spec-cur.down img { filter: drop-shadow(0 0 6px rgba(255, 102, 171, .9)); }
-.spec-tap { display: none; }
-.spec-cur.touch { transition: transform 34ms linear, opacity 250ms; }
-.spec-cur.touch img { display: none; }
-.spec-cur.touch .spec-tap { display: block; position: absolute; left: -24px; top: -24px; width: 48px; height: 48px; border-radius: 50%; border: 3px solid #fff; background: rgba(255, 102, 171, .35); box-shadow: 0 0 10px rgba(255, 102, 171, .8), 0 1px 3px rgba(0, 0, 0, .5); transition: scale 120ms, opacity 200ms; }
-.spec-cur.touch:not(.down) .spec-tap { scale: 1.25; opacity: 0; transition: scale 250ms, opacity 250ms; }
 /* MultiplayerResultsScreen: every player's contracted ScorePanel (130 × 385: #444 with 20px corners, the avatar,
    name, judgements, combo and accuracy, mods; the score and grade below), winner first, yours lifted and outlined */
 .mpr { position: absolute; inset: var(--toolbar-h) 0 0; display: flex; flex-direction: column; }
@@ -4265,7 +4243,6 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .mod-p.preset-add .i { width: 20px; height: 20px; }
 
 /* a spectated screen: kept still between updates (its entrance animations would otherwise play again each time) */
-.spec-rk-view *, .spec-rk-view *::before, .spec-rk-view *::after { animation: none !important; }
 
 /* lazer's Cinema mod: the playfield and HUD aren't shown, only the background (and its video) */
 .gameplay.cinema .gp-canvas, .gameplay.cinema .gp-hud, .gameplay.cinema .gp-lowhp, .gameplay.cinema .gp-break { opacity: 0; transition: opacity 500ms; }
@@ -4651,9 +4628,6 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .settings-panel .set-row.form:hover input[type=range].slider::-webkit-slider-thumb, .settings-panel input[type=range].slider:active::-webkit-slider-thumb, .settings-panel input[type=range].slider:focus-visible::-webkit-slider-thumb { filter: none; }
 .fall-text { position: fixed; z-index: 10000; white-space: pre; pointer-events: none; line-height: 1.2; }
 /* spectating a song that's still downloading */
-.spec-dl { position: absolute; top: 14px; left: 50%; translate: -50% 0; z-index: 6; display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 99px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 13px; font-weight: 600; pointer-events: none; animation: specDlIn calc(400ms * var(--anim, 1)) cubic-bezier(.22, 1, .36, 1); transition: opacity 400ms, translate 400ms cubic-bezier(.22, 1, .36, 1); }
-.spec-dl.out { opacity: 0; translate: -50% -10px; }
-@keyframes specDlIn { from { opacity: 0; translate: -50% -10px; } }
 
 /* ── Performance mode: the menus at their lightest — nothing moves by itself, no blur, glass or glow, no decoration
    layers. (Gameplay's own effects are turned off by the settings it forces; the playfield itself is untouched.) */
@@ -4993,3 +4967,35 @@ html.lp-open #toasts { right: 380px; }
 .lib-mine-n { margin-left: 6px; padding: 0 7px; border-radius: 99px; background: rgba(255, 255, 255, .16); font-size: .75rem; font-weight: 700; }
 .off-act { margin-top: 6px; }
 @media (max-width: 560px) { .ab-grid { grid-template-columns: minmax(0, 1fr); } }
+/* ── spectating (lazer's SoloSpectatorScreen): a purple box in the middle — "Spectator Mode", the player → their
+   beatmap, the automatic-download checkbox and Start Watching — over the dimmed background */
+.spm { position: absolute; inset: 0; display: grid; place-items: center; padding: calc(var(--toolbar-h) + 20px) 16px 90px; }
+.spm-dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .45); }
+.spm-box { position: relative; display: flex; flex-direction: column; align-items: center; gap: 15px; padding: 20px; border-radius: 20px; background: hsl(270 10% 15%); box-shadow: 0 12px 40px rgba(0, 0, 0, .45); max-width: calc(100 * var(--vw) - 32px); animation: spmIn 500ms var(--ease-out) both; }
+@keyframes spmIn { from { opacity: 0; transform: scale(.94); } }
+.spm-t { font-size: 30px; font-weight: 400; color: #fff; }
+.spm-row { display: flex; align-items: center; gap: 15px; }
+.spm-user { flex: none; width: 290px; }
+.spm-user .up-card { height: 145px; pointer-events: none; }
+.spm-user .up-more { display: none; }
+.spm-arrow { flex: none; display: grid; place-items: center; color: #fff; }
+.spm-arrow .i { width: 40px; height: 40px; transform: scaleX(-1); }
+.spm-map { flex: none; width: 430px; min-height: 100px; display: flex; align-items: center; }
+.spm-card { width: 100%; cursor: pointer; }
+.spm-card .ex-side { opacity: 1; transform: none; }
+.spm-v { font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, .85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.spm-miss { font-size: 11px; color: rgba(255, 255, 255, .6); }
+.spm-idle { display: flex; align-items: center; gap: 10px; width: 100%; height: 100px; padding: 0 20px; border-radius: 10px; background: hsl(270 10% 20%); color: hsl(270 20% 80%); font-size: 15px; }
+.spm-idle .i { flex: none; width: 20px; height: 20px; }
+.spm-auto { display: flex; align-items: center; gap: 14px; padding: 8px 12px; border: 0; border-radius: 8px; background: none; color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
+.spm-auto:hover { background: rgba(255, 255, 255, .05); }
+.spm-watch { width: 250px; height: 40px; border: 0; border-radius: 6px; background: linear-gradient(90deg, #593790, #7a4fc4); color: #fff; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; transition: filter var(--t-fast), opacity var(--t-fast); }
+.spm-watch:hover:not(:disabled) { filter: brightness(1.15); }
+.spm-watch:disabled { opacity: .45; cursor: default; }
+@media (max-width: 900px) { .spm-row { flex-direction: column; } .spm-arrow .i { transform: rotate(-90deg); width: 28px; height: 28px; } .spm-map { width: min(430px, calc(100 * var(--vw) - 72px)); } }
+@media (max-height: 560px) { .spm { padding-top: calc(var(--toolbar-h) + 6px); padding-bottom: 60px; } .spm-box { gap: 8px; padding: 12px 16px; } .spm-t { font-size: 22px; } .spm-user .up-card { height: 120px; } }
+/* lazer's SpectatorPlayer message: "Watching (them) play (song) live", top centre */
+.spec-live { position: absolute; top: 96px; left: 50%; translate: -50% 0; z-index: 6; max-width: min(720px, calc(100 * var(--vw) - 40px)); padding: 6px 16px; border-radius: 99px; background: rgba(0, 0, 0, .45); color: #fff; font-size: 14px; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: specLiveIn 600ms var(--ease-out) both; }
+.spec-live b { font-weight: 600; }
+.spec-live .spec-live-l { font-weight: 800; color: #ff6b7f; }
+@keyframes specLiveIn { from { opacity: 0; translate: -50% -8px; } }

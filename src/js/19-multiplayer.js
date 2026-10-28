@@ -498,6 +498,7 @@ const Presence = {
   },
   status() {
     if (Screens.currentName === 'gameplay') return GameplayScreen.s && (GameplayScreen.s.spectate || GameplayScreen.s.replay) ? 'watching' : 'playing';
+    if (Screens.currentName === 'spectator' || (Screens.currentName === 'results' && typeof Spectate !== 'undefined' && Spectate.target)) return 'watching';
     return Multiplayer.inRoom() ? (Multiplayer.isRP() ? 'ranked' : 'room') : 'menu';
   },
   /** What's being played (shown on the online list). */

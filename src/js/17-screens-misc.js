@@ -917,6 +917,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28f', title: 'Spectating, as in lazer', sections: [
+    { icon: 'film', title: 'Spectating', items: ['Spectate someone and you get lazer\'s Spectator Mode screen: who you\'re watching, the beatmap they\'re playing, and Start Watching', 'Their song starts by itself once you have the beatmap — download it from the card, or turn on "Automatically download missing beatmaps"', 'While watching: "Watching (them) play (song) live" at the top, and their results at the end (no retry — it\'s their play)', 'Esc takes you back to the Spectator Mode screen; their next song starts there too', 'Their screen is no longer copied onto yours between songs'] },
+  ] },
   { id: '2026.10.28e', title: 'Phones and roles', sections: [
     { icon: 'sparkle', title: 'Phones', items: ['First-run setup asks how you want to play on a phone — Portrait, Landscape or Landscape (expanded) — with a picture of each', 'Signing in to your account on a phone asks it first', 'In Portrait and Landscape (expanded), only a tap on a lane hits a note — a tap beside the stage does nothing'] },
     { icon: 'trophy', title: 'Rankings', items: ['The server\'s owner shows as Owner beside their name, on the rankings and their profile', 'The owner can make players admins, each with a role name and colour of their choosing, shown beside their name'] },

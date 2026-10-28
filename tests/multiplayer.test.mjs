@@ -1019,16 +1019,14 @@ test('presence: public ids and songs on the list; spectating streams a play only
   assert.ok(gone.some(o => o.to === 'a' && o.msg.t === 'specEnd' && o.msg.gone));
 });
 
-test('presence: a Ranked Play screen reaches spectators, and someone who starts watching gets the latest', () => {
+test('presence: watching someone between songs only waits for their next play (their screen is never sent)', () => {
   const p = new PresenceLogic(() => 0);
   p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
-  p.message('a', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
   p.message('a', { t: 'status', status: 'ranked' });
-  assert.equal(p.list().find(x => x.id === 'a').status, 'ranked');
-  assert.deepEqual(p.message('a', { t: 'rkview', html: '<div class="rkm">pick</div>' }), [], 'nobody watching yet');
+  assert.deepEqual(p.message('a', { t: 'rkview', html: '<div class="rkm">pick</div>' }), [], 'an old copy\'s screen goes nowhere');
   const w = p.message('b', { t: 'watch', to: 'a' });
-  assert.deepEqual(w.find(o => o.msg.t === 'specRk'), { to: 'b', msg: { t: 'specRk', id: 'a', html: '<div class="rkm">pick</div>' } });
-  assert.deepEqual(p.message('a', { t: 'rkview', html: null }), [{ to: 'b', msg: { t: 'specRk', id: 'a', html: null } }]);
+  assert.deepEqual(w.map(o => o.msg.t).sort(), ['specWait', 'spectators']);
+  assert.deepEqual(p.message('a', { t: 'pause', paused: true, at: 5 }), [], 'pauses aren\'t passed on: the stream just stops');
 });
 
 test('roles: the owner shows as Owner on the rankings; admins the owner makes get a role of their naming and colour', () => {

@@ -3128,34 +3128,6 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await page.evaluate(() => AshtonkMania.GameplayScreen.quit()); await page.waitForTimeout(1200);
 }
 
-// spectating: the watched player's screen can't reach into yours (labels, form / command / popover targets, names
-// that hide the page's functions, autofocus, links, scripts, pictures from anywhere) and takes no clicks or keys
-{
-  const r = await page.evaluate(() => {
-    const S = AshtonkMania.Spectate, view = S.rkView, applied = S._rkApplied;
-    S.rkView = document.createElement('div'); S._rkApplied = null;
-    try {
-      S.applyRk('<div><label for="x">l</label><button form="f" commandfor="d" command="show-modal" popovertarget="p" popovertargetaction="show" name="getElementById" autofocus>b</button>'
-        + '<img name="cookie" src="https://evil.example/x.png"><img src="https://assets.ppy.sh/a.jpg"><svg><a href="javascript:alert(1)"><text>t</text></a><script>alert(1)</script></svg>'
-        + '<p style="background:url(https://evil.example/y)">s</p><input form="f" name="q" value="v"></div>');
-      const v = S.rkView;
-      return { attrs: [...new Set([...v.querySelectorAll('*')].flatMap(e => [...e.attributes].map(a => a.name)))].sort().join(), imgs: [...v.querySelectorAll('img')].map(i => i.getAttribute('src')),
-        script: !!v.querySelector('script'), bg: v.querySelector('p').getAttribute('style'), text: v.textContent };
-    } finally { S.rkView = view; S._rkApplied = applied; }
-  });
-  check('spectating: a watched screen loses for / form / commandfor / popovertarget / name / autofocus, links, scripts and outside pictures',
-    !/(^|,)(for|form|commandfor|command|popovertarget|popovertargetaction|name|autofocus|href)(,|$)/.test(r.attrs) && r.imgs[0] === null && r.imgs[1] === 'https://assets.ppy.sh/a.jpg' && !r.script && !/evil/.test(r.bg) && r.text.includes('b'), JSON.stringify(r));
-  const inert = await page.evaluate(() => {
-    const S = AshtonkMania.Spectate, t = S.target;
-    S.target = { id: 'nobody', name: 'Test' };
-    S.showRk('<div class="x">their screen</div>');
-    const v = !!(S.rkView && S.rkView.inert && S.rkEl && S.rkEl.isConnected);
-    S.showRk(null); S.target = t;
-    return { v, gone: !S.rkEl };
-  });
-  check('spectating: their screen takes no clicks, Tab or keys (inert)', inert.v && inert.gone, JSON.stringify(inert));
-}
-
 // chat: a message that couldn't go out stays in the box; one that did is cleared
 {
   const r = await page.evaluate(() => {

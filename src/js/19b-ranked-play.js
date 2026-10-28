@@ -218,7 +218,7 @@ const RankedMatch = {
     const onResize = () => this.fit();
     addEventListener('resize', onResize);
     this._subs.push(() => removeEventListener('resize', onResize));
-    const loop = () => { this._raf = requestAnimationFrame(loop); this.tick(); if (Spectate.host.watchers) Spectate.hostRk(this.root); };
+    const loop = () => { this._raf = requestAnimationFrame(loop); this.tick(); };
     loop();
   },
   /** As lazer's fixed layout: a screen shorter or narrower than the match's (a phone on its side, a big interface size,
@@ -239,7 +239,6 @@ const RankedMatch = {
     this.stopPreview();
     this.root.remove(); this.root = null;
     RankedNeru.unmount();
-    Spectate.hostRk(null, true); // (spectators: the match screen is gone)
     if (this.scr && this.scr.el) this.scr.el.classList.remove('rkm-on');
     $('#app').classList.remove('hide-toolbar');
     clearTimeout(this._handT);

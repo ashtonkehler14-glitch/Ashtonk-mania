@@ -373,7 +373,7 @@ const GameplayScreen = {
   },
   onBack() {
     if (SkinEditor.on) { SkinEditor.close(); return true; }
-    if (this.s && this.s.spectate) { Spectate.stop(); return true; } // (Esc while spectating stops watching)
+    if (this.s && this.s.spectate) { Spectate.leavePlay(); return true; } // (Esc while watching: back to the Spectator Mode screen)
     if (!this.loaderGone) { if (!this.params.mp) this.quit(); return true; }
     if (this.s && this.s.mp) { this.mpQuit(); return true; }
     if (this.s) {
@@ -391,8 +391,7 @@ const GameplayScreen = {
     if (!tok || this._tok !== tok) return;
     this.failedScore = this.failedReplay = null; // (a fail screen offers this play's score, never an earlier one's)
     this.loaderStatus('Loading beatmap…', 0.1);
-    // (spectating a song you don't have yet: just its difficulty, fetched on its own — see Spectate.start)
-    const loaded = p.temp || await BeatmapManager.load(p.mapId);
+    const loaded = await BeatmapManager.load(p.mapId);
     if (this._tok !== tok) return;
     const { rec, bm } = loaded;
     if (bm.epilepsyWarning && !p.quick) this.loaderDisclaimer('This beatmap contains scenes with rapidly flashing colours', 'Please take caution if you are affected by epilepsy.');
@@ -820,7 +819,7 @@ const GameplayScreen = {
       // touch screens have no Escape key: a pause button only shows for coarse pointers
       // (in every kind of play — your own, practice, Auto, a replay, a multiplayer match (it asks before quitting) and
       // spectating (where it stops watching) — and whatever the HUD's visibility: it's the only way out on a phone)
-      s.spectate ? h('button.hud-touch-pause.stop', { 'aria-label': 'Stop watching', onclick: e => { e.stopPropagation(); this.onBack(); } }, icon('x'))
+      s.spectate ? h('button.hud-touch-pause.stop', { 'aria-label': 'Leave', onclick: e => { e.stopPropagation(); this.onBack(); } }, icon('x'))
         : h('button.hud-touch-pause', { 'aria-label': 'Pause', onclick: e => { e.stopPropagation(); this.onBack(); } }, h('i'), h('i')),
       // (no hold-for-menu button on a computer: it sat where song select's play logo is, so starting a song from the
       // logo left the pointer on it and it showed up — Esc opens the pause menu)
@@ -836,7 +835,9 @@ const GameplayScreen = {
       this.hitbox = h('div.fnf-hitbox', ...Array.from({ length: K }, () => h('i')));
       this.hud.append(this.hitbox);
     }
-    if (s.mode === 'replay' || s.mode === 'auto') {
+    // (lazer's SpectatorPlayer: "Watching (them) play (the song) live", top centre)
+    if (s.spectate) this.hud.append(Spectate.liveEl(s));
+    else if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
     // osu!lazer's judgement counter (off unless turned on): each judgement's count, rolling up, over its name
@@ -1435,7 +1436,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     // quick exit (lazer: hold Ctrl+`): back to song select after half a second
     if ((e.ctrlKey || e.metaKey) && e.code === 'Backquote') {
       e.preventDefault();
-      if (!e.repeat) { clearTimeout(this._exitHold); this.holdEl.classList.add('on'); this._exitHold = setTimeout(() => { this.holdEl.classList.remove('on'); if (s.mp) this.mpQuit(); else if (s.spectate) Spectate.stop(); else this.quit(); }, 500); }
+      if (!e.repeat) { clearTimeout(this._exitHold); this.holdEl.classList.add('on'); this._exitHold = setTimeout(() => { this.holdEl.classList.remove('on'); if (s.mp) this.mpQuit(); else if (s.spectate) Spectate.leavePlay(); else this.quit(); }, 500); }
       return;
     }
     // retry: hold R (or `) for half a second — never instant. Ctrl+R counts as holding R (and doesn't reload the
@@ -1656,7 +1657,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.cdEl = null;
     if (!s || !cd || !cd.isConnected || s.running || s.finished) return false;
     clearTimeout(this._cdT); cd.remove();
-    if (Spectate.host.s === s) Spectate.hostPause(true, this.gameTime());
     return true;
   },
   pause({ quiet = false } = {}) {
@@ -1665,7 +1665,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.releaseAll();
     s.running = false;
     Music.pause();
-    if (Spectate.host.s === s) Spectate.hostPause(true, this.gameTime()); // (whoever's watching sees the pause too)
     SkinManager.sample('pause-loop').then(() => {});
     if (!quiet) this.showPause('Paused');
   },
@@ -1676,9 +1675,13 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     // osu!lazer's GameplayMenuOverlay: wide slanted colour buttons (DialogButton) — continue green, retry yellow,
     // quit red — with the skin's pause-menu sounds (hover and clicks) when it has them
     const btn = (label, colour, fn, cls = '') => h(`button.pm-btn${cls}`, { style: { '--c': colour }, onclick: fn }, h('span.pm-band'), h('span.pm-label', label));
-    if (!failed) btns.push(btn('Continue', '#88b300', () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); }, '.primary'));
-    btns.push(btn('Retry', '#eeaa00', () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); }));
-    btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); this.quit(); }, '.danger'));
+    // (watching someone fail: their play, so no Retry of yours — Quit goes back to the Spectator Mode screen)
+    if (s.spectate) btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); Spectate.leavePlay(); }, '.danger'));
+    else {
+      if (!failed) btns.push(btn('Continue', '#88b300', () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); }, '.primary'));
+      btns.push(btn('Retry', '#eeaa00', () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); }));
+      btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); this.quit(); }, '.danger'));
+    }
     for (const b of btns) b.addEventListener('pointerenter', () => SkinManager.skinOnly('pause-hover', 0.7));
     // lazer's layout: the yellow 48px title centred in the space above the buttons, the buttons (80px tall, 80% of the
     // width), and "Retry count / Song progress / Accuracy" centred in the space below
@@ -1687,10 +1690,10 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const el = h('div.pause-menu', h('div.pause-box',
       // (lazer's GameplayMenuOverlay descriptions under the title)
       h('div.pm-head', h(`h2${failed ? '.failed' : ''}`, title.toLowerCase()),
-        (d => d ? h('p.pm-desc', d) : null)(failed ? 'you\'re dead, try again?' : /^paused$/i.test(title) ? 'you\'re not going to do what i think you\'re going to do, are ya?' : '')),
+        (d => d ? h('p.pm-desc', d) : null)(s.spectate ? `${s.spectate.name} failed` : failed ? 'you\'re dead, try again?' : /^paused$/i.test(title) ? 'you\'re not going to do what i think you\'re going to do, are ya?' : '')),
       h('div.pm-buttons', ...btns),
       h('div.pm-info',
-        h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
+        s.spectate ? null : h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
         h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
     if (failed && this.failedScore) { el.append(this.failFooter()); el.classList.add('has-foot'); }
@@ -1743,7 +1746,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (this.tapEl) { this.tapEl.remove(); this.tapEl = null; }
     this.closePause();
     const delay = s.feed ? 0 : Settings.get('gameplay.unpauseDelay'); // (no countdown when watching)
-    if (Spectate.host.s === s) Spectate.hostPause(false, this.gameTime());
     if (delay <= 0) { s.running = true; Music.play(Music.pausedPos); return; }
     const steps = 3, stepMs = delay / steps;
     const cd = this.cdEl = h('div.countdown', '3');
@@ -1794,8 +1796,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       this.failedScore = score; this.failedReplay = this._unsavedReplay;
       if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, score }); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
     }
-    // (watching someone: their fail screen is theirs — you see it as they do, with their pointer, and can't press it)
-    if (s.spectate) { setTimeout(() => { if (this.s === s) Spectate.failed(this, s); }, 900); return; }
     if (Settings.get('gameplay.retryOnFail') && s.mode === 'play') { setTimeout(() => { if (this.s === s) this.retry(); }, 1400); return; }
     setTimeout(() => { if (this.s === s) this.showPause('Failed', true); }, 900);
   },

@@ -44,6 +44,7 @@ const App = {
     Screens.register('beatmaps', BeatmapsScreen);
     Screens.register('explore', ExplorerScreen);
     Screens.register('dashboard', DashboardScreen);
+    Screens.register('spectator', SpectatorScreen);
     Screens.register('rankings', RankingsScreen);
     Screens.register('daily', DailyScreen);
     Screens.register('multiplayer', MultiplayerScreen);
