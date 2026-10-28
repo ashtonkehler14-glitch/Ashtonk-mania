@@ -3132,7 +3132,7 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .rkr-verdict { font-size: 1.4rem; font-weight: 600; opacity: 0; transform: translateY(10px); transition: opacity 400ms ease, transform 400ms var(--ease-out); }
 .rkr-verdict.show { opacity: 1; transform: none; }
 .rkr-break { display: flex; align-items: baseline; gap: 10px; min-height: 2.2rem; font-size: 1rem; color: rgba(255, 255, 255, .6); }
-.rkr-break b { font-size: 1.8rem; color: #ff5f7a; font-variant-numeric: tabular-nums; }
+.rkr-break b { margin: 0 .6rem; font-size: 1.8rem; color: #ff5f7a; font-variant-numeric: tabular-nums; } /* (room either side for its pop as each step lands) */
 .rkr-break b.pop { animation: rkPop 300ms ease; }
 @keyframes rkPop { 40% { transform: scale(1.25); } }
 .rkr-break em { font-style: normal; color: rgba(255, 255, 255, .7); animation: rkUp 300ms var(--ease-out) both; }

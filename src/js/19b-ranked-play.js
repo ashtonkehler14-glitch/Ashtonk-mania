@@ -836,6 +836,7 @@ const RankedMatch = {
   /** The end of the match (lazer's EndedScreen): victory, defeat or a draw, and the ratings. */
   renderEnded(m, g) {
     const me = Multiplayer.me, opp = this.oppId(), u = g.users[me], o = opp && g.users[opp];
+    const fin = (g.history || []).length; // (rounds played to the end: one left part-way isn't one)
     const res = g.round === 0 ? 'none' : g.winner === me ? 'win' : g.winner ? 'loss' : 'draw';
     const title = { win: 'VICTORY', loss: 'DEFEAT', draw: 'DRAW', none: 'MATCH OVER' }[res];
     if (res !== 'none' && typeof NeruEggs !== 'undefined' && !RankedNeru.el) NeruEggs.matchOver(res === 'win' ? 'won' : res === 'loss' ? 'lost' : 'draw', `rp${g.id || ''}`);
@@ -844,7 +845,7 @@ const RankedMatch = {
     const lifeRow = (id, x) => x ? h('div.rke-row', this.avatar(id, 32), h('b', this.name(id)), h('span', `${fmtInt(x.life)} life`), h('span', `${x.won} round${x.won === 1 ? '' : 's'} won`)) : null;
     m.append(h(`div.rke.${res}`,
       h('div.rke-title', title),
-      g.round === 0 ? h('div.rke-sub', 'The match ended before it began — nothing is counted.') : g.rated ? h('div.rke-ratings', rating('Your Rating: ', u), rating('Opponent Rating: ', o)) : h('div.rke-sub', `${g.keys}K duel · ${g.round} round${g.round === 1 ? '' : 's'} played`),
+      g.round === 0 ? h('div.rke-sub', 'The match ended before it began — nothing is counted.') : g.rated ? h('div.rke-ratings', rating('Your Rating: ', u), rating('Opponent Rating: ', o)) : h('div.rke-sub', `${g.keys}K duel · ${fin ? `${fin} round${fin === 1 ? '' : 's'} played` : 'no round finished'}`),
       g.round ? h('div.rke-rows', lifeRow(me, u), lifeRow(opp, o)) : null,
       h('div.rke-btns',
         // a rematch: both players still here, a new (unrated) match in this room once you've both asked
@@ -908,10 +909,15 @@ const RankedNeru = {
     const me = Multiplayer.me, st = g.stage;
     // (not over the face-off, nor before there's a match)
     el.classList.toggle('away', st === 'waitjoin' || st === 'deal' || (st === 'warmup' && g.round === 1) || st === 'playing');
+    // (the countdown's beatmap card, on a smaller screen where she'd be standing in front of it: she steps aside)
+    if (st === 'ready') {
+      const c = el.parentElement && el.parentElement.querySelector('.rkw-card'), a = el.getBoundingClientRect(), b = c && c.getBoundingClientRect();
+      if (b && a.width && a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom) el.classList.add('away');
+    }
     if (st === 'stars') this.react('huh', 'Pick something you can actually pass~', { delay: 600 });
     else if (st === 'discard') this.react('point', 'Swap out the scary ones~', { delay: 1800 });
     else if (st === 'pick') this.react(g.active === me ? 'point' : 'bored', g.active === me ? this.pick(['Your turn~ don\'t mess it up', 'Pick one already, zako~', 'Choose wisely~']) : null, { delay: 1700 });
-    else if (st === 'ready' && prev !== 'ready') this.react('cheer', this.pick(['I\'m NOT cheering for you.', 'Don\'t embarrass me~']), { delay: 500 });
+    else if (st === 'ready' && prev !== 'ready' && !el.classList.contains('away')) this.react('cheer', this.pick(['I\'m NOT cheering for you.', 'Don\'t embarrass me~']), { delay: 500 });
     else if (st === 'results' && g.results) {
       const res = g.results, d = res.dmg && res.dmg[me];
       // (as the damage lands on the screen)
