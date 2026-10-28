@@ -1120,16 +1120,21 @@ const NeruEggs = {
     const el = NeruCameo.make(mood, 'nc-peek');
     if (!el) return null;
     if (side === 'right') el.classList.add('right');
-    // (the chat open: up from behind its top edge, never over what's being said)
-    const chat = document.querySelector('.chat:not(.out)');
-    let edge = chat ? chat.getBoundingClientRect().top : innerHeight;
-    // (a bar along the bottom where she comes up — the back button, the results' buttons: from behind its top edge
-    // too, rather than over them)
-    if (!chat) for (const e of document.elementsFromPoint(side === 'right' ? innerWidth - 120 : 120, innerHeight - 3)) {
-      const r = e.getBoundingClientRect();
-      if (r.bottom >= innerHeight - 4 && r.height > 8 && r.height < innerHeight * 0.2) edge = Math.min(edge, r.top);
-    }
-    if (edge < innerHeight - 4) { el.classList.add('behind'); el.style.bottom = `${((1 - edge / innerHeight) * 100).toFixed(2)}%`; }
+    const place = () => {
+      // (the chat open: up from behind its top edge, never over what's being said)
+      const chat = document.querySelector('.chat:not(.out)');
+      let edge = chat ? chat.getBoundingClientRect().top : innerHeight;
+      // (a bar along the bottom where she comes up — the back button, the results' buttons: from behind its top edge
+      // too, rather than over them)
+      // (looked for a little way up too: a back button standing a few pixels proud of its bar, off the very bottom)
+      if (!chat) for (const y of [innerHeight - 3, innerHeight - 24]) for (const e of document.elementsFromPoint(side === 'right' ? innerWidth - 120 : 120, y)) {
+        if (e === el || el.contains(e)) continue;
+        const r = e.getBoundingClientRect();
+        if (r.bottom >= innerHeight - 16 && r.height > 8 && r.height < innerHeight * 0.2) edge = Math.min(edge, r.top);
+      }
+      el.classList.toggle('behind', edge < innerHeight - 4);
+      el.style.bottom = edge < innerHeight - 4 ? `${((1 - edge / innerHeight) * 100).toFixed(2)}%` : '';
+    };
     document.body.append(el);
     if (found) this.found('peek');
     const up = [{ transform: 'translateY(105%)' }, { transform: 'translateY(38%)', offset: 0.55 }, { transform: 'translateY(42%)' }];
@@ -1141,7 +1146,15 @@ const NeruEggs = {
       el.animate([{ transform: 'translateY(42%)' }, { transform: 'translateY(105%)' }], { duration: 420, easing: 'cubic-bezier(.55, 0, .75, .2)', fill: 'forwards' }).onfinish = () => el.remove();
     };
     // (once her picture's in: up, a look, and back down)
-    const go = () => { if (el.hidden) { if (el.isConnected) setTimeout(go, 60); return; } el.animate(up, { duration: 650, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' }); setTimeout(away, 3200); if (then) setTimeout(() => el.isConnected && then(el), 520); };
+    // (a screen still coming in — the results zooming up after a match, say: its bar isn't where it'll stay yet, so she
+    // waits for it to settle before finding it)
+    let waits = 0;
+    const settling = () => { const scr = document.querySelector('.screen.enter'); return !!scr && scr.getAnimations().some(a => a.playState === 'running'); };
+    const go = () => {
+      if (el.hidden || (settling() && waits++ < 20)) { if (el.isConnected) setTimeout(go, 60); return; }
+      place();
+      el.animate(up, { duration: 650, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' }); setTimeout(away, 3200); if (then) setTimeout(() => el.isConnected && then(el), 520);
+    };
     el.style.transform = 'translateY(105%)';
     go();
     return el;

@@ -4331,6 +4331,7 @@ html.touch .pl-group input[type=range].slider { height: 40px; margin: -8px 0; }
 /* lazer's GameplayChatDisplay: the room's chat, bottom left, during a multiplayer song */
 .gp-chat { position: absolute; left: 14px; bottom: 60px; width: min(360px, 32vw); display: flex; flex-direction: column; gap: 4px; pointer-events: none; opacity: .45; transition: opacity 300ms; z-index: 3; }
 .gp-chat.fresh, .gp-chat.typing { opacity: 1; }
+.gp-chat.over:not(.fresh):not(.typing):not(.open) { opacity: 0; } /* (the stage under it: a new message, a moment — and once your song's over) */
 .gp-chat-list { display: flex; flex-direction: column; gap: 2px; font-size: 13px; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); }
 .gp-chat-l { color: rgba(255, 255, 255, .9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gp-chat-l b { color: #8fd1ff; margin-right: 6px; }

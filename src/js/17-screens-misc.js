@@ -917,6 +917,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28i', title: 'Polish', sections: [
+    { icon: 'sparkle', title: 'Polish', items: ['On a phone with wide columns, the chat during a multiplayer song only shows new messages, so it stays off your notes', 'Neru no longer pops up over the back button after a match'] },
+  ] },
   { id: '2026.10.28h', title: 'Polish', sections: [
     { icon: 'sparkle', title: 'Polish', items: ['The Spectator Mode screen fits a phone held sideways', 'In Ranked Play, Neru steps down into the corner while a round\'s results are shown'] },
   ] },

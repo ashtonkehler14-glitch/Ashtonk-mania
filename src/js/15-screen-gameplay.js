@@ -335,14 +335,22 @@ const GameplayScreen = {
   gpChatOpen() { const s = this.s; return !!(s && s.mp && s.finished); },
   /** (the box can't be clicked into mid-song: it would take the keys) */
   gpChatTick() {
+    const R = this.renderer;
+    if (R && R.W && (R.stageX !== this._gpSx || R.W !== this._gpW)) {
+      // (the stage reaching in under the chat's corner — a phone's widened columns: there only a new message shows, for
+      // a moment, not lines of chat over the notes. Its edge measured once a size, not as the stage moves)
+      if (R.W !== this._gpW) { const c = this.gpChat, p = c.offsetParent; this._gpW = R.W; this._gpEdge = (c.offsetLeft + c.offsetWidth) / Math.max(1, p ? p.clientWidth : innerWidth); }
+      this._gpSx = R.stageX;
+      this.gpChat.classList.toggle('over', R.stageX / R.W < this._gpEdge);
+    }
     const open = this.gpChatOpen();
     if (open === this._gpOpen) return;
-    this._gpOpen = open; this.gpChatIn.disabled = !open;
+    this._gpOpen = open; this.gpChatIn.disabled = !open; this.gpChat.classList.toggle('open', open);
     this.gpChatIn.placeholder = open ? kbHint('press Enter to chat', 'tap to chat') : 'chat is available when your song is over';
   },
   leave() {
     if (this._quitO) { const o = this._quitO; this._quitO = null; o.close(); } // ("Quit match?" still up as the song ended)
-    if (this._gpChatOff) { this._gpChatOff(); this._gpChatOff = null; } this.gpChatIn = null; this.gpChat = null;
+    if (this._gpChatOff) { this._gpChatOff(); this._gpChatOff = null; } this.gpChatIn = null; this.gpChat = null; this._gpW = this._gpSx = null;
     document.title = APP_NAME;
     AudioManager.modVolume(1, 0); // (Muted: the music is back for the menus)
     if (this.s && Spectate.host.s === this.s) Spectate.hostEnd(this.s, !this.s.finished); // (watchers: the play ended)

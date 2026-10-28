@@ -4346,6 +4346,7 @@ html.touch .pl-group input[type=range].slider { height: 40px; margin: -8px 0; }
 /* lazer's GameplayChatDisplay: the room's chat, bottom left, during a multiplayer song */
 .gp-chat { position: absolute; left: 14px; bottom: 60px; width: min(360px, 32vw); display: flex; flex-direction: column; gap: 4px; pointer-events: none; opacity: .45; transition: opacity 300ms; z-index: 3; }
 .gp-chat.fresh, .gp-chat.typing { opacity: 1; }
+.gp-chat.over:not(.fresh):not(.typing):not(.open) { opacity: 0; } /* (the stage under it: a new message, a moment — and once your song's over) */
 .gp-chat-list { display: flex; flex-direction: column; gap: 2px; font-size: 13px; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); }
 .gp-chat-l { color: rgba(255, 255, 255, .9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gp-chat-l b { color: #8fd1ff; margin-right: 6px; }
@@ -16525,16 +16526,21 @@ const NeruEggs = {
     const el = NeruCameo.make(mood, 'nc-peek');
     if (!el) return null;
     if (side === 'right') el.classList.add('right');
-    // (the chat open: up from behind its top edge, never over what's being said)
-    const chat = document.querySelector('.chat:not(.out)');
-    let edge = chat ? chat.getBoundingClientRect().top : innerHeight;
-    // (a bar along the bottom where she comes up — the back button, the results' buttons: from behind its top edge
-    // too, rather than over them)
-    if (!chat) for (const e of document.elementsFromPoint(side === 'right' ? innerWidth - 120 : 120, innerHeight - 3)) {
-      const r = e.getBoundingClientRect();
-      if (r.bottom >= innerHeight - 4 && r.height > 8 && r.height < innerHeight * 0.2) edge = Math.min(edge, r.top);
-    }
-    if (edge < innerHeight - 4) { el.classList.add('behind'); el.style.bottom = `${((1 - edge / innerHeight) * 100).toFixed(2)}%`; }
+    const place = () => {
+      // (the chat open: up from behind its top edge, never over what's being said)
+      const chat = document.querySelector('.chat:not(.out)');
+      let edge = chat ? chat.getBoundingClientRect().top : innerHeight;
+      // (a bar along the bottom where she comes up — the back button, the results' buttons: from behind its top edge
+      // too, rather than over them)
+      // (looked for a little way up too: a back button standing a few pixels proud of its bar, off the very bottom)
+      if (!chat) for (const y of [innerHeight - 3, innerHeight - 24]) for (const e of document.elementsFromPoint(side === 'right' ? innerWidth - 120 : 120, y)) {
+        if (e === el || el.contains(e)) continue;
+        const r = e.getBoundingClientRect();
+        if (r.bottom >= innerHeight - 16 && r.height > 8 && r.height < innerHeight * 0.2) edge = Math.min(edge, r.top);
+      }
+      el.classList.toggle('behind', edge < innerHeight - 4);
+      el.style.bottom = edge < innerHeight - 4 ? `${((1 - edge / innerHeight) * 100).toFixed(2)}%` : '';
+    };
     document.body.append(el);
     if (found) this.found('peek');
     const up = [{ transform: 'translateY(105%)' }, { transform: 'translateY(38%)', offset: 0.55 }, { transform: 'translateY(42%)' }];
@@ -16546,7 +16552,15 @@ const NeruEggs = {
       el.animate([{ transform: 'translateY(42%)' }, { transform: 'translateY(105%)' }], { duration: 420, easing: 'cubic-bezier(.55, 0, .75, .2)', fill: 'forwards' }).onfinish = () => el.remove();
     };
     // (once her picture's in: up, a look, and back down)
-    const go = () => { if (el.hidden) { if (el.isConnected) setTimeout(go, 60); return; } el.animate(up, { duration: 650, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' }); setTimeout(away, 3200); if (then) setTimeout(() => el.isConnected && then(el), 520); };
+    // (a screen still coming in — the results zooming up after a match, say: its bar isn't where it'll stay yet, so she
+    // waits for it to settle before finding it)
+    let waits = 0;
+    const settling = () => { const scr = document.querySelector('.screen.enter'); return !!scr && scr.getAnimations().some(a => a.playState === 'running'); };
+    const go = () => {
+      if (el.hidden || (settling() && waits++ < 20)) { if (el.isConnected) setTimeout(go, 60); return; }
+      place();
+      el.animate(up, { duration: 650, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' }); setTimeout(away, 3200); if (then) setTimeout(() => el.isConnected && then(el), 520);
+    };
     el.style.transform = 'translateY(105%)';
     go();
     return el;
@@ -19200,14 +19214,22 @@ const GameplayScreen = {
   gpChatOpen() { const s = this.s; return !!(s && s.mp && s.finished); },
   /** (the box can't be clicked into mid-song: it would take the keys) */
   gpChatTick() {
+    const R = this.renderer;
+    if (R && R.W && (R.stageX !== this._gpSx || R.W !== this._gpW)) {
+      // (the stage reaching in under the chat's corner — a phone's widened columns: there only a new message shows, for
+      // a moment, not lines of chat over the notes. Its edge measured once a size, not as the stage moves)
+      if (R.W !== this._gpW) { const c = this.gpChat, p = c.offsetParent; this._gpW = R.W; this._gpEdge = (c.offsetLeft + c.offsetWidth) / Math.max(1, p ? p.clientWidth : innerWidth); }
+      this._gpSx = R.stageX;
+      this.gpChat.classList.toggle('over', R.stageX / R.W < this._gpEdge);
+    }
     const open = this.gpChatOpen();
     if (open === this._gpOpen) return;
-    this._gpOpen = open; this.gpChatIn.disabled = !open;
+    this._gpOpen = open; this.gpChatIn.disabled = !open; this.gpChat.classList.toggle('open', open);
     this.gpChatIn.placeholder = open ? kbHint('press Enter to chat', 'tap to chat') : 'chat is available when your song is over';
   },
   leave() {
     if (this._quitO) { const o = this._quitO; this._quitO = null; o.close(); } // ("Quit match?" still up as the song ended)
-    if (this._gpChatOff) { this._gpChatOff(); this._gpChatOff = null; } this.gpChatIn = null; this.gpChat = null;
+    if (this._gpChatOff) { this._gpChatOff(); this._gpChatOff = null; } this.gpChatIn = null; this.gpChat = null; this._gpW = this._gpSx = null;
     document.title = APP_NAME;
     AudioManager.modVolume(1, 0); // (Muted: the music is back for the menus)
     if (this.s && Spectate.host.s === this.s) Spectate.hostEnd(this.s, !this.s.finished); // (watchers: the play ended)
@@ -23313,6 +23335,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28i', title: 'Polish', sections: [
+    { icon: 'sparkle', title: 'Polish', items: ['On a phone with wide columns, the chat during a multiplayer song only shows new messages, so it stays off your notes', 'Neru no longer pops up over the back button after a match'] },
+  ] },
   { id: '2026.10.28h', title: 'Polish', sections: [
     { icon: 'sparkle', title: 'Polish', items: ['The Spectator Mode screen fits a phone held sideways', 'In Ranked Play, Neru steps down into the corner while a round\'s results are shown'] },
   ] },
@@ -31336,7 +31361,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '5f383dfb8c44';
+const APP_BUILD = '67a90f8f9dab';
 
 const App = {
   lastReport: null,
