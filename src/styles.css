@@ -1671,12 +1671,13 @@ div.res-calib .i { color: var(--good); }
   45% { transform: translateY(-26px) scale(.97, 1.04); animation-timing-function: cubic-bezier(.6, 0, .8, .4); } 72% { transform: translateY(2px) scale(1.05, .93); }
   86% { transform: translateY(-3px) scale(.99, 1.01); } 100% { transform: none; } }
 @keyframes neruShadow { 45% { transform: scaleX(.7); opacity: .5; } 72% { transform: scaleX(1.08); } }
-@media (max-height: 520px) and (hover: none) and (orientation: portrait), (max-width: 700px) and (hover: none) and (orientation: portrait) { .neru, .neru-cameo { display: none; } }
 /* ── Neru around the game (NeruCameo): she pops up at the edge of a screen with something to say */
 .neru-cameo { position: absolute; z-index: 4; display: block; padding: 0; border: 0; background: none; cursor: pointer;
   /* (the same size on every screen as on the main menu — before, each screen had its own and some were tiny) */
   --nc-h: min(calc(46 * var(--vh)), 420px); }
 .neru-cameo[hidden] { display: none; }
+/* (a phone held upright — a song, or its results, in Portrait: no room beside them for her; after the rules above, so it wins) */
+@media (max-height: 520px) and (hover: none) and (orientation: portrait), (max-width: 700px) and (hover: none) and (orientation: portrait) { .neru, .neru-cameo { display: none; } }
 .nc-body { display: block; height: 100%; transform-origin: 50% 100%; }
 .neru-cameo.in .nc-body { animation: ncIn 760ms var(--ease-out) both; }
 .nc-img { display: block; height: 100%; width: auto; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5));
@@ -3768,7 +3769,7 @@ html.touch img { -webkit-user-drag: none; }
   .ss-footer .foot-btn .i { width: 22px; height: 22px; }
   .ss-footer .lz-back { width: 112px; min-width: 0; }
   /* results footer: the buttons sit to the right of the back button instead of under it */
-  .res-actions { justify-content: flex-end; gap: 6px; padding: 0 8px 0 118px; }
+  .res-actions { justify-content: flex-end; gap: 6px; padding: 0 8px 0 134px; } /* (clear of the back button's slant) */
   .res-actions > .lz-back { width: 112px; min-width: 0; }
   .res-ab, .res-ab.wide { width: auto; flex: 1 1 0; max-width: 90px; height: 34px; }
   .res-actions > .muted { display: none; }
