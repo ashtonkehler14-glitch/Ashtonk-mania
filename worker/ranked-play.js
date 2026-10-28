@@ -11,7 +11,10 @@
 //  - Both download the beatmap (up to 2 min), look at it and press Ready (up to 2 min, then a 10 s countdown), and play.
 //    Whoever isn't ready in time takes 100,000 and the round is skipped.
 //  - The lower total score takes damage: the score difference plus 50,000 (no multipliers: every round counts the
-//    same). A hit taken at full life always leaves 1 (last stand).
+//    same), at most 500,000 for a song both played (one bad song can't decide the match; leaving one costs all of
+//    it). A hit taken at full life always leaves 1 (last stand).
+//  - Fair from the start: both hands are dealt from matched pairs of cards (the same difficulty each), and the deck
+//    leans towards the lower of the two star ratings chosen.
 //  - Leaving mid-song ends the match there (the other player goes back to the match screen and wins).
 //  - Once it's over, both players can ask for a rematch: a new (unrated) match in the same room.
 //  - The match ends when a player has no life left or the cards run out; the most life wins. Leaving loses (life 0); a dropped connection gets a minute to come back.
@@ -19,7 +22,7 @@
 //    a duel between friends is not.
 
 export const RP = {
-  LIFE: 1_000_000, HAND: 5, DECK: 50, BASE_DAMAGE: 50_000, NOT_READY_DAMAGE: 100_000,
+  LIFE: 1_000_000, HAND: 5, DECK: 50, BASE_DAMAGE: 50_000, NOT_READY_DAMAGE: 100_000, MAX_HIT: 500_000,
   WAIT_JOIN: 60_000, STARS: 60_000, DEAL: 15_000, INTRO: 20_000, DISCARD: 30_000, DISCARD_DONE: 3_000, FINISH_DISCARD: 5_000, PICK: 45_000,
   FINISH_PICK: 120_000, WARMUP: 120_000, COUNTDOWN: 10_000, RESULTS: 15_000,
   AWAY: 60_000,        // a dropped connection gets this long to come back before the player is counted as gone (any match)
@@ -38,13 +41,15 @@ export const starsForRating = r => Math.max(0.5, Math.log(Math.max(1e-6, (r - 80
 /** A new player's rating, estimated from their pp (MatchmakingQueueBackgroundService). */
 export const initialRating = pp => -4000 + 600 * Math.log(Math.max(0, pp) + 4000);
 
-/** The deck around the star rating both players asked for: `n` targets drawn from N(their average, 0.35²), at least
- *  0.5★ (Box–Muller). */
+/** The deck around the star ratings both players asked for: `n` targets, at least 0.5★ (Box–Muller), centred a third
+ *  of the way from the lower choice to the higher — so neither player can drag the other far out of their depth — and
+ *  spread wider the further apart the two choices are, so both get cards near their own level. */
 export function deckTargetsForStars(prefs, n = RP.DECK, rnd = Math.random) {
-  const want = prefs.length ? prefs.reduce((a, b) => a + b, 0) / prefs.length : 3, out = [];
+  const lo = prefs.length ? Math.min(...prefs) : 3, hi = prefs.length ? Math.max(...prefs) : 3;
+  const want = lo + (hi - lo) / 3, sd = Math.min(0.8, 0.35 + (hi - lo) * 0.15), out = [];
   while (out.length < n) {
     const theta = 2 * Math.PI * rnd(), r = Math.sqrt(-2 * Math.log(Math.max(1e-12, rnd())));
-    out.push(want + 0.35 * r * Math.cos(theta), want + 0.35 * r * Math.sin(theta));
+    out.push(want + sd * r * Math.cos(theta), want + sd * r * Math.sin(theta));
   }
   return out.slice(0, n).map(x => Math.round(Math.max(0.5, x) * 100) / 100);
 }
@@ -229,14 +234,25 @@ export class RankedPlay {
     const targets = prefs.length ? deckTargetsForStars(prefs, RP.DECK, this.room.rnd) : deckTargets(Object.values(this.users).map(u => u.mu), RP.DECK, this.room.rnd);
     return [{ to: this.dealer, msg: { t: 'rpDeck', keys: this.keys, targets } }, this.room.roomMsg()];
   }
-  /** The dealer's beatmaps arrive: shuffle them into the deck, deal five each, and the first round starts. */
+  /** The dealer's beatmaps arrive: shuffle them into the deck, deal five each, and the first round starts. The
+   *  opening hands are fair: cards picked at random are paired off by star rating — the two closest together, then the
+   *  next two — and each pair split between the players, the harder of each going to them in turn. */
   setDeck(id, maps) {
     if (this.stage !== 'deal' || id !== this.dealer || !maps.length) return [];
     this.pool = maps.slice(0, RP.DECK);
     this.deck = this.pool.map((_, i) => i);
     for (let i = this.deck.length - 1; i > 0; i--) { const j = Math.floor(this.room.rnd() * (i + 1)); [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]]; }
     this.stars = Math.round(this.pool.reduce((a, m) => a + (m.stars || 0), 0) / this.pool.length * 100) / 100;
-    for (const id of this.order) this.draw(id, RP.HAND);
+    const ids = this.order.filter(x => this.users[x]);
+    if (ids.length === 2 && this.deck.length >= RP.HAND * 2) {
+      const sr = i => this.pool[i].stars || 0;
+      const opening = this.deck.splice(0, RP.HAND * 2).sort((a, b) => sr(b) - sr(a));
+      for (let k = 0; k < RP.HAND; k++) {
+        const [hard, easy] = [opening[2 * k], opening[2 * k + 1]], first = ids[k % 2];
+        this.user(first).hand.push(hard); this.user(ids.find(x => x !== first)).hand.push(easy);
+      }
+      for (const x of ids) this.user(x).hand.sort((a, b) => sr(a) - sr(b)); // (easiest first, as they're laid out)
+    } else for (const x of this.order) this.draw(x, RP.HAND);
     return this.enter('warmup');
   }
   draw(id, n) { const u = this.user(id); if (u) u.hand.push(...this.deck.splice(0, n)); }
@@ -315,8 +331,9 @@ export class RankedPlay {
     const best = Math.max(...ids.map(id => scores[id])), top = ids.filter(id => scores[id] === best);
     const winner = top.length === 1 ? top[0] : null;
     if (winner) {
-      const loser = ids.find(id => id !== winner);
-      this.users[loser].dmg = this.damage(loser, best - scores[loser], 1, RP.BASE_DAMAGE);
+      // (a song both played: at most 500,000 — leaving it, all of it)
+      const loser = ids.find(id => id !== winner), row = rows.find(r => r.id === loser), left = !row || !!row.left || !!row.forfeit;
+      this.users[loser].dmg = this.damage(loser, best - scores[loser], 1, RP.BASE_DAMAGE, left ? Infinity : RP.MAX_HIT);
       this.users[winner].won++;
     }
     const pick = k => Object.fromEntries(ids.map(id => { const x = rows.find(r => r.id === id) || {}; return [id, x[k] ?? null]; }));
@@ -334,10 +351,11 @@ export class RankedPlay {
     this.room.map = null;
     return this.roundsRemaining() ? this.enter('warmup') : this.end();
   }
-  /** Take damage (Damage()): ⌈direct × multiplier⌉ + bonus, and a hit at full life leaves 1. */
-  damage(id, direct = 0, multiplier = 1, bonus = 0) {
-    const u = this.users[id], total = Math.ceil(direct * multiplier) + bonus;
+  /** Take damage (Damage()): ⌈direct × multiplier⌉ + bonus, up to `cap`, and a hit at full life leaves 1. */
+  damage(id, direct = 0, multiplier = 1, bonus = 0, cap = Infinity) {
+    const u = this.users[id], full = Math.ceil(direct * multiplier) + bonus, total = Math.min(full, cap);
     const info = { damage: total, rawDamage: direct + bonus, oldLife: u.life, newLife: Math.max(u.life === RP.LIFE ? 1 : 0, u.life - total), directDamage: direct, multiplier, bonusDamage: bonus };
+    if (total < full) info.capped = cap;
     u.life = info.newLife;
     return info;
   }
@@ -406,13 +424,14 @@ export class RankedPlay {
  *  ratings are close enough are offered the match, and once both accept they're sent to a fresh room. The search
  *  widens the longer someone waits. Declining or ignoring the offer costs a minute out of the queue; the other player
  *  goes back to searching. Clients poll every couple of seconds; one that stops polling drops out. */
-export const QUEUE = { RADIUS: 250, RADIUS_DOUBLE: 30_000, INVITE: 30_000, STALE: 12_000, READY_KEEP: 60_000 };
+export const QUEUE = { RADIUS: 250, RADIUS_DOUBLE: 30_000, INVITE: 30_000, STALE: 12_000, READY_KEEP: 60_000, AGAIN: 600_000, AGAIN_WAIT: 45_000 };
 export class RankedQueue {
   constructor(now = () => Date.now(), rnd = Math.random, code = () => Math.random().toString(36).slice(2, 8).toUpperCase()) {
     this.now = now; this.rnd = rnd; this.code = code;
     this.users = new Map();  // ticket → { ticket, cid, name, avatar, keys, rating, since, seen, state, invite, room }
     this.invites = new Map(); // id → { id, tickets: [a, b], deadline, accepted: Set, keys }
     this.bans = new Map();   // cid → until
+    this.last = new Map();   // cid → { cid, at }: who they were last matched with
     this.seq = 0;
   }
   id() { return (++this.seq).toString(36) + Math.floor(this.rnd() * 2 ** 40).toString(36); }
@@ -457,12 +476,13 @@ export class RankedQueue {
     for (const [ticket, u] of [...this.users]) if (t - u.seen > QUEUE.STALE && u.state !== 'ready') this.remove(ticket);
     for (const [ticket, u] of [...this.users]) if (u.state === 'ready' && t - u.seen > QUEUE.READY_KEEP) this.users.delete(ticket);
     for (const [id, inv] of [...this.invites]) if (t > inv.deadline) this.cancel(id, null);
+    for (const [c, x] of this.last) if (t - x.at > QUEUE.AGAIN) this.last.delete(c);
     const waiting = [...this.users.values()].filter(u => u.state === 'search').sort((a, b) => a.since - b.since);
     const taken = new Set();
     for (const u of waiting) {
       if (taken.has(u.ticket)) continue;
       const r = this.radius(u);
-      const opp = waiting.filter(v => v !== u && !taken.has(v.ticket) && v.keys === u.keys && (!u.cid || v.cid !== u.cid) && Math.abs(v.rating - u.rating) <= Math.max(r, this.radius(v)))
+      const opp = waiting.filter(v => v !== u && !taken.has(v.ticket) && v.keys === u.keys && (!u.cid || v.cid !== u.cid) && Math.abs(v.rating - u.rating) <= Math.max(r, this.radius(v)) && !this.again(u, v))
         .sort((a, b) => Math.abs(a.rating - u.rating) - Math.abs(b.rating - u.rating))[0];
       if (!opp) continue;
       taken.add(u.ticket); taken.add(opp.ticket);
@@ -470,6 +490,13 @@ export class RankedQueue {
       this.invites.set(id, { id, tickets: [u.ticket, opp.ticket], deadline: t + QUEUE.INVITE, accepted: new Set(), keys: u.keys });
       u.state = opp.state = 'invited'; u.invite = opp.invite = id;
     }
+  }
+  /** The two were just matched with each other (in the last 10 minutes): not again straight away — someone else, if
+   *  anyone's there — unless they've both been waiting a while (45 s) and there's nobody else. */
+  again(u, v) {
+    const t = this.now(), a = u.cid && this.last.get(u.cid);
+    if (!a || a.cid !== v.cid || t - a.at > QUEUE.AGAIN) return false;
+    return !(t - u.since > QUEUE.AGAIN_WAIT && t - v.since > QUEUE.AGAIN_WAIT);
   }
   accept(ticket) {
     const u = this.users.get(ticket);
@@ -481,6 +508,8 @@ export class RankedQueue {
       const code = this.code();
       this.invites.delete(inv.id);
       for (const x of inv.tickets) { const v = this.users.get(x); if (v) { v.state = 'ready'; v.room = code; v.invite = null; } }
+      const [a, b] = inv.tickets.map(x => this.users.get(x));
+      if (a && b && a.cid && b.cid) { this.last.set(a.cid, { cid: b.cid, at: this.now() }); this.last.set(b.cid, { cid: a.cid, at: this.now() }); }
     }
     return this.status(ticket);
   }

@@ -129,6 +129,7 @@ const RankQueue = {
 /** The deck for a match, drawn up by the dealer's client (`targets`: the server's star ratings, one per card): ranked
  *  beatmaps for the key count from the online listing, each target taking the closest one not yet used (one card per
  *  beatmap set where it can). Without enough online, the player's own library fills in. */
+const RANKED_GIMMICK = /\b(gimmick|meme|joke|troll|april ?fools?|aspire|sv ?map|sv ?gimmick|trash ?map|shitpost)\b/i;
 async function buildRankedDeck(m) {
   const keys = m.keys === 7 ? 7 : 4, targets = (Array.isArray(m.targets) ? m.targets : []).map(Number).filter(Number.isFinite).slice(0, 50);
   if (!targets.length) return;
@@ -139,7 +140,11 @@ async function buildRankedDeck(m) {
     for (const set of d.sets) {
       if (seen.has(set.id)) continue;
       seen.add(set.id);
-      for (const x of set.diffs || []) if (x.keys === keys && x.id > 0) cand.push({ hash: '', title: set.title, artist: set.artist, version: x.version, creator: set.creator, keys, stars: x.stars, length: (x.length || 0) * 1000, onlineSetId: set.id, onlineId: x.id, group: 's' + set.id });
+      // (what players find unfair in a ranked pool, left out: gimmick and joke maps, and songs far too short or too long
+      // to be a fair round — a marathon, or a few seconds' fluke)
+      if (RANKED_GIMMICK.test(`${set.title} ${set.tags || ''}`)) continue;
+      for (const x of set.diffs || []) if (x.keys === keys && x.id > 0 && (!(x.length > 0) || (x.length >= 45 && x.length <= 360)) && !RANKED_GIMMICK.test(x.version || ''))
+        cand.push({ hash: '', title: set.title, artist: set.artist, version: x.version, creator: set.creator, keys, stars: x.stars, length: (x.length || 0) * 1000, onlineSetId: set.id, onlineId: x.id, group: 's' + set.id, known: (set.favourites || 0) + (set.playCount || 0) / 100 });
     }
   } catch (e) { console.warn('Ranked Play deck: online search failed', e); }
   if (cand.length < targets.length) {
@@ -156,7 +161,8 @@ async function buildRankedDeck(m) {
     let best = null, bd = Infinity;
     for (const c of cand) {
       if (used.has(c)) continue;
-      const d = Math.abs(c.stars - t) + (groups.has(c.group) ? 0.75 : 0);
+      // (closest to the target; a set already in the deck counts against it, and so — a little — does an obscure one)
+      const d = Math.abs(c.stars - t) + (groups.has(c.group) ? 0.75 : 0) + (c.known != null && c.known < 25 ? 0.12 : 0);
       if (d < bd) { bd = d; best = c; }
     }
     if (!best) break;
@@ -165,7 +171,7 @@ async function buildRankedDeck(m) {
   // a tiny library (offline): the same beatmaps more than once, so there are still cards to play
   for (let i = 0; deck.length < Math.min(12, targets.length); i++) deck.push(deck[i % Math.max(1, deck.length)]);
   const g = Multiplayer.room && Multiplayer.room.rp;
-  if (g && g.stage === 'deal') Multiplayer.send({ t: 'pool', maps: deck.map(({ group, ...c }) => c) });
+  if (g && g.stage === 'deal') Multiplayer.send({ t: 'pool', maps: deck.map(({ group, known, ...c }) => c) });
 }
 
 /** The match screen. Mounted inside the multiplayer screen whenever the room is a Ranked Play match. */
@@ -196,6 +202,7 @@ const RankedMatch = {
     this.chat = this.buildChat();
     const leave = h('button.rkm-leave', { title: 'Leave the match', 'aria-label': 'Leave the match', onclick: () => this.confirmLeave() }, icon('back'), h('span', 'Leave'));
     this.root.append(this.bg, this.bgMap, this.main, this.top, this.cornerMe, this.cornerOpp, this.chat, leave, this.ov);
+    RankedNeru.mount(this.root);
     s.el.appendChild(this.root);
     this.fit();
     s.el.classList.add('rkm-on');
@@ -231,6 +238,7 @@ const RankedMatch = {
     (this._subs || []).forEach(f => f()); this._subs = [];
     this.stopPreview();
     this.root.remove(); this.root = null;
+    RankedNeru.unmount();
     Spectate.hostRk(null, true); // (spectators: the match screen is gone)
     if (this.scr && this.scr.el) this.scr.el.classList.remove('rkm-on');
     $('#app').classList.remove('hide-toolbar');
@@ -264,6 +272,7 @@ const RankedMatch = {
       this.stopPreview();
       this.renderStage(g, prev);
       this.stageOverlay(g, prev);
+      RankedNeru.stage(g, prev);
     } else this.refreshStage(g);
     this.paintTop(g);
     this.paintCorners();
@@ -463,7 +472,7 @@ const RankedMatch = {
 
   /** Before the cards are dealt, both players choose how hard they want the match: a star rating from 0.5★ to 15★
    *  (a slider, the number, or a preset), locked in with the button. The other's choice stays hidden until both
-   *  have chosen; the deck is then drawn around their average. */
+   *  have chosen; the deck is then drawn up leaning towards the lower of the two. */
   renderStars(m, g) {
     const me = g.users[Multiplayer.me] || {};
     const last = clamp(+Settings.get('mp.rpStars') || 3, 0.5, 15);
@@ -481,7 +490,7 @@ const RankedMatch = {
     this._stars = { val, slider, num, lock, presets, status: h('div.rks-status') };
     m.append(h('div.rks',
       h('div.rks-t', 'Choose your star rating'),
-      h('div.rks-s', 'Both players pick how hard they want the match. The cards are dealt around the average of your two picks.'),
+      h('div.rks-s', 'Both players pick how hard they want the match. The cards lean towards the lower of your two picks, so nobody is dragged far out of their depth.'),
       val, h('div.rks-row', slider, num), presets, lock, this._stars.status));
     set(me.pref != null ? me.pref : last);
     this.refreshStars(g);
@@ -799,6 +808,8 @@ const RankedMatch = {
       const d = L.d, steps = [];
       if (Math.abs(d.multiplier - 1) > 1e-9) steps.push([Math.ceil(d.directDamage * d.multiplier) - d.directDamage, `×${+d.multiplier.toFixed(1)}`, 'multiplier']);
       if (d.bonusDamage) steps.push([d.bonusDamage, `+${fmtInt(d.bonusDamage)}`, 'bonus']);
+      // (one song's most: a lopsided round is capped, so a single bad song can't decide the match)
+      if (d.capped) steps.push([d.damage - steps.reduce((a, x) => a + x[0], d.directDamage), 'capped', `at ${fmtInt(d.capped)}`]);
       let shown = d.directDamage, t = 2900;
       later(t, () => { L.dmgEl.classList.add('show'); L.dmgEl.textContent = `−${fmtInt(shown)}`; breakdown.replaceChildren(h('span', 'Damage'), h('b', fmtInt(shown))); UISounds.play('rp-dmg'); });
       steps.forEach(([add, label, src], k) => {
@@ -828,7 +839,7 @@ const RankedMatch = {
     const me = Multiplayer.me, opp = this.oppId(), u = g.users[me], o = opp && g.users[opp];
     const res = g.round === 0 ? 'none' : g.winner === me ? 'win' : g.winner ? 'loss' : 'draw';
     const title = { win: 'VICTORY', loss: 'DEFEAT', draw: 'DRAW', none: 'MATCH OVER' }[res];
-    if (res !== 'none' && typeof NeruEggs !== 'undefined') NeruEggs.matchOver(res === 'win' ? 'won' : res === 'loss' ? 'lost' : 'draw', `rp${g.id || ''}`);
+    if (res !== 'none' && typeof NeruEggs !== 'undefined' && !RankedNeru.el) NeruEggs.matchOver(res === 'win' ? 'won' : res === 'loss' ? 'lost' : 'draw', `rp${g.id || ''}`);
     const delta = x => { const d = x.ratingAfter - x.rating; return h(`span.rke-d${d > 0 ? '.up' : d < 0 ? '.down' : ''}`, d > 0 ? `+${d}` : d < 0 ? `−${-d}` : '±0'); };
     const rating = (label, x) => x ? h('div.rke-rating', h('span', label), h('b', fmtInt(x.ratingAfter)), g.rated ? delta(x) : null) : null;
     const lifeRow = (id, x) => x ? h('div.rke-row', this.avatar(id, 32), h('b', this.name(id)), h('span', `${fmtInt(x.life)} life`), h('span', `${x.won} round${x.won === 1 ? '' : 's'} won`)) : null;
@@ -866,6 +877,56 @@ const RankedMatch = {
     clearTimeout(this._pvT);
     if (this._pv) { this._pv.pause(); this._pv.removeAttribute('src'); this._pv = null; this._pvId = null; }
     if (!keepDuck && this._pvDucked) { this._pvDucked = false; Music.setVolume(1, 400); }
+  },
+};
+
+/** Neru in Ranked Play, when she's on: beside your corner of the match screen, reacting as the match goes — the star
+ *  rating, your turn, each round's result (a big hit, a last stand), and the match. Click her (or pat her) as anywhere
+ *  else. She keeps out of the way of the face-off and steps aside while the round's results are counted. */
+const RankedNeru = {
+  el: null,
+  mount(root) {
+    this.el = typeof NeruCameo !== 'undefined' ? NeruCameo.make('waiting', 'nc-rkm', { delay: 0 }) : null;
+    if (this.el) root.append(this.el);
+  },
+  unmount() { clearTimeout(this._t); this.el = null; },
+  /** A pose and something to say (after `delay` ms), unless she's gone by then. */
+  react(pose, line, { delay = 0, ms = 2600 } = {}) {
+    const el = this.el;
+    if (!el) return;
+    clearTimeout(this._t);
+    this._t = setTimeout(() => {
+      if (!el.isConnected || el.hidden) return;
+      if (el._pose) el._pose(pose);
+      const img = el.querySelector('.nc-img');
+      if (line && img && typeof NeruEggs !== 'undefined') NeruEggs.say(line, el, img, ms);
+    }, delay);
+  },
+  pick: a => a[Math.floor(Math.random() * a.length)],
+  stage(g, prev) {
+    const el = this.el;
+    if (!el) return;
+    const me = Multiplayer.me, st = g.stage;
+    // (not over the face-off, nor before there's a match)
+    el.classList.toggle('away', st === 'waitjoin' || st === 'deal' || (st === 'warmup' && g.round === 1) || st === 'playing');
+    if (st === 'stars') this.react('huh', 'Pick something you can actually pass~', { delay: 600 });
+    else if (st === 'discard') this.react('point', 'Swap out the scary ones~', { delay: 1800 });
+    else if (st === 'pick') this.react(g.active === me ? 'point' : 'bored', g.active === me ? this.pick(['Your turn~ don\'t mess it up', 'Pick one already, zako~', 'Choose wisely~']) : null, { delay: 1700 });
+    else if (st === 'ready' && prev !== 'ready') this.react('cheer', this.pick(['I\'m NOT cheering for you.', 'Don\'t embarrass me~']), { delay: 500 });
+    else if (st === 'results' && g.results) {
+      const res = g.results, d = res.dmg && res.dmg[me];
+      // (as the damage lands on the screen)
+      if (!res.winner) this.react('huh', 'A draw…?', { delay: 2400 });
+      else if (res.winner === me) this.react(this.pick(['cool', 'happy']), this.pick(['Heh. Not bad~', 'See? Easy~', 'Hmph. Lucky.']), { delay: 2400 });
+      else if (d && d.newLife === 1) this.react('worried', 'Last stand…! Don\'t you dare lose!!', { delay: 4200 });
+      else if (d && d.newLife <= 0) this.react('mock', 'Zako~ zako~', { delay: 4200 });
+      else if (d && d.damage >= 400000) this.react('worried', 'Ehh?! That was a big one…', { delay: 4200 });
+      else this.react('mock', this.pick(['Zako~', 'Ehh~ you lost that one?']), { delay: 2400 });
+    } else if (st === 'ended' && g.round > 0) {
+      if (g.winner === me) this.react('dance', 'Hmph. I knew you\'d win~', { delay: 900, ms: 3600 });
+      else if (g.winner) this.react('sulk', '…zako.', { delay: 900, ms: 3600 });
+      else this.react('huh', 'Huh. A draw.', { delay: 900 });
+    }
   },
 };
 
@@ -915,5 +976,24 @@ function rankedQueuePanel() {
   const t = setInterval(() => { if (!el.isConnected) { off(); off2(); clearInterval(t); return; } if (RankQueue.st && RankQueue.st.status === 'search') paint(); }, 1000);
   paint();
   return el;
+}
+/** Ranked Play's rules, all on one page — and what keeps a match fair. */
+function rankedRules() {
+  const li = (t, d) => h('li', h('b', t), ' ', d);
+  Dialog.custom('How Ranked Play works', h('div.rq-rules',
+    h('ol',
+      li('Choose a star rating.', 'Both of you pick how hard you want the match; neither sees the other\'s pick until both are in.'),
+      li('Five cards each.', 'A card is a beatmap. Round 1 opens with a chance to swap any of yours, once.'),
+      li('Take turns.', 'On your turn, play a card: you both play that beatmap, and the lower score takes damage — the difference, plus 50,000.'),
+      li('1,000,000 life.', 'Run out and you lose; when the cards run out, the most life wins.')),
+    h('div.rq-rules-h', icon('check'), 'What keeps it fair'),
+    h('ul',
+      h('li', 'The same rules for both: the beatmap\'s own timing windows, the same accuracy and the same scrolling, whatever your settings.'),
+      h('li', 'Matched hands: the opening cards are dealt in pairs of the same difficulty, one each.'),
+      h('li', 'The deck leans towards the lower of your two star ratings, so nobody is dragged far out of their depth.'),
+      h('li', 'One song does at most 500,000 damage, so a single bad song can\'t decide the match. A hit at full life always leaves you standing (last stand).'),
+      h('li', 'No gimmick or joke beatmaps, and nothing shorter than 45 seconds or longer than 6 minutes.'),
+      h('li', 'Leaving during the match loses it; a dropped connection gets a minute to come back.'))),
+    [{ label: 'Got it', primary: true }]);
 }
 const fmtDateShort = t => { try { return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch { return ''; } };

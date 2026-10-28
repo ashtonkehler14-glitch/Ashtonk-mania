@@ -916,6 +916,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28d', title: 'Fairer Ranked Play', sections: [
+    { icon: 'trophy', title: 'Fairer Ranked Play', items: ['Both players play by the same rules: the beatmap\'s timing, the same accuracy and the same scrolling, whatever your settings', 'Opening hands are dealt in matched pairs, so neither of you starts with the harder cards', 'One song does at most 500,000 damage, so one bad song can\'t decide the match', 'The cards lean towards the lower of the two star ratings chosen', 'No gimmick or joke beatmaps, and nothing under 45 seconds or over 6 minutes', '"How it works" in the Ranked Play lounge explains the rules', 'Neru watches your matches (when she\'s on) and has something to say about them'] },
+  ] },
   { id: '2026.10.28c', title: 'Multiplayer', sections: [
     { icon: 'multi', title: 'Multiplayer', items: ['The playfield shows during the countdown before a match', 'Team Versus results show both teams\' totals in their colours', 'On a phone, a new chat message pops up when the chat is off the screen', 'Neru no longer peeks up over the back button', 'Quit a match early: you show as quit, and the room says the match is still going', '"Quit match?" no longer stays up over the results if the song ends first'] },
   ] },

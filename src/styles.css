@@ -1675,6 +1675,12 @@ div.res-calib .i { color: var(--good); }
 .results.stats-open .nc-results { opacity: 0; translate: -60px 0; pointer-events: none; }
 .nc-pause { left: clamp(8px, calc(4 * var(--vw)), 64px); bottom: 8px; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 .pause-menu.has-foot .nc-pause { bottom: 58px; }
+/* Ranked Play: above your corner of the match screen (RankedNeru) — out of the way of the face-off */
+.neru-cameo.nc-rkm { z-index: 3; left: clamp(8px, calc(2 * var(--vw)), 36px); bottom: 118px; height: calc(min(calc(34 * var(--vh)), 300px) * var(--nc-s, 1)); transition: opacity 300ms ease, translate 420ms var(--ease-out); }
+.neru-cameo.nc-rkm.away { opacity: 0; translate: -40px 0; pointer-events: none; }
+/* (what she says there: smaller, and wrapped, so it never reaches the middle of the screen where the match is) */
+.nc-rkm .neru-say { left: 22% !important; top: 2% !important; transform: translate(0, -100%); transform-origin: 18% 100%; font-size: 14px; white-space: normal; width: max-content; max-width: 210px; border-radius: 16px; padding: .5em .9em .55em; }
+.nc-rkm .neru-say::before { left: 16%; top: auto; bottom: -.55em; width: .8em; height: .7em; clip-path: polygon(0 0, 100% 0, 20% 100%); }
 /* (where the screen's too narrow for her beside them — a tablet — the buttons go over her, never her over them) */
 .pause-menu.has-neru .pause-box { z-index: 5; pointer-events: none; } /* (its empty parts: she's still there to be clicked) */
 .pause-menu.has-neru .pause-box > * { pointer-events: auto; }
@@ -3153,6 +3159,12 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .rq-rating span { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .rq-rating b { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .rq-rating small { font-size: .75rem; color: var(--text-2); }
+.rq-how .i { width: 14px; height: 14px; }
+.rq-rules { max-width: 520px; font-size: .9rem; line-height: 1.45; color: var(--text-2); }
+.rq-rules ol, .rq-rules ul { margin: 0 0 14px; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+.rq-rules b { color: #fff; }
+.rq-rules-h { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; font-weight: 700; color: #fff; }
+.rq-rules-h .i { width: 16px; height: 16px; color: var(--good); }
 .rq-search { display: flex; align-items: center; gap: 10px; }
 .rq-search > div { display: flex; flex-direction: column; }
 .rq-search b { font-weight: 600; }

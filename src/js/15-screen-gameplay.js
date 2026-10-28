@@ -446,9 +446,11 @@ const GameplayScreen = {
     const baseNotes = prepareNotes(mapNotes, keys, mods, seed, { red: redTiming.red });
     // replays keep the judging rules they were recorded with (older ones predate the rules field: rules 1)
     const rules = replay ? (replay.rules || 1) : RULES;
-    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
-    const accuracyMode = replay ? replay.accuracyMode : Settings.get('gameplay.accuracyMode');
-    const scrollMode = mods.includes('CS') ? 'constant' : Settings.get('gameplay.scrollMode');
+    // (a multiplayer match is played by the same rules for everyone, whatever their own settings: the beatmap's timing
+    // windows and weighted accuracy — and in Ranked Play osu!mania's own scrolling, SV and BPM changes and all)
+    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: p.mp ? 'od' : Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
+    const accuracyMode = replay ? replay.accuracyMode : p.mp ? 'v2' : Settings.get('gameplay.accuracyMode');
+    const scrollMode = mods.includes('CS') ? 'constant' : p.mp && p.mp.rp ? 'sv' : Settings.get('gameplay.scrollMode');
     const scroll = new ScrollMap(BeatmapParser.scrollSegments(bm, { useSV: scrollMode !== 'constant', useBPM: scrollMode === 'sv' }));
     const endTime = maxOf(baseNotes, n => n.end);
 

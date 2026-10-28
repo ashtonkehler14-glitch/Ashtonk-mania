@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { beatmapStatus, RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE, codeHash, adminCodeHash } from '../worker/multiplayer.js';
+import { beatmapStatus, RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, deckTargetsForStars, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE, codeHash, adminCodeHash } from '../worker/multiplayer.js';
 
 // (in these tests a finished play is judged straight away as what the player said — as if the server's judge agreed;
 // the judging itself is tested in engine.test.mjs, and what happens without it at the end of this file)
@@ -482,6 +482,29 @@ test('Ranked Play maths: beatmap ratings from stars, a new player\'s rating from
   assert.ok(Math.abs(median - starsForRating(1400)) < 0.35, `centred on the lower rating (${median}★ vs ${starsForRating(1400).toFixed(2)}★)`);
 });
 
+test('Ranked Play fairness: the deck leans to the lower star choice, and the opening hands are matched pairs', () => {
+  let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const t = deckTargetsForStars([2, 6], 400, rnd), mean = t.reduce((a, b) => a + b, 0) / t.length;
+  assert.ok(Math.abs(mean - (2 + 4 / 3)) < 0.15, `a third of the way up from the lower choice (${mean.toFixed(2)}★)`);
+  const same = deckTargetsForStars([4, 4], 400, rnd), sd = x => Math.sqrt(x.reduce((a, b) => a + (b - 4) ** 2, 0) / x.length);
+  assert.ok(sd(same) < sd(t), 'wider when the two choices are far apart');
+  // the opening hands: ten cards paired off by difficulty, one of each pair each — the same difficulty both sides
+  const clock = { t: 0 };
+  const r = new RoomLogic('RF', () => clock.t, () => 0.25);
+  r.join('a', 'Alice', true, { mode: 'rp', keys: 4 }); r.join('b', 'Bob', false, {});
+  r.message('a', { t: 'rpStars', stars: 3 }); r.message('b', { t: 'rpStars', stars: 3 });
+  const spread = Array.from({ length: 50 }, (_, i) => ({ ...MAP, hash: 'f' + i, title: 'S' + i, stars: 1 + (i * 37 % 50) / 7, onlineSetId: 500 + i, onlineId: 5000 + i }));
+  r.message('a', { t: 'pool', maps: spread });
+  const stars = id => r.rp.user(id).hand.map(i => r.rp.pool[i].stars);
+  const [ha, hb] = [stars('a'), stars('b')];
+  assert.equal(ha.length, RP.HAND); assert.equal(hb.length, RP.HAND);
+  assert.deepEqual(ha, [...ha].sort((x, y) => x - y), 'laid out easiest first');
+  const sum = x => x.reduce((a, b) => a + b, 0), all = [...ha, ...hb].sort((x, y) => y - x);
+  // (each pair split between the two: the totals differ by no more than the pairs' gaps)
+  let gaps = 0; for (let k = 0; k < RP.HAND; k++) gaps += all[2 * k] - all[2 * k + 1];
+  assert.ok(Math.abs(sum(ha) - sum(hb)) <= gaps + 1e-9, `matched hands (${sum(ha).toFixed(2)} vs ${sum(hb).toFixed(2)})`);
+});
+
 test('Ranked Play rating: OpenSkill Plackett–Luce on the final life (μ 1500, σ 150, τ 15)', () => {
   const [w, l] = rateMatch([{ mu: 1500, sigma: 150, score: 600000 }, { mu: 1500, sigma: 150, score: 0 }]);
   assert.ok(Math.abs(w.mu - 1553.3) < 0.5 && Math.abs(l.mu - 1446.7) < 0.5, `±53 between equals (${w.mu}, ${l.mu})`);
@@ -588,22 +611,35 @@ test('Ranked Play damage: the score difference + 50,000 every round (no multipli
   assert.deepEqual([r.rp.user('a').life, r.rp.user('b').life], [lifeA, lifeB]);
 });
 
-test('Ranked Play: last stand at full life, the match ends at 0 life, and rated matches update both ratings', () => {
+test('Ranked Play: one song does at most 500,000; last stand at full life, the match ends at 0 life, ratings move', () => {
   const clock = { t: 0 };
   const { r } = rpMatch(clock);
   tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
   tickTo(r, clock); tickTo(r, clock);
+  // a song both played, however lopsided: 500,000 at most — one bad song can't decide the match
   r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
-  playRound(r, clock, 1000000, 0); // 1,050,000 damage at full life
-  assert.equal(r.rp.user('b').life, 1, 'last stand: a hit at full life leaves 1');
+  playRound(r, clock, 1000000, 0);
+  assert.equal(r.rp.user('b').life, RP.LIFE - RP.MAX_HIT);
+  assert.equal(r.rp.results.dmg.b.damage, RP.MAX_HIT); assert.equal(r.rp.results.dmg.b.capped, RP.MAX_HIT);
+  assert.equal(r.rp.results.dmg.b.directDamage, 1000000, 'the full difference is still shown');
+  tickTo(r, clock);
+  // leaving a song isn't capped: Alice leaves hers at full life — last stand leaves her 1
+  r.message('a', { t: 'play', card: r.rp.user('a').hand[0] });
+  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
+  r.message('a', { t: 'rpready', ready: true }); r.message('b', { t: 'rpready', ready: true });
+  tickTo(r, clock);
+  r.message('a', { t: 'quit' });
+  fin(r, 'b', { score: 990000 });
+  assert.equal(r.rp.user('a').life, 1, 'last stand: a hit at full life leaves 1');
+  assert.equal(r.rp.results.dmg.a.capped, undefined);
   assert.notEqual(r.rp.stage, 'ended');
   tickTo(r, clock);
-  r.message('a', { t: 'play', card: r.rp.user('a').hand[0] });
-  playRound(r, clock, 300000, 200000);
-  assert.equal(r.rp.user('b').life, 0);
-  assert.equal(r.rp.winner, 'a');
+  r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
+  playRound(r, clock, 200000, 300000);
+  assert.equal(r.rp.user('a').life, 0);
+  assert.equal(r.rp.winner, 'b');
   const u = r.snapshot('a').rp.users;
-  assert.ok(u.a.ratingAfter > 1600 && u.b.ratingAfter < 1400, `ratings move (${u.a.ratingAfter}, ${u.b.ratingAfter})`);
+  assert.ok(u.b.ratingAfter > 1400 && u.a.ratingAfter < 1600, `ratings move (${u.a.ratingAfter}, ${u.b.ratingAfter})`);
   tickTo(r, clock);
   assert.equal(r.rp.stage, 'ended');
 });
@@ -769,6 +805,26 @@ test('Ranked Play queue: pairs close ratings, both accept → one room; a declin
   const quiet = q.join({ cid: 'qq', keys: 4, rating: 3000 });
   clock.t += QUEUE.STALE + 1; q.update();
   assert.equal(q.status(quiet.ticket).status, 'none');
+});
+
+test('Ranked Play queue: not the same opponent again straight away — unless nobody else is around for a while', () => {
+  const clock = { t: 0 };
+  const q = new RankedQueue(() => clock.t, () => 0.5, () => 'R');
+  const play = (x, y) => { q.accept(x.ticket); q.accept(y.ticket); q.decline(x.ticket); q.decline(y.ticket); };
+  let a = q.join({ cid: 'ca', keys: 4, rating: 1500 }), b = q.join({ cid: 'cb', keys: 4, rating: 1510 });
+  assert.equal(q.status(a.ticket).status, 'found');
+  play(a, b);
+  // back in the queue together: not paired again at once…
+  a = q.join({ cid: 'ca', keys: 4, rating: 1500 }); b = q.join({ cid: 'cb', keys: 4, rating: 1510 });
+  assert.equal(q.status(a.ticket).status, 'search');
+  // …someone else is, as soon as they're there
+  const c = q.join({ cid: 'cc', keys: 4, rating: 1520 });
+  assert.equal(q.status(c.ticket).status, 'found');
+  assert.equal(q.status(c.ticket).opponent.rating, 1500);
+  // with nobody else, after both have waited 45 s, the two are paired after all
+  q.decline(c.ticket);
+  for (let i = 0; i < 10; i++) { clock.t += 5000; q.status(a.ticket); q.status(b.ticket); q.update(); }
+  assert.equal(q.status(b.ticket).status, 'found');
 });
 
 test('shared avatars: presets, public pictures and small inline images only', () => {

@@ -670,7 +670,7 @@ await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = g
 await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes.filter((n, i) => i % 3), s.keys).flat(); s.feedIdx = 0; });
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.rp.stage === 'results', null, { timeout: 45000 })));
 const r1 = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room, g = r.rp, id = n => r.players.find(p => p.name === n).id, a = id('Alice'), b = id('Bob'); return { a: g.users[a].life, b: g.users[b].life, sa: g.results.scores[a], sb: g.results.scores[b], d: g.results.dmg[b] }; });
-check('round 1: the lower score takes ⌈difference × (0.5 + 0.5)⌉ + 50,000 damage', r1.a === 1000000 && r1.b === 1000000 - (Math.ceil((r1.sa - r1.sb) * 1) + 50000) && r1.d.bonusDamage === 50000, JSON.stringify(r1));
+check('round 1: the lower score takes the difference + 50,000 damage — at most 500,000 for a song both played', r1.a === 1000000 && r1.b === 1000000 - Math.min(r1.sa - r1.sb + 50000, 500000) && r1.d.bonusDamage === 50000 && (r1.sa - r1.sb + 50000 > 500000) === (r1.d.capped === 500000), JSON.stringify(r1));
 await bob.waitForFunction(() => document.querySelector('.rkr-col.hit'), null, { timeout: 12000 });
 check('results: both scores side by side, then the damage lands on the loser', await bob.evaluate(() => document.querySelectorAll('.rkr-col').length === 2 && /Damage/.test(document.querySelector('.rkr-break').textContent)));
 await shot(bob, 'mp-rp-results');
