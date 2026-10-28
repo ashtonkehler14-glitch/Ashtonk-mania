@@ -512,6 +512,12 @@ const Dialog = {
     // (sized for what's in it: .for-<its class>)
     if (bodyEl && bodyEl.classList && bodyEl.classList[0]) dlg.classList.add('for-' + bodyEl.classList[0]);
     o = makeOverlay(dlg);
+    // (a body taller than the dialog has room for — a phone on its side — fades at its foot while there's more to read,
+    // and at its top once scrolled)
+    const body = dlg.querySelector(':scope > .body');
+    const more = () => { body.classList.toggle('more', body.scrollHeight - body.scrollTop - body.clientHeight > 4); body.classList.toggle('less', body.scrollTop > 4); };
+    body.addEventListener('scroll', more, { passive: true });
+    requestAnimationFrame(more);
     return o;
   },
 };

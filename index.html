@@ -400,6 +400,10 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 @keyframes dlgOut { to { opacity: 0; transform: translate(-50%, -48%) scale(.98); } }
 .dialog h2 { margin: 0 0 8px; font-weight: 700; }
 .dialog .body { color: var(--text-2); margin-bottom: 18px; line-height: 1.5; }
+.dialog .body.more { --fade: linear-gradient(#000 calc(100% - 36px), transparent); }
+.dialog .body.less { --fade: linear-gradient(transparent, #000 24px); }
+.dialog .body.less.more { --fade: linear-gradient(transparent, #000 24px, #000 calc(100% - 36px), transparent); }
+.dialog .body:is(.more, .less) { -webkit-mask-image: var(--fade); mask-image: var(--fade); }
 .dialog .actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 .dialog .actions:empty { display: none; }
 /* (a long one — the keyboard shortcuts — scrolls inside, its title and buttons staying in view) */
@@ -13524,6 +13528,12 @@ const Dialog = {
     // (sized for what's in it: .for-<its class>)
     if (bodyEl && bodyEl.classList && bodyEl.classList[0]) dlg.classList.add('for-' + bodyEl.classList[0]);
     o = makeOverlay(dlg);
+    // (a body taller than the dialog has room for — a phone on its side — fades at its foot while there's more to read,
+    // and at its top once scrolled)
+    const body = dlg.querySelector(':scope > .body');
+    const more = () => { body.classList.toggle('more', body.scrollHeight - body.scrollTop - body.clientHeight > 4); body.classList.toggle('less', body.scrollTop > 4); };
+    body.addEventListener('scroll', more, { passive: true });
+    requestAnimationFrame(more);
     return o;
   },
 };
@@ -23340,7 +23350,7 @@ const CHANGELOG = [
     { icon: 'download', title: 'Saved as an HTML file', items: ['Save the game as an HTML file while you have a code and the file opens as you the first time — your scores, settings, collections, favourites and skin come with it, no code to type (it works once, within a day)'] },
   ] },
   { id: '2026.10.28i', title: 'Polish', sections: [
-    { icon: 'sparkle', title: 'Polish', items: ['On a phone with wide columns, the chat during a multiplayer song only shows new messages, so it stays off your notes', 'Neru no longer pops up over the back button after a match', 'The Spectator Mode screen fits a phone held sideways', 'In Ranked Play, Neru steps down into the corner while a round\'s results are shown', 'Duels in the Ranked Play lounge no longer show a rating (they\'re unrated)', 'The end of a Ranked Play match counts the rounds played to the end, not one cut short', 'On a smaller screen, Neru steps aside during the countdown instead of standing in front of the beatmap card', 'Playing in Portrait: Neru no longer covers your results, and the buttons at the bottom sit clear of the back button'] },
+    { icon: 'sparkle', title: 'Polish', items: ['On a phone with wide columns, the chat during a multiplayer song only shows new messages, so it stays off your notes', 'Neru no longer pops up over the back button after a match', 'The Spectator Mode screen fits a phone held sideways', 'In Ranked Play, Neru steps down into the corner while a round\'s results are shown', 'Duels in the Ranked Play lounge no longer show a rating (they\'re unrated)', 'The end of a Ranked Play match counts the rounds played to the end, not one cut short', 'On a smaller screen, Neru steps aside during the countdown instead of standing in front of the beatmap card', 'Playing in Portrait: Neru no longer covers your results, and the buttons at the bottom sit clear of the back button', 'A box with more to read than fits (How Ranked Play works on a phone) fades at the edge, so you can tell it scrolls'] },
   ] },
   { id: '2026.10.28g', title: 'Song select', sections: [
     { icon: 'sparkle', title: 'Song select', items: ['The scores on a beatmap look as in lazer: they lean as a column, each a step in from the one below, with "MAX COMBO" and a bigger grade', 'Your own scores are only lit up on the online boards'] },
@@ -31392,7 +31402,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'cb38c39da851';
+const APP_BUILD = '4938733c48e9';
 
 const App = {
   lastReport: null,

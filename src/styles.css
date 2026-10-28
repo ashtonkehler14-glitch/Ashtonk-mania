@@ -383,6 +383,10 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 @keyframes dlgOut { to { opacity: 0; transform: translate(-50%, -48%) scale(.98); } }
 .dialog h2 { margin: 0 0 8px; font-weight: 700; }
 .dialog .body { color: var(--text-2); margin-bottom: 18px; line-height: 1.5; }
+.dialog .body.more { --fade: linear-gradient(#000 calc(100% - 36px), transparent); }
+.dialog .body.less { --fade: linear-gradient(transparent, #000 24px); }
+.dialog .body.less.more { --fade: linear-gradient(transparent, #000 24px, #000 calc(100% - 36px), transparent); }
+.dialog .body:is(.more, .less) { -webkit-mask-image: var(--fade); mask-image: var(--fade); }
 .dialog .actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 .dialog .actions:empty { display: none; }
 /* (a long one — the keyboard shortcuts — scrolls inside, its title and buttons staying in view) */
