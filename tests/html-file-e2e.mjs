@@ -52,7 +52,12 @@ async function open(ctx, where, name) {
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 60000 });
   await page.waitForTimeout(300);
   if (await page.$('.onboarding')) { await setupName(page, name); await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300); }
-  await page.evaluate(() => AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(AshtonkMania.Medals.all.map(m => [m.id, 1]))));
+  await page.evaluate(async () => {
+    const M = AshtonkMania.Medals;
+    AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(M.all.map(m => [m.id, 1])));
+    M.queue.length = 0; // (one already on its way — Night Owl, after midnight — put away too)
+    for (let i = 0; i < 40 && document.querySelector('.medal-ov'); i++) { document.querySelector('.medal-ov').click(); await new Promise(r => setTimeout(r, 100)); }
+  });
   return page;
 }
 

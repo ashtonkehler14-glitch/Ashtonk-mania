@@ -184,7 +184,7 @@ const SongSelect = {
       this.modBtn = (() => { const b = fb('Mods', '#b2ff66', 'mods', () => this.openMods(), 'F1 · right-click to deselect all'); b.classList.add('fb-mods'); b.append(this.modBar, this.unrankedEl); b.addEventListener('contextmenu', e => { e.preventDefault(); if ((Settings.get('songselect.mods') || []).length) { UISounds.click(); Settings.set('songselect.mods', []); Bus.emit('mods:changed'); } }); return b; })(),
       (() => { const b = fb('Random', '#66ccff', 'shuffle', () => this.random(), 'F2 · right-click or Shift+F2 to rewind'); b.addEventListener('contextmenu', e => { e.preventDefault(); this.randomRewind(); }); return b; })(),
       this.optionsBtn = fb('Options', '#8c66ff', 'cog', e => this.options(e), 'F3'),
-      h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
+      h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', Multiplayer.isHost() ? 'Choose the match beatmap' : 'Recommend to the host') : null, this.playBtn);
 
     el.append(h('div.ss-main', this.info, right), footer);
     this._lbKey = this._infoSet = this._infoMap = null; // (the leaderboard and wedges slide in each time the screen opens)
@@ -1449,7 +1449,12 @@ const SongSelect = {
     for (const el of document.querySelectorAll('.carousel-scroll .diff-panel.selected')) { el.classList.remove('activated'); void el.offsetWidth; el.classList.add('activated'); }
     if (this.mpPick && Multiplayer.inRoom()) {
       UISounds.click();
-      Multiplayer.selectMap(m, Settings.get('songselect.mods') || []);
+      if (Multiplayer.isHost()) Multiplayer.selectMap(m, Settings.get('songselect.mods') || []);
+      else if (!Multiplayer.suggest(m)) { Toast.err('Couldn\'t recommend that beatmap', Multiplayer.reconnecting ? 'Reconnecting to the room — try again in a moment.' : 'You\'re not connected to the room.'); return; }
+      else {
+        const set = BeatmapManager.setById.get(m.setId);
+        Toast.show('Recommended to the host', `${m.title} [${m.version}]${set && set.onlineId > 0 ? '' : ' — it isn\'t online, so they need it in their library too'}`);
+      }
       Screens.go('multiplayer', {}, { replace: true });
       return;
     }

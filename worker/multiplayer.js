@@ -5,7 +5,7 @@
 //
 // Protocol (client → server): hello {name, create, mode?, keys?, size?, sr?}, settings {settings} (host), team {team}, pool {maps}
 // (Quick Play host), pick {i} (Quick Play), chat {text}, suggest {map}, diff {diff}, map {map, mods, modConfig} (host),
-// mods {mods} (your own mods), rate {mods, modConfig} (propose a room speed mod), vote {yes}, hasMap {has}, ready {ready},
+// mods {mods} (your own mods), rate {mods, modConfig} (the host: set the room's speed mod; anyone else: propose one), vote {yes}, hasMap {has}, ready {ready},
 // start (host), skip (vote to skip the intro), score {score, acc, combo, hp}, finish {result}, quit, ping {c}.
 // Server → client: welcome {you, room}, room {room}, chat {...}, start {delay, map, mods, modConfig, playerMods},
 // skipvote {votes, total}, skip, opp {id, score, acc, combo, hp}, results {results}, error {msg, fatal}, pong {c, s},
@@ -397,8 +397,8 @@ export class RoomLogic {
         const out = [this.system(`Beatmap changed to ${map.artist} - ${map.title} [${map.version}]`)];
         if (Array.isArray(m.mods)) {
           p.mods = personalMods(m.mods);
-          // the host's speed mod (DT…) is only a proposal: everyone has to accept it. Picking a map without one keeps
-          // the room's current speed (removing it goes through the Mods button — and a vote)
+          // the host's speed mod (DT…) becomes the room's. Picking a map without one keeps the room's current speed
+          // (removing it goes through the Mods button)
           const sp = speedMods(m.mods);
           if (sp.length) out.push(...this.propose(p, sp, cleanConfig(m.modConfig)));
         }
@@ -590,6 +590,14 @@ export class RoomLogic {
   propose(p, mods, modConfig) {
     const rateOfCfg = c => (c && Number.isFinite(+c.rate) ? +c.rate : 1);
     const same = (a, b, ca, cb) => a.length === b.length && a.every(x => b.includes(x)) && (!a.includes('RT') || Math.abs(rateOfCfg(ca) - rateOfCfg(cb)) < 0.005);
+    // the host sets the room's speed outright (an open vote is settled by it); anyone else's goes to everyone
+    if (p.id === this.hostId) {
+      if (same(mods, this.mods, modConfig, this.modConfig)) return [];
+      this.vote = null;
+      this.mods = mods; this.modConfig = mods.includes('RT') ? modConfig : null; this.autoAt = 0; this.pendingStart = false;
+      for (const x of this.players) x.ready = false;
+      return [this.system(mods.length ? `${p.name} changed the speed to ${mods.join('')}` : `${p.name} removed the speed mod`)];
+    }
     if (!this.vote && same(mods, this.mods, modConfig, this.modConfig)) return [];
     if (this.vote && same(mods, this.vote.mods, modConfig, this.vote.modConfig)) return [];
     this.vote = { mods, modConfig, by: p.id, yes: [p.id] };

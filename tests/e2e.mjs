@@ -72,7 +72,13 @@ const waitBoot = async () => {
     await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(400);
   }
   // (every medal already earned: their pop-ups would cover what the tests click; the medal test resets them)
-  await page.evaluate(() => AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(AshtonkMania.Medals.all.map(m => [m.id, 1]))));
+  await page.evaluate(async () => {
+    const M = AshtonkMania.Medals;
+    AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(M.all.map(m => [m.id, 1])));
+    // (one already on its way — Night Owl, the tests run after midnight — put away too)
+    M.queue.length = 0;
+    for (let i = 0; i < 40 && document.querySelector('.medal-ov'); i++) { document.querySelector('.medal-ov').click(); await new Promise(r => setTimeout(r, 100)); }
+  });
   // (the tests sit in song select without touching anything: Neru's bored peek there is tested on its own)
   await page.evaluate(() => { NeruEggs.SELECT_IDLE_MS = 1e9; NeruEggs.selectIdle(); });
 };

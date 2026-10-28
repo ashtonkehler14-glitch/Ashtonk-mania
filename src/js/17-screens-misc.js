@@ -914,6 +914,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28', title: 'Multiplayer', sections: [
+    { icon: 'multi', title: 'Multiplayer', items: ['Not the host? Recommend a beatmap from your own library', 'The host changes speed mods (DT, HT…) without a vote', 'Room buttons no longer wrap, and difficulties don\'t say the key count twice'] },
+  ] },
   { id: '2026.10.27d', title: 'Lighter menus', sections: [
     { icon: 'sparkle', title: 'Lighter menus', items: ['Song select uses far less of your computer while you sit on it, with performance mode off too', 'Stepping through songs and typing a search are lighter, looking the same', 'Browse and your library scroll more smoothly on slow computers'] },
   ] },

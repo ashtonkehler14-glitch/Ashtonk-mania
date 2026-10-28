@@ -57,7 +57,14 @@ async function player(name) {
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await page.waitForTimeout(300);
   if (await page.$('.onboarding')) { await setupName(page, name); await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300); }
-  await page.evaluate(() => AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(AshtonkMania.Medals.all.map(m => [m.id, 1])))); // (no medal pop-ups over the tests)
+  // (no medal pop-ups over the tests)
+  await page.evaluate(async () => {
+    const M = AshtonkMania.Medals;
+    AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(M.all.map(m => [m.id, 1])));
+    // (one already on its way — Night Owl, the tests run after midnight — put away too)
+    M.queue.length = 0;
+    for (let i = 0; i < 40 && document.querySelector('.medal-ov'); i++) { document.querySelector('.medal-ov').click(); await new Promise(r => setTimeout(r, 100)); }
+  });
   await page.evaluate(async () => {
     const b = await (await fetch('/tests/fixtures/test-set.osz')).blob();
     await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]);
@@ -372,18 +379,22 @@ check('winner row: full score and its pp', ra.res.rows[0].name === 'Alice' && ra
 check('results panel leads with the score', await alice.evaluate(() => /^[\d,]+$/.test(document.querySelector('.mp-res-score').textContent.trim())));
 check('scores are also saved locally', await alice.evaluate(() => AshtonkMania.ScoreManager.scores.length === 1));
 
-// mods: Alice wants DT (+ her own Hidden) — Bob has to accept DT; Bob picks Mirror for himself
+// mods: Alice (the host) picks DT (+ her own Hidden) — the room's straight away; Bob asking for HT needs Alice to accept
+// (she declines); Bob picks Mirror for himself
 await alice.evaluate(() => AshtonkMania.Multiplayer.setMods(['DT', 'HD']));
-await bob.waitForSelector('.mp-vote .mp-accept', { timeout: 5000 });
-await shot(bob, 'mp-vote');
-// (Alice's copy of the room arrives on its own socket message: wait for it rather than checking the instant Bob sees the vote)
-check('a speed mod (DT) needs the other player to accept', await alice.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room, v = document.querySelector('.mp-vote'); return !r.mods.length && r.vote && r.vote.mods[0] === 'DT' && v && /Waiting for everyone/.test(v.textContent); }, null, { timeout: 5000 }).then(() => true, async () => { console.log('  alice:', await alice.evaluate(() => JSON.stringify({ mods: AshtonkMania.Multiplayer.room.mods, vote: AshtonkMania.Multiplayer.room.vote, text: document.querySelector('.mp-vote')?.textContent }))); return false; }));
-await bob.evaluate(() => AshtonkMania.Multiplayer.setMods(['MR']));
-await bob.click('.mp-vote .mp-accept');
-await alice.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return !r.vote && r.mods[0] === 'DT'; }, null, { timeout: 5000 });
+check('the host\'s speed mod (DT) applies to the room straight away — no vote', await bob.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return r.mods[0] === 'DT' && !r.vote && !document.querySelector('.mp-vote'); }, null, { timeout: 5000 }).then(() => true, () => false), await bob.evaluate(() => JSON.stringify({ mods: AshtonkMania.Multiplayer.room.mods, vote: AshtonkMania.Multiplayer.room.vote })));
+await bob.evaluate(() => AshtonkMania.Multiplayer.setMods(['HT']));
+await alice.waitForSelector('.mp-vote .mp-accept', { timeout: 5000 });
+await shot(alice, 'mp-vote');
+// (Bob's copy of the room arrives on its own socket message: wait for it rather than checking the instant Alice sees the vote)
+check('another player\'s speed mod (HT) needs everyone to accept', await bob.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room, v = document.querySelector('.mp-vote'); return r.mods[0] === 'DT' && r.vote && r.vote.mods[0] === 'HT' && v && /Waiting for everyone/.test(v.textContent); }, null, { timeout: 5000 }).then(() => true, async () => { console.log('  bob:', await bob.evaluate(() => JSON.stringify({ mods: AshtonkMania.Multiplayer.room.mods, vote: AshtonkMania.Multiplayer.room.vote, text: document.querySelector('.mp-vote')?.textContent }))); return false; }));
+await alice.click('.mp-vote .mp-decline');
+await bob.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return !r.vote && r.mods[0] === 'DT'; }, null, { timeout: 5000 });
+await bob.evaluate(() => AshtonkMania.Multiplayer.setMods(['MR'], { propose: false }));
+await alice.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return r.players.some(p => p.id !== r.host && p.mods.join() === 'MR'); }, null, { timeout: 5000 }).catch(() => {});
 await bob.waitForTimeout(300);
-const afterVote = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room; const m = id => r.players.find(p => p.id === id).mods.join(); return { host: m(r.host), me: m(AshtonkMania.Multiplayer.me), banner: !!document.querySelector('.mp-vote') }; });
-check('after both accept, DT applies to the room; each player keeps their own mods', afterVote.host === 'HD' && afterVote.me === 'MR' && !afterVote.banner, JSON.stringify(afterVote));
+const afterVote = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room; const m = id => r.players.find(p => p.id === id).mods.join(); return { host: m(r.host), me: m(AshtonkMania.Multiplayer.me), banner: !!document.querySelector('.mp-vote'), mods: r.mods.join() }; });
+check('declined: the room keeps DT; each player keeps their own mods', afterVote.host === 'HD' && afterVote.me === 'MR' && !afterVote.banner && afterVote.mods === 'DT', JSON.stringify(afterVote));
 
 // rematch: forfeit by quitting
 await alice.click('.mp-ready'); await alice.waitForFunction(() => AshtonkMania.Multiplayer.self().ready, null, { timeout: 5000 }); await bob.click('.mp-ready');
@@ -456,6 +467,17 @@ check('guests suggest from Browse; the suggestion reaches the host with a Pick b
 await alice.evaluate(() => [...document.querySelectorAll('.mp-msg.suggest')].find(m => m.textContent.includes('Online Easy')).querySelector('button').click());
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.map && AshtonkMania.Multiplayer.room.map.version === 'Online Easy', null, { timeout: 10000 });
 check('host picks a suggested beatmap', true);
+// a guest recommends one from their own library: song select, then Play — the host gets it with a Pick button, and
+// the room's beatmap stays as it is
+const sugCount = () => alice.evaluate(() => document.querySelectorAll('.mp-msg.suggest').length);
+const sug0 = await sugCount();
+await bob.evaluate(() => [...document.querySelectorAll('.mp-map-actions .btn')].find(b => /^Recommend$/.test(b.textContent.trim())).click());
+await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'songselect' && AshtonkMania.SongSelect.selectedId, null, { timeout: 8000 });
+const recTag = await bob.evaluate(() => document.querySelector('.ss-footer .tag.accent')?.textContent || '');
+await bob.evaluate(() => AshtonkMania.SongSelect.play());
+await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
+const gotRec = await alice.waitForFunction(n => { const all = document.querySelectorAll('.mp-msg.suggest'); return all.length > n && all[all.length - 1].querySelector('button'); }, sug0, { timeout: 5000 }).then(() => true, () => false);
+check('a guest recommends a beatmap from their library (song select): it reaches the host with a Pick button; the room\'s beatmap stays', /Recommend to the host/.test(recTag) && gotRec && await alice.evaluate(() => AshtonkMania.Multiplayer.room.map.version === 'Online Easy'), JSON.stringify({ recTag, gotRec, n: await sugCount() }));
 // mod select in a room: every toggle reaches the room (on, off, on again); Auto is greyed out and can't be picked
 const bobMods = () => alice.evaluate(() => (AshtonkMania.Multiplayer.room.players.find(p => p.name === 'Bob') || {}).mods || []);
 const m0 = await bobMods();

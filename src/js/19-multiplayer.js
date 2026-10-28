@@ -2,7 +2,8 @@
  * Worker's Durable Objects over a WebSocket (/api/mp/room/<code>); see worker/multiplayer.js for the protocol and rules.
  * Ranked Play's queue and match screen are in 19b-ranked-play.js. */
 
-/** Mods that change the song's speed: in multiplayer they apply to the whole room, once everyone accepts. */
+/** Mods that change the song's speed: in multiplayer they apply to the whole room — the host's straight away, anyone
+ *  else's once everyone accepts. */
 const MP_SPEED_MODS = ['DT', 'NC', 'HT', 'DC', 'RT'];
 
 const Multiplayer = {
@@ -349,7 +350,8 @@ const Multiplayer = {
     const has = !!this.localMap();
     if (has !== me.hasMap) this.send({ t: 'hasMap', has });
   },
-  /** This player's own mods; a speed mod (DT, HT…) in the list is proposed to the room instead. */
+  /** This player's own mods; a speed mod (DT, HT…) in the list is the room's instead (the host's: set; anyone else's:
+   *  proposed). */
   setMods(list, { propose = true } = {}) {
     const speed = list.filter(x => MP_SPEED_MODS.includes(x)).slice(0, 1);
     this.send({ t: 'mods', mods: list.filter(x => !MP_SPEED_MODS.includes(x) && !(MOD_BY_ID.get(x) || {}).unranked) }); // (no Auto, Cinema, Wind Up…: a room can't judge those)
@@ -357,21 +359,28 @@ const Multiplayer = {
     const r = this.room, cur = r ? r.mods || [] : [];
     const pending = r && r.vote ? r.vote.mods : null;
     const same = (a, b) => a.length === b.length && a.every(x => b.includes(x));
-    if (!same(speed, cur) && !(pending && same(speed, pending))) this.send({ t: 'rate', mods: speed, modConfig: ModSystem.config() });
+    if (!same(speed, cur) && (this.isHost() || !(pending && same(speed, pending)))) this.send({ t: 'rate', mods: speed, modConfig: ModSystem.config() });
   },
   vote(yes) { this.send({ t: 'vote', yes }); },
-  selectMap(m, mods) {
+  /** A beatmap of this player's, as the room sees it (its online IDs: for the others to download it). */
+  mapInfo(m) {
     const set = BeatmapManager.setById.get(m.setId);
-    this.send({ t: 'map', map: { hash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, length: m.length,
-      onlineSetId: set && set.onlineId > 0 ? set.onlineId : -1, onlineId: m.onlineId > 0 ? m.onlineId : -1 }, mods: mods.filter(x => !(MOD_BY_ID.get(x) || {}).unranked), modConfig: ModSystem.config() });
+    return { hash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, length: m.length,
+      onlineSetId: set && set.onlineId > 0 ? set.onlineId : -1, onlineId: m.onlineId > 0 ? m.onlineId : -1 };
   },
+  selectMap(m, mods) {
+    this.send({ t: 'map', map: this.mapInfo(m), mods: mods.filter(x => !(MOD_BY_ID.get(x) || {}).unranked), modConfig: ModSystem.config() });
+  },
+  /** Not the host: a beatmap from this player's library recommended to the host (in the room's chat, with a Pick
+   *  button for the host). False when it couldn't be sent. */
+  suggest(m) { return !!this.send({ t: 'suggest', map: this.mapInfo(m) }); },
   launch(m) {
     if (Array.isArray(m.players) && !m.players.includes(this.me)) { Toast.show('Sitting this round out', 'You didn\'t have the beatmap in time — you\'re back in next round.'); return; }
     const local = this.localMap(m.map) && this.myMap();
     if (!local) { Toast.err('Missing beatmap', 'You need the beatmap to play this match.'); this.send({ t: 'quit' }); return; }
     this.opps = new Map();
     const startAt = performance.now() + m.delay - this.rtt / 2;
-    // the room's speed mod (everyone accepted it) plus this player's own mods
+    // the room's speed mod plus this player's own mods
     const mods = ModSystem.normalize([...(m.mods || []), ...((m.playerMods && m.playerMods[this.me]) || [])]);
     Game.launch({ mapId: local.id, mods, modConfig: m.modConfig ? { ...ModSystem.config(), ...m.modConfig } : null, mode: 'play', mp: { startAt, players: m.players || null, rp: this.isRP() } });
   },
@@ -1025,11 +1034,12 @@ const MultiplayerScreen = {
     if (local) BeatmapManager.bgURL(local).then(u => u && (bg.style.backgroundImage = `url("${u}")`));
     else if (map && map.onlineSetId > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(map.onlineSetId, 'cover')}")`;
     const mapInfo = map ? [h('div.mp-map-t', map.title), h('div.mp-map-a', map.artist), h('div.mp-map-d', starBadge(map.stars), h('span', map.version), h('span.keys-tag', `${map.keys}K`),
-      ...(r.mods || []).map(m => ModSystem.badge(m, true)))] : [h('div.mp-map-t', 'No beatmap selected'), h('div.mp-map-a', host ? 'Pick one from song select or search beatmaps.' : 'Waiting for the host to pick a beatmap — you can search beatmaps and recommend one.')];
+      ...(r.mods || []).map(m => ModSystem.badge(m, true)))] : [h('div.mp-map-t', 'No beatmap selected'), h('div.mp-map-a', host ? 'Pick one from song select or search beatmaps.' : 'Waiting for the host to pick a beatmap — you can recommend one from your library or search beatmaps.')];
     const mapActions = h('div.mp-map-actions');
-    if (host) mapActions.append(h('button.btn', { onclick: () => Screens.go('songselect', { mpPick: true }) }, icon('music'), map ? 'Change beatmap' : 'Select beatmap'));
+    // (anyone else: song select to recommend a beatmap of theirs to the host)
+    mapActions.append(h('button.btn', { title: host ? 'Pick one from your library' : 'Recommend a beatmap from your library to the host', onclick: () => Screens.go('songselect', { mpPick: true }) }, icon('music'), host ? (map ? 'Change beatmap' : 'Select beatmap') : 'Recommend'));
     // the real Browse screen (Beatmap Explorer), in "pick for this room" mode
-    mapActions.append(h('button.btn', { onclick: () => Screens.go('explore', { mpPick: true }) }, icon('search'), 'Search beatmaps'));
+    mapActions.append(h('button.btn', { title: host ? 'Find one online' : 'Find one online to recommend', onclick: () => Screens.go('explore', { mpPick: true }) }, icon('search'), 'Search beatmaps'));
     const status = h('div.mp-map-status');
     this.fetchEl = null;
     if (map && !local) {
@@ -1046,13 +1056,13 @@ const MultiplayerScreen = {
       const mine = Multiplayer.myMap() || local;
       // a set with a single difficulty has nothing to choose (the picker would only look like it does something)
       if (diffs.length > 1) {
-        const sel = h('select.select', { 'aria-label': 'Your difficulty' }, ...diffs.map(m => h('option', { value: m.id, selected: m.id === mine.id }, `${m.version} · ${m.keys}K · ★${m.stars.toFixed(2)}${m.id === local.id ? ' (room)' : ''}`)));
+        const sel = h('select.select', { 'aria-label': 'Your difficulty' }, ...diffs.map(m => h('option', { value: m.id, selected: m.id === mine.id }, `${m.version}${new RegExp(`\\b${m.keys}K\\b`, 'i').test(m.version) ? '' : ` · ${m.keys}K`} · ★${m.stars.toFixed(2)}${m.id === local.id ? ' (room)' : ''}`)));
         sel.addEventListener('change', () => { UISounds.click(); Multiplayer.chooseDiff(sel.value); });
         sel.addEventListener('keydown', e => e.stopPropagation());
         diffPick = h('label.mp-diff', h('span', 'Your difficulty'), sel);
       }
     }
-    // mods: the room's speed (DT, HT… — everyone must accept) and this player's own mods
+    // mods: the room's speed (DT, HT… — the host's, or one everyone accepted) and this player's own mods
     const myMods = (me && me.mods) || [];
     const badges = (list, none) => list.length ? list.map(m => ModSystem.badge(m, true)) : [h('span.mp-none', none)];
     const modsRow = h('div.mp-mods',
@@ -1141,12 +1151,13 @@ const MultiplayerScreen = {
     clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn, h('div.grow'));
   },
 
-  /** The mod select, for this player's mods in the room; a speed mod picked there is proposed to the room. */
+  /** The mod select, for this player's mods in the room; a speed mod picked there is the room's (the host's) or
+   *  proposed to it. */
   openMods() {
     const r = Multiplayer.room, me = Multiplayer.self();
     if (!r) return;
     Settings.set('songselect.mods', ModSystem.normalize([...(r.mods || []), ...((me && me.mods) || [])]));
-    // every toggle reaches the room straight away; a speed mod is proposed to the room once, when mod select closes
+    // every toggle reaches the room straight away; a speed mod goes to the room once, when mod select closes
     const off = Bus.on('mods:changed', () => { if (Multiplayer.inRoom() && ModSelect.o) Multiplayer.setMods(Settings.get('songselect.mods') || [], { propose: false }); });
     ModSelect.open({ disabled: MODS.filter(x => x.unranked).map(x => x.id), why: 'not available in multiplayer', onClose: () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); } });
   },
@@ -1164,7 +1175,7 @@ const MultiplayerScreen = {
         try {
           let local = Multiplayer.localMap(map);
           if (!local && map.onlineSetId > 0) { pick.textContent = 'Downloading…'; await OnlineBeatmaps.downloadAndImport({ id: map.onlineSetId, title: map.title, artist: map.artist }); local = Multiplayer.localMap(map); }
-          if (!local) throw new Error('Beatmap not available.');
+          if (!local) throw new Error(map.onlineSetId > 0 ? 'Beatmap not available.' : 'You don\'t have this beatmap, and it isn\'t online to download.');
           Multiplayer.selectMap(local, Settings.get('songselect.mods') || []);
         } catch (e) { Toast.err('Couldn\'t pick that beatmap', friendlyError(e)); }
         pick.disabled = false; pick.textContent = 'Pick';

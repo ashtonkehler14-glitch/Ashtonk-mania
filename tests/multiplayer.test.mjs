@@ -235,11 +235,11 @@ test('equal pp (e.g. two fails at 0pp) falls back to score, then accuracy', () =
   assert.equal(live.length, 0, 'no live scores outside a match');
 });
 
-test('speed mods (DT…) need every player to accept; other mods are per player', () => {
+test('the host sets the room\'s speed mod (DT…) outright; anyone else\'s needs every player to accept; other mods are per player', () => {
   const r = room();
   r.message('a', { t: 'map', map: MAP, mods: ['DT', 'HD'] });
-  assert.deepEqual(r.mods, []);
-  assert.deepEqual(r.vote.mods, ['DT']);
+  assert.deepEqual(r.mods, ['DT']);
+  assert.equal(r.vote, null);
   r.message('b', { t: 'hasMap', has: true });
   r.message('b', { t: 'mods', mods: ['MR', 'DT', 'AT'] });
   assert.deepEqual(r.get('b').mods, ['MR']);
@@ -247,11 +247,21 @@ test('speed mods (DT…) need every player to accept; other mods are per player'
   // would be an F with no score
   r.message('b', { t: 'mods', mods: ['MR', 'WU', 'WD', 'AS', 'MU', 'CN'] });
   assert.deepEqual(r.get('b').mods, ['MR']);
+  // another player asking for HT: a vote, and no start while it's open
+  r.message('b', { t: 'rate', mods: ['HT'] });
+  assert.deepEqual(r.vote.mods, ['HT']);
+  assert.deepEqual(r.mods, ['DT']);
   r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
   assert.equal(msgs(r.message('a', { t: 'start' }), 'error').length, 1); // vote still open
-  r.message('b', { t: 'vote', yes: true });
+  r.message('a', { t: 'vote', yes: true });
+  assert.deepEqual(r.mods, ['HT']);
+  assert.equal(r.vote, null);
+  // the host changing it back: no vote (and everyone readies up again)
+  r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
+  r.message('a', { t: 'rate', mods: ['DT'] });
   assert.deepEqual(r.mods, ['DT']);
   assert.equal(r.vote, null);
+  assert.ok(!r.get('b').ready);
   r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
   const st = msgs(r.message('a', { t: 'start' }), 'start')[0].msg;
   assert.deepEqual(st.mods, ['DT']);
@@ -259,6 +269,12 @@ test('speed mods (DT…) need every player to accept; other mods are per player'
   r.checkFinished(); r.state = 'lobby';
   r.message('a', { t: 'map', map: { ...MAP, hash: 'next' }, mods: ['HD'] }); // a new map without DT keeps the room's DT
   assert.deepEqual(r.mods, ['DT']);
+  assert.equal(r.vote, null);
+  // an open vote is settled by the host's own change
+  r.message('b', { t: 'rate', mods: ['HT'] });
+  assert.ok(r.vote);
+  r.message('a', { t: 'rate', mods: [] });
+  assert.deepEqual(r.mods, []);
   assert.equal(r.vote, null);
 });
 
@@ -1531,16 +1547,20 @@ test('Team Versus: someone who drops out and comes back is put back on their own
   assert.equal(res.msg.results.rows.length, 2, 'and everyone else\'s is still there');
 });
 
-test('a room\'s Rate Adjust speed is part of its mods; a new speed is a new vote; leaving and un-readying leave nothing armed', () => {
+test('a room\'s Rate Adjust speed is part of its mods; a new speed is a new vote (or the host\'s, outright); leaving and un-readying leave nothing armed', () => {
   const clock = { t: 0 };
   const r = new RoomLogic('RTROOM', () => clock.t);
   r.join('a', 'Alice', true); r.join('b', 'Bob', false); r.join('c', 'Cat', false);
   r.message('a', { t: 'map', map: { hash: 'h'.repeat(64), title: 'Song', artist: 'Art', keys: 4, onlineSetId: 5, length: 60000 } });
   // the room agrees on RT 1.5x; a new speed (1.2x) under the same mod is a vote of its own, not dropped
   r.mods = ['RT']; r.modConfig = { rate: 1.5 };
-  const out = r.propose(r.get('a'), ['RT'], { rate: 1.2 });
+  const out = r.propose(r.get('b'), ['RT'], { rate: 1.2 });
   assert.ok(r.vote && r.vote.modConfig.rate === 1.2 && out.length, 'a new Rate Adjust speed starts a vote');
   r.vote = null;
+  // the host's new speed is the room's straight away; the same speed again changes nothing
+  assert.ok(r.propose(r.get('a'), ['RT'], { rate: 1.25 }).length && !r.vote && r.modConfig.rate === 1.25, 'the host\'s Rate Adjust speed applies outright');
+  assert.equal(r.propose(r.get('a'), ['RT'], { rate: 1.25 }).length, 0);
+  r.modConfig = { rate: 1.5 };
   // a play judged at another speed under RT isn't the room's play
   for (const id of ['a', 'b', 'c']) { r.message(id, { t: 'hasMap', has: true }); r.message(id, { t: 'ready', ready: true }); }
   r.message('a', { t: 'start' });
