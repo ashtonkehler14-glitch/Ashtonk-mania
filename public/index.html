@@ -1307,6 +1307,7 @@ html.touch .practice-bar .kbd { display: none; }
 .mp-pstate.ready i { background: #aadd00; }
 .mp-pstate.playing i { background: #8fd4ff; }
 .mp-pstate.finished i { background: #ffcc22; }
+.mp-pstate.quit { color: #ffb3bb; } .mp-pstate.quit i { background: #ff8a8a; }
 .mp-pstate.reconnecting { color: #ffb3bb; }
 .mp-pstate.reconnecting i { background: #ff8a8a; }
 .mp-pstate.reconnecting i .i { animation: spin 1.2s linear infinite; }
@@ -19152,6 +19153,7 @@ const GameplayScreen = {
     this.gpChatIn.placeholder = open ? kbHint('press Enter to chat', 'tap to chat') : 'chat is available when your song is over';
   },
   leave() {
+    if (this._quitO) { const o = this._quitO; this._quitO = null; o.close(); } // ("Quit match?" still up as the song ended)
     if (this._gpChatOff) { this._gpChatOff(); this._gpChatOff = null; } this.gpChatIn = null; this.gpChat = null;
     document.title = APP_NAME;
     AudioManager.modVolume(1, 0); // (Muted: the music is back for the menus)
@@ -20144,10 +20146,15 @@ const GameplayScreen = {
   async mpQuit() {
     const s = this.s;
     if (!s || s.finished) { Screens.go('multiplayer', {}, { replace: true }); return; }
+    if (this._quitO) return; // (already asking)
     // Ranked Play (as lazer): leaving the song scores 0 for this round — your opponent plays on, and you take the damage
     const ranked = Multiplayer.isRP(), opp = ranked && Multiplayer.opponent();
-    const ok = ranked ? await Dialog.confirm('Leave the song?', `You'll score 0 this round and take the damage while ${opp ? opp.name : 'your opponent'} plays on. The match carries on afterwards.`, { ok: 'Leave song', danger: true, icon: 'warn' })
-      : await Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true, icon: 'warn' });
+    const asked = ranked ? Dialog.confirm('Leave the song?', `You'll score 0 this round and take the damage while ${opp ? opp.name : 'your opponent'} plays on. The match carries on afterwards.`, { ok: 'Leave song', danger: true, icon: 'warn' })
+      : Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true, icon: 'warn' });
+    // (the song can end while it's asking — the results come up: the question goes with the song, see leave())
+    this._quitO = Overlays.top();
+    const ok = await asked;
+    this._quitO = null;
     if (!ok || this.s !== s) return;
     Multiplayer.send({ t: 'quit' });
     s.finished = true; s.running = false;
@@ -23249,7 +23256,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.28c', title: 'Multiplayer', sections: [
-    { icon: 'multi', title: 'Multiplayer', items: ['The playfield shows during the countdown before a match', 'Team Versus results show both teams\' totals in their colours', 'On a phone, a new chat message pops up when the chat is off the screen', 'Neru no longer peeks up over the back button'] },
+    { icon: 'multi', title: 'Multiplayer', items: ['The playfield shows during the countdown before a match', 'Team Versus results show both teams\' totals in their colours', 'On a phone, a new chat message pops up when the chat is off the screen', 'Neru no longer peeks up over the back button', 'Quit a match early: you show as quit, and the room says the match is still going', '"Quit match?" no longer stays up over the results if the song ends first'] },
   ] },
   { id: '2026.10.28b', title: 'Look and feel', sections: [
     { icon: 'sparkle', title: 'Look and feel', items: ['Long windows, like Keyboard shortcuts, scroll inside and keep their Close button in view', 'First-run setup: the Web-Osu-Mania question looks like the others'] },
@@ -26958,7 +26965,7 @@ const MultiplayerScreen = {
       const isMe = p.id === Multiplayer.me;
       // (a beatmap still downloading isn't shown: it installs in the background; a dropped connection is, while the
       // room keeps their seat for them to come back)
-      const state = p.away && !isMe ? 'reconnecting' : p.playing ? (p.fin ? 'finished' : 'playing') : r.map && p.ready ? 'ready' : '';
+      const state = p.away && !isMe ? 'reconnecting' : p.playing ? (p.fin ? (p.fin.forfeit ? 'quit' : 'finished') : 'playing') : r.map && p.ready ? 'ready' : '';
       return h('div.mp-slot', h('span.mp-crown', p.id === r.host ? h('span', { title: 'Host' }, icon('crown')) : null), h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
         h('span.mp-pav', isMe ? ProfileManager.avatarEl(40) : Presence.avatarEl(p, 40)),
         // (the name, and under it the difficulty they're playing — side by side, a ready player's difficulty was cut off)
@@ -26971,7 +26978,7 @@ const MultiplayerScreen = {
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
         } }, icon('film'), 'Spectate') : null,
-        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : state === 'reconnecting' ? 'sync' : 'check')), state) : null,
+        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : state === 'reconnecting' ? 'sync' : state === 'quit' ? 'x' : 'check')), state) : null,
         // (lazer: the host's buttons at the panel's end — hand over the host, and kick (between matches))
         host && !isMe ? h('button.mp-pact', { title: `Give host to ${p.name}`, 'aria-label': `Give host to ${p.name}`, onclick: () => { UISounds.click(); Multiplayer.send({ t: 'giveHost', id: p.id }); } }, icon('crown')) : null,
         host && !isMe && !r.players.some(x => x.playing) ? h('button.mp-pact.kick', { title: `Kick ${p.name}`, 'aria-label': `Kick ${p.name}`, onclick: async () => {
@@ -26999,9 +27006,11 @@ const MultiplayerScreen = {
     const nReady = r.players.filter(p => p.ready).length, count = ` (${nReady} / ${r.players.length} ready)`;
     const allReady = r.players.length >= 2 && nReady === r.players.length;
     const ready = !!(me && me.ready), canStart = host && ready && allReady;
-    const label = r.starting ? 'Starting…' : !ready ? 'Ready' : canStart ? `Start match${count}` : host ? `Waiting for players...${count}` : `Waiting for host...${count}`;
-    const readyBtn = h(`button.mp-ready${canStart ? '.mp-start' : ready ? '.on' : ''}`, {
-      disabled: !r.map || !me || !!r.starting || (canStart && !!r.vote),
+    // (back in the room while the others play on: nothing to ready up for until their match is over)
+    const inMatch = r.state === 'playing';
+    const label = inMatch ? 'Match in progress…' : r.starting ? 'Starting…' : !ready ? 'Ready' : canStart ? `Start match${count}` : host ? `Waiting for players…${count}` : `Waiting for host…${count}`;
+    const readyBtn = h(`button.mp-ready${inMatch ? '' : canStart ? '.mp-start' : ready ? '.on' : ''}`, {
+      disabled: inMatch || !r.map || !me || !!r.starting || (canStart && !!r.vote),
       title: canStart && r.vote ? 'Everyone has to accept or decline the speed mod first' : ready && !canStart ? 'Click to stop being ready' : '',
       onclick: () => { UISounds.click(); Multiplayer.send(canStart ? { t: 'start' } : { t: 'ready', ready: !ready }); },
     }, label);
@@ -31413,7 +31422,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '490c20aab644';
+const APP_BUILD = '62a5ef0a4e13';
 
 const App = {
   lastReport: null,

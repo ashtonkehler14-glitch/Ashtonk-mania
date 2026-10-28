@@ -1290,6 +1290,7 @@ html.touch .practice-bar .kbd { display: none; }
 .mp-pstate.ready i { background: #aadd00; }
 .mp-pstate.playing i { background: #8fd4ff; }
 .mp-pstate.finished i { background: #ffcc22; }
+.mp-pstate.quit { color: #ffb3bb; } .mp-pstate.quit i { background: #ff8a8a; }
 .mp-pstate.reconnecting { color: #ffb3bb; }
 .mp-pstate.reconnecting i { background: #ff8a8a; }
 .mp-pstate.reconnecting i .i { animation: spin 1.2s linear infinite; }

@@ -475,9 +475,10 @@ export class RoomLogic {
       case 'quit':
         if (this.state !== 'playing' || !p.playing || p.finished) return [];
         // Ranked Play: leaving the song scores 0 for this round; the other player plays on
-        if (this.rp) { p.finished = { ...cleanResult({ score: 0, accuracy: p.live ? p.live.acc : 0, maxCombo: p.live ? p.live.maxCombo : 0 }), forfeit: true }; return [this.system(`${p.name} left the song`), ...this.checkFinished()]; }
+        // (with the room as it is now: their row shows they're out, not still playing)
+        if (this.rp) { p.finished = { ...cleanResult({ score: 0, accuracy: p.live ? p.live.acc : 0, maxCombo: p.live ? p.live.maxCombo : 0 }), forfeit: true }; return [this.system(`${p.name} left the song`), ...this.checkFinished(), this.roomMsg()]; }
         p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
-        return [this.system(`${p.name} quit the match`), ...this.checkFinished()];
+        return [this.system(`${p.name} quit the match`), ...this.checkFinished(), this.roomMsg()];
     }
     return [];
   }

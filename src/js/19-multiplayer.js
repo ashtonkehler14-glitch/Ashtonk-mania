@@ -1106,7 +1106,7 @@ const MultiplayerScreen = {
       const isMe = p.id === Multiplayer.me;
       // (a beatmap still downloading isn't shown: it installs in the background; a dropped connection is, while the
       // room keeps their seat for them to come back)
-      const state = p.away && !isMe ? 'reconnecting' : p.playing ? (p.fin ? 'finished' : 'playing') : r.map && p.ready ? 'ready' : '';
+      const state = p.away && !isMe ? 'reconnecting' : p.playing ? (p.fin ? (p.fin.forfeit ? 'quit' : 'finished') : 'playing') : r.map && p.ready ? 'ready' : '';
       return h('div.mp-slot', h('span.mp-crown', p.id === r.host ? h('span', { title: 'Host' }, icon('crown')) : null), h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
         h('span.mp-pav', isMe ? ProfileManager.avatarEl(40) : Presence.avatarEl(p, 40)),
         // (the name, and under it the difficulty they're playing — side by side, a ready player's difficulty was cut off)
@@ -1119,7 +1119,7 @@ const MultiplayerScreen = {
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
         } }, icon('film'), 'Spectate') : null,
-        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : state === 'reconnecting' ? 'sync' : 'check')), state) : null,
+        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : state === 'reconnecting' ? 'sync' : state === 'quit' ? 'x' : 'check')), state) : null,
         // (lazer: the host's buttons at the panel's end — hand over the host, and kick (between matches))
         host && !isMe ? h('button.mp-pact', { title: `Give host to ${p.name}`, 'aria-label': `Give host to ${p.name}`, onclick: () => { UISounds.click(); Multiplayer.send({ t: 'giveHost', id: p.id }); } }, icon('crown')) : null,
         host && !isMe && !r.players.some(x => x.playing) ? h('button.mp-pact.kick', { title: `Kick ${p.name}`, 'aria-label': `Kick ${p.name}`, onclick: async () => {
@@ -1147,9 +1147,11 @@ const MultiplayerScreen = {
     const nReady = r.players.filter(p => p.ready).length, count = ` (${nReady} / ${r.players.length} ready)`;
     const allReady = r.players.length >= 2 && nReady === r.players.length;
     const ready = !!(me && me.ready), canStart = host && ready && allReady;
-    const label = r.starting ? 'Starting…' : !ready ? 'Ready' : canStart ? `Start match${count}` : host ? `Waiting for players...${count}` : `Waiting for host...${count}`;
-    const readyBtn = h(`button.mp-ready${canStart ? '.mp-start' : ready ? '.on' : ''}`, {
-      disabled: !r.map || !me || !!r.starting || (canStart && !!r.vote),
+    // (back in the room while the others play on: nothing to ready up for until their match is over)
+    const inMatch = r.state === 'playing';
+    const label = inMatch ? 'Match in progress…' : r.starting ? 'Starting…' : !ready ? 'Ready' : canStart ? `Start match${count}` : host ? `Waiting for players…${count}` : `Waiting for host…${count}`;
+    const readyBtn = h(`button.mp-ready${inMatch ? '' : canStart ? '.mp-start' : ready ? '.on' : ''}`, {
+      disabled: inMatch || !r.map || !me || !!r.starting || (canStart && !!r.vote),
       title: canStart && r.vote ? 'Everyone has to accept or decline the speed mod first' : ready && !canStart ? 'Click to stop being ready' : '',
       onclick: () => { UISounds.click(); Multiplayer.send(canStart ? { t: 'start' } : { t: 'ready', ready: !ready }); },
     }, label);
