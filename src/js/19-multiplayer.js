@@ -1088,7 +1088,7 @@ const MultiplayerScreen = {
     const slot = p => {
       // lazer's ParticipantPanel: the host's crown beside a 40px panel — the avatar, the name (bold), the difficulty
       // they're playing and their mods, and on the right their state ("ready" with a lime tick, "playing")
-      if (!p) return h('div.mp-slot', h('span.mp-crown'), h('div.mp-player.empty', h('span.mp-empty-t', r.players.length < 2 ? 'Waiting for an opponent…' : `empty slot${st.size - r.players.length > 1 ? ` (${st.size - r.players.length} open)` : ''}`), r.players.length < 2 ? h('span.spinner') : null));
+      if (!p) return h('div.mp-slot', h('span.mp-crown'), h('div.mp-player.empty', h('span.mp-empty-t', r.players.length < 2 ? (st.size > 2 ? 'Waiting for players…' : 'Waiting for an opponent…') : `empty slot${st.size - r.players.length > 1 ? ` (${st.size - r.players.length} open)` : ''}`), r.players.length < 2 ? h('span.spinner') : null));
       const isMe = p.id === Multiplayer.me;
       // (a beatmap still downloading isn't shown: it installs in the background; a dropped connection is, while the
       // room keeps their seat for them to come back)

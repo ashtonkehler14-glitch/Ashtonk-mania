@@ -124,7 +124,9 @@ const BeatmapsScreen = {
     const maps = [...BeatmapManager.maps.values()];
     const broken = maps.filter(m => m.problems.length).length;
     const est = await DB.estimate();
-    clearEl(this.summary).append(`${plural(BeatmapManager.sets.length, 'set')} · ${plural(maps.length, 'difficulty', 'difficulties')}${broken ? ` · ${broken} unplayable` : ''}${est ? ` · ${fmtBytes(est.usage || 0)} used` : ''}`);
+    clearEl(this.summary).append(`${plural(BeatmapManager.sets.length, 'set')} · ${plural(maps.length, 'difficulty', 'difficulties')}${broken ? ` · ${broken} unplayable` : ''}${est ? ` · game storage ${fmtBytes(est.usage || 0)}` : ''}`);
+    // (the whole game's storage, not the beatmaps' alone: an empty library still has skins and the like)
+    this.summary.title = est ? 'Everything the game keeps on this device: beatmaps, skins, replays and the rest' : '';
   },
   renderReport() {
     clearEl(this.report);
