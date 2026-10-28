@@ -2746,12 +2746,13 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 
 
 /* Ranked Play lobby: one centred card while waiting / choosing levels */
-/* the Web-Osu-Mania page: compact yes / no so the import steps and button stay in view */
-.setup-step-wom .setup-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 14px; align-items: center; padding: 14px 18px; text-align: left; }
-.setup-step-wom .setup-choice-ic { grid-row: 1 / 3; width: 44px; height: 44px; margin: 0; }
-.setup-step-wom .setup-choice-ic .i { width: 22px; height: 22px; }
-.setup-step-wom .setup-choice-t { font-size: 1.05rem; align-self: end; }
-.setup-step-wom .setup-choice-s { align-self: start; }
+/* the Web-Osu-Mania page: yes / no like the other pages' choices, made compact once it's yes so the import steps and
+   button stay in view */
+.setup-step-wom .setup-choices.compact .setup-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 14px; align-items: center; padding: 14px 18px; text-align: left; }
+.setup-step-wom .setup-choices.compact .setup-choice-ic { grid-row: 1 / 3; width: 44px; height: 44px; margin: 0; }
+.setup-step-wom .setup-choices.compact .setup-choice-ic .i { width: 22px; height: 22px; }
+.setup-step-wom .setup-choices.compact .setup-choice-t { font-size: 1.05rem; align-self: end; }
+.setup-step-wom .setup-choices.compact .setup-choice-s { align-self: start; }
 .setup-step-wom .setup-wom { margin-top: 14px; }
 /* (centred like the other pages — its import steps stay a left-aligned list) */
 .setup-step-wom { align-items: center; justify-content: safe center; text-align: center; }

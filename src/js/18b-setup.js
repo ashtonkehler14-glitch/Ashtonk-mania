@@ -318,8 +318,9 @@ const Onboarding = {
       this.render();
     } }, h('span.setup-choice-ic', icon(ic)), h('span.setup-choice-t', t), h('span.setup-choice-s', sub), h('span.setup-check', icon('check')));
     const out = [
-      h('p.setup-lead', 'Did you play Web-Osu-Mania before?'),
-      h('div.setup-choices.two', choice('yes', 'upload', 'Yes', 'Bring my keybinds and beatmaps'), choice('no', 'user-plus', 'No', 'I\'m new here'))];
+      // (once it's yes, the question makes room for the import steps: the page's title asks it too)
+      yes ? null : h('p.setup-lead', 'Did you play Web-Osu-Mania before?'),
+      h(`div.setup-choices.two${yes ? '.compact' : ''}`, choice('yes', 'upload', 'Yes', 'Bring my keybinds and beatmaps'), choice('no', 'user-plus', 'No', 'I\'m new here'))];
     if (yes) out.push(h('div.setup-wom',
       this.womDone
         ? h('div.setup-wom-done', icon('check'), h('span', `Imported ${this.womDone}. Your keybinds and settings are in place — check them on the next pages.`))
