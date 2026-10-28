@@ -1502,7 +1502,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         continue;
       }
       const K = s.down.length;
-      const col = this.hitbox ? Math.max(0, Math.min(K - 1, Math.floor(tc.clientX / innerWidth * K))) : this.renderer.columnAt(tc.clientX, was ?? -1);
+      // (Portrait and Landscape (expanded): the columns themselves, no wider — elsewhere the screen's width split evenly)
+      const R = this.renderer, lanes = !!R.fnf && (R.H > R.W || Settings.get('gameplay.mobileLayout') === 'expanded');
+      const col = this.hitbox && !lanes ? Math.max(0, Math.min(K - 1, Math.floor(tc.clientX / innerWidth * K))) : R.columnAt(tc.clientX, was ?? -1, { lanes });
       if (col < 0 || col === was) continue;
       if (was != null) this.keyUp(was, id, t);
       this._touches.set(id, col);

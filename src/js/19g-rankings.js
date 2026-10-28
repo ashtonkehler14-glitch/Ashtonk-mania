@@ -229,7 +229,7 @@ const RankingsScreen = {
       const u = { pid: r.pid, name: r.name, avatar: r.avatar, online: !!r.online, id: r.online ? (Presence.players.find(p => p.pid === r.pid) || {}).id : null };
       const el = h(`div.rk-row${r.pid === me ? '.me' : ''}`,
         h('span.rk-rank', `#${fmtInt(r.rank)}`),
-        h('span.rk-user', Presence.avatarEl(r, 22), h('span.rk-name', r.name), r.online ? h('span.rk-on', { title: 'Online' }) : null),
+        h('span.rk-user', Presence.avatarEl(r, 22), h('span.rk-name', r.name), roleBadge(r.role), r.online ? h('span.rk-on', { title: 'Online' }) : null),
         h('span', fmtInt(r.plays)), h('span.hl', `${fmtInt(Math.round(r.pp))}pp`),
         h('span', fmtInt(r.ss || 0)), h('span', fmtInt(r.s || 0)), h('span', fmtInt(r.a || 0)));
       // (lazer: a player opens their profile; right-click for the rest)

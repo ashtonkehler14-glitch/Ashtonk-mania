@@ -926,9 +926,34 @@ export class PresenceLogic {
     this.bans = new Map(); this.mutes = new Map(); this.names = new Map(); this.persistMod = null;
     // which player is the server's owner: the one whose code is the ADMIN_CODE secret (its hash, set by Matchmaker)
     this.adminHash = '';
+    // the admins the owner has made, each with a role of the owner's naming and colour (pid → { name, colour, at }; rl:)
+    this.roles = new Map();
   }
   isAdmin(pid) { return !!pid && !!this.adminHash && this.codes.get(this.adminHash) === pid; }
-  loadMod({ bans = {}, mutes = {}, names = {} } = {}) {
+  /** Owner, or an admin the owner made: the admin panel opens for them. */
+  isStaff(pid) { return this.isAdmin(pid) || (!!pid && this.roles.has(pid)); }
+  /** The role shown beside a player's name (the rankings, their profile): the owner's, or the one they were given. */
+  roleOf(pid) {
+    if (this.isAdmin(pid)) return { name: 'Owner', colour: '#ffcc22', owner: true };
+    const r = pid && this.roles.get(pid);
+    return r ? { name: r.name, colour: r.colour } : null;
+  }
+  /** Make a player an admin with a role (a name up to 24 characters and a colour, #rrggbb), or change theirs. Their
+   *  game's admin menu opens straight away. */
+  adminRole(pid, { name = '', colour = '' } = {}) {
+    const n = str(name, 24).trim(), c = /^#[0-9a-f]{6}$/i.test(String(colour)) ? String(colour).toLowerCase() : '#66ccff';
+    if (!n || this.isAdmin(pid)) return null;
+    const v = { name: n, colour: c, at: (this.roles.get(pid) || {}).at || this.now() };
+    this.roles.set(pid, v); if (this.persistMod) this.persistMod('rl', pid, v);
+    return [...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id]) => ({ to: id, msg: { t: 'admin', role: { name: v.name, colour: v.colour } } }));
+  }
+  adminUnrole(pid) {
+    if (!this.roles.delete(pid)) return [];
+    if (this.persistMod) this.persistMod('rl', pid, null);
+    return [...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id]) => ({ to: id, msg: { t: 'admin', off: true } }));
+  }
+  loadMod({ bans = {}, mutes = {}, names = {}, roles = {} } = {}) {
+    for (const [pid, v] of Object.entries(roles)) if (v && typeof v === 'object' && v.name) this.roles.set(pid, { name: str(v.name, 24), colour: /^#[0-9a-f]{6}$/i.test(String(v.colour)) ? v.colour : '#66ccff', at: Number(v.at) || 0 });
     for (const [pid, v] of Object.entries(bans)) if (v && typeof v === 'object') this.bans.set(pid, v);
     for (const [pid, v] of Object.entries(mutes)) if (v && typeof v === 'object') this.mutes.set(pid, v);
     for (const [pid, v] of Object.entries(names)) if (v && typeof v === 'object' && (v.name || v.was)) this.names.set(pid, { name: str(v.name, 24), was: str(v.was, 24) });
@@ -961,7 +986,7 @@ export class PresenceLogic {
     const r = this.ranks.get(pid), p = this.profiles.get(pid), u = [...this.users.values()].find(x => x.pid === pid), given = this.givenName(pid);
     const banned = this.modOf('bn', pid), muted = this.modOf('mu', pid);
     return { pid, name: given || (u && u.name) || name || (r && r.name) || (p && p.name) || (banned && banned.name) || (muted && muted.name) || '', pp: r ? Math.round(r.pp || 0) : 0, plays: r ? r.plays || 0 : 0,
-      online: !!u, seen: this.seen.get(pid) || 0, code: this.codeOf.has(pid), banned, muted, named: given };
+      online: !!u, seen: this.seen.get(pid) || 0, code: this.codeOf.has(pid), banned, muted, named: given, owner: this.isAdmin(pid), role: this.roles.get(pid) || null };
   }
   /** The name the server's owner gave this player ('' when there's none). */
   givenName(pid) { const g = pid && this.names.get(pid); return (g && g.name) || ''; }
@@ -1445,7 +1470,7 @@ export class PresenceLogic {
     }
     const n = r ? r.n || 0 : 0, bonus = n > 0 ? Math.round(416.6667 * (1 - 0.995 ** Math.min(1000, n)) * 100) / 100 : 0;
     return { t: 'profile', pid, data: shown, top, firsts, firstCount: f1.length, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
-      rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a, n, bonus, src: r.src || 'judged' } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
+      role: this.roleOf(pid), rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a, n, bonus, src: r.src || 'judged' } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
   }
   setFirst(pid, key, v) {
     const m = this.firsts.get(pid) || {};
@@ -1639,7 +1664,9 @@ export class PresenceLogic {
     const online = new Set([...this.users.values()].filter(u => u.vis !== 'offline').map(u => u.pid));
     const at = all.findIndex(r => r.pid === pid);
     const pub = ({ bests, v, rep, _lazy, sb, okh, rk, ...r }) => r; // (not each player's whole list of plays)
-    return { t: 'rankings', mode: byScore ? 'score' : 'performance', total: all.length, you: at < 0 ? null : { ...pub(all[at]), rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...pub(r), rank: i + 1, online: online.has(r.pid) })) };
+    // (the owner, and the admins they made, with their role beside their name)
+    const withRole = r => { const role = this.roleOf(r.pid); return role ? { ...pub(r), role } : pub(r); };
+    return { t: 'rankings', mode: byScore ? 'score' : 'performance', total: all.length, you: at < 0 ? null : { ...withRole(all[at]), rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...withRole(r), rank: i + 1, online: online.has(r.pid) })) };
   }
   load(friends, requests) {
     for (const [pid, l] of Object.entries(friends || {})) this.friends.set(pid, new Map(l));
@@ -1688,7 +1715,7 @@ export class PresenceLogic {
     this.dropped = gone;
     const me = this.users.get(id);
     return [...out, { to: id, msg: { t: 'welcome', you: id } }, { to: id, msg: { t: 'chatHist', list: this.chat } }, ...(me.pid ? [{ to: id, msg: this.friendsMsg(me.pid) }] : []),
-      ...(this.isAdmin(me.pid) ? [{ to: id, msg: { t: 'admin' } }] : []), this.broadcast()];
+      ...(this.isStaff(me.pid) ? [{ to: id, msg: { t: 'admin', role: this.roleOf(me.pid) } }] : []), this.broadcast()];
   }
   /** Forget everyone who hasn't been heard from in a while; returns their ids (to close) and the update. */
   prune() {
@@ -2140,18 +2167,37 @@ export class Matchmaker {
     const P = this.presence, b = (await request.json().catch(() => null)) || {}, ip = request.headers.get('x-ip') || '';
     P.adminHash = adminCodeHash(this.env);
     const pid = /^[a-z0-9]{6,24}$/.test(String(b.pid || '')) ? String(b.pid) : '';
+    // (an admin the owner made: their name goes in the log with what they did)
+    const actorHdr = request.headers.get('x-admin-who') || 'owner';
     const log = (what, extra = {}) => {
-      this.adminLog = [...(this.adminLog || []), { at: Date.now(), what, ip, ...extra }].slice(-300);
+      this.adminLog = [...(this.adminLog || []), { at: Date.now(), what, ip, ...(actorHdr !== 'owner' ? { by: P.adminRow(actorHdr).name || actorHdr } : {}), ...extra }].slice(-300);
       this.state.storage.put('adminLog', this.adminLog).catch(() => {});
     };
     const who = p => ({ pid: p, name: P.adminRow(p).name || p });
     const noPlayer = () => json({ error: 'No such player.' }, 400);
+    // who's acting: the owner (their code is ADMIN_CODE), or an admin the owner made (their pid). Admins moderate players;
+    // making and unmaking admins, wiping a player, the daily challenge and the log are the owner's — and nobody but the
+    // owner acts on an admin
+    const actor = actorHdr, owner = actor === 'owner';
+    const PRE = new Set(['try', 'device', 'signedIn', 'staffCode', 'isStaff']);
+    if (!PRE.has(action)) {
+      if (!owner && !P.roles.has(actor)) return json({ error: 'You\'re not an admin any more.' }, 401);
+      if (!owner && ['role', 'unrole', 'wipe', 'dailyPick', 'dailySet', 'chatClear', 'log'].includes(action)) return json({ error: 'Only the owner can do that.' }, 403);
+      if (!owner && pid && P.isStaff(pid) && ['ban', 'mute', 'rename', 'removeScore', 'wipe'].includes(action)) return json({ error: 'Only the owner can do that to an admin.' }, 403);
+    }
+
     const daily = () => { const d = P.dailyNow(); return { day: d.day, map: d.map, scores: d.scores.length, error: d.map ? null : P.dailyError, endsAt: PresenceLogic.dayEnd(d.day) }; };
     switch (action) {
       // signing in with the code: tries per address, and everyone's (the Worker compares the code itself)
       case 'try': return json({ ok: this.allowTry('adm:' + ip, 8) && this.allowTry('adm:all', 60) });
       // signing in from a device that plays as the owner (the game's own pid and key, read by the panel's page)
-      case 'device': return json({ ok: !!pid && P.keyOk(pid, String(b.key || '')) && P.isAdmin(pid) });
+      case 'device': {
+        const ok = !!pid && P.keyOk(pid, String(b.key || '')) && P.isStaff(pid);
+        return json({ ok, who: ok ? (P.isAdmin(pid) ? 'owner' : pid) : null });
+      }
+      // signing in with an admin's own player code (one the owner made an admin): whose it is
+      case 'staffCode': { const c = cleanPlayerCode(b.code), p = c ? P.codes.get(codeHash(c)) : null; return json({ pid: p && P.roles.has(p) ? p : null }); }
+      case 'isStaff': return json({ ok: !!pid && P.roles.has(pid) });
       case 'signedIn': log('Signed in', { how: str(b.how, 20) }); return json({ ok: true });
       case 'overview': {
         for (const [c, r] of this.rooms) if (Date.now() - r.at > 40000) this.rooms.delete(c);
@@ -2159,9 +2205,19 @@ export class Matchmaker {
           song: u.song ? { title: str(u.song.title, 120), artist: str(u.song.artist, 120), version: str(u.song.version, 120) } : null }));
         const live = m => [...m.keys()].filter(x => P.modOf(m === P.bans ? 'bn' : 'mu', x)).length;
         return json({ online, ranked: [...P.ranks.values()].filter(r => r.pp > 0).length, codes: P.codes.size, bans: live(P.bans), mutes: live(P.mutes),
-          rooms: [...this.rooms.values()].slice(0, 50), daily: daily(), chat: P.chat.slice(-100), log: (this.adminLog || []).slice(-15).reverse(), owner: P.adminHash ? P.codes.get(P.adminHash) || null : null });
+          rooms: [...this.rooms.values()].slice(0, 50), daily: daily(), chat: P.chat.slice(-100), log: owner ? (this.adminLog || []).slice(-15).reverse() : [], owner: P.adminHash ? P.codes.get(P.adminHash) || null : null,
+          me: owner ? { owner: true } : { pid: actor, name: P.adminRow(actor).name, role: P.roles.get(actor) },
+          staff: [...P.roles.keys()].map(x => P.adminRow(x)) });
       }
       case 'search': return json({ players: P.adminSearch(b.q) });
+      case 'role': {
+        if (!pid) return noPlayer();
+        const out = P.adminRole(pid, { name: b.name, colour: b.colour });
+        if (!out) return json({ error: P.isAdmin(pid) ? 'That\'s you, the owner.' : 'Give the role a name.' }, 400);
+        this.send(out); log('Made admin', { ...who(pid), to: P.roles.get(pid).name });
+        return json({ ok: true });
+      }
+      case 'unrole': { if (!pid) return noPlayer(); this.send(P.adminUnrole(pid)); log('No longer admin', who(pid)); return json({ ok: true }); }
       case 'player': {
         if (!pid) return noPlayer();
         await this.ensureBests(pid);
@@ -2439,6 +2495,7 @@ export class Matchmaker {
         for (const [k, v] of await st.list({ prefix: 'bn:' })) mod.bans[k.slice(3)] = v;
         for (const [k, v] of await st.list({ prefix: 'mu:' })) mod.mutes[k.slice(3)] = v;
         for (const [k, v] of await st.list({ prefix: 'nm:' })) mod.names[k.slice(3)] = v;
+        mod.roles = {}; for (const [k, v] of await st.list({ prefix: 'rl:' })) mod.roles[k.slice(3)] = v;
         this.presence.loadMod(mod);
         const al = await st.get('adminLog'); this.adminLog = Array.isArray(al) ? al : [];
       } catch (e) {

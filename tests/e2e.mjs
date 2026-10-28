@@ -69,7 +69,7 @@ const waitBoot = async () => {
   await page.waitForTimeout(400);
   if (await page.$('.onboarding')) {
     await setupName(page, 'Tester');
-    await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(400);
+    await page.waitForSelector('.setup-step-wom, .setup-step-mobile'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(400);
   }
   // (every medal already earned: their pop-ups would cover what the tests click; the medal test resets them)
   await page.evaluate(async () => {
@@ -2367,7 +2367,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await op.reload();
   await op.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   check('a service worker controls the page after the first visit', await op.evaluate(() => !!navigator.serviceWorker.controller));
-  if (await op.$('.onboarding')) { await setupName(op, 'Offline'); await op.waitForSelector('.setup-step-wom'); await op.evaluate(() => AshtonkMania.Onboarding.finish()); await op.waitForTimeout(300); }
+  if (await op.$('.onboarding')) { await setupName(op, 'Offline'); await op.waitForSelector('.setup-step-wom, .setup-step-mobile'); await op.evaluate(() => AshtonkMania.Onboarding.finish()); await op.waitForTimeout(300); }
   await op.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
   await octx.setOffline(true);
   await op.reload();
@@ -2422,7 +2422,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await bp.goto(url);
   await bp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await bp.waitForTimeout(300);
-  if (await bp.$('.onboarding')) { await setupName(bp, 'Guest'); await bp.waitForSelector('.setup-step-wom'); await bp.evaluate(() => AshtonkMania.Onboarding.finish()); await bp.waitForTimeout(400); }
+  if (await bp.$('.onboarding')) { await setupName(bp, 'Guest'); await bp.waitForSelector('.setup-step-wom, .setup-step-mobile'); await bp.evaluate(() => AshtonkMania.Onboarding.finish()); await bp.waitForTimeout(400); }
   const toastText = await bp.$$eval('.toast', a => a.map(t => t.textContent).join(' | '));
   check('storage blocked: the game still boots and says nothing will be saved', await bp.evaluate(() => !!AshtonkMania.DB.memory && AshtonkMania.Screens.currentName === 'home') && /Storage is blocked/.test(toastText), toastText);
   await bp.evaluate(() => AshtonkMania.Screens.go('songselect')); await bp.waitForSelector('.ss-browse');

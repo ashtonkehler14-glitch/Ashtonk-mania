@@ -604,7 +604,7 @@ const Presence = {
       else if (m.t === 'renamed') { if (m.name && m.name !== ProfileManager.profile.name) ProfileManager.setName(m.name); }
       else if (m.t === 'sayDel' || m.t === 'chatClear') Chat.on(m);
       else if (m.t === 'announce') Toast.show('Announcement', String(m.text || ''), { hold: true, timeout: 20000 });
-      else if (m.t === 'admin') { this.isAdmin = true; Bus.emit('presence:admin'); }
+      else if (m.t === 'admin') { this.isAdmin = !m.off; this.role = m.off ? null : m.role || null; Bus.emit('presence:admin'); }
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;

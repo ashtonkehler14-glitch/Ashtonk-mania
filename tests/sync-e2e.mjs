@@ -46,7 +46,7 @@ async function device(name, maps = true) {
   if (await page.$('.onboarding')) {
     if (await page.$('.setup-choice[data-id="new"]')) await page.click('.setup-choice[data-id="new"]');
     await page.fill('.onboarding .ob-name', name); await page.keyboard.press('Enter');
-    await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300);
+    await page.waitForSelector('.setup-step-wom, .setup-step-mobile'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300);
   }
   if (maps) {
     await page.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });

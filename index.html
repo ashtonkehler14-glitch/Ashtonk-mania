@@ -1532,6 +1532,15 @@ html.touch .practice-bar .kbd { display: none; }
 .setup-label { align-self: stretch; font-size: .75rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
 .setup-choices { display: grid; gap: 14px; width: 100%; }
 .setup-choices.two { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 560px; }
+.setup-choices.three { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 640px; }
+/* the layout page's pictures: a phone, held each way, playing a song */
+.setup-layouts .setup-choice { padding: 18px 12px 16px; justify-content: flex-start; }
+.setup-phone { display: grid; place-items: center; height: 152px; margin-bottom: 4px; }
+.setup-phone svg { display: block; transition: transform var(--t-med) var(--ease-out); }
+.setup-choice:hover .setup-phone svg, .setup-choice.on .setup-phone svg { transform: scale(1.06); }
+@media (max-width: 560px) { .setup-choices.three { grid-template-columns: minmax(0, 1fr); } .setup-layouts .setup-choice { flex-direction: row; text-align: left; flex-wrap: wrap; } .setup-phone { height: auto; } }
+/* (a phone on its side: the pictures smaller, so the three fit above Next) */
+@media (max-height: 560px) { .setup-phone { height: 78px; margin-bottom: 0; } .setup-phone svg { height: 72px; width: auto; } .setup-layouts .setup-choice { padding: 12px 10px 12px; gap: 3px; } .setup-layouts .setup-choice-t { font-size: 1.05rem; } .setup-layouts .setup-choice-s { font-size: .78rem; } }
 .setup-choice { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 26px 18px 22px; border-radius: 14px; border: 0; background: #2c2a34; color: var(--text); text-align: center; box-shadow: inset 0 0 0 2px transparent; transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast) var(--ease-out); }
 .setup-choice:hover { background: #34313d; transform: translateY(-2px); }
 .setup-choice.on, .setup-choice.primary { box-shadow: inset 0 0 0 2px var(--accent); }
@@ -3175,6 +3184,11 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .rq-rating b { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .rq-rating small { font-size: .75rem; color: var(--text-2); }
 .rq-how .i { width: 14px; height: 14px; }
+/* a player's role (the server's owner, or an admin the owner made) beside their name, in the role's colour */
+.role-badge { display: inline-flex; align-items: center; gap: 4px; flex: none; height: 18px; padding: 0 7px; border-radius: 99px; background: color-mix(in srgb, var(--rc) 18%, transparent); color: var(--rc); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rc) 45%, transparent); font-size: 11px; font-weight: 700; letter-spacing: .02em; line-height: 1; white-space: nowrap; }
+.role-badge .i { width: 11px; height: 11px; }
+.rk-user .role-badge { margin-left: 6px; }
+.pf-tags .role-badge { height: 22px; font-size: 12px; padding: 0 9px; }
 .rq-rules { max-width: 520px; font-size: .9rem; line-height: 1.45; color: var(--text-2); }
 .rq-rules ol, .rq-rules ul { margin: 0 0 14px; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
 .rq-rules b { color: #fff; }
@@ -10583,7 +10597,8 @@ class ManiaRenderer {
     this._geom();
   }
   /** The column under a point on screen (clientX), or the nearest one — for touch input. */
-  columnAt(clientX, current = -1) {
+  /** `lanes`: only a touch on a column counts (beside the stage is nothing) — Portrait and Landscape (expanded). */
+  columnAt(clientX, current = -1, { lanes = false } = {}) {
     // (the host's place on screen is read once per layout, not on every touch move: a layout read per move event
     // forced style recalculation mid-frame)
     let r = this._hostRect;
@@ -10595,7 +10610,7 @@ class ManiaRenderer {
     if (!this.colX || !r.width) return -1;
     // a phone held sideways (a narrow stage on a wide screen): the screen's whole width is split evenly between the
     // columns, as lazer's touch input does, so each column is a thumb-sized area
-    if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.colX && r.width) {
+    if (!lanes && typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.colX && r.width) {
       const K = this.colX.length, f = clamp((clientX - r.left) / r.width, 0, 0.9999) * K;
       if (current >= 0 && current < K && f >= current - 1 / 3 && f < current + 1 + 1 / 3) return current;
       return Math.floor(f);
@@ -10607,6 +10622,7 @@ class ManiaRenderer {
       const m = this.colW[current] / 3;
       if (x >= this.colX[current] - m && x <= this.colX[current] + this.colW[current] + m) return current;
     }
+    if (lanes && (x < this.colX[0] || x > this.stageW)) return -1;
     let best = -1, bd = Infinity;
     for (let i = 0; i < this.colX.length; i++) {
       const a = this.colX[i], b = a + this.colW[i];
@@ -12984,6 +13000,14 @@ const ICON_SRC = {"home":["L","home"],"gear":["L","settings"],"mania":["L","Rule
 function stateCard(ic, title, sub, { slash = false, action = null, cls = '', neru = false } = {}) {
   const top = neru && typeof NeruCameo !== 'undefined' && NeruCameo.make('list', 'nc-card');
   return h(`div.off-state${cls}`, top || h('div.off-ico', icon(ic), slash ? h('i') : null), h('div.off-t', title), sub ? h('div.off-sub', sub) : null, action);
+}
+
+/** A player's role beside their name (the rankings, their profile): the server's owner, or an admin the owner made,
+ *  in the role's own colour. Null when they have none. */
+function roleBadge(role) {
+  if (!role || !role.name) return null;
+  const c = /^#[0-9a-f]{6}$/i.test(role.colour || '') ? role.colour : '#66ccff';
+  return h(`span.role-badge${role.owner ? '.owner' : ''}`, { style: { '--rc': c }, title: role.owner ? 'The server\'s owner' : `${role.name} (an admin)` }, role.owner ? icon('crown') : null, String(role.name).slice(0, 24));
 }
 
 // (every icon is one of lazer's: 12-icons.js)
@@ -20326,7 +20350,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         continue;
       }
       const K = s.down.length;
-      const col = this.hitbox ? Math.max(0, Math.min(K - 1, Math.floor(tc.clientX / innerWidth * K))) : this.renderer.columnAt(tc.clientX, was ?? -1);
+      // (Portrait and Landscape (expanded): the columns themselves, no wider — elsewhere the screen's width split evenly)
+      const R = this.renderer, lanes = !!R.fnf && (R.H > R.W || Settings.get('gameplay.mobileLayout') === 'expanded');
+      const col = this.hitbox && !lanes ? Math.max(0, Math.min(K - 1, Math.floor(tc.clientX / innerWidth * K))) : R.columnAt(tc.clientX, was ?? -1, { lanes });
       if (col < 0 || col === was) continue;
       if (was != null) this.keyUp(was, id, t);
       this._touches.set(id, col);
@@ -22797,12 +22823,13 @@ const ProfileScreen = {
         // (your own profile: the server's list of your first places)
         if (!this.remote && m.pid === Presence.pid()) {
           this.ownFirsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; /* (one without its song's name isn't listed) */
+          this.ownRole = m.role || null;
           // (and your pp and best plays as the server has them — what everyone else sees on your profile)
           const v = m.verified;
           this.ownServer = { pid: m.pid, pp: v ? v.pp || 0 : 0, top: (v && v.src === 'profile' && m.data && m.data.top && m.data.top.length ? m.data.top : m.top) || [] };
           this.render(); return;
         }
-        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 };
+        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; this.remote.role = m.role || null;
         if (m.data) m.data = { ...m.data, pp: m.verified ? m.verified.pp : m.data.pp || 0, top: m.data.top && m.data.top.length ? m.data.top : m.top || [] }; /* (pp: the server's standing for them) */
         // a player whose game hasn't sent its profile yet: what the server knows of them (rank, pp, accuracy, play
         // count, ranks) — a profile is never "not shared"
@@ -22924,7 +22951,7 @@ const ProfileScreen = {
         h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) { await ProfileManager.setName(n); Toolbar.updateProfile(); } } }, icon('edit')) : null,
           // (your code: play as yourself on another device)
           own && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => CodePanel.open(Account.signedOut() ? { use: true } : {}) }, icon('lock'), Account.signedOut() ? 'Signed out · Use your code' : 'Your code') : null),
-        h('div.pf-tags', h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
+        h('div.pf-tags', roleBadge(this.remote ? this.remote.role : this.ownRole), h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
           u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null)),
       u ? h('div.pf-acts', ...UserPanels.menuItems(u).filter(it => !it.sep && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label))) : null));
     // (play count and time aren't repeated here: they're in the stat list below)
@@ -23269,6 +23296,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28e', title: 'Phones and roles', sections: [
+    { icon: 'sparkle', title: 'Phones', items: ['First-run setup asks how you want to play on a phone — Portrait, Landscape or Landscape (expanded) — with a picture of each', 'Signing in to your account on a phone asks it first', 'In Portrait and Landscape (expanded), only a tap on a lane hits a note — a tap beside the stage does nothing'] },
+    { icon: 'trophy', title: 'Rankings', items: ['The server\'s owner shows as Owner beside their name, on the rankings and their profile', 'The owner can make players admins, each with a role name and colour of their choosing, shown beside their name'] },
+  ] },
   { id: '2026.10.28d', title: 'Fairer Ranked Play', sections: [
     { icon: 'trophy', title: 'Fairer Ranked Play', items: ['Both players play by the same rules: the beatmap\'s timing, the same accuracy and the same scrolling, whatever your settings', 'Opening hands are dealt in matched pairs, so neither of you starts with the harder cards', 'One song does at most 500,000 damage, so one bad song can\'t decide the match', 'The cards lean towards the lower of the two star ratings chosen', 'No gimmick or joke beatmaps, and nothing under 45 seconds or over 6 minutes', '"How it works" in the Ranked Play lounge explains the rules', 'Neru watches your matches (when she\'s on) and has something to say about them'] },
   ] },
@@ -25132,12 +25163,34 @@ const SETUP_DEVICES = {
 /** ChromeOS: Chromebooks get the lighter settings without having to know to ask for them. */
 const IS_CHROMEBOOK = typeof navigator !== 'undefined' && /\bCrOS\b/.test(navigator.userAgent || '');
 
+/** The first-run setup's layouts for a phone or tablet (Settings → Mobile layout). */
+const SETUP_LAYOUTS = [
+  { id: 'portrait', label: 'Portrait', sub: 'Upright, the columns across the screen' },
+  { id: 'landscape', label: 'Landscape', sub: 'Sideways, the stage as on a computer' },
+  { id: 'expanded', label: 'Landscape (expanded)', sub: 'Sideways, the columns filling the screen' },
+];
+/** A little picture of a phone playing a song in a layout: the screen, its four columns (with the receptors) and a few
+ *  notes on their way down. */
+function phoneMock(kind) {
+  const up = kind === 'portrait', W = up ? 64 : 124, H = up ? 116 : 64, pad = 5, sw = W - pad * 2, sh = H - pad * 2;
+  const stageW = up ? sw : kind === 'expanded' ? sw * 0.9 : sw * 0.34, col = stageW / 4, x0 = pad + (sw - stageW) / 2;
+  const rx = col * 0.18, recY = pad + sh - col * 0.72, notes = [[0, 0.18], [2, 0.36], [1, 0.58], [3, 0.12], [3, 0.7]];
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W * 1.25}" height="${H * 1.25}" aria-hidden="true">`;
+  s += `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="9" fill="#14121a" stroke="rgba(255,255,255,.35)" stroke-width="2"/>`;
+  s += `<rect x="${x0}" y="${pad}" width="${stageW}" height="${sh}" fill="rgba(255,255,255,.05)"/>`;
+  for (let c = 0; c < 4; c++) s += `<rect x="${x0 + c * col + col * 0.12}" y="${recY}" width="${col * 0.76}" height="${col * 0.5}" rx="${rx}" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.2"/>`;
+  for (const [c, f] of notes) { const y = pad + (recY - pad - col * 0.5) * f; s += `<rect x="${x0 + c * col + col * 0.12}" y="${y}" width="${col * 0.76}" height="${col * 0.5}" rx="${rx}" fill="var(--accent)"/>`; }
+  return s + '</svg>';
+}
+
 const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick'], ['diamonds', 'Diamonds']];
 
 const Onboarding = {
   STEPS: [
     { id: 'welcome', title: 'Welcome!' },
     { id: 'account', title: 'You' },
+    // (phones and tablets only: how songs are laid out — the first thing asked once you've signed in)
+    { id: 'mobile', title: 'How do you want to play?', short: 'Layout' },
     { id: 'wom', title: 'Coming from Web-Osu-Mania?', short: 'Import' },
     { id: 'device', title: 'Performance or graphics?', short: 'Quality' },
     { id: 'look', title: 'Make it yours', short: 'Appearance' },
@@ -25184,10 +25237,11 @@ const Onboarding = {
    *  out, only that question and your code or name; a returning player whose settings came along only has the device's
    *  own page left (performance or graphics) — their look, gameplay and skin are theirs already. */
   get steps() {
-    if (!this.asksAccount) return this.STEPS.filter(s => s.id !== 'account');
-    if (this.accountOnly) return this.STEPS.slice(0, 2);
-    if (this.acct === 'have' && !(this.got && !this.got.settings)) return this.STEPS.filter(s => /^(welcome|account|device)$/.test(s.id));
-    return this.STEPS;
+    const all = TOUCH_DEVICE ? this.STEPS : this.STEPS.filter(s => s.id !== 'mobile');
+    if (!this.asksAccount) return all.filter(s => s.id !== 'account');
+    if (this.accountOnly) return all.filter(s => /^(welcome|account|mobile)$/.test(s.id));
+    if (this.acct === 'have' && !(this.got && !this.got.settings)) return all.filter(s => /^(welcome|account|mobile|device)$/.test(s.id));
+    return all;
   },
   /** A page's heading, and its name on the button that leads to it. */
   titleOf(st) {
@@ -25230,7 +25284,7 @@ const Onboarding = {
   /** Neru's pose for each page: hand on hip at the start, glad to see you back (a code) or a wag of her finger at a
    *  newcomer, a blank look at Web-Osu-Mania, on her phone while you pick performance or graphics, a wink at your
    *  colours, fists up for the gameplay, sunglasses on for the skin. */
-  NERU: { welcome: 'sassy', wom: 'huh', device: 'phone', look: 'wink', gameplay: 'cheer', skin: 'cool' },
+  NERU: { welcome: 'sassy', mobile: 'point', wom: 'huh', device: 'phone', look: 'wink', gameplay: 'cheer', skin: 'cool' },
   neruPose() {
     const st = this.step, n = this.neru;
     if (!n || !st) return;
@@ -25456,6 +25510,22 @@ const Onboarding = {
     } catch (e) { Toast.err('Couldn\'t import the backup', friendlyError(e)); }
     this.womStatus = null;
     if (this.o && this.step.id === 'wom') this.render();
+  },
+
+  /** Phones and tablets: how songs are laid out (Settings → Mobile layout) — upright, sideways as on a computer, or
+   *  sideways with the columns widened to fill the screen — each with a picture of it. */
+  step_mobile() {
+    const cur = Settings.get('gameplay.mobileLayout');
+    const pick = id => {
+      Settings.set('gameplay.mobileLayout', id);
+      UISounds.play('check-on');
+      this.render();
+      setTimeout(() => { if (this.o && this.step.id === 'mobile') this.next(); }, 350);
+    };
+    return [h('div.setup-lead', 'Songs are played this way every time — you can change it in Settings → Gameplay.'),
+      h('div.setup-choices.three.setup-layouts', ...SETUP_LAYOUTS.map(o =>
+        h(`button.setup-choice${cur === o.id ? '.on' : ''}`, { dataset: { id: o.id }, onclick: () => pick(o.id) },
+          h('span.setup-phone', { html: phoneMock(o.id) }), h('span.setup-choice-t', o.label), h('span.setup-choice-s', o.sub), h('span.setup-check', icon('check')))))];
   },
 
   step_device() {
@@ -26480,7 +26550,7 @@ const Presence = {
       else if (m.t === 'renamed') { if (m.name && m.name !== ProfileManager.profile.name) ProfileManager.setName(m.name); }
       else if (m.t === 'sayDel' || m.t === 'chatClear') Chat.on(m);
       else if (m.t === 'announce') Toast.show('Announcement', String(m.text || ''), { hold: true, timeout: 20000 });
-      else if (m.t === 'admin') { this.isAdmin = true; Bus.emit('presence:admin'); }
+      else if (m.t === 'admin') { this.isAdmin = !m.off; this.role = m.off ? null : m.role || null; Bus.emit('presence:admin'); }
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;
@@ -30177,7 +30247,7 @@ const RankingsScreen = {
       const u = { pid: r.pid, name: r.name, avatar: r.avatar, online: !!r.online, id: r.online ? (Presence.players.find(p => p.pid === r.pid) || {}).id : null };
       const el = h(`div.rk-row${r.pid === me ? '.me' : ''}`,
         h('span.rk-rank', `#${fmtInt(r.rank)}`),
-        h('span.rk-user', Presence.avatarEl(r, 22), h('span.rk-name', r.name), r.online ? h('span.rk-on', { title: 'Online' }) : null),
+        h('span.rk-user', Presence.avatarEl(r, 22), h('span.rk-name', r.name), roleBadge(r.role), r.online ? h('span.rk-on', { title: 'Online' }) : null),
         h('span', fmtInt(r.plays)), h('span.hl', `${fmtInt(Math.round(r.pp))}pp`),
         h('span', fmtInt(r.ss || 0)), h('span', fmtInt(r.s || 0)), h('span', fmtInt(r.a || 0)));
       // (lazer: a player opens their profile; right-click for the rest)
@@ -31523,7 +31593,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'bd6d5604d5c7';
+const APP_BUILD = '1293ee798fb9';
 
 const App = {
   lastReport: null,

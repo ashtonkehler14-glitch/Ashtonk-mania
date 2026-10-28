@@ -1031,6 +1031,28 @@ test('presence: a Ranked Play screen reaches spectators, and someone who starts 
   assert.deepEqual(p.message('a', { t: 'rkview', html: null }), [{ to: 'b', msg: { t: 'specRk', id: 'a', html: null } }]);
 });
 
+test('roles: the owner shows as Owner on the rankings; admins the owner makes get a role of their naming and colour', () => {
+  const p = new PresenceLogic(() => 1000);
+  p.codes.set('h-owner', 'ownerpid1'); p.adminHash = 'h-owner';
+  for (const [pid, name, pp] of [['ownerpid1', 'Ash', 500], ['modpid22', 'Mo', 400], ['plainpid3', 'Pl', 300]]) p.ranks.set(pid, { pid, name, pp, acc: 0.97, plays: 5 });
+  const kept = {}; p.persistMod = (k, pid, v) => { kept[k + ':' + pid] = v; };
+  assert.equal(p.adminRole('ownerpid1', { name: 'X' }), null, 'the owner is the owner');
+  p.join('m1', { name: 'Mo', pid: 'modpid22', key: 'key-modpid22-0123456789' });
+  assert.deepEqual(p.adminRole('modpid22', { name: 'Moderator', colour: '#FF3366' }), [{ to: 'm1', msg: { t: 'admin', role: { name: 'Moderator', colour: '#ff3366' } } }], 'their game opens its admin menu');
+  assert.equal(kept['rl:modpid22'].name, 'Moderator');
+  p.adminRole('plainpid3', { name: 'Odd', colour: 'red; background: url(x)' });
+  assert.equal(p.roles.get('plainpid3').colour, '#66ccff', 'only a #rrggbb colour is kept');
+  p.adminUnrole('plainpid3');
+  assert.deepEqual(p.rankings('plainpid3').list.map(r => r.role || null), [{ name: 'Owner', colour: '#ffcc22', owner: true }, { name: 'Moderator', colour: '#ff3366' }, null]);
+  assert.deepEqual(p.profileMsg('ownerpid1').role, { name: 'Owner', colour: '#ffcc22', owner: true });
+  assert.equal(p.isStaff('modpid22'), true); assert.equal(p.isStaff('plainpid3'), false);
+  // (back after a restart: from storage)
+  const q = new PresenceLogic(() => 1000); q.loadMod({ roles: { modpid22: kept['rl:modpid22'] } });
+  assert.equal(q.roleOf('modpid22').name, 'Moderator');
+  assert.deepEqual(p.adminUnrole('modpid22'), [{ to: 'm1', msg: { t: 'admin', off: true } }], 'their admin menu goes');
+  assert.equal(kept['rl:modpid22'], null);
+});
+
 test('presence: friend requests — sent, answered, mutual, kept, and removable; watchers are named', () => {
   const p = new PresenceLogic(() => 0);
   const kept = {};

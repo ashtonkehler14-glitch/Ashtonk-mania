@@ -444,12 +444,13 @@ const ProfileScreen = {
         // (your own profile: the server's list of your first places)
         if (!this.remote && m.pid === Presence.pid()) {
           this.ownFirsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; /* (one without its song's name isn't listed) */
+          this.ownRole = m.role || null;
           // (and your pp and best plays as the server has them — what everyone else sees on your profile)
           const v = m.verified;
           this.ownServer = { pid: m.pid, pp: v ? v.pp || 0 : 0, top: (v && v.src === 'profile' && m.data && m.data.top && m.data.top.length ? m.data.top : m.top) || [] };
           this.render(); return;
         }
-        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 };
+        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; this.remote.role = m.role || null;
         if (m.data) m.data = { ...m.data, pp: m.verified ? m.verified.pp : m.data.pp || 0, top: m.data.top && m.data.top.length ? m.data.top : m.top || [] }; /* (pp: the server's standing for them) */
         // a player whose game hasn't sent its profile yet: what the server knows of them (rank, pp, accuracy, play
         // count, ranks) — a profile is never "not shared"
@@ -571,7 +572,7 @@ const ProfileScreen = {
         h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) { await ProfileManager.setName(n); Toolbar.updateProfile(); } } }, icon('edit')) : null,
           // (your code: play as yourself on another device)
           own && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => CodePanel.open(Account.signedOut() ? { use: true } : {}) }, icon('lock'), Account.signedOut() ? 'Signed out · Use your code' : 'Your code') : null),
-        h('div.pf-tags', h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
+        h('div.pf-tags', roleBadge(this.remote ? this.remote.role : this.ownRole), h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
           u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null)),
       u ? h('div.pf-acts', ...UserPanels.menuItems(u).filter(it => !it.sep && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label))) : null));
     // (play count and time aren't repeated here: they're in the stat list below)
@@ -916,6 +917,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.28e', title: 'Phones and roles', sections: [
+    { icon: 'sparkle', title: 'Phones', items: ['First-run setup asks how you want to play on a phone — Portrait, Landscape or Landscape (expanded) — with a picture of each', 'Signing in to your account on a phone asks it first', 'In Portrait and Landscape (expanded), only a tap on a lane hits a note — a tap beside the stage does nothing'] },
+    { icon: 'trophy', title: 'Rankings', items: ['The server\'s owner shows as Owner beside their name, on the rankings and their profile', 'The owner can make players admins, each with a role name and colour of their choosing, shown beside their name'] },
+  ] },
   { id: '2026.10.28d', title: 'Fairer Ranked Play', sections: [
     { icon: 'trophy', title: 'Fairer Ranked Play', items: ['Both players play by the same rules: the beatmap\'s timing, the same accuracy and the same scrolling, whatever your settings', 'Opening hands are dealt in matched pairs, so neither of you starts with the harder cards', 'One song does at most 500,000 damage, so one bad song can\'t decide the match', 'The cards lean towards the lower of the two star ratings chosen', 'No gimmick or joke beatmaps, and nothing under 45 seconds or over 6 minutes', '"How it works" in the Ranked Play lounge explains the rules', 'Neru watches your matches (when she\'s on) and has something to say about them'] },
   ] },

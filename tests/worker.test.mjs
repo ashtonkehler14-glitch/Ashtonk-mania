@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import worker, { handleGetBeatmaps, handleGetBeatmap, handleDownload, officialGet, osuApi, allowSearch, resetOsuLogin, rateLimitMessage } from '../worker/index.js';
 
 const osuSet = (id, keys = [4, 7], mode = 'mania') => ({
@@ -274,4 +275,13 @@ test('while osu! refuses the server, the list comes from Web-Osu-Mania\'s server
   assert.equal((await get('/api/getBeatmaps?m=3&q=ok', o.fetchImpl)).headers.get('X-Beatmap-Source'), 'osu!');
   assert.equal(o.womCalls.length, n);
   resetOsuLogin();
+});
+
+test('the admin panel\'s page scripts parse (they live in template strings in worker/admin.js, where a quote escaped once breaks them)', () => {
+  const src = readFileSync(new URL('../worker/admin.js', import.meta.url), 'utf8');
+  for (const name of ['PANEL_JS', 'LOGIN_JS']) {
+    const m = src.match(new RegExp(`const ${name} = \`([\\s\\S]*?)\\n\`;`));
+    assert.ok(m, `${name} found`);
+    assert.doesNotThrow(() => new Function(eval('`' + m[1] + '`')), `${name} is valid JavaScript`);
+  }
 });

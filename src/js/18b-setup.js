@@ -20,12 +20,34 @@ const SETUP_DEVICES = {
 /** ChromeOS: Chromebooks get the lighter settings without having to know to ask for them. */
 const IS_CHROMEBOOK = typeof navigator !== 'undefined' && /\bCrOS\b/.test(navigator.userAgent || '');
 
+/** The first-run setup's layouts for a phone or tablet (Settings → Mobile layout). */
+const SETUP_LAYOUTS = [
+  { id: 'portrait', label: 'Portrait', sub: 'Upright, the columns across the screen' },
+  { id: 'landscape', label: 'Landscape', sub: 'Sideways, the stage as on a computer' },
+  { id: 'expanded', label: 'Landscape (expanded)', sub: 'Sideways, the columns filling the screen' },
+];
+/** A little picture of a phone playing a song in a layout: the screen, its four columns (with the receptors) and a few
+ *  notes on their way down. */
+function phoneMock(kind) {
+  const up = kind === 'portrait', W = up ? 64 : 124, H = up ? 116 : 64, pad = 5, sw = W - pad * 2, sh = H - pad * 2;
+  const stageW = up ? sw : kind === 'expanded' ? sw * 0.9 : sw * 0.34, col = stageW / 4, x0 = pad + (sw - stageW) / 2;
+  const rx = col * 0.18, recY = pad + sh - col * 0.72, notes = [[0, 0.18], [2, 0.36], [1, 0.58], [3, 0.12], [3, 0.7]];
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W * 1.25}" height="${H * 1.25}" aria-hidden="true">`;
+  s += `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="9" fill="#14121a" stroke="rgba(255,255,255,.35)" stroke-width="2"/>`;
+  s += `<rect x="${x0}" y="${pad}" width="${stageW}" height="${sh}" fill="rgba(255,255,255,.05)"/>`;
+  for (let c = 0; c < 4; c++) s += `<rect x="${x0 + c * col + col * 0.12}" y="${recY}" width="${col * 0.76}" height="${col * 0.5}" rx="${rx}" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.2"/>`;
+  for (const [c, f] of notes) { const y = pad + (recY - pad - col * 0.5) * f; s += `<rect x="${x0 + c * col + col * 0.12}" y="${y}" width="${col * 0.76}" height="${col * 0.5}" rx="${rx}" fill="var(--accent)"/>`; }
+  return s + '</svg>';
+}
+
 const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick'], ['diamonds', 'Diamonds']];
 
 const Onboarding = {
   STEPS: [
     { id: 'welcome', title: 'Welcome!' },
     { id: 'account', title: 'You' },
+    // (phones and tablets only: how songs are laid out — the first thing asked once you've signed in)
+    { id: 'mobile', title: 'How do you want to play?', short: 'Layout' },
     { id: 'wom', title: 'Coming from Web-Osu-Mania?', short: 'Import' },
     { id: 'device', title: 'Performance or graphics?', short: 'Quality' },
     { id: 'look', title: 'Make it yours', short: 'Appearance' },
@@ -72,10 +94,11 @@ const Onboarding = {
    *  out, only that question and your code or name; a returning player whose settings came along only has the device's
    *  own page left (performance or graphics) — their look, gameplay and skin are theirs already. */
   get steps() {
-    if (!this.asksAccount) return this.STEPS.filter(s => s.id !== 'account');
-    if (this.accountOnly) return this.STEPS.slice(0, 2);
-    if (this.acct === 'have' && !(this.got && !this.got.settings)) return this.STEPS.filter(s => /^(welcome|account|device)$/.test(s.id));
-    return this.STEPS;
+    const all = TOUCH_DEVICE ? this.STEPS : this.STEPS.filter(s => s.id !== 'mobile');
+    if (!this.asksAccount) return all.filter(s => s.id !== 'account');
+    if (this.accountOnly) return all.filter(s => /^(welcome|account|mobile)$/.test(s.id));
+    if (this.acct === 'have' && !(this.got && !this.got.settings)) return all.filter(s => /^(welcome|account|mobile|device)$/.test(s.id));
+    return all;
   },
   /** A page's heading, and its name on the button that leads to it. */
   titleOf(st) {
@@ -118,7 +141,7 @@ const Onboarding = {
   /** Neru's pose for each page: hand on hip at the start, glad to see you back (a code) or a wag of her finger at a
    *  newcomer, a blank look at Web-Osu-Mania, on her phone while you pick performance or graphics, a wink at your
    *  colours, fists up for the gameplay, sunglasses on for the skin. */
-  NERU: { welcome: 'sassy', wom: 'huh', device: 'phone', look: 'wink', gameplay: 'cheer', skin: 'cool' },
+  NERU: { welcome: 'sassy', mobile: 'point', wom: 'huh', device: 'phone', look: 'wink', gameplay: 'cheer', skin: 'cool' },
   neruPose() {
     const st = this.step, n = this.neru;
     if (!n || !st) return;
@@ -344,6 +367,22 @@ const Onboarding = {
     } catch (e) { Toast.err('Couldn\'t import the backup', friendlyError(e)); }
     this.womStatus = null;
     if (this.o && this.step.id === 'wom') this.render();
+  },
+
+  /** Phones and tablets: how songs are laid out (Settings → Mobile layout) — upright, sideways as on a computer, or
+   *  sideways with the columns widened to fill the screen — each with a picture of it. */
+  step_mobile() {
+    const cur = Settings.get('gameplay.mobileLayout');
+    const pick = id => {
+      Settings.set('gameplay.mobileLayout', id);
+      UISounds.play('check-on');
+      this.render();
+      setTimeout(() => { if (this.o && this.step.id === 'mobile') this.next(); }, 350);
+    };
+    return [h('div.setup-lead', 'Songs are played this way every time — you can change it in Settings → Gameplay.'),
+      h('div.setup-choices.three.setup-layouts', ...SETUP_LAYOUTS.map(o =>
+        h(`button.setup-choice${cur === o.id ? '.on' : ''}`, { dataset: { id: o.id }, onclick: () => pick(o.id) },
+          h('span.setup-phone', { html: phoneMock(o.id) }), h('span.setup-choice-t', o.label), h('span.setup-choice-s', o.sub), h('span.setup-check', icon('check')))))];
   },
 
   step_device() {

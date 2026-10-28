@@ -136,7 +136,8 @@ class ManiaRenderer {
     this._geom();
   }
   /** The column under a point on screen (clientX), or the nearest one — for touch input. */
-  columnAt(clientX, current = -1) {
+  /** `lanes`: only a touch on a column counts (beside the stage is nothing) — Portrait and Landscape (expanded). */
+  columnAt(clientX, current = -1, { lanes = false } = {}) {
     // (the host's place on screen is read once per layout, not on every touch move: a layout read per move event
     // forced style recalculation mid-frame)
     let r = this._hostRect;
@@ -148,7 +149,7 @@ class ManiaRenderer {
     if (!this.colX || !r.width) return -1;
     // a phone held sideways (a narrow stage on a wide screen): the screen's whole width is split evenly between the
     // columns, as lazer's touch input does, so each column is a thumb-sized area
-    if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.colX && r.width) {
+    if (!lanes && typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.colX && r.width) {
       const K = this.colX.length, f = clamp((clientX - r.left) / r.width, 0, 0.9999) * K;
       if (current >= 0 && current < K && f >= current - 1 / 3 && f < current + 1 + 1 / 3) return current;
       return Math.floor(f);
@@ -160,6 +161,7 @@ class ManiaRenderer {
       const m = this.colW[current] / 3;
       if (x >= this.colX[current] - m && x <= this.colX[current] + this.colW[current] + m) return current;
     }
+    if (lanes && (x < this.colX[0] || x > this.stageW)) return -1;
     let best = -1, bd = Infinity;
     for (let i = 0; i < this.colX.length; i++) {
       const a = this.colX[i], b = a + this.colW[i];

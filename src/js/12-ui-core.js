@@ -9,6 +9,14 @@ function stateCard(ic, title, sub, { slash = false, action = null, cls = '', ner
   return h(`div.off-state${cls}`, top || h('div.off-ico', icon(ic), slash ? h('i') : null), h('div.off-t', title), sub ? h('div.off-sub', sub) : null, action);
 }
 
+/** A player's role beside their name (the rankings, their profile): the server's owner, or an admin the owner made,
+ *  in the role's own colour. Null when they have none. */
+function roleBadge(role) {
+  if (!role || !role.name) return null;
+  const c = /^#[0-9a-f]{6}$/i.test(role.colour || '') ? role.colour : '#66ccff';
+  return h(`span.role-badge${role.owner ? '.owner' : ''}`, { style: { '--rc': c }, title: role.owner ? 'The server\'s owner' : `${role.name} (an admin)` }, role.owner ? icon('crown') : null, String(role.name).slice(0, 24));
+}
+
 // (every icon is one of lazer's: 12-icons.js)
 const ICONS = {};
 function icon(name, cls = '') {

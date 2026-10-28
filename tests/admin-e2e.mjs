@@ -54,7 +54,7 @@ async function device(name) {
   if (await page.$('.onboarding')) {
     if (await page.$('.setup-choice[data-id="new"]')) await page.click('.setup-choice[data-id="new"]');
     await page.fill('.onboarding .ob-name', name); await page.keyboard.press('Enter');
-    await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300);
+    await page.waitForSelector('.setup-step-wom, .setup-step-mobile'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300);
   }
   await page.waitForFunction(() => AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1 && AshtonkMania.Presence.me, null, { timeout: 15000 });
   return page;
@@ -87,7 +87,7 @@ try {
   check('a wrong code doesn\'t sign in', wrong.status === 401 && !wrong.headers.get('set-cookie'));
   const right = await post('/admin/api/login', { code: code.toLowerCase().replace(/-/g, ' ') }, { 'x-admin': '1' });
   const cookie = (right.headers.get('set-cookie') || '').split(';')[0];
-  check('the code (typed any way) signs in: a session cookie only /admin gets, HttpOnly, SameSite=Strict', right.status === 200 && /^am_admin=\d+\.[0-9a-f]{24}\.[0-9a-f]{64}$/.test(cookie) && /Path=\/admin/.test(right.headers.get('set-cookie')) && /HttpOnly/.test(right.headers.get('set-cookie')) && /SameSite=Strict/.test(right.headers.get('set-cookie')), right.headers.get('set-cookie'));
+  check('the code (typed any way) signs in: a session cookie only /admin gets, HttpOnly, SameSite=Strict', right.status === 200 && /^am_admin=\d+\.[0-9a-f]{24}\.o\.[0-9a-f]{64}$/.test(cookie) && /Path=\/admin/.test(right.headers.get('set-cookie')) && /HttpOnly/.test(right.headers.get('set-cookie')) && /SameSite=Strict/.test(right.headers.get('set-cookie')), right.headers.get('set-cookie'));
   const forged = cookie.replace(/.$/, c => c === '0' ? '1' : '0');
   check('a session cookie that\'s been changed doesn\'t work', (await post('/admin/api/overview', {}, { 'x-admin': '1', cookie: forged })).status === 401);
   const api = async (action, body) => (await post('/admin/api/' + action, body, { 'x-admin': '1', cookie })).json();
@@ -157,11 +157,29 @@ try {
   await bob.waitForFunction(() => window.AshtonkMania && AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1 && AshtonkMania.Presence.me, null, { timeout: 30000 }).catch(() => {});
   check('Unban: they can come back online', await bob.evaluate(() => !!(window.AshtonkMania && AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1)));
 
+  // ── an admin the owner makes: a role of the owner's naming and colour; they sign in to the panel with their own code
+  await bob.waitForFunction(() => !!AshtonkMania.Account.code(), null, { timeout: 15000 }).catch(() => {});
+  const bobCode = await bob.evaluate(() => AshtonkMania.Account.code());
+  check('a player who isn\'t an admin can\'t sign in to the panel with their code', (await post('/admin/api/login', { code: bobCode }, { 'x-admin': '1' })).status === 401);
+  const mk = await api('role', { pid: bobPid, name: 'Moderator', colour: '#ff3366' });
+  await bob.waitForFunction(() => AshtonkMania.Presence.isAdmin === true, null, { timeout: 8000 }).catch(() => {});
+  check('Make admin: their game gets the admin panel at once, with their role', !!mk.ok && await bob.evaluate(() => AshtonkMania.Presence.isAdmin === true && !!AshtonkMania.Presence.role && AshtonkMania.Presence.role.name === 'Moderator'), JSON.stringify(mk));
+  const bl = await post('/admin/api/login', { code: bobCode }, { 'x-admin': '1' });
+  const bobCookie = (bl.headers.get('set-cookie') || '').split(';')[0];
+  check('…and they sign in to the panel with their own code', bl.status === 200 && new RegExp('^am_admin=\\d+\\.[0-9a-f]{24}\\.' + bobPid + '\\.[0-9a-f]{64}$').test(bobCookie), bobCookie);
+  const bapi = (action, body) => post('/admin/api/' + action, body, { 'x-admin': '1', cookie: bobCookie });
+  const ownerPid = await owner.evaluate(() => AshtonkMania.Presence.pid());
+  const st = { overview: (await bapi('overview')).status, role: (await bapi('role', { pid: bobPid, name: 'Boss' })).status, log: (await bapi('log')).status, banOwner: (await bapi('ban', { pid: ownerPid, days: 1 })).status };
+  check('an admin moderates, but making admins, the log and acting on the owner are the owner\'s', st.overview === 200 && st.role === 403 && st.log === 403 && st.banOwner === 403, JSON.stringify(st));
+  await api('unrole', { pid: bobPid });
+  await bob.waitForFunction(() => AshtonkMania.Presence.isAdmin === false, null, { timeout: 8000 }).catch(() => {});
+  check('Remove admin: their game loses the admin panel, and their session ends', await bob.evaluate(() => AshtonkMania.Presence.isAdmin === false) && (await bapi('overview')).status === 401);
+
   // the daily challenge
   const ds = await api('dailySet', { map: { onlineSetId: 424242, onlineId: 777, keys: 4, title: 'Daily Song', artist: 'Daily Artist', version: 'Daily Hard', creator: 'Mapper', stars: 4.2, length: 95000 } });
   check('Daily challenge: the owner sets the day\'s beatmap', ds.ok && ds.daily.map.title === 'Daily Song', JSON.stringify(ds).slice(0, 120));
   const log = await api('log');
-  check('the admin log has every change', ['Signed in', 'Renamed', 'Deleted a chat line', 'Announced', 'Muted', 'Banned', 'Unbanned', 'Set the daily challenge beatmap'].every(w => log.log.some(e => e.what === w)), log.log.map(e => e.what).join('|'));
+  check('the admin log has every change', ['Signed in', 'Renamed', 'Deleted a chat line', 'Announced', 'Muted', 'Banned', 'Unbanned', 'Made admin', 'No longer admin', 'Set the daily challenge beatmap'].every(w => log.log.some(e => e.what === w)), log.log.map(e => e.what).join('|'));
 
   // signing in with the code is limited per address
   let limited = false;
