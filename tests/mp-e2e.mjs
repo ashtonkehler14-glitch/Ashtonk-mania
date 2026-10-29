@@ -109,6 +109,30 @@ await shot(alice, 'mp-lobby');
   await alice.evaluate(() => { window.WebSocket = window._W; });
   await alice.unroute(/api\/mp\/room\/[A-Z0-9]+\/status/);
 }
+// a player with their own picture: a room's first message carries it, and over 16 KB the room dropped it without a word
+// — the game waited, then gave up (MP-RT), so they could never get into a room. The room takes it now; and the game
+// sends a room-sized copy of the picture anyway (a server not updated yet still answers)
+{
+  const r = await alice.evaluate(async () => {
+    const big = 'data:image/webp;base64,' + 'A'.repeat(20000);
+    const raw = await new Promise(res => {
+      const ws = new WebSocket(AshtonkMania.Host.ws('api/mp/room/BIGAV1'));
+      const t = setTimeout(() => { res('no answer'); try { ws.close(); } catch {} }, 6000);
+      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name: 'Big', avatar: big, create: true, pid: 'bigavatar01', cid: 'bigav' }));
+      ws.onmessage = ev => { const m = JSON.parse(ev.data); if (m.t === 'welcome' || m.t === 'error') { clearTimeout(t); res(m.t); ws.close(); } };
+    });
+    const P = AshtonkMania.ProfileManager, was = [P.sharedAvatar, P.roomAvatar];
+    // (the game's own hello, with a picture too big for a room: it goes, and fits)
+    let sent = 0; const W = window.WebSocket.prototype.send;
+    window.WebSocket.prototype.send = function (d) { if (/"t":"hello"/.test(d) && /api\/mp\/room\//.test(this.url)) sent = d.length; return W.call(this, d); };
+    P.sharedAvatar = big; P.roomAvatar = big;
+    let joined = false;
+    try { await AshtonkMania.Multiplayer.create({ isPublic: false }); joined = AshtonkMania.Multiplayer.inRoom(); } catch (e) { joined = e.message; }
+    AshtonkMania.Multiplayer.leave(); window.WebSocket.prototype.send = W; [P.sharedAvatar, P.roomAvatar] = was;
+    return { raw, joined, sent };
+  });
+  check('a player with a big picture of their own gets into a room (the server answers a 20 KB hello; the game keeps its own under 16 KB)', r.raw === 'welcome' && r.joined === true && r.sent > 0 && r.sent < 16000, JSON.stringify(r));
+}
 // the lounge's room list isn't asked for while the game is in the background (a lounge left open in another tab asked
 // every 3 s all day)
 {

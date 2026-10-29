@@ -817,7 +817,9 @@ export class MatchRoom {
     server.addEventListener('message', ev => { try { onMessage(ev); } catch (e) { console.error('room message', e); } });
     // (one message that goes wrong is dropped — an error escaping here could reset the room for everyone in it)
     const onMessage = ev => {
-      if (typeof ev.data !== 'string' || ev.data.length > 16384) return;
+      // (as much as the online connection takes: a hello with a player's own picture went over 16 KB and was dropped
+      // without an answer — their game waited, then gave up with MP-RT)
+      if (typeof ev.data !== 'string' || ev.data.length > 65536) return;
       let msg; try { msg = JSON.parse(ev.data); } catch { return; }
       if (!joined) {
         if (msg.t !== 'hello') return;

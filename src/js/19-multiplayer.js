@@ -68,7 +68,15 @@ const Multiplayer = {
       const slow = setTimeout(() => { if (settled) return; fail(`Couldn't reach the multiplayer server (${NetErr.note('RT', ws.readyState === 1 ? 'the room\'s connection opened but the room never answered (10 s)' : 'the room\'s connection didn\'t open in 10 s').code}).`); try { ws.close(4005, 'slow'); } catch { /* closed */ } }, 10000);
       // cid (this browser) on every join, not just rooms you made: a dropped connection then comes back as the same
       // player — still in the match, scores syncing — instead of as a newcomer the match doesn't count
-      ws.onopen = () => { opened = true; ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), cid: clientId(), ...opts })); this.ping(); };
+      // (the hello kept under what a room takes — 16 KB on servers before this fix: over it, it went unanswered — so the
+      // picture is the room-sized one, and none at all if it still wouldn't fit)
+      ws.onopen = () => {
+        opened = true;
+        const hello = { t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.roomAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), cid: clientId(), ...opts };
+        let text = JSON.stringify(hello);
+        if (text.length > this.MSG_MAX) { hello.avatar = ''; text = JSON.stringify(hello); }
+        ws.send(text); this.ping();
+      };
       ws.onmessage = ev => {
         if (this.ws === ws) this._lastMsg = performance.now();
         let m; try { m = JSON.parse(ev.data); } catch { return; }
@@ -195,8 +203,14 @@ const Multiplayer = {
   },
   /** Send to the room. A play's result (finish / quit) that can't go out because the connection has dropped waits
    *  and goes out once it's back: the room keeps your place in the match while you reconnect. */
+  /** The most a room takes in one message (a bigger one was dropped without a word): noted as an error if one would be. */
+  MSG_MAX: 16000,
   send(m) {
-    if (this.ws && this.ws.readyState === 1) { this.ws.send(JSON.stringify(m)); return true; }
+    if (this.ws && this.ws.readyState === 1) {
+      const text = JSON.stringify(m);
+      if (text.length > this.MSG_MAX) NetErr.note('RB', `a "${m && m.t}" message was too big for the room (${text.length} characters)`);
+      this.ws.send(text); return true;
+    }
     if (m && (m.t === 'finish' || m.t === 'quit') && (this.reconnecting || this.ws)) this._outbox = m;
     return false;
   },

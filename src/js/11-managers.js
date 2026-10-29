@@ -393,13 +393,20 @@ const ProfileManager = {
     } else if (a.startsWith('preset:')) this.avatarURL = AvatarPresets.url(a.slice(7));
     else if (a.startsWith('file:')) this.avatarURL = Host.asset('avatars/' + encodeURIComponent(a.slice(5)));
     this.sharedAvatar = await this.makeSharedAvatar().catch(() => '');
+    // (a room's first message — your name and picture with it — has to fit what a room takes: see roomAvatar)
+    this.roomAvatar = this.sharedAvatar.length <= this.ROOM_AVATAR_MAX ? this.sharedAvatar : await this.makeSharedAvatar(this.ROOM_AVATAR_MAX).catch(() => '');
   },
   /** What other players see: the preset / public picture's id, or a copy of an uploaded picture — 256 px (the size
    *  of the bundled ones), sharp on profiles and high-density screens; a little more compressed, or smaller, only if it
    *  has to be to fit what the server takes. */
   sharedAvatar: '',
   AVATAR_MAX: 24000, // (the server's limit, worker/multiplayer.js cleanAvatar)
-  async makeSharedAvatar() {
+  /** The picture sent when joining a room: a smaller copy if need be. A room's server turned away anything over 16 KB
+   *  without a word, so a join with a big picture never heard back (MP-RT) — players with their own picture couldn't
+   *  get into a room at all. */
+  roomAvatar: '',
+  ROOM_AVATAR_MAX: 12000,
+  async makeSharedAvatar(max = this.AVATAR_MAX) {
     const a = this.profile.avatar || 'default';
     if (a.startsWith('preset:') || a.startsWith('file:')) return a;
     if (a !== 'custom' || !this.avatarURL) return '';
@@ -410,7 +417,7 @@ const ProfileManager = {
       const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
       x.drawImage(img, (img.naturalWidth - sz) / 2, (img.naturalHeight - sz) / 2, sz, sz, 0, 0, px, px);
       const webp = c.toDataURL('image/webp', q), url = webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/jpeg', q);
-      if (url.length <= this.AVATAR_MAX) return url;
+      if (url.length <= max) return url;
     }
     return '';
   },

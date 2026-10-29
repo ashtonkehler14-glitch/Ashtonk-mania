@@ -12622,13 +12622,20 @@ const ProfileManager = {
     } else if (a.startsWith('preset:')) this.avatarURL = AvatarPresets.url(a.slice(7));
     else if (a.startsWith('file:')) this.avatarURL = Host.asset('avatars/' + encodeURIComponent(a.slice(5)));
     this.sharedAvatar = await this.makeSharedAvatar().catch(() => '');
+    // (a room's first message — your name and picture with it — has to fit what a room takes: see roomAvatar)
+    this.roomAvatar = this.sharedAvatar.length <= this.ROOM_AVATAR_MAX ? this.sharedAvatar : await this.makeSharedAvatar(this.ROOM_AVATAR_MAX).catch(() => '');
   },
   /** What other players see: the preset / public picture's id, or a copy of an uploaded picture — 256 px (the size
    *  of the bundled ones), sharp on profiles and high-density screens; a little more compressed, or smaller, only if it
    *  has to be to fit what the server takes. */
   sharedAvatar: '',
   AVATAR_MAX: 24000, // (the server's limit, worker/multiplayer.js cleanAvatar)
-  async makeSharedAvatar() {
+  /** The picture sent when joining a room: a smaller copy if need be. A room's server turned away anything over 16 KB
+   *  without a word, so a join with a big picture never heard back (MP-RT) — players with their own picture couldn't
+   *  get into a room at all. */
+  roomAvatar: '',
+  ROOM_AVATAR_MAX: 12000,
+  async makeSharedAvatar(max = this.AVATAR_MAX) {
     const a = this.profile.avatar || 'default';
     if (a.startsWith('preset:') || a.startsWith('file:')) return a;
     if (a !== 'custom' || !this.avatarURL) return '';
@@ -12639,7 +12646,7 @@ const ProfileManager = {
       const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
       x.drawImage(img, (img.naturalWidth - sz) / 2, (img.naturalHeight - sz) / 2, sz, sz, 0, 0, px, px);
       const webp = c.toDataURL('image/webp', q), url = webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/jpeg', q);
-      if (url.length <= this.AVATAR_MAX) return url;
+      if (url.length <= max) return url;
     }
     return '';
   },
@@ -23898,7 +23905,7 @@ const CHANGELOG = [
     { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Admins and the Neru role get a gold, Neru-style profile and Ranked look', 'The Teto role gets a red, Teto-style one', 'Clicked over and over by a Teto or Miku fan, she gets angry half the time — otherwise a thought or a photo', 'On a phone, she no longer stands over the other scores on the results screen'] },
     { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly and at a good speed, even on slow computers', 'Scrolling waits for pictures to load instead of racing past them', 'The beatmap listing and the menus run much more smoothly on slow computers', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
     { icon: 'sparkle', title: 'More like lazer', items: ['The toolbar\'s changelog button opens the whole changelog as a page, as in lazer'] },
-    { icon: 'user', title: 'Fixes', items: ['A second tab (or the installed app) no longer leaves you a guest and yourself at once — which stopped some players joining multiplayer', 'Leftovers from an old player id are cleared before connecting', 'When multiplayer can\'t connect, an error code says exactly why — Copy details puts it all in a message'] },
+    { icon: 'user', title: 'Fixes', items: ['A second tab (or the installed app) no longer leaves you a guest and yourself at once — which stopped some players joining multiplayer', 'Players with their own profile picture can get into rooms again (MP-RT)', 'Leftovers from an old player id are cleared before connecting', 'When multiplayer can\'t connect, an error code says exactly why — Copy details puts it all in a message'] },
   ] },
   { id: '2026.10.29', title: 'Neru', sections: [
     { icon: 'heart', title: 'Neru', items: ['A few more Neru secrets to find on the main menu'] },
@@ -26683,7 +26690,15 @@ const Multiplayer = {
       const slow = setTimeout(() => { if (settled) return; fail(`Couldn't reach the multiplayer server (${NetErr.note('RT', ws.readyState === 1 ? 'the room\'s connection opened but the room never answered (10 s)' : 'the room\'s connection didn\'t open in 10 s').code}).`); try { ws.close(4005, 'slow'); } catch { /* closed */ } }, 10000);
       // cid (this browser) on every join, not just rooms you made: a dropped connection then comes back as the same
       // player — still in the match, scores syncing — instead of as a newcomer the match doesn't count
-      ws.onopen = () => { opened = true; ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), cid: clientId(), ...opts })); this.ping(); };
+      // (the hello kept under what a room takes — 16 KB on servers before this fix: over it, it went unanswered — so the
+      // picture is the room-sized one, and none at all if it still wouldn't fit)
+      ws.onopen = () => {
+        opened = true;
+        const hello = { t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.roomAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), cid: clientId(), ...opts };
+        let text = JSON.stringify(hello);
+        if (text.length > this.MSG_MAX) { hello.avatar = ''; text = JSON.stringify(hello); }
+        ws.send(text); this.ping();
+      };
       ws.onmessage = ev => {
         if (this.ws === ws) this._lastMsg = performance.now();
         let m; try { m = JSON.parse(ev.data); } catch { return; }
@@ -26810,8 +26825,14 @@ const Multiplayer = {
   },
   /** Send to the room. A play's result (finish / quit) that can't go out because the connection has dropped waits
    *  and goes out once it's back: the room keeps your place in the match while you reconnect. */
+  /** The most a room takes in one message (a bigger one was dropped without a word): noted as an error if one would be. */
+  MSG_MAX: 16000,
   send(m) {
-    if (this.ws && this.ws.readyState === 1) { this.ws.send(JSON.stringify(m)); return true; }
+    if (this.ws && this.ws.readyState === 1) {
+      const text = JSON.stringify(m);
+      if (text.length > this.MSG_MAX) NetErr.note('RB', `a "${m && m.t}" message was too big for the room (${text.length} characters)`);
+      this.ws.send(text); return true;
+    }
     if (m && (m.t === 'finish' || m.t === 'quit') && (this.reconnecting || this.ws)) this._outbox = m;
     return false;
   },
@@ -32355,7 +32376,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'cbcb9eae51c7';
+const APP_BUILD = '54aea8caf0b2';
 
 const App = {
   lastReport: null,
