@@ -925,7 +925,7 @@ const CHANGELOG = [
     { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length'] },
     { icon: 'film', title: 'Spectating', items: ['Skips happen only when the player you\'re watching skips', 'Their pause and fail menus show, with what they\'re choosing'] },
     { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Admins and the Neru role get a gold, Neru-style profile and Ranked look'] },
-    { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly at a speed every computer can keep up with', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
+    { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly, as fast as your computer can keep up with', 'The beatmap listing and the menus run much more smoothly on slow computers', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
   ] },
   { id: '2026.10.29', title: 'Neru', sections: [
     { icon: 'heart', title: 'Neru', items: ['A few more Neru secrets to find on the main menu'] },

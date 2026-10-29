@@ -1996,6 +1996,9 @@ body.f-chat .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='220'%3E%3Cg fill='%23000'%3E%3Cpath opacity='.12' d='M30 200 80 113l50 87z'/%3E%3Cpath opacity='.1' d='M150 110l35-61 35 61z'/%3E%3Cpath opacity='.08' d='M-20 90l30-52 30 52z'/%3E%3C/g%3E%3Cg fill='%23fff'%3E%3Cpath opacity='.025' d='M190 220l45-78 45 78z'/%3E%3Cpath opacity='.03' d='M90 60l22-38 22 38z'/%3E%3C/g%3E%3C/svg%3E"), linear-gradient(180deg, #271e26, #1e171e);
   animation: pdIn calc(750ms * var(--anim)) linear(0, .254, .517, .75, .931, 1.055, 1.125, 1.152, 1.148, 1.125, 1.093, 1.06, 1.031, 1.009, .993, .984, .981, .982, .984, .988, .992, .996, .999, 1.001, 1.002, 1.002, 1.002, 1.002, 1.001, 1.001, 1) both,
     pdFade calc(500ms * var(--anim)) cubic-bezier(.22, 1, .36, 1) both; }
+/* (the other dialogs — creating a room, how Ranked Play works, the avatar picker…: the pop-up dialogs' own triangles and
+   shading, so every dialog in the game looks like one of lazer's) */
+.dialog:not(.popup) { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='220'%3E%3Cg fill='%23000'%3E%3Cpath opacity='.12' d='M30 200 80 113l50 87z'/%3E%3Cpath opacity='.1' d='M150 110l35-61 35 61z'/%3E%3Cpath opacity='.08' d='M-20 90l30-52 30 52z'/%3E%3C/g%3E%3Cg fill='%23fff'%3E%3Cpath opacity='.025' d='M190 220l45-78 45 78z'/%3E%3Cpath opacity='.03' d='M90 60l22-38 22 38z'/%3E%3C/g%3E%3C/svg%3E"), linear-gradient(180deg, #271e26, #1e171e); }
 /* lazer's PopupDialog: in, it grows from 70% with a springy settle (750ms OutElasticHalf) as it fades in (500ms OutQuint);
    out, it shrinks back towards 70% as it fades */
 .dialog.popup.out { animation: pdOut calc(210ms * var(--anim)) ease-out both; }
@@ -2565,7 +2568,7 @@ body.f-modsel #toasts { opacity: 0; pointer-events: none; }
 .ex-card .ex-counts .i { width: 12px; height: 12px; }
 .ex-card .ex-foot { margin-top: auto; display: flex; align-items: center; gap: 8px; }
 .ex-card .ex-statuspill { font-size: .6rem; padding: 2px 7px; }
-.ex-card .ex-spec { display: inline-flex; gap: 3px; }
+.ex-card .ex-spec { display: inline-flex; gap: 3px; overflow: visible; } /* (never clipped: at most ten of them — more are counted instead — and a clipped strip in every card had the browser put pieces of each card on layers of their own as the list scrolled, a hundred and more) */
 .ex-card .ex-spec i { width: 7px; height: 14px; border-radius: 4px; background: var(--sc); box-shadow: 0 0 4px var(--sc); }
 .ex-spec-more { display: inline-flex; align-items: center; gap: 4px; font-size: .72rem; font-weight: 700; }
 .ex-spec-more i { width: 7px; height: 14px; border-radius: 4px; background: var(--sc); }
@@ -14205,8 +14208,11 @@ function backButton(onClick) {
  *  they aren't, and it picks up again as they come back on time. Sideways scrolling, a list scrolled some other way
  *  (its bar dragged, the keys, a touch screen) and one that handles the wheel itself are left as they are. */
 const MenuScroll = {
-  MIN: 3000, MAX: 40000, // px a second: never slower than this, nor (while frames come on time) held back below that
-  cap: 40000, period: 16.7, // the top speed now, and how often frames come when on time (the shortest lately)
+  // how far a list may move in one frame: as far as the wheel asks while frames come on time; while they're late, less
+  // each frame — it's what comes into view in a frame that costs, so a late frame moving further made the next one later
+  // still — down to MIN, and up again as they come back on time
+  MIN: 28, MAX: 600,
+  cap: 600, period: 16.7, // the most it moves in a frame now, and how often frames come when on time (the shortest lately)
   el: null, target: 0, raf: 0, last: 0,
   bind() { window.addEventListener('wheel', e => this.wheel(e), { passive: false }); },
   /** The nearest list under the pointer that can still scroll that way. */
@@ -14238,8 +14244,8 @@ const MenuScroll = {
     // (on time, or a frame dropped? — the shortest frame lately is the screen's own rate; it creeps back up slowly
     // in case the screen itself got slower)
     if (dt < this.period) this.period = Math.max(4, dt); else this.period += (dt - this.period) * 0.002;
-    this.cap = dt > this.period * 1.6 ? Math.max(this.MIN, this.cap * 0.8) : Math.min(this.MAX, this.cap * 1.06);
-    const lim = this.cap * dt / 1000;
+    this.cap = dt > this.period * 1.6 ? Math.max(this.MIN, this.cap * 0.75) : Math.min(this.MAX, this.cap * 1.08);
+    const lim = this.cap;
     let mv = clamp(d * (1 - Math.exp(-dt / 55)), -lim, lim);
     if (Math.abs(mv) < 1) mv = Math.sign(d) * Math.min(1, Math.abs(d));
     // (instant: a list styled to scroll smoothly turned each frame's step into an animation of its own — and barely moved)
@@ -23682,7 +23688,7 @@ const CHANGELOG = [
     { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length'] },
     { icon: 'film', title: 'Spectating', items: ['Skips happen only when the player you\'re watching skips', 'Their pause and fail menus show, with what they\'re choosing'] },
     { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Admins and the Neru role get a gold, Neru-style profile and Ranked look'] },
-    { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly at a speed every computer can keep up with', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
+    { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly, as fast as your computer can keep up with', 'The beatmap listing and the menus run much more smoothly on slow computers', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
   ] },
   { id: '2026.10.29', title: 'Neru', sections: [
     { icon: 'heart', title: 'Neru', items: ['A few more Neru secrets to find on the main menu'] },
@@ -28876,8 +28882,8 @@ function rankedRules() {
     h('div.rq-rules-h', icon('check'), 'What keeps it fair'),
     h('ul',
       h('li', 'The same rules for both: the beatmap\'s own timing windows, the same accuracy and the same scrolling, whatever your settings.'),
+      h('li', 'Each card is one song with a difficulty for each of you, near the star rating you chose — both the same length.'),
       h('li', 'Matched hands: the opening cards are dealt in pairs of the same difficulty, one each.'),
-      h('li', 'The deck leans towards the lower of your two star ratings, so nobody is dragged far out of their depth.'),
       h('li', 'One song does at most 500,000 damage, so a single bad song can\'t decide the match. A hit at full life always leaves you standing (last stand).'),
       h('li', 'No gimmick or joke beatmaps, and nothing shorter than 45 seconds or longer than 6 minutes.'),
       h('li', 'Leaving during the match loses it; a dropped connection gets a minute to come back.'))),
@@ -31958,7 +31964,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'a90ebe0af3b7';
+const APP_BUILD = 'c597c81e99ed';
 
 const App = {
   lastReport: null,

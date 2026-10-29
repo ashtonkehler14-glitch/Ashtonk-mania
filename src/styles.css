@@ -1979,6 +1979,9 @@ body.f-chat .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='220'%3E%3Cg fill='%23000'%3E%3Cpath opacity='.12' d='M30 200 80 113l50 87z'/%3E%3Cpath opacity='.1' d='M150 110l35-61 35 61z'/%3E%3Cpath opacity='.08' d='M-20 90l30-52 30 52z'/%3E%3C/g%3E%3Cg fill='%23fff'%3E%3Cpath opacity='.025' d='M190 220l45-78 45 78z'/%3E%3Cpath opacity='.03' d='M90 60l22-38 22 38z'/%3E%3C/g%3E%3C/svg%3E"), linear-gradient(180deg, #271e26, #1e171e);
   animation: pdIn calc(750ms * var(--anim)) linear(0, .254, .517, .75, .931, 1.055, 1.125, 1.152, 1.148, 1.125, 1.093, 1.06, 1.031, 1.009, .993, .984, .981, .982, .984, .988, .992, .996, .999, 1.001, 1.002, 1.002, 1.002, 1.002, 1.001, 1.001, 1) both,
     pdFade calc(500ms * var(--anim)) cubic-bezier(.22, 1, .36, 1) both; }
+/* (the other dialogs — creating a room, how Ranked Play works, the avatar picker…: the pop-up dialogs' own triangles and
+   shading, so every dialog in the game looks like one of lazer's) */
+.dialog:not(.popup) { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='220'%3E%3Cg fill='%23000'%3E%3Cpath opacity='.12' d='M30 200 80 113l50 87z'/%3E%3Cpath opacity='.1' d='M150 110l35-61 35 61z'/%3E%3Cpath opacity='.08' d='M-20 90l30-52 30 52z'/%3E%3C/g%3E%3Cg fill='%23fff'%3E%3Cpath opacity='.025' d='M190 220l45-78 45 78z'/%3E%3Cpath opacity='.03' d='M90 60l22-38 22 38z'/%3E%3C/g%3E%3C/svg%3E"), linear-gradient(180deg, #271e26, #1e171e); }
 /* lazer's PopupDialog: in, it grows from 70% with a springy settle (750ms OutElasticHalf) as it fades in (500ms OutQuint);
    out, it shrinks back towards 70% as it fades */
 .dialog.popup.out { animation: pdOut calc(210ms * var(--anim)) ease-out both; }
@@ -2550,7 +2553,7 @@ body.f-modsel #toasts { opacity: 0; pointer-events: none; }
 .ex-card .ex-counts .i { width: 12px; height: 12px; }
 .ex-card .ex-foot { margin-top: auto; display: flex; align-items: center; gap: 8px; }
 .ex-card .ex-statuspill { font-size: .6rem; padding: 2px 7px; }
-.ex-card .ex-spec { display: inline-flex; gap: 3px; }
+.ex-card .ex-spec { display: inline-flex; gap: 3px; overflow: visible; } /* (never clipped: at most ten of them — more are counted instead — and a clipped strip in every card had the browser put pieces of each card on layers of their own as the list scrolled, a hundred and more) */
 .ex-card .ex-spec i { width: 7px; height: 14px; border-radius: 4px; background: var(--sc); box-shadow: 0 0 4px var(--sc); }
 .ex-spec-more { display: inline-flex; align-items: center; gap: 4px; font-size: .72rem; font-weight: 700; }
 .ex-spec-more i { width: 7px; height: 14px; border-radius: 4px; background: var(--sc); }

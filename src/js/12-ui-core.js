@@ -1076,8 +1076,11 @@ function backButton(onClick) {
  *  they aren't, and it picks up again as they come back on time. Sideways scrolling, a list scrolled some other way
  *  (its bar dragged, the keys, a touch screen) and one that handles the wheel itself are left as they are. */
 const MenuScroll = {
-  MIN: 3000, MAX: 40000, // px a second: never slower than this, nor (while frames come on time) held back below that
-  cap: 40000, period: 16.7, // the top speed now, and how often frames come when on time (the shortest lately)
+  // how far a list may move in one frame: as far as the wheel asks while frames come on time; while they're late, less
+  // each frame — it's what comes into view in a frame that costs, so a late frame moving further made the next one later
+  // still — down to MIN, and up again as they come back on time
+  MIN: 28, MAX: 600,
+  cap: 600, period: 16.7, // the most it moves in a frame now, and how often frames come when on time (the shortest lately)
   el: null, target: 0, raf: 0, last: 0,
   bind() { window.addEventListener('wheel', e => this.wheel(e), { passive: false }); },
   /** The nearest list under the pointer that can still scroll that way. */
@@ -1109,8 +1112,8 @@ const MenuScroll = {
     // (on time, or a frame dropped? — the shortest frame lately is the screen's own rate; it creeps back up slowly
     // in case the screen itself got slower)
     if (dt < this.period) this.period = Math.max(4, dt); else this.period += (dt - this.period) * 0.002;
-    this.cap = dt > this.period * 1.6 ? Math.max(this.MIN, this.cap * 0.8) : Math.min(this.MAX, this.cap * 1.06);
-    const lim = this.cap * dt / 1000;
+    this.cap = dt > this.period * 1.6 ? Math.max(this.MIN, this.cap * 0.75) : Math.min(this.MAX, this.cap * 1.08);
+    const lim = this.cap;
     let mv = clamp(d * (1 - Math.exp(-dt / 55)), -lim, lim);
     if (Math.abs(mv) < 1) mv = Math.sign(d) * Math.min(1, Math.abs(d));
     // (instant: a list styled to scroll smoothly turned each frame's step into an animation of its own — and barely moved)
