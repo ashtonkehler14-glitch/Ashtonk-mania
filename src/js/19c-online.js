@@ -90,6 +90,7 @@ const Spectate = {
     if (!t) return;
     Presence.send({ t: 'unwatch', to: t.id });
     this.target = null; this.cur = null; this.set = null;
+    RankedWatch.close(true);
     if (t.room && Multiplayer.inRoom() && this.watchingNow()) Screens.go('multiplayer', {}, { replace: true }); // (watching from a room: back to it)
     if (!quiet) Toast.show('Stopped spectating', t.name);
     Presence.pushStatus();
@@ -107,6 +108,9 @@ const Spectate = {
     if (m.t === 'spectators') { this.onSpectators(m); return; }
     const t = this.target;
     if (!t || m.id !== t.id) return;
+    // (in a Ranked Play match: their match screen, as they see it, between their songs — RankedWatch)
+    if ((m.t === 'specWait' || m.t === 'specStart' || m.t === 'specRoom') && !t.room && m.room != null) RankedWatch.open(m.room, m.pid || t.pid);
+    if (m.t === 'specRoom') return;
     if (m.t === 'specWait') {
       if (t.room) { this.stop({ quiet: true }); Toast.show(`${t.name} isn't playing right now`); return; }
       this.cur = null; SpectatorScreen.paint();
@@ -143,6 +147,13 @@ const Spectate = {
     if (t.room) {
       if (!this.watchingNow() || m.quit) { this.stop({ quiet: true }); return; }
       setTimeout(() => { if (this.cur === c && this.target === t) this.stop({ quiet: true }); }, SPEC_DELAY + 2500);
+      return;
+    }
+    // their Ranked Play song is over: back to their match screen (once the play you're shown has caught up with its end)
+    if (RankedWatch.on) {
+      if (!this.watchingNow() || m.quit) this.toScreen();
+      else setTimeout(() => { if (this.cur === c && this.target === t) this.toScreen(); }, SPEC_DELAY + 2500);
+      SpectatorScreen.paint();
       return;
     }
     // (lazer: their quitting takes you back to the screen at once; a song they finish, or fail, plays out here first)
@@ -214,7 +225,7 @@ const Spectate = {
     this.toScreen();
   },
   /** lazer's "Automatically download missing beatmaps" (off unless you turn it on). */
-  autoDownload() { const c = this.cur; if (c && !c.ended && Settings.get('online.autoDownload') && !this.findMap(c.head)) this.download(); },
+  autoDownload() { const c = this.cur; if (c && !c.ended && (Settings.get('online.autoDownload') || RankedWatch.on) && !this.findMap(c.head)) this.download(); },
   download() {
     const c = this.cur, id = c && c.head.onlineSetId;
     if (!(id > 0) || this.findMap(c.head)) return;
@@ -384,22 +395,31 @@ const SpectatorScreen = {
   enter() {
     this.box = h('div.spm-box');
     const el = h('div.spm', h('div.spm-dim'), this.box, h('div.page-back', backButton(() => Screens.back())));
+    this.scr = { el, body: this.box };
     this._unsub = [
       Bus.on('library:changed', () => { this.paintMap(); setTimeout(() => Spectate.tryStart(), 0); }),
       Bus.on('presence:changed', () => this.paintUser()),
+      Bus.on('rpw:changed', () => this.paintRanked()),
     ];
-    this._tick = setInterval(() => this.paintProgress(), 250);
+    this._tick = setInterval(() => { this.paintProgress(); if (RankedMatch.watching && RankedMatch.root) RankedMatch.refreshWatch(); }, 250);
     this.render();
     Spectate.autoDownload();
     this.startSoon();
+    requestAnimationFrame(() => this.paintRanked());
     return el;
+  },
+  /** Watching someone in a Ranked Play match: their match screen in place of this one (between their songs). */
+  paintRanked() {
+    if (!this.box) return;
+    if (RankedWatch.on && Spectate.target) RankedMatch.mount(this.scr, { watch: true });
+    else if (RankedMatch.watching && RankedMatch.root) { RankedMatch.unmount(); this.render(); }
   },
   refresh() { this.render(); Spectate.autoDownload(); this.startSoon(); },
   /** Who you're watching and what they're playing, again (their play started or ended, they went or came back). */
   paint() { this.paintUser(); this.paintMap(); },
   /** (a moment on the screen first, as lazer's player loader takes over from it) */
   startSoon() { clearTimeout(this._startT); this._startT = setTimeout(() => Spectate.tryStart(), 350); },
-  leave() { (this._unsub || []).forEach(f => f()); this._unsub = []; clearInterval(this._tick); clearTimeout(this._startT); this.box = null; },
+  leave() { (this._unsub || []).forEach(f => f()); this._unsub = []; clearInterval(this._tick); clearTimeout(this._startT); if (RankedMatch.watching) RankedMatch.unmount(); this.box = null; },
   render() {
     const box = this.box;
     if (!box) return;

@@ -10,6 +10,8 @@
 // Server → client: welcome {you, room}, room {room}, chat {...}, start {delay, map, mods, modConfig, playerMods},
 // skipvote {votes, total}, skip, opp {id, score, acc, combo, hp}, results {results}, error {msg, fatal}, pong {c, s},
 // qpPool {round, keys, sr} (to the Quick Play host: send this round's beatmap pool).
+// Watching (someone spectating a Ranked Play player): hello {watch: their pid} — welcome {you: theirs, watch, room}, then
+// what that player is sent (room, chat, opp, hand, results), and nothing they send counts but ping.
 //
 // Room settings (host, like lazer's match settings): match type Head to Head or Team Versus (red/blue; the team with
 // the higher team average wins), the win condition (pp, score, accuracy or max combo), room size (2-8) and queue mode (the
@@ -749,10 +751,11 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), { status
  *  what's going to the player, close() ends it, and the player's requests (httpSession) bring their messages and take
  *  what's queued. */
 export class HttpSock {
-  constructor(sid, now = Date.now) { this.sid = sid; this.now = now; this.q = []; this.waiter = null; this.closed = null; this.seen = now(); this.onclose = null; }
+  constructor(sid, now = Date.now) { this.sid = sid; this.now = now; this.q = []; this.base = 1; this.waiter = null; this.closed = null; this.seen = now(); this.onclose = null; }
   send(data) {
     if (this.closed) return;
     this.q.push(String(data));
+    if (this.q.length > 5000) { this.q.shift(); this.base++; } // (a player who stopped asking: their session ends soon anyway)
     // (what comes close together goes back together: a waiting poll is answered a moment later — fewer requests)
     if (this.waiter && !this._wt) this._wt = setTimeout(() => { this._wt = 0; this.wake(); }, 80);
   }
@@ -762,8 +765,12 @@ export class HttpSock {
     const f = this.onclose; this.onclose = null; if (f) f();
   }
   wake() { const w = this.waiter; this.waiter = null; if (w) w(); }
-  /** What's queued for the player — waiting up to `ms` for something (a request held open: long polling). */
-  async take(ms) {
+  /** What's queued for the player — waiting up to `ms` for something (a request held open: long polling). Numbered:
+   *  q[0] is message `base`. With `ack` (the last one the player got), what they have is let go and the rest stays
+   *  until they say they have it — a reply a proxy cut off on its way is sent again, nothing's lost. (Without: an
+   *  older game, everything goes at once.) */
+  async take(ms, ack = null) {
+    if (ack != null) { const n = Math.max(0, Math.min(this.q.length, ack - this.base + 1)); this.q.splice(0, n); this.base += n; }
     if (!this.q.length && !this.closed && ms > 0) {
       await new Promise(res => {
         if (this.waiter) this.waiter(); // (an earlier poll still waiting: it answers empty, this one waits)
@@ -772,13 +779,15 @@ export class HttpSock {
         this.waiter = done;
       });
     }
-    return { msgs: this.q.splice(0), closed: this.closed };
+    if (ack == null) { const msgs = this.q.splice(0); this.base += msgs.length; return { msgs, closed: this.closed }; }
+    return { msgs: this.q.slice(), first: this.base, closed: this.closed };
   }
 }
 /** A player's request on a plain-request connection: { sid?, msgs: [text…], poll?, close? }. The first (no sid) opens
  *  one — `attach(sock)` hooks it up as the WebSocket code does, returning { message(text), touch() } — and carries its
  *  hello; msgs go in in order; poll waits up to 15 s for what's going to the player and takes it; close ends it. A connection
- *  that hasn't been heard from in 45 s is closed (the player's gone). Answers { sid, msgs, closed? }. */
+ *  that hasn't been heard from in 45 s is closed (the player's gone). ack: the number of the last message the player
+ *  got (see HttpSock.take). Answers { sid, msgs, first?, closed? }. */
 export async function httpSession(map, body, attach, now = Date.now) {
   const t = now();
   for (const [k, s] of map) if (t - s.seen > 45000 || (s.closed && t - s.seen > 5000)) { s.close(4002, 'timeout'); map.delete(k); }
@@ -795,7 +804,8 @@ export async function httpSession(map, body, attach, now = Date.now) {
   for (const m of Array.isArray(body.msgs) ? body.msgs.slice(0, 100) : []) if (typeof m === 'string') s.handlers.message(m);
   if (body.close) { s.close(1000, 'bye'); map.delete(s.sid); return { sid: s.sid, msgs: [], closed: s.closed }; }
   if (!body.poll) return { sid: s.sid, msgs: [] };
-  const r = await s.take(Math.max(0, Math.min(15000, Number(body.wait) || 15000)));
+  const ack = body.ack == null || !Number.isFinite(Number(body.ack)) ? null : Number(body.ack);
+  const r = await s.take(Math.max(0, Math.min(15000, Number(body.wait) || 15000)), ack);
   s.seen = now(); if (s.handlers.touch) s.handlers.touch();
   return { sid: s.sid, ...r };
 }
@@ -822,7 +832,9 @@ export const adminCodeHash = env => { const c = cleanPlayerCode(env && env.ADMIN
 
 /** One room per code. Plain (non-hibernating) WebSockets: a room only lives while its players are connected. */
 export class MatchRoom {
-  constructor(state, env) { this.state = state; this.env = env; this.logic = null; this.socks = new Map(); this.timer = null; this.beat = null; this._listed = ''; this.seen = new Map(); this.kick = new Map(); }
+  constructor(state, env) { this.state = state; this.env = env; this.logic = null; this.socks = new Map(); this.timer = null; this.beat = null; this._listed = ''; this.seen = new Map(); this.kick = new Map(); this.watchers = new Map(); }
+  static MAX_WATCHERS = 16;
+  static WATCH_MSGS = new Set(['room', 'chat', 'opp', 'hand', 'results']);
   /** Tell the lobby's room list about this room (on change, and every 15 s while anyone is in it). */
   announce(force = false) {
     const l = this.logic && this.logic.listing(), body = JSON.stringify(l ? { room: l } : { remove: this.logic && this.logic.code });
@@ -841,7 +853,8 @@ export class MatchRoom {
    *  Ranked Play included). */
   dropSilent() {
     const t = Date.now();
-    if (!this.socks.size) { clearInterval(this.sweep); this.sweep = null; return; }
+    for (const [ws, w] of this.watchers) if (t - w.seen > 30000) { this.watchers.delete(ws); try { ws.close(4002, 'timeout'); } catch { /* closed */ } }
+    if (!this.socks.size && !this.watchers.size) { clearInterval(this.sweep); this.sweep = null; return; }
     for (const [id, at] of this.seen) if (t - at > 20000) {
       const ws = this.socks.get(id);
       if (ws) { try { ws.close(4002, 'timeout'); } catch { /* closed */ } }
@@ -884,15 +897,17 @@ export class MatchRoom {
    *  { message(text), gone() }. */
   attach(server) {
     let id = crypto.randomUUID().slice(0, 8);
-    let joined = false;
+    let joined = false, watcher = null;
     // (one message that goes wrong is dropped — an error escaping here could reset the room for everyone in it)
     const onMessage = data => {
       // (as much as the online connection takes: a hello with a player's own picture went over 16 KB and was dropped
       // without an answer — their game waited, then gave up with MP-RT)
       if (typeof data !== 'string' || data.length > 65536) return;
       let msg; try { msg = JSON.parse(data); } catch { return; }
+      if (watcher) { watcher.seen = Date.now(); if (msg.t === 'ping') { try { server.send(JSON.stringify({ t: 'pong', c: msg.c, s: Date.now() })); } catch { /* closed */ } } return; }
       if (!joined) {
         if (msg.t !== 'hello') return;
+        if (msg.watch != null) { watch(msg); return; }
         const r = this.logic.join(id, msg.name, !!msg.create, msg);
         if (!r.ok) { try { server.send(JSON.stringify({ t: 'error', msg: r.error, fatal: true })); server.close(4000, 'rejected'); } catch { /* closed */ } return; }
         if (r.as) { // back after a dropped connection: this socket is that player now
@@ -911,9 +926,21 @@ export class MatchRoom {
       this.dispatch(this.logic.message(id, msg));
       this.schedule();
     };
+    // someone spectating a Ranked Play player: the match as that player sees it — what they're sent, their own cards
+    // face up — read-only, and not one of the room's players (see dispatch)
+    const watch = msg => {
+      const pov = this.logic.rp && this.logic.players.find(p => p.pid && p.pid === String(msg.watch));
+      const no = !pov ? 'They\'re not in this match any more.' : this.watchers.size >= MatchRoom.MAX_WATCHERS ? 'Too many people are watching this match.' : '';
+      if (no) { try { server.send(JSON.stringify({ t: 'error', msg: no, fatal: true })); server.close(4000, 'rejected'); } catch { /* closed */ } return; }
+      watcher = { pov: pov.id, seen: Date.now() };
+      joined = true; this.watchers.set(server, watcher);
+      if (!this.sweep) this.sweep = setInterval(() => this.dropSilent(), 5000);
+      try { server.send(JSON.stringify({ t: 'welcome', you: pov.id, watch: true, room: this.logic.snapshot(pov.id), chat: (this.logic.chatLog || []).slice() })); } catch { /* closed */ }
+    };
     const gone = () => {
       if (!joined) return;
       joined = false;
+      if (watcher) { this.watchers.delete(server); return; }
       if (this.socks.get(id) !== server) return; // (an old socket of a player who has reconnected)
       this.socks.delete(id); this.seen.delete(id); this.kick.delete(id);
       this.dispatch(this.logic.disconnect(id));
@@ -921,7 +948,7 @@ export class MatchRoom {
       this.schedule();
     };
     if (server instanceof HttpSock) server.onclose = gone;
-    return { message: data => { try { onMessage(data); } catch (e) { console.error('room message', e); } }, gone, touch: () => { if (joined) this.seen.set(id, Date.now()); } };
+    return { message: data => { try { onMessage(data); } catch (e) { console.error('room message', e); } }, gone, touch: () => { if (watcher) watcher.seen = Date.now(); else if (joined) this.seen.set(id, Date.now()); } };
   }
   saveSoon() {
     clearTimeout(this._saveT);
@@ -955,7 +982,14 @@ export class MatchRoom {
         const hit = to === 'all' || to === id || (to && typeof to === 'object' && to.except !== id);
         if (hit) { try { ws.send(data || JSON.stringify(each(id))); } catch { /* socket closing */ } }
       }
+      // whoever is watching a player gets what that player gets (and their hand as they handle it)
+      if (msg && MatchRoom.WATCH_MSGS.has(msg.t)) for (const [ws, w] of this.watchers) {
+        const id = w.pov, hit = to === 'all' || to === id || (to && typeof to === 'object' && to.except !== id) || (msg.t === 'hand' && msg.id === id);
+        if (hit) { try { ws.send(data || JSON.stringify(each(id))); } catch { /* socket closing */ } }
+      }
     }
+    // (the player watched has left the room: their match is over for whoever watched it)
+    if (this.watchers.size && this.logic) for (const [ws, w] of this.watchers) if (!this.logic.players.some(p => p.id === w.pov)) { this.watchers.delete(ws); try { ws.close(4006, 'over'); } catch { /* closed */ } }
     // Ranked Play: a player who left a rated match sits out of the queue for a while
     const rp = this.logic && this.logic.rp;
     if (rp && rp.bans.length && this.env.MATCHMAKER) {
@@ -966,11 +1000,12 @@ export class MatchRoom {
 }
 
 /** Who's online, invites, and spectating. Presence protocol (client → server): hello {name, status, avatar, cid, pid},
- *  status {status, name?, avatar?, song?}, invite {to, code}, list, ping; spectating: play {head} (a play started:
+ *  status {status, name?, avatar?, song?, rp?}, invite {to, code}, list, ping; spectating: play {head} (a play started:
  *  the replay header), frames {ev, at, reset?, last?, act?} (its inputs, streamed only while someone watches; act: a skip, pause, fail…), playEnd {quit?},
  *  watch {to}, unwatch {to}. Server → client: welcome {you}, online {players}, invite {from, code}, invited {to},
  *  error {msg}; to a player: spectators {n, full?} (full: send everything so far); to a watcher: specStart {id, name,
- *  head, ev, at, hist}, specFrames {id, ev, at, reset?, last?, act? {k, t, sel?}}, specEnd {id, quit?, gone?}, specWait {id, name}.
+ *  head, ev, at, hist, pid, room}, specFrames {id, ev, at, reset?, last?, act? {k, t, sel?}}, specEnd {id, quit?, gone?},
+ *  specWait {id, name, pid, room}, specRoom {id, pid, room} (room: the Ranked Play match they're in — see MatchRoom's watchers).
  *  Plain JS so it can be unit-tested. */
 export class PresenceLogic {
   constructor(now = () => Date.now()) {
@@ -1828,7 +1863,7 @@ export class PresenceLogic {
     if (nrec && !nrec.name) { this.names.delete(pid); if (this.persistMod) this.persistMod('nm', pid, null); }
     this.users.set(id, { name: given || str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), kh: pid ? sha256hex(String(msg.key || '')) : '', avatar: cleanAvatar(msg && msg.avatar), cid,
       pid, song: null, seen: this.now(), vis: cleanVis(msg && msg.vis),
-      play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null });
+      play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null, rp: '' });
     this.dropped = gone;
     const me = this.users.get(id);
     return [...out, { to: id, msg: { t: 'welcome', you: id } }, { to: id, msg: { t: 'chatHist', list: this.chat } }, ...(me.pid ? [{ to: id, msg: this.friendsMsg(me.pid) }] : []),
@@ -1964,6 +1999,9 @@ export class PresenceLogic {
       const st = cleanStatus(msg.status), name = given || (msg.name != null ? str(msg.name, 24) || u.name : u.name), av = msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
       const told = given && msg.name != null && str(msg.name, 24) !== given ? [{ to: id, msg: { t: 'renamed', name: given } }] : [];
       const song = st === 'playing' ? cleanSong(msg.song) || (u.status === 'playing' ? u.song : null) : null;
+      // (the Ranked Play match they're in: only their spectators are told, to watch it as they see it)
+      const rp = typeof msg.rp === 'string' && /^[A-Z0-9]{4,10}$/.test(msg.rp) ? msg.rp : '';
+      if (rp !== u.rp) { u.rp = rp; told.push(...[...u.watchers].map(w => ({ to: w, msg: { t: 'specRoom', id, pid: u.pid, room: rp } }))); }
       if (st === u.status && name === u.name && av === u.avatar && JSON.stringify(song) === JSON.stringify(u.song)) return told;
       u.status = st; u.name = name; u.avatar = av; u.song = song;
       return [...told, this.broadcast()];
@@ -2054,9 +2092,9 @@ export class PresenceLogic {
       const out = u.watching && u.watching !== to ? this.unwatch(id, u.watching) : [];
       const first = !tu.watchers.size;
       tu.watchers.add(id); u.watching = to;
-      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name } }, { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
+      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name, pid: tu.pid, room: tu.rp || '' } }, { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
       // mid-play: what's kept so far, or (nobody was watching, so nothing was streamed) ask the player for all of it
-      out.push({ to: id, msg: { t: 'specStart', id: to, name: tu.name, head: tu.play, ev: tu.hist ? tu.ev : [], at: tu.t, hist: tu.hist } });
+      out.push({ to: id, msg: { t: 'specStart', id: to, name: tu.name, head: tu.play, ev: tu.hist ? tu.ev : [], at: tu.t, hist: tu.hist, pid: tu.pid, room: tu.rp || '' } });
       out.push({ to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu), full: first || !tu.hist } });
       return out;
     }
@@ -2066,7 +2104,7 @@ export class PresenceLogic {
       const head = cleanHead(msg.head);
       if (!head) return [];
       u.play = head; u.ev = []; u.t = 0; u.hist = u.watchers.size > 0; // (a fresh play: nothing to catch up on)
-      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specStart', id, name: u.name, head, ev: [], at: 0, hist: true } }));
+      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specStart', id, name: u.name, head, ev: [], at: 0, hist: true, pid: u.pid, room: u.rp || '' } }));
     }
     if (msg.t === 'frames') {
       if (!u.play || !u.watchers.size || !Array.isArray(msg.ev)) return [];

@@ -527,6 +527,7 @@ function isNoServer(r, d) { return !!r && !d && (r.status === 404 || r.status ==
 class HttpSocket {
   constructor(url) {
     this.url = String(url); this.http = true; this.readyState = 0; this.sid = null; this._out = []; this._st = 0;
+    this._sending = false; this._wait = 15000; this._tries = 0; this._ack = 0; // (_ack: the last message we got — see _take)
     this.onopen = this.onmessage = this.onclose = this.onerror = null;
     setTimeout(() => { if (this.readyState !== 0) return; this.readyState = 1; if (this.onopen) this.onopen(); this._poll(); }, 0);
   }
@@ -540,24 +541,46 @@ class HttpSocket {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   }
+  /** What's waiting to go, in one request — one at a time, so they arrive in the order they were sent. */
   async _flush() {
     this._st = 0;
-    if (this.readyState !== 1 || !this._out.length) return;
+    if (this.readyState !== 1 || !this._out.length || this._sending) return;
     const msgs = this._out.splice(0);
-    try { this._take(await this._post({ sid: this.sid, msgs }, 15000)); } catch (e) { this._fail(e); }
+    this._sending = true;
+    try { this._take(await this._post({ sid: this.sid, msgs }, 15000)); } catch (e) { this._sending = false; this._fail(e); return; }
+    this._sending = false;
+    if (this._out.length) this._flush();
   }
   async _poll() {
     while (this.readyState === 1) {
       let d;
       // (the first carries the hello and opens the connection; each after waits for what the server has)
-      try { d = await this._post(this.sid ? { sid: this.sid, poll: true } : { msgs: this._out.splice(0), poll: true }, 25000); }
-      catch (e) { this._fail(e); return; }
+      const t0 = Date.now(), first = !this.sid;
+      try { d = await this._post(first ? { msgs: this._out.splice(0), poll: true, ack: 0 } : { sid: this.sid, poll: true, wait: this._wait, ack: this._ack }, this._wait + 10000); }
+      catch (e) {
+        if (first || this.readyState !== 1) { this._fail(e); return; }
+        // (a request that didn't come back, on a connection that's open: a proxy that cuts requests held open — wait
+        // less from now on — or a moment without signal: asked again, a couple of times, before it counts as dropped)
+        const held = Date.now() - t0;
+        if (held > 4000) this._wait = Math.max(3000, Math.min(this._wait, Math.floor(held * 0.6)));
+        if (++this._tries > 2) { this._fail(e); return; }
+        await new Promise(r => setTimeout(r, held > 4000 ? 0 : 1000 * this._tries));
+        continue;
+      }
+      this._tries = 0;
       if (!this.sid && d && d.sid) { this.sid = d.sid; if (this._out.length) this._flush(); }
       this._take(d);
     }
   }
+  /** The server's messages, numbered from `first`: any we've had already (sent again after a reply that didn't
+   *  arrive — or did, but the server wasn't told) are skipped. */
   _take(d) {
-    for (const m of (d && d.msgs) || []) { if (this.readyState !== 1) return; if (this.onmessage) this.onmessage({ data: m }); }
+    const first = d && Number.isFinite(d.first) ? d.first : null;
+    ((d && d.msgs) || []).forEach((m, i) => {
+      if (this.readyState !== 1) return;
+      if (first != null) { if (first + i <= this._ack) return; this._ack = first + i; }
+      if (this.onmessage) this.onmessage({ data: m });
+    });
     if (d && d.closed) this._end(d.closed.code || 1006, d.closed.reason || '');
   }
   _fail(e) { if (this.readyState > 1) return; if (this.onerror) this.onerror(e); this._end(1006, (e && e.message) || 'failed'); }
@@ -946,9 +969,11 @@ const Presence = {
   },
   pushStatus() {
     const st = this.status(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '', song = this.song(), sk = JSON.stringify(song);
-    if (st === this._sent && name === this._name && av === this._av && sk === this._song) return;
-    this._sent = st; this._name = name; this._av = av; this._song = sk;
-    this.send({ t: 'status', status: st, name, avatar: av, song });
+    // (your Ranked Play match: anyone spectating you watches it as you see it — RankedWatch)
+    const rp = Multiplayer.inRoom() && Multiplayer.isRP() && Multiplayer.code || '';
+    if (st === this._sent && name === this._name && av === this._av && sk === this._song && rp === this._rp) return;
+    this._sent = st; this._name = name; this._av = av; this._song = sk; this._rp = rp;
+    this.send({ t: 'status', status: st, name, avatar: av, song, rp });
   },
   others() { return this.players.filter(p => p.id !== this.me); },
   /** Is a list of online players on screen (the invite dialog)? */

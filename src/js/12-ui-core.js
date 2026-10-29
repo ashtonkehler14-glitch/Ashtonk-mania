@@ -1,5 +1,14 @@
 /* UIManager: icons, toasts, dialogs, menus, background, toolbar and the ScreenManager. */
 
+// every slider's bar fills up to its handle as it's moved — one that forgot to say so stayed half full (Ranked Play's
+// star rating): its own code still sets it when the value's set from elsewhere
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement) || el.type !== 'range' || !el.classList.contains('slider')) return;
+  const min = +el.min || 0, max = el.max === '' ? 100 : +el.max;
+  if (max > min) el.style.setProperty('--p', `${(+el.value - min) / (max - min) * 100}%`);
+}, true);
+
 /** A page's "nothing here" card: an icon in a circle, a title, a line of help and maybe a button — so empty lists,
  *  offline pages and failed searches all look alike. `slash` strikes the icon through (can't reach / failed);
  *  `cls` adds classes (".plain" drops the card behind it, ".compact" for small panels); `neru`: Neru, a blank "huh?"

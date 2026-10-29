@@ -5,9 +5,12 @@
 // A match:
 //  - Both players start with 1,000,000 life and a hand of five beatmap cards dealt from a shuffled deck of up to 50,
 //    picked around the lower player's rating.
-//  - Round 1 opens with the intro (20 s), then a discard phase (30 s): each player may replace any of their cards once.
+//  - Round 1 opens with the intro (7 s), then a discard phase (30 s): each player may replace any of their cards once.
 //  - Players take turns to play a card (45 s; when time runs out, the card last selected — or the first — is played).
-//    The lower-rated player goes first. From round 3, the player whose turn it is draws a card first.
+//    The lower-rated player goes first. Each card played is replaced from the deck at once, so a hand stays at five
+//    while there are cards left (only drawing from round 3 on, a hand ran down and the deck seemed to give nothing).
+//  - The intro (round 1) is the face-off alone: each player plays their own difficulty near their own pick, so there's
+//    no one star rating for the deck to announce.
 //  - Both download the beatmap (up to 2 min), look at it and press Ready (up to 2 min, then a 10 s countdown), and play.
 //    Whoever isn't ready in time takes 100,000 and the round is skipped.
 //  - The lower total score takes damage: the score difference plus 50,000 (no multipliers: every round counts the
@@ -25,7 +28,7 @@
 
 export const RP = {
   LIFE: 1_000_000, HAND: 5, DECK: 50, BASE_DAMAGE: 50_000, NOT_READY_DAMAGE: 100_000, MAX_HIT: 500_000,
-  WAIT_JOIN: 60_000, STARS: 60_000, DEAL: 15_000, INTRO: 20_000, DISCARD: 30_000, DISCARD_DONE: 3_000, FINISH_DISCARD: 5_000, PICK: 45_000,
+  WAIT_JOIN: 60_000, STARS: 60_000, DEAL: 15_000, INTRO: 7_000, DISCARD: 30_000, DISCARD_DONE: 3_000, FINISH_DISCARD: 5_000, PICK: 45_000,
   FINISH_PICK: 120_000, WARMUP: 120_000, COUNTDOWN: 10_000, RESULTS: 15_000,
   AWAY: 60_000,        // a dropped connection gets this long to come back before the player is counted as gone (any match)
   LEAVE_BAN: 600_000,  // leaving a rated match: 10 minutes out of the queue (lazer)
@@ -192,7 +195,6 @@ export class RankedPlay {
         for (const p of this.players) { p.ready = false; }
         this.round++;
         if (this.round >= 2) this.active = this.order[(this.order.indexOf(this.active) + 1) % this.order.length];
-        if (this.round >= 3) this.draw(this.active, 1); // a card on each later turn
         this.go('warmup', this.round === 1 ? RP.INTRO : 0);
         if (this.round > 1) return this.enter('pick');
         return [this.room.roomMsg()];
@@ -329,7 +331,13 @@ export class RankedPlay {
     this.room.map = null;
     return [...out, ...(this.roundsRemaining() ? this.enter('warmup') : this.end())];
   }
-  spend() { const u = this.user(this.active); if (u) u.hand = u.hand.filter(i => i !== this.played); }
+  /** The played card leaves its player's hand, and a new one from the deck takes its place (while there are any). */
+  spend() {
+    const u = this.user(this.active);
+    if (!u || !u.hand.includes(this.played)) return;
+    u.hand = u.hand.filter(i => i !== this.played);
+    this.draw(this.active, 1);
+  }
   startGameplay() {
     this.go('playing', 0);
     return this.room.beginMatch(this.players.filter(p => !p.away));

@@ -156,17 +156,38 @@ await shot(alice, 'mp-lobby');
   const code = await carol.evaluate(async () => { await AshtonkMania.Multiplayer.create({ isPublic: false }); return AshtonkMania.Multiplayer.inRoom() && AshtonkMania.Multiplayer.ws.http ? AshtonkMania.Multiplayer.code : null; });
   await alice.evaluate(c => AshtonkMania.Multiplayer.join(c), code);
   await carol.waitForFunction(() => AshtonkMania.Multiplayer.room && AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 10000 }).catch(() => {});
+  // (and a proxy that lets the server answer, then loses the answer on its way back: what was in it comes again —
+  // once — on the same connection)
+  let cut = 0, held = 0;
+  await carol.route(/\/api\/mp\/room\/[A-Z0-9]+\/http/, async route => {
+    // (a request still held open when this is taken away is let through by Playwright: nothing more to do with it)
+    try {
+      const body = route.request().postData() || '';
+      if (cut || !/"poll":true/.test(body) || /"msgs"/.test(body)) { await route.continue(); return; }
+      held++;
+      const resp = await route.fetch(), d = await resp.json();
+      if ((d.msgs || []).some(m => m.includes('hello carol'))) { cut++; await route.abort('connectionreset'); return; }
+      await route.fulfill({ response: resp });
+    } catch { /* already handled */ }
+  });
+  await carol.evaluate(() => { window.__roomWs = AshtonkMania.Multiplayer.ws; });
+  // (the request already waiting at the server isn't caught: a first message answers it, and the next one is)
+  await alice.evaluate(() => AshtonkMania.Multiplayer.send({ t: 'chat', text: 'warm up' }));
+  await carol.waitForFunction(() => AshtonkMania.Multiplayer.chat.some(c => c.text === 'warm up'), null, { timeout: 8000 }).catch(() => {});
+  for (let i = 0; i < 50 && !held; i++) await carol.waitForTimeout(100);
   await alice.evaluate(() => AshtonkMania.Multiplayer.send({ t: 'chat', text: 'hello carol' }));
-  await carol.waitForFunction(() => AshtonkMania.Multiplayer.chat.some(c => c.text === 'hello carol'), null, { timeout: 8000 }).catch(() => {});
+  await carol.waitForFunction(() => AshtonkMania.Multiplayer.chat.some(c => c.text === 'hello carol'), null, { timeout: 12000 }).catch(() => {});
+  const resent = await carol.evaluate(() => ({ same: AshtonkMania.Multiplayer.ws === window.__roomWs, once: AshtonkMania.Multiplayer.chat.filter(c => c.text === 'hello carol').length }));
+  await carol.unroute(/\/api\/mp\/room\/[A-Z0-9]+\/http/);
   await carol.evaluate(() => AshtonkMania.Multiplayer.send({ t: 'chat', text: 'hi alice' }));
   await alice.waitForFunction(() => AshtonkMania.Multiplayer.chat.some(c => c.text === 'hi alice'), null, { timeout: 8000 }).catch(() => {});
   const r = {
-    on, seen, code,
+    on, seen, code, cut, resent,
     two: await carol.evaluate(() => (AshtonkMania.Multiplayer.room || { players: [] }).players.length),
     carolGot: await carol.evaluate(() => AshtonkMania.Multiplayer.chat.some(c => c.text === 'hello carol')),
     aliceGot: await alice.evaluate(() => AshtonkMania.Multiplayer.chat.some(c => c.text === 'hi alice')),
   };
-  check('a network that blocks WebSockets (a school Chromebook): online and in a room by plain requests, chatting with a player on WebSockets', on.http && on.me && on.kept && seen && !!code && r.two === 2 && r.carolGot && r.aliceGot, JSON.stringify(r));
+  check('a network that blocks WebSockets (a school Chromebook): online and in a room by plain requests, chatting with a player on WebSockets — and a reply lost on its way comes again, once', on.http && on.me && on.kept && seen && !!code && r.two === 2 && r.carolGot && r.aliceGot && cut === 1 && resent.same && resent.once === 1, JSON.stringify(r));
   await alice.evaluate(() => AshtonkMania.Multiplayer.leave());
   await carol.evaluate(() => AshtonkMania.Multiplayer.leave());
   await carol.waitForTimeout(500);
@@ -651,6 +672,13 @@ await alice.evaluate(() => { AshtonkMania.Multiplayer.leave(); AshtonkMania.Scre
 await bob.evaluate(() => { AshtonkMania.Multiplayer.leave(); AshtonkMania.Screens.go('multiplayer', { force: true }); });
 await alice.waitForSelector('.mp-create', { timeout: 10000 });
 check('the normal lounge has no Ranked Play queue or match-type choice', await alice.evaluate(() => !document.querySelector('.rq') && !/Ranked Play/.test(document.querySelector('.mp-create').textContent)));
+// (Dana will spectate Alice in it — and fetch the beatmap of each song she watches)
+const dana = await player('Dana');
+await dana.route('**/api/getBeatmaps**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(onlineSet) }));
+await dana.route('**/api/download/424242', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
+await dana.route('https://catboy.best/d/424242', r => r.fulfill({ contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' }, body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
+await dana.route('https://assets.ppy.sh/**', r => r.abort());
+await dana.route('https://b.ppy.sh/**', r => r.abort());
 await alice.evaluate(() => AshtonkMania.Screens.go('multiplayer', { ranked: true, force: true }));
 await alice.waitForFunction(() => /Ranked Play/.test(document.querySelector('#app').textContent) && /Create duel/.test((document.querySelector('.mp-create') || {}).textContent || ''), null, { timeout: 10000 });
 check('the Ranked Play lounge: "Create duel", no rating shown', await alice.evaluate(() => !document.querySelector('.rq-rating') && !/Your \dK rating/.test(document.querySelector('#app').textContent)));
@@ -684,12 +712,22 @@ check('both locked in: the cards are dealt', true);
 await alice.waitForSelector('.rki .rki-x', { timeout: 10000 });
 check('the intro: both players face off with the star ratings they chose', await alice.evaluate(() => document.querySelectorAll('.rki-side').length === 2 && /Chose 4\.00★/.test(document.querySelector('.rkm').textContent) && /Chose 2\.50★/.test(document.querySelector('.rkm').textContent) && !/Rating: /.test(document.querySelector('.rki-side').textContent) && document.querySelector('.rkm').classList.contains('no-corners') && document.querySelector('.rkm-chat').classList.contains('hidden') && document.querySelector('#app').classList.contains('hide-toolbar')));
 await shot(alice, 'mp-rp-intro');
-await alice.waitForFunction(() => document.querySelector('.rki.landed'), null, { timeout: 15000 });
-check('…then the star rating is decided', await alice.evaluate(() => /Star rating has been decided/.test(document.querySelector('.rki').textContent) && /~\d+\.\d\d/.test(document.querySelector('.rki-stars').textContent)));
-await shot(alice, 'mp-rp-stars');
+check('…and no one star rating is announced for the deck (each plays their own difficulty)', await alice.evaluate(() => !/Star rating has been decided/.test(document.querySelector('.rkm').textContent) && !document.querySelector('.rki-stars')));
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Multiplayer.room.rp.stage === 'discard' && document.querySelectorAll('.rkd-slot').length === 5, null, { timeout: 30000 })));
 const vis = await alice.evaluate(() => { const g = AshtonkMania.Multiplayer.room.rp, me = AshtonkMania.Multiplayer.me, o = Object.keys(g.users).find(id => id !== me); return { mine: g.users[me].hand.every(i => g.cards[i]), theirs: g.users[o].hand.some(i => g.cards[i]), n: [g.users[me].hand.length, g.users[o].hand.length] }; });
 check('discard phase: five cards each, and only your own are shown to you', vis.mine && !vis.theirs && vis.n.join() === '5,5', JSON.stringify(vis));
+// Dana spectates Alice: Alice's match screen as Alice sees it — read-only
+await dana.waitForFunction(() => AshtonkMania.Presence.players.some(p => p.name === 'Alice' && p.status === 'ranked'), null, { timeout: 15000 });
+await dana.evaluate(() => AshtonkMania.Spectate.watch(AshtonkMania.Presence.players.find(p => p.name === 'Alice')));
+await dana.waitForFunction(() => AshtonkMania.Screens.currentName === 'spectator' && document.querySelectorAll('.rkm.watch .rkd-slot').length === 5, null, { timeout: 15000 });
+{
+  const dv = await dana.evaluate(() => { const W = RankedWatch, g = W.room.rp, me = W.me, o = Object.keys(g.users).find(id => id !== me);
+    return { pov: W.room.players.find(p => p.id === me).name, mine: g.users[me].hand.every(i => g.cards[i]), theirs: g.users[o].hand.some(i => g.cards[i]), tag: document.querySelector('.rkm-watchtag').textContent,
+      input: !!document.querySelector('.rkm-chat input'), btn: document.querySelector('.rkd-btn').hidden, live: document.querySelectorAll('.rkd-slot.live').length, cap: document.querySelector('.rkm-cap').textContent }; });
+  check('spectating a player in Ranked Play: their match screen as they see it — their five cards face up, their opponent\'s hidden — and nothing to press', dv.pov === 'Alice' && dv.mine && !dv.theirs && /Spectating\s*Alice/.test(dv.tag) && !dv.input && dv.btn && !dv.live && /Alice/.test(dv.cap), JSON.stringify(dv));
+  if (SHOTS) await dana.waitForTimeout(1500); // (the screen's transition over)
+  await shot(dana, 'mp-rp-spectate-discard');
+}
 check('the stage display: "Discard Phase" with its timer', await alice.evaluate(() => /Discard Phase/.test(document.querySelector('.rkm-head').textContent) && /^00:\d\d\.\d\d\d$/.test(document.querySelector('.rkm-timer').textContent)));
 await bob.waitForTimeout(2200); await shot(bob, 'mp-rp-discard');
 await alice.click('.rkd-slot:nth-child(1)'); await alice.click('.rkd-slot:nth-child(2)');
@@ -717,6 +755,7 @@ await activePage.waitForTimeout(1200);
 await activePage.hover('.rkm-myhand .rkh-slot:nth-child(3)');
 await otherPage.waitForFunction(() => document.querySelector('.rkm-opphand .rkh-slot.hover'), null, { timeout: 5000 });
 check('hand replay: the other player sees the card being looked at', true);
+check('…and so does someone spectating', await dana.waitForFunction(() => document.querySelector('.rkm.watch .rkh-slot.hover'), null, { timeout: 5000 }).then(() => true, () => false));
 await activePage.click('.rkm-myhand .rkh-slot:nth-child(3)');
 await otherPage.waitForFunction(() => document.querySelector('.rkm-opphand .rkh-slot.sel'), null, { timeout: 5000 });
 await activePage.waitForTimeout(700); await shot(activePage, 'mp-rp-pick');
@@ -729,12 +768,22 @@ check('gameplay warmup: both are ready once they have the beatmap, and the count
 await alice.waitForTimeout(1600); await shot(alice, 'mp-rp-warmup');
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.mp, null, { timeout: 30000 })));
 check('…then both play the card', true);
+const danaWatches = dana.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.spectate, null, { timeout: 30000 }).then(() => true,
+  () => dana.evaluate(() => { const S = AshtonkMania.Spectate, c = S.cur; return { screen: AshtonkMania.Screens.currentName, cur: c && { title: c.head.title, set: c.head.onlineSetId, ended: c.ended, started: c.started }, has: !!(c && S.findMap(c.head)), dl: c && c.head.onlineSetId > 0 ? (AshtonkMania.ExplorerScreen.downloads.get(c.head.onlineSetId) || {}).state : null }; }));
 await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes, s.keys).flat(); s.feedIdx = 0; });
 // Bob plays two notes in three: he loses the round
 await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes.filter((n, i) => i % 3), s.keys).flat(); s.feedIdx = 0; });
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.rp.stage === 'results', null, { timeout: 45000 })));
 const r1 = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room, g = r.rp, id = n => r.players.find(p => p.name === n).id, a = id('Alice'), b = id('Bob'); return { a: g.users[a].life, b: g.users[b].life, sa: g.results.scores[a], sb: g.results.scores[b], d: g.results.dmg[b] }; });
 check('round 1: the lower score takes the difference + 50,000 damage — at most 500,000 for a song both played', r1.a === 1000000 && r1.b === 1000000 - Math.min(r1.sa - r1.sb + 50000, 500000) && r1.d.bonusDamage === 50000 && (r1.sa - r1.sb + 50000 > 500000) === (r1.d.capped === 500000), JSON.stringify(r1));
+{
+  const watched = await danaWatches;
+  const back = await dana.waitForFunction(() => AshtonkMania.Screens.currentName === 'spectator' && document.querySelector('.rkm.watch .rkr'), null, { timeout: 30000 }).then(() => true, () => false);
+  check('…someone spectating watches the song live, then is back on the match screen for the round\'s results', watched === true && back, JSON.stringify({ watched, back }));
+  await dana.evaluate(() => AshtonkMania.Screens.back());
+  await dana.waitForFunction(() => !AshtonkMania.Spectate.target && !RankedWatch.ws, null, { timeout: 5000 }).catch(() => {});
+  await dana.context().close();
+}
 await bob.waitForFunction(() => document.querySelector('.rkr-col.hit'), null, { timeout: 12000 });
 check('results: both scores side by side, then the damage lands on the loser', await bob.evaluate(() => document.querySelectorAll('.rkr-col').length === 2 && /Damage/.test(document.querySelector('.rkr-break').textContent)));
 await shot(bob, 'mp-rp-results');

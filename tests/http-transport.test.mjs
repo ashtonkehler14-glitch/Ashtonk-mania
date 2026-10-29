@@ -74,3 +74,20 @@ test('HttpSock behaves as a socket: send after close does nothing, close happens
   s.send('a'); s.close(1000); s.close(1000); s.send('b');
   assert.equal(n, 1); assert.deepEqual(s.q, ['a']);
 });
+
+test('numbered messages: kept until the player says they have them, so a reply lost on its way is sent again', async () => {
+  const map = new Map(), r = room();
+  const a = await httpSession(map, { msgs: [JSON.stringify({ t: 'hello' })], poll: true, ack: 0 }, r.attach);
+  assert.equal(a.first, 1); assert.deepEqual(a.msgs.map(x => JSON.parse(x).t), ['welcome']);
+  await httpSession(map, { sid: a.sid, msgs: [JSON.stringify({ t: 'x' }), JSON.stringify({ t: 'y' })] }, r.attach);
+  // the welcome arrived (ack 1): x and y come, numbered 2 and 3 …
+  const b = await httpSession(map, { sid: a.sid, poll: true, ack: 1 }, r.attach);
+  assert.equal(b.first, 2); assert.deepEqual(b.msgs.map(x => JSON.parse(x).m.t), ['x', 'y']);
+  // … but that reply never reached the player (a proxy cut it off): asked again with ack 1, they come again
+  const c = await httpSession(map, { sid: a.sid, poll: true, ack: 1 }, r.attach);
+  assert.equal(c.first, 2); assert.deepEqual(c.msgs.map(x => JSON.parse(x).m.t), ['x', 'y']);
+  // once they're acknowledged they're let go, and the next poll waits for what's new
+  const d = await httpSession(map, { sid: a.sid, poll: true, ack: 3, wait: 30 }, r.attach);
+  assert.deepEqual(d.msgs, []); assert.equal(map.get(a.sid).q.length, 0);
+  assert.equal(map.get(a.sid).base, 4);
+});

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { beatmapStatus, RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, deckTargetsForStars, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE, codeHash, adminCodeHash } from '../worker/multiplayer.js';
+import { beatmapStatus, RoomLogic, PresenceLogic, MatchRoom, HttpSock, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, deckTargetsForStars, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE, codeHash, adminCodeHash } from '../worker/multiplayer.js';
 
 // (in these tests a finished play is judged straight away as what the player said — as if the server's judge agreed;
 // the judging itself is tested in engine.test.mjs, and what happens without it at the end of this file)
@@ -613,20 +613,72 @@ test('Ranked Play: deal, intro, discard phase, the lower rating plays first, and
   assert.deepEqual(msgs(start, 'start')[0].msg.playerMods, {}, 'nobody brings their own mods');
 });
 
-test('Ranked Play damage: the score difference + 50,000 every round (no multipliers), a card each later turn', () => {
+test('presence: whoever spectates a player in a Ranked Play match is told which match (and only they are)', () => {
+  const p = new PresenceLogic(() => 0);
+  p.join('a', { name: 'Alice', pid: 'alicepid', key: 'key-alicepid-0123456789' });
+  p.join('w', { name: 'Wes', pid: 'wespid12', key: 'key-wespid12-0123456789' });
+  p.join('x', { name: 'Xia', pid: 'xiapid12', key: 'key-xiapid12-0123456789' });
+  p.message('a', { t: 'status', status: 'ranked', rp: 'ABCD23' });
+  const w = p.message('w', { t: 'watch', to: 'a' }).find(o => o.to === 'w');
+  assert.deepEqual([w.msg.t, w.msg.room, w.msg.pid], ['specWait', 'ABCD23', 'alicepid']);
+  assert.ok(!JSON.stringify(p.list()).includes('ABCD23'), 'not on the online list');
+  // a new match: their spectators hear of it; leaving it, that it's over
+  const moved = p.message('a', { t: 'status', status: 'ranked', rp: 'EFGH45' });
+  assert.deepEqual(moved.filter(o => o.msg.t === 'specRoom').map(o => [o.to, o.msg.room]), [['w', 'EFGH45']]);
+  assert.deepEqual(p.message('a', { t: 'status', status: 'menu', rp: '' }).filter(o => o.msg.t === 'specRoom').map(o => o.msg.room), ['']);
+  assert.equal(p.message('a', { t: 'status', status: 'ranked', rp: 'bad code!' }).filter(o => o.msg.t === 'specRoom').length, 0);
+});
+
+test('a Ranked Play match watched as one of its players sees it: their own view, read-only, and over when they leave', () => {
+  const room = new MatchRoom({ storage: { get: async () => null, put: async () => {}, delete: async () => {} } }, {});
+  room.logic = new RoomLogic('WTCH23');
+  const got = s => s.q.map(t => JSON.parse(t));
+  const conn = hello => { const s = new HttpSock('x'), c = room.attach(s); c.message(JSON.stringify({ t: 'hello', ...hello })); return { s, c, say: m => c.message(JSON.stringify(m)) }; };
+  try {
+    const a = conn({ name: 'Alice', create: true, mode: 'rp', keys: 4, pid: 'alicepid1', cid: 'ca' });
+    const b = conn({ name: 'Bob', pid: 'bobpid123', cid: 'cb' });
+    const w = conn({ watch: 'alicepid1' });
+    const aliceId = room.logic.players.find(p => p.name === 'Alice').id, bobId = room.logic.players.find(p => p.name === 'Bob').id;
+    const wel = got(w.s).find(m => m.t === 'welcome');
+    assert.equal(wel.you, aliceId); assert.ok(wel.watch); assert.equal(wel.token, undefined, 'never the player\'s token');
+    assert.equal(room.logic.players.length, 2, 'not one of the room\'s players');
+    // nothing a watcher sends counts
+    w.say({ t: 'rpStars', stars: 9 });
+    assert.equal(room.logic.rp.user(aliceId).pref ?? null, null);
+    a.say({ t: 'rpStars', stars: 4 }); b.say({ t: 'rpStars', stars: 2 });
+    a.say({ t: 'pool', maps: deck() });
+    // Alice's view: her cards face up, Bob's hidden — the same as hers
+    const view = got(w.s).filter(m => m.t === 'room').at(-1).room.rp, hers = got(a.s).filter(m => m.t === 'room').at(-1).room.rp;
+    assert.deepEqual(view, hers);
+    assert.ok(view.users[aliceId].hand.every(i => view.cards[i]) && !view.users[bobId].hand.some(i => view.cards[i]));
+    assert.ok(!got(w.s).some(m => m.t === 'rpDeck'), 'nothing meant only for the players');
+    // someone who isn't in the match can't be watched
+    const x = conn({ watch: 'nobody123' });
+    assert.equal(x.s.closed.code, 4000);
+    // Alice leaves: watching her match is over
+    a.say({ t: 'bye' }); a.c.gone();
+    assert.equal(w.s.closed && w.s.closed.code, 4006);
+    assert.equal(room.watchers.size, 0);
+  } finally { clearInterval(room.timer); clearInterval(room.sweep); clearTimeout(room._saveT); }
+});
+
+test('Ranked Play damage: the score difference + 50,000 every round (no multipliers); each card played is replaced', () => {
   const clock = { t: 0 };
   const { r } = rpMatch(clock);
   tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
   tickTo(r, clock); tickTo(r, clock);
   // round 1 (Bob's card): Alice wins by 200,000 → 200,000 + 50,000
-  r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
+  const first = r.rp.user('b').hand[0], left = r.rp.deck.length;
+  r.message('b', { t: 'play', card: first });
   playRound(r, clock, 900000, 700000);
   assert.equal(r.rp.stage, 'results');
   assert.equal(r.rp.user('b').life, RP.LIFE - 250000);
   assert.deepEqual(r.rp.results.dmg.b, { damage: 250000, rawDamage: 250000, oldLife: RP.LIFE, newLife: 750000, directDamage: 200000, multiplier: 1, bonusDamage: 50000 });
   assert.equal(r.rp.results.winner, 'a'); assert.equal(r.rp.user('a').won, 1);
-  assert.equal(r.rp.user('b').hand.length, RP.HAND - 1, 'the played card is spent');
-  // round 2 (Alice's turn, no draw yet): Bob wins this time — the same damage rule, nothing grows
+  assert.ok(!r.rp.user('b').hand.includes(first), 'the played card is spent');
+  assert.equal(r.rp.user('b').hand.length, RP.HAND, '…and a new one from the deck takes its place');
+  assert.equal(r.rp.deck.length, left - 1);
+  // round 2 (Alice's turn): Bob wins this time — the same damage rule, nothing grows
   tickTo(r, clock);
   assert.equal(r.rp.round, 2); assert.equal(r.rp.stage, 'pick'); assert.equal(r.rp.active, 'a');
   assert.equal(r.rp.mult, 1);
@@ -634,10 +686,11 @@ test('Ranked Play damage: the score difference + 50,000 every round (no multipli
   r.message('a', { t: 'play', card: r.rp.user('a').hand[2] });
   playRound(r, clock, 600000, 800001);
   assert.equal(r.rp.user('a').life, RP.LIFE - (200001 + 50000));
-  // round 3 (Bob's turn): he draws a card first
+  assert.equal(r.rp.user('a').hand.length, RP.HAND);
+  // round 3 (Bob's turn): both still hold five
   tickTo(r, clock);
   assert.equal(r.rp.round, 3); assert.equal(r.rp.active, 'b'); assert.equal(r.rp.mult, 1);
-  assert.equal(r.rp.user('b').hand.length, RP.HAND, 'a card on each turn from round 3');
+  assert.equal(r.rp.user('b').hand.length, RP.HAND);
   // a tie does no damage
   r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
   const lifeA = r.rp.user('a').life, lifeB = r.rp.user('b').life;
