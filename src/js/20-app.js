@@ -53,6 +53,7 @@ const App = {
     Screens.register('stats', ProfileScreen);
     Screens.register('replays', ReplaysScreen);
     Screens.register('skins', SkinsScreen);
+    Screens.register('changelog', ChangelogScreen);
     this.bindGlobal();
     VolumeOverlay.bind(); MenuScroll.bind();
     LazerCursor.init();

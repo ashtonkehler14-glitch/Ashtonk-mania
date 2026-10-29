@@ -744,7 +744,7 @@ const Toolbar = {
     this.chatCount = h('span.tb-badge', h('span'));
     // like lazer's toolbar toggles: a page's button closes that page when it's already open
     const page = name => () => { if (Screens.currentName === name) Screens.back(); else Screens.go(name); };
-    this.pages = { explore: page('explore'), profile: page('profile'), rankings: page('rankings') };
+    this.pages = { explore: page('explore'), profile: page('profile'), rankings: page('rankings'), changelog: page('changelog') };
     this.clock = h('button.tb-clock', { 'aria-label': 'clock', onclick: () => { UISounds.click(); this.cycleClock(); } });
     // lazer's ToolbarRulesetSelector, here with the one ruleset: its icon in #00ffaa over a darker triangle-patterned
     // background, with the little white line under the selected one
@@ -759,7 +759,7 @@ const Toolbar = {
       h('div.tb-spacer'),
       h('div.tb-group.tb-right',
         // lazer's ToolbarChangelogButton
-        btn('sparkle', 'changelog', 'track recent dev updates in Ashtonk!mania', () => WhatsNew.show(), { right: true, cls: '.tb-changelog' }),
+        btn('sparkle', 'changelog', 'track recent dev updates in Ashtonk!mania', this.pages.changelog, { right: true, cls: '.tb-changelog', dataset: { tab: 'changelog' } }),
         btn('trophy', 'rankings', 'find out who\'s the best right now', this.pages.rankings, { right: true, dataset: { tab: 'rankings' } }),
         btn('beatmap', 'beatmap listing', 'browse for new beatmaps', this.pages.explore, { key: 'Ctrl+B', right: true, dataset: { tab: 'explore' } }),
         this.chatBtn = btn('chat', 'chat', 'join the real-time discussion', () => Chat.toggle(), { key: 'F8', right: true, dataset: { ov: 'chat' } }),
@@ -905,7 +905,7 @@ const Toolbar = {
       { label: 'Collections', icon: 'folder', onClick: () => Screens.go('collections') },
       { label: 'Skins', icon: 'brush', onClick: () => Screens.go('skins') },
       { sep: true },
-      { label: 'What\'s new', icon: 'sparkle', onClick: () => WhatsNew.show() },
+      { label: 'What\'s new', icon: 'sparkle', onClick: () => Screens.go('changelog') },
       { label: 'Settings', icon: 'gear', onClick: () => SettingsPanel.open() },
       // (playing as yourself on another device: your code)
       ...(!Multiplayer.available() ? [] : [{ sep: true }, Account.signedOut()

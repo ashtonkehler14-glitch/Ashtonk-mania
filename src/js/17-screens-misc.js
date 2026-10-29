@@ -929,6 +929,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Spectating', items: ['Skips happen only when the player you\'re watching skips', 'Their pause and fail menus show, with what they\'re choosing'] },
     { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Admins and the Neru role get a gold, Neru-style profile and Ranked look', 'The Teto role gets a red, Teto-style one', 'Clicked over and over by a Teto or Miku fan, she gets angry half the time — otherwise a thought or a photo'] },
     { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly and at a good speed, even on slow computers', 'Scrolling waits for pictures to load instead of racing past them', 'The beatmap listing and the menus run much more smoothly on slow computers', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
+    { icon: 'sparkle', title: 'More like lazer', items: ['The toolbar\'s changelog button opens the whole changelog as a page, as in lazer'] },
     { icon: 'user', title: 'Fixes', items: ['A second tab (or the installed app) no longer leaves you a guest and yourself at once — which stopped some players joining multiplayer'] },
   ] },
   { id: '2026.10.29', title: 'Neru', sections: [
@@ -1098,5 +1099,33 @@ const WhatsNew = {
     if (neru) { o.el.insertBefore(neru, el); NeruCameo.beside(neru, el, o.el); }
     UISounds.play('check-on');
     return o;
+  },
+};
+
+/** The toolbar's changelog: lazer's ChangelogOverlay, its listing — every update under the day it came out, the build
+ *  centred over its changes, which are grouped under bold category titles with a bullet each. (The popup above is
+ *  for what's new since you last played.) */
+const ChangelogScreen = {
+  enter() {
+    const tabs = h('button.ov-tab.on', { type: 'button' }, 'listing');
+    const { el, page } = pageShell('changelog', 'track recent dev updates in Ashtonk!mania', [], { icon: 'sparkle', hue: 'purple', tabs });
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    // (an update's id is its day — "2026.10.29", with a letter after it for a second one that day)
+    const day = id => { const m = /^(\d{4})\.(\d{1,2})\.(\d{1,2})/.exec(id); return m ? `${+m[3]} ${MONTHS[m[2] - 1] || ''} ${m[1]}` : id; };
+    const list = h('div.chl');
+    let last = null;
+    for (const e of CHANGELOG) {
+      const d = day(e.id);
+      if (d !== last) { last = d; list.append(h('div.chl-date', d)); } else list.append(h('div.chl-sep'));
+      list.append(h('div.chl-build',
+        h('div.chl-ver', h('span.chl-stream', APP_NAME), h('span.chl-num', e.id)),
+        h('div.chl-title', e.title),
+        // (a section named like its update isn't headed again, as in the popup)
+        ...e.sections.map(sec => h('div.chl-cat',
+          sec.title === e.title ? null : h('div.chl-cath', sec.title),
+          ...sec.items.map(t => h('div.chl-entry', h('span.chl-dot', '●'), h('span', t)))))));
+    }
+    page.append(list);
+    return el;
   },
 };

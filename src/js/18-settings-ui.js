@@ -93,7 +93,7 @@ const SettingsPanel = {
       scroll.append(secEl);
     }
     if (!bySec.size) scroll.append(h('div.empty', 'No settings match your search.'));
-    scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION} · ${WhatsNew.latest()}`, h('button.btn.sm.ghost', { onclick: () => WhatsNew.show() }, icon('sparkle'), 'What\'s new')));
+    scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION} · ${WhatsNew.latest()}`, h('button.btn.sm.ghost', { onclick: () => { SettingsPanel.close(); Screens.go('changelog'); } }, icon('sparkle'), 'What\'s new')));
     // (and past everything, at the very bottom: Neru, bored at her desk — NeruEggs.finePrint)
     const neru = !q && typeof NeruCameo !== 'undefined' ? NeruCameo.make('finePrint', 'nc-fine', { delay: 0 }) : null;
     if (neru) { scroll.append(neru); NeruEggs.finePrint(neru, scroll); }
