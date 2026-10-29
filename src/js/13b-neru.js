@@ -136,10 +136,10 @@ const NeruMascot = {
     }, () => this.img === img && img.dataset.pose === (name || ''));
     if (pop && this.img === img && neruAnim()) img.animate([{ filter: 'brightness(1.35) drop-shadow(0 10px 24px rgba(0, 0, 0, .5))' }, { filter: 'drop-shadow(0 10px 24px rgba(0, 0, 0, .5))' }], { duration: 320, easing: 'ease-out' });
   },
-  /** Per frame: the lean towards the pointer (eased) and the beat's bob decaying, written as one transform. */
+  /** Per frame, while it moves: the lean towards the pointer (eased). The beat's bob plays by itself (bounce). */
   start() {
     cancelAnimationFrame(this._raf);
-    this._lean = 0; this._bob = 0; this._px = null;
+    this._lean = 0; this._bob = 0; this._px = null; this._rot = null;
     // (her box is measured when the pointer moves, not every frame: reading layout each frame can force a reflow)
     // (her box measured a few times a second at most: measured on every move of the pointer, the page was laid out
     // again each time)
@@ -158,17 +158,21 @@ const NeruMascot = {
         want = clamp((this._px - cx) / innerWidth * 9, -4, 4) * (this._py < cy - r.height ? 0.6 : 1);
       }
       this._lean += (want - this._lean) * (1 - Math.exp(-dt / 260));
-      this._bob *= Math.exp(-dt / 140);
-      const b = this._bob;
       // (picked up: she hangs from where she was grabbed and swings as she's moved; let go, she drops back down)
       const held = NeruEggs.held(dt, now);
       // (written only when it changes: a style write every frame restyles her even when she's still)
-      const tf = held ? held.tf : `rotate(${this._lean.toFixed(2)}deg) translateY(${(b * 6).toFixed(2)}px) scale(${(1 + b * 0.012).toFixed(4)}, ${(1 - b * 0.022).toFixed(4)})`;
-      const sh = held ? held.sh : `scaleX(${(1 + b * 0.05).toFixed(3)})`;
-      if (tf !== this._tf) { this._tf = tf; this.body.style.transform = tf; if (this.shadow) { this.shadow.style.transform = sh; this.shadow.style.opacity = held ? held.so : ''; } }
-      // (settled — still, not held, not leaning any further — the loop sleeps until something moves her: the pointer, a
-      // bounce, a grab. Waking every frame for nothing kept a slow device busy on the main menu)
-      if (!held && b < 0.0005 && Math.abs(want - this._lean) < 0.005) { last = now; this._raf = 0; return; }
+      if (held) {
+        if (this._bobA) { this._bobA.cancel(); this._bobA = null; } if (this._bobS) { this._bobS.cancel(); this._bobS = null; }
+        if (this._rot !== '') { this._rot = ''; this.body.style.rotate = ''; }
+        if (held.tf !== this._tf) { this._tf = held.tf; this.body.style.transform = held.tf; if (this.shadow) { this.shadow.style.transform = held.sh; this.shadow.style.opacity = held.so; } }
+      } else {
+        if (this._tf) { this._tf = ''; this.body.style.transform = ''; if (this.shadow) { this.shadow.style.transform = ''; this.shadow.style.opacity = ''; } }
+        const rot = this._lean.toFixed(2);
+        if (rot !== this._rot) { this._rot = rot; this.body.style.rotate = `${rot}deg`; }
+      }
+      // (settled — not held, not leaning any further — the loop sleeps until something moves her: the pointer or a
+      // grab. Waking every frame for nothing kept a slow device busy on the main menu)
+      if (!held && Math.abs(want - this._lean) < 0.005) { last = now; this._raf = 0; return; }
       this._raf = requestAnimationFrame(tick);
     };
     this._tick = tick;
@@ -236,6 +240,20 @@ const NeruMascot = {
     const old = document.querySelector('.home .neru');
     if (old) old.replaceWith(this.build());
   },
+  /** The beat's bob, `b` (0–1): a squash and a dip easing back out over a second — played by the browser itself (as
+   *  its own animation, not written frame by frame: on the menu, with the music's beats, that restyled her every frame
+   *  of every song). Her shadow spreads with it. */
+  bounce(b) {
+    this.__bob = b; this._bobAt = performance.now();
+    if (!this.body || b <= 0.0005) return;
+    const at = [0, 40, 90, 160, 250, 380, 560, 800, 1100], k = t => b * Math.exp(-t / 140), D = at[at.length - 1];
+    if (this._bobA) this._bobA.cancel();
+    this._bobA = this.body.animate(at.map(t => { const v = t === D ? 0 : k(t); return { offset: t / D, transform: `translateY(${(v * 6).toFixed(2)}px) scale(${(1 + v * 0.012).toFixed(4)}, ${(1 - v * 0.022).toFixed(4)})` }; }), { duration: D });
+    if (this.shadow) {
+      if (this._bobS) this._bobS.cancel();
+      this._bobS = this.shadow.animate(at.map(t => ({ offset: t / D, transform: `scaleX(${(1 + (t === D ? 0 : k(t)) * 0.05).toFixed(3)})` })), { duration: D });
+    }
+  },
   /** Her loop running again (it sleeps while she's settled; `_raf` 0 means asleep, -1 in the middle of a frame). */
   wake() { if (!this._raf && this._tick && this.el && this.el.isConnected) this._raf = requestAnimationFrame(this._tick); },
   stop() {
@@ -246,8 +264,9 @@ const NeruMascot = {
     this.el = null; this.img = null; this.body = null; this.shadow = null; this._idle = this._kiai = false; this._idlePose = null; this._happyUntil = 0; this._afterPhoto = undefined;
   },
 };
-// (a bounce — on the beat, a cheer, a headpat — wakes her sleeping loop: set from all over, so it's done here)
-Object.defineProperty(NeruMascot, '_bob', { get() { return this.__bob || 0; }, set(v) { this.__bob = v; if (v > 0.0005) this.wake(); }, configurable: true });
+// (a bounce — on the beat, a cheer, a headpat — set from all over, so it's played from here; read, it's how much of the
+// last one is left)
+Object.defineProperty(NeruMascot, '_bob', { get() { return (this.__bob || 0) * Math.exp(-(performance.now() - (this._bobAt || 0)) / 140); }, set(v) { this.bounce(v); }, configurable: true });
 
 /** Neru around the game, not only on the main menu (with the same setting): she pops up at the edge of a screen in a
  *  pose that fits — grudgingly impressed by a good play, unimpressed by a poor one or a fail (a tsundere: never quite

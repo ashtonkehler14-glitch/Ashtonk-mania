@@ -3389,6 +3389,7 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
   translate: calc(var(--lz-x) - 228px) 0; scale: .5; transition: translate 200ms cubic-bezier(.11, 0, .5, 0), scale 200ms cubic-bezier(.11, 0, .5, 0); }
 .lz-menu[data-state="initial"] .lz-logo { translate: 0 0; scale: 1; transition: translate 800ms var(--oexpo) 150ms, scale 800ms var(--oexpo) 150ms; }
 .lz-lh, .lz-lb, .lz-la, .lz-lbt { position: absolute; inset: 0; }
+.lz-la { transition: scale 300ms cubic-bezier(.3, .7, .4, 1); } /* (eased between the music's level readings: see HomeScreen.loop) */
 .lz-lh { transition: scale 500ms var(--el); }
 .lz-lh.hover { scale: 1.1; }
 .lz-lb { transition: scale 500ms var(--el), translate 800ms var(--el); }
@@ -14852,6 +14853,78 @@ const Screens = {
  * bar around it: settings on its left; play (→ solo / multi → lounge / ranked play), edit and browse on its right.
  * Six idle seconds bring the big logo back. Behind it is lazer's triangle artwork in the colour of the playing song. */
 
+/** The logo's two canvases — the music visualiser round it and the triangles drifting in it — drawn in a thread of
+ *  their own. A canvas drawn on the page is handed to the compositor again on every frame it changes: on the menu, with
+ *  music playing, that was a quarter of the page's time on a slow computer. Drawn in a worker (OffscreenCanvas) it goes
+ *  to the screen from there. The page still works out what's to be drawn each frame (HomeScreen.loop) and sends it in
+ *  one message; where a canvas can't be handed to a worker, the page draws them itself as before. */
+const LogoPainter = {
+  w: null, broken: false, ready: false,
+  SRC: `"use strict";
+let vis = null, tris = null, geo = null, grad = null, gradFor = null;
+onmessage = ({ data: m }) => {
+  if (m.ping) { postMessage({ ready: true }); return; }
+  if (m.canvases) { vis = m.canvases.vis; tris = m.canvases.tris; grad = null; return; }
+  if (m.geo) { geo = m.geo; return; }
+  if (m.vsize && vis) { vis.width = vis.height = m.vsize; }
+  if (m.tsize && tris) { tris.width = tris.height = m.tsize; grad = null; }
+  if (m.vis && vis && geo) {
+    const { R, M, CW, N, bw, cosA, sinA } = geo, k = m.vis.k, freq = m.vis.freq, x = vis.getContext('2d');
+    x.setTransform(k, 0, 0, k, 0, 0);
+    x.clearRect(0, 0, CW, CW);
+    if (freq) {
+      x.globalCompositeOperation = 'lighter';
+      x.fillStyle = 'rgba(255,255,255,0.2)';
+      x.beginPath();
+      const c = CW / 2;
+      for (let j = 0; j < N * 5; j++) {
+        const v = freq[j % N];
+        if (v < 1 / 600) continue;
+        const len = Math.min(M, 600 * v), co = cosA[j], si = sinA[j];
+        const px = c + co * R, py = c + si * R, ox = -si * bw / 2, oy = co * bw / 2, ax = co * len, ay = si * len;
+        x.moveTo(px - ox, py - oy); x.lineTo(px - ox + ax, py - oy + ay); x.lineTo(px + ox + ax, py + oy + ay); x.lineTo(px + ox, py + oy); x.closePath();
+      }
+      x.fill();
+    }
+  }
+  if (m.tri && tris) {
+    const TS = tris.width, sc = m.tri.sc, p = m.tri.pts, triW = 300 * sc, triH = 260 * sc, x = tris.getContext('2d');
+    if (!grad || gradFor !== TS) { grad = x.createLinearGradient(0, 0, 0, TS); grad.addColorStop(0, '#ff66ab'); grad.addColorStop(1, '#b6346f'); gradFor = TS; }
+    x.clearRect(0, 0, TS, TS);
+    x.strokeStyle = grad; x.lineWidth = 0.009 * 260 * sc * 2.6; x.lineJoin = 'round';
+    x.beginPath();
+    for (let i = 0; i < p.length; i += 2) { const lx = p[i], ty = p[i + 1]; x.moveTo(lx + triW / 2, ty); x.lineTo(lx + triW, ty + triH); x.lineTo(lx, ty + triH); x.closePath(); }
+    x.stroke();
+  }
+};`,
+  /** The painter's thread, started — it takes canvases only once it has answered (a canvas handed over can't be had
+   *  back: one that never ran would leave the logo blank). */
+  start() {
+    if (this.w || this.broken) return;
+    try {
+      if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined' || !HTMLCanvasElement.prototype.transferControlToOffscreen) throw new Error('no painter here');
+      this.w = new Worker(URL.createObjectURL(new Blob([this.SRC], { type: 'text/javascript' })));
+      this.w.onmessage = ({ data }) => { if (data && data.ready) this.ready = true; };
+      this.w.onerror = e => { if (e.preventDefault) e.preventDefault(); this.broken = true; this.ready = false; };
+      this.w.postMessage({ ping: true });
+      if (this._geo) this.w.postMessage({ geo: this._geo });
+    } catch (e) { this.broken = true; }
+  },
+  /** The two canvases handed to the painter's thread; false where that can't be done yet (the page draws them). */
+  adopt(vis, tris) {
+    this.start();
+    if (!this.ready || this.broken) return false;
+    try {
+      const v = vis.transferControlToOffscreen(), t = tris.transferControlToOffscreen();
+      this.w.postMessage({ canvases: { vis: v, tris: t } }, [v, t]);
+      return true;
+    } catch (e) { this.broken = true; return false; }
+  },
+  /** The visualiser's fixed geometry (sent once). */
+  geometry(g) { if (this._geo) return; this._geo = g; if (this.w) this.w.postMessage({ geo: g }); },
+  frame(m) { if (this.w) this.w.postMessage(m, [m.vis && m.vis.freq, m.tri && m.tri.pts].filter(Boolean).map(a => a.buffer)); },
+};
+
 /** A device that's known to be slow starts the menus light (see HomeScreen.loop): one found slow before (remembered
  *  for two weeks), or one whose hardware says so — a Chromebook with 4 cores and 4 GB or less, or anything with 2 GB
  *  or less — instead of dropping frames for the two seconds it takes to notice. */
@@ -15176,6 +15249,7 @@ const HomeScreen = {
   buildLogo() {
     this.vis = h('canvas.lz-vis');
     this.tris = h('canvas.lz-tris');
+    this._off = LogoPainter.adopt(this.vis, this.tris); this._visW = this._triW = 0;
     this.flashEl = h('span.lz-flash');
     this.impactEl = h('span.lz-impact');
     this.ripple = h('span.lz-ripple', h('span.lz-ring'));
@@ -15209,6 +15283,13 @@ const HomeScreen = {
     });
     return h('div.lz-logo', this.hoverEl, this.cookie);
   },
+  /** New logo canvases in place of the old: one drawn on by the page can't be handed to the painter, and one handed to
+   *  it can't be had back. */
+  swapCanvases() {
+    const v = h('canvas.lz-vis'), t = h('canvas.lz-tris');
+    this.vis.replaceWith(v); this.tris.replaceWith(t); this.vis = v; this.tris = t;
+    this._triGrad = null; this._visW = this._triW = 0;
+  },
   flash(alpha, ms, easing) {
     this.flashEl.getAnimations().forEach(a => a.cancel());
     this.flashEl.animate([{ opacity: alpha }, { opacity: 0 }], { duration: ms, easing });
@@ -15221,7 +15302,7 @@ const HomeScreen = {
    *  spectrum every 50ms and decaying smoothly), the cookie's triangles and the beat. */
   loop() {
     const freq = new Float32Array(200), N = 200;
-    let indexOffset = 0, lastUpd = 0, lastBeat = -1, lastT = performance.now(), triY = null, vel = 0.5, amp = 1, visA = 0.5;
+    let indexOffset = 0, lastUpd = 0, lastBeat = -1, lastT = performance.now(), triY = null, vel = 0.5, visA = 0.5;
     const S = 512, R = S * 0.47, M = 300, CW = S * 0.94 + M * 2;
     const tris = [];
     const spawn = (randomY) => ({ x: Math.random(), y: randomY ? -260 / (S * 0.94) + Math.random() * (1 + 260 / (S * 0.94)) : 1, sp: Math.max(0.5, Math.max(0.1, 0.5 + 0.16 * Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.sin(2 * Math.PI * Math.random()))) });
@@ -15231,14 +15312,24 @@ const HomeScreen = {
     for (let j = 0; j < 5; j++) for (let i = 0; i < N; i++) { const a = (i / N * 360 + j * 72) * Math.PI / 180; cosA[j * N + i] = Math.cos(a); sinA[j * N + i] = Math.sin(a); }
     let visClear = false, winMs = 0, winN = 0, winLate = 0, lastDraw = 0;
     const t0 = performance.now();
+    LogoPainter.geometry({ R, M, CW, N, bw, cosA, sinA });
     const tick = now => {
       this._raf = requestAnimationFrame(tick);
-      const cv = this.vis;
+      let cv = this.vis;
       if (!cv.isConnected) return;
+      // (the painter's thread ready, or — never yet seen — gone: new canvases for whichever draws them now)
+      if (this._off ? LogoPainter.broken : LogoPainter.ready && !LogoPainter.broken) {
+        this.swapCanvases(); cv = this.vis; visClear = true; this._perfClear = false;
+        this._off = LogoPainter.adopt(this.vis, this.tris);
+      }
       const dt = Math.min(100, now - lastT); lastT = now;
       // Performance mode: no visualiser, triangles, fountains or beat — the logo sits still (only the idle return runs)
       if (Settings.get('graphics.performanceMode')) {
-        if (!this._perfClear) { this._perfClear = true; cv.width = cv.height = 1; this.tris.width = this.tris.height = 1; if (this.ampEl) this.ampEl.style.scale = ''; }
+        if (!this._perfClear) {
+          this._perfClear = true;
+          if (this._off) { this._visW = this._triW = 1; LogoPainter.frame({ vsize: 1, tsize: 1 }); } else { cv.width = cv.height = 1; this.tris.width = this.tris.height = 1; }
+          if (this.ampEl) this.ampEl.style.scale = '';
+        }
         if (this.menuState !== 'initial' && this.menuState !== 'entering' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !NowPlaying.open) this.setState('initial');
         // (nothing drawn: looked in on a few times a second, not every frame)
         cancelAnimationFrame(this._raf); clearTimeout(this._perfT); this._perfT = setTimeout(() => { this._raf = requestAnimationFrame(tick); }, 400);
@@ -15293,14 +15384,18 @@ const HomeScreen = {
         this._visK = clamp(Math.ceil(cv.getBoundingClientRect().width * px / CW * 8) / 8, 0.25, lite ? 0.5 : 1);
         this._triS = clamp(Math.ceil(this.tris.getBoundingClientRect().width * px / 32) * 32, 96, lite ? 192 : 384);
       }
-      const dpr = this._visK || 1;
-      if (cv.width !== Math.round(CW * dpr)) { cv.width = cv.height = Math.round(CW * dpr); visClear = true; }
-      const x = cv.getContext('2d');
+      const dpr = this._visK || 1, vsz = Math.round(CW * dpr), off = this._off;
+      // (drawn in the painter's thread: what it's to draw this frame, sent as one message — LogoPainter)
+      let msg = null;
+      if (off) { if (this._visW !== vsz) { this._visW = vsz; visClear = true; msg = { vsize: vsz }; } }
+      else if (cv.width !== vsz) { cv.width = cv.height = vsz; visClear = true; }
       // (no bars and nothing on the canvas: nothing to draw, and nothing for the compositor to upload)
       let any = false;
       for (let i = 0; i < N; i++) if (freq[i] >= 1 / 600) { any = true; break; }
-      if (draw && (any || !visClear)) {
+      if (draw && (any || !visClear) && off) { visClear = !any; (msg || (msg = {})).vis = { k: dpr, freq: any ? freq.slice() : null }; }
+      else if (draw && (any || !visClear)) {
       visClear = !any;
+      const x = cv.getContext('2d');
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
       x.clearRect(0, 0, CW, CW);
       x.globalCompositeOperation = 'lighter';
@@ -15321,8 +15416,8 @@ const HomeScreen = {
       // (pushed on each beat — never past a steady drift, however fast the song)
       if (this._kick) { vel = Math.min(vel + this._kick, this._kiai ? 7 : 5); this._kick = 0; }
       const tc = this.tris, TS = this._triS || (lite ? 192 : 384);
-      if (tc.width !== TS) { tc.width = tc.height = TS; this._triGrad = null; }
-      const tx = tc.getContext('2d');
+      if (off) { if (this._triW !== TS) { this._triW = TS; (msg || (msg = {})).tsize = TS; } }
+      else if (tc.width !== TS) { tc.width = tc.height = TS; this._triGrad = null; }
       const D = S * 0.94, sc = TS / D, triW = 300 * sc, triH = 260 * sc;
       const moved = dt / 1000 * vel * 50 / D;
       for (let i = tris.length - 1; i >= 0; i--) {
@@ -15331,8 +15426,13 @@ const HomeScreen = {
         if (t.y + 260 / D < 0) tris.splice(i, 1);
       }
       while (tris.length < 14) tris.push(spawn(false));
-      if (!this._triGrad) { const g = tx.createLinearGradient(0, 0, 0, TS); g.addColorStop(0, '#ff66ab'); g.addColorStop(1, '#b6346f'); this._triGrad = g; }
-      if (draw) {
+      if (draw && off) {
+        const pts = new Float32Array(tris.length * 2);
+        tris.forEach((t, i) => { pts[i * 2] = t.x * TS; pts[i * 2 + 1] = t.y * TS; });
+        (msg || (msg = {})).tri = { sc, pts };
+      } else if (draw) {
+        const tx = tc.getContext('2d');
+        if (!this._triGrad) { const g = tx.createLinearGradient(0, 0, 0, TS); g.addColorStop(0, '#ff66ab'); g.addColorStop(1, '#b6346f'); this._triGrad = g; }
         tx.clearRect(0, 0, TS, TS);
         tx.strokeStyle = this._triGrad; tx.lineWidth = 0.009 * 260 * sc * 2.6; tx.lineJoin = 'round';
         tx.beginPath();
@@ -15342,6 +15442,7 @@ const HomeScreen = {
         }
         tx.stroke();
       }
+      if (msg) LogoPainter.frame(msg);
       // ── beat (60ms early, as lazer's logo), from the playing track's red lines
       const tm = Music.meta && Music.meta.timing;
       if (tm && Music.playing) {
@@ -15363,11 +15464,11 @@ const HomeScreen = {
         }
       } else { this._kiai = false; this._nextBeatIn = 300; if (now - (this._idleBeat || 0) > 600) { this._idleBeat = now; this.onBeat(600); } }
       this.drawFountains(now);
-      // the logo's amplitude breathing: 4% smaller as the music gets loud (lazer's Damp(0.9))
-      const target = 1 - Math.max(0, (this._peak || 0) - 0.4) * 0.04;
-      amp = target + (amp - target) * Math.pow(0.9, dt);
-      const ampS = amp.toFixed(3);
-      if (ampS !== this._ampS) { this._ampS = ampS; this.ampEl.style.scale = ampS; } // (a style write only when it moves)
+      // the logo's amplitude breathing: 4% smaller as the music gets loud (lazer's Damp(0.9)) — written as the level's
+      // read (20 times a second), the browser easing it there (.lz-la's transition): written every frame, it restyled
+      // the menu on every frame of every song
+      const ampS = (1 - Math.max(0, (this._peak || 0) - 0.4) * 0.04).toFixed(3);
+      if (ampS !== this._ampS) { this._ampS = ampS; this.ampEl.style.scale = ampS; }
       // idle for a while: back to the big logo, as when the game opens
       if (this.menuState !== 'initial' && this.menuState !== 'entering' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !NowPlaying.open) this.setState('initial');
     };
@@ -15954,10 +16055,10 @@ const NeruMascot = {
     }, () => this.img === img && img.dataset.pose === (name || ''));
     if (pop && this.img === img && neruAnim()) img.animate([{ filter: 'brightness(1.35) drop-shadow(0 10px 24px rgba(0, 0, 0, .5))' }, { filter: 'drop-shadow(0 10px 24px rgba(0, 0, 0, .5))' }], { duration: 320, easing: 'ease-out' });
   },
-  /** Per frame: the lean towards the pointer (eased) and the beat's bob decaying, written as one transform. */
+  /** Per frame, while it moves: the lean towards the pointer (eased). The beat's bob plays by itself (bounce). */
   start() {
     cancelAnimationFrame(this._raf);
-    this._lean = 0; this._bob = 0; this._px = null;
+    this._lean = 0; this._bob = 0; this._px = null; this._rot = null;
     // (her box is measured when the pointer moves, not every frame: reading layout each frame can force a reflow)
     // (her box measured a few times a second at most: measured on every move of the pointer, the page was laid out
     // again each time)
@@ -15976,17 +16077,21 @@ const NeruMascot = {
         want = clamp((this._px - cx) / innerWidth * 9, -4, 4) * (this._py < cy - r.height ? 0.6 : 1);
       }
       this._lean += (want - this._lean) * (1 - Math.exp(-dt / 260));
-      this._bob *= Math.exp(-dt / 140);
-      const b = this._bob;
       // (picked up: she hangs from where she was grabbed and swings as she's moved; let go, she drops back down)
       const held = NeruEggs.held(dt, now);
       // (written only when it changes: a style write every frame restyles her even when she's still)
-      const tf = held ? held.tf : `rotate(${this._lean.toFixed(2)}deg) translateY(${(b * 6).toFixed(2)}px) scale(${(1 + b * 0.012).toFixed(4)}, ${(1 - b * 0.022).toFixed(4)})`;
-      const sh = held ? held.sh : `scaleX(${(1 + b * 0.05).toFixed(3)})`;
-      if (tf !== this._tf) { this._tf = tf; this.body.style.transform = tf; if (this.shadow) { this.shadow.style.transform = sh; this.shadow.style.opacity = held ? held.so : ''; } }
-      // (settled — still, not held, not leaning any further — the loop sleeps until something moves her: the pointer, a
-      // bounce, a grab. Waking every frame for nothing kept a slow device busy on the main menu)
-      if (!held && b < 0.0005 && Math.abs(want - this._lean) < 0.005) { last = now; this._raf = 0; return; }
+      if (held) {
+        if (this._bobA) { this._bobA.cancel(); this._bobA = null; } if (this._bobS) { this._bobS.cancel(); this._bobS = null; }
+        if (this._rot !== '') { this._rot = ''; this.body.style.rotate = ''; }
+        if (held.tf !== this._tf) { this._tf = held.tf; this.body.style.transform = held.tf; if (this.shadow) { this.shadow.style.transform = held.sh; this.shadow.style.opacity = held.so; } }
+      } else {
+        if (this._tf) { this._tf = ''; this.body.style.transform = ''; if (this.shadow) { this.shadow.style.transform = ''; this.shadow.style.opacity = ''; } }
+        const rot = this._lean.toFixed(2);
+        if (rot !== this._rot) { this._rot = rot; this.body.style.rotate = `${rot}deg`; }
+      }
+      // (settled — not held, not leaning any further — the loop sleeps until something moves her: the pointer or a
+      // grab. Waking every frame for nothing kept a slow device busy on the main menu)
+      if (!held && Math.abs(want - this._lean) < 0.005) { last = now; this._raf = 0; return; }
       this._raf = requestAnimationFrame(tick);
     };
     this._tick = tick;
@@ -16054,6 +16159,20 @@ const NeruMascot = {
     const old = document.querySelector('.home .neru');
     if (old) old.replaceWith(this.build());
   },
+  /** The beat's bob, `b` (0–1): a squash and a dip easing back out over a second — played by the browser itself (as
+   *  its own animation, not written frame by frame: on the menu, with the music's beats, that restyled her every frame
+   *  of every song). Her shadow spreads with it. */
+  bounce(b) {
+    this.__bob = b; this._bobAt = performance.now();
+    if (!this.body || b <= 0.0005) return;
+    const at = [0, 40, 90, 160, 250, 380, 560, 800, 1100], k = t => b * Math.exp(-t / 140), D = at[at.length - 1];
+    if (this._bobA) this._bobA.cancel();
+    this._bobA = this.body.animate(at.map(t => { const v = t === D ? 0 : k(t); return { offset: t / D, transform: `translateY(${(v * 6).toFixed(2)}px) scale(${(1 + v * 0.012).toFixed(4)}, ${(1 - v * 0.022).toFixed(4)})` }; }), { duration: D });
+    if (this.shadow) {
+      if (this._bobS) this._bobS.cancel();
+      this._bobS = this.shadow.animate(at.map(t => ({ offset: t / D, transform: `scaleX(${(1 + (t === D ? 0 : k(t)) * 0.05).toFixed(3)})` })), { duration: D });
+    }
+  },
   /** Her loop running again (it sleeps while she's settled; `_raf` 0 means asleep, -1 in the middle of a frame). */
   wake() { if (!this._raf && this._tick && this.el && this.el.isConnected) this._raf = requestAnimationFrame(this._tick); },
   stop() {
@@ -16064,8 +16183,9 @@ const NeruMascot = {
     this.el = null; this.img = null; this.body = null; this.shadow = null; this._idle = this._kiai = false; this._idlePose = null; this._happyUntil = 0; this._afterPhoto = undefined;
   },
 };
-// (a bounce — on the beat, a cheer, a headpat — wakes her sleeping loop: set from all over, so it's done here)
-Object.defineProperty(NeruMascot, '_bob', { get() { return this.__bob || 0; }, set(v) { this.__bob = v; if (v > 0.0005) this.wake(); }, configurable: true });
+// (a bounce — on the beat, a cheer, a headpat — set from all over, so it's played from here; read, it's how much of the
+// last one is left)
+Object.defineProperty(NeruMascot, '_bob', { get() { return (this.__bob || 0) * Math.exp(-(performance.now() - (this._bobAt || 0)) / 140); }, set(v) { this.bounce(v); }, configurable: true });
 
 /** Neru around the game, not only on the main menu (with the same setting): she pops up at the edge of a screen in a
  *  pose that fits — grudgingly impressed by a good play, unimpressed by a poor one or a fail (a tsundere: never quite
@@ -23919,6 +24039,7 @@ const CHANGELOG = [
     { icon: 'trophy', title: 'Ranked Play', items: ['Each card you play is replaced from the deck, so your hand stays full', 'No "star rating has been decided" after you both pick', 'The star rating slider fills up to where you put it', 'Songs come at random from the online listing, not your own library'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate someone in Ranked Play and see the whole match as they do: their cards, their picks, each round\'s results, and their songs live'] },
     { icon: 'user', title: 'Multiplayer', items: ['On school networks, nothing is lost when the network drops a message, and a connection that keeps getting cut off switches over by itself'] },
+    { icon: 'sparkle', title: 'Smoother', items: ['The main menu takes about a third less of a slow computer\'s time while music plays — the logo\'s visualiser and triangles are drawn in the background'] },
   ] },
   { id: '2026.10.29b', title: 'Ranked Play, spectating and Neru', sections: [
     { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length', 'Your cards show only your own star rating', 'No song plays behind the Ranked Play lounge and matches'] },
@@ -32669,7 +32790,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'e6b23d41a000';
+const APP_BUILD = 'b75e2a20e155';
 
 const App = {
   lastReport: null,

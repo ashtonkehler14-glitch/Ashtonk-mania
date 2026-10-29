@@ -3374,6 +3374,7 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
   translate: calc(var(--lz-x) - 228px) 0; scale: .5; transition: translate 200ms cubic-bezier(.11, 0, .5, 0), scale 200ms cubic-bezier(.11, 0, .5, 0); }
 .lz-menu[data-state="initial"] .lz-logo { translate: 0 0; scale: 1; transition: translate 800ms var(--oexpo) 150ms, scale 800ms var(--oexpo) 150ms; }
 .lz-lh, .lz-lb, .lz-la, .lz-lbt { position: absolute; inset: 0; }
+.lz-la { transition: scale 300ms cubic-bezier(.3, .7, .4, 1); } /* (eased between the music's level readings: see HomeScreen.loop) */
 .lz-lh { transition: scale 500ms var(--el); }
 .lz-lh.hover { scale: 1.1; }
 .lz-lb { transition: scale 500ms var(--el), translate 800ms var(--el); }

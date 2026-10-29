@@ -186,12 +186,13 @@ await shot('01-home-empty');
     window.requestAnimationFrame = cb => { if (cb === M._tick) n++; return raf(cb); };
     try {
       for (let i = 0; i < 6; i++) { M._bob = 1; await wait(50); }
+      const bouncing = M.body.getAnimations().length > 0;
       n = 0; await wait(500); const busy = n;
       await wait(2500); n = 0; await wait(500);
-      return { busy, still: n };
+      return { bouncing, busy, still: n, left: M.body.getAnimations().length };
     } finally { window.requestAnimationFrame = raf; M.beat = beat; }
   });
-  check('Neru\'s frame loop: one while she bounces, asleep once she\'s settled', r.busy > 0 && r.busy <= 45 && r.still === 0, JSON.stringify(r));
+  check('Neru\'s bounce plays by itself (no frame loop of hers while she bounces), and nothing runs once she\'s settled', r.bouncing && r.busy === 0 && r.still === 0 && r.left === 0, JSON.stringify(r));
 }
 // Neru's easter eggs on the main menu: clicked over and over she's in a huff (and nothing makes her do anything else
 // till it's over); she cheers
@@ -1820,6 +1821,10 @@ await page.evaluate(() => {
   new MutationObserver(() => window.__ics.push(b.dataset.ic)).observe(b, { attributes: true, attributeFilter: ['data-ic'] });
 });
 await page.hover('.ex-card[data-id="777"]'); // (its preview button shows on hover, as lazer's)
+// (the card lifts as it's hovered: clicked mid-lift, Playwright scrolls the list to try again, the pointer's no longer
+// over the card and its button goes — so the lift is let finish first)
+await page.waitForFunction(() => { const b = document.querySelector('.ex-card[data-id="777"] .ex-play'); return b && getComputedStyle(b).visibility === 'visible' && !b.closest('.ex-card').getAnimations({ subtree: true }).some(a => a.playState === 'running'); }, null, { timeout: 5000 }).catch(() => {});
+await page.waitForTimeout(300);
 await page.click('.ex-card[data-id="777"] .ex-play');
 await page.waitForTimeout(800);
 {

@@ -3,6 +3,78 @@
  * bar around it: settings on its left; play (→ solo / multi → lounge / ranked play), edit and browse on its right.
  * Six idle seconds bring the big logo back. Behind it is lazer's triangle artwork in the colour of the playing song. */
 
+/** The logo's two canvases — the music visualiser round it and the triangles drifting in it — drawn in a thread of
+ *  their own. A canvas drawn on the page is handed to the compositor again on every frame it changes: on the menu, with
+ *  music playing, that was a quarter of the page's time on a slow computer. Drawn in a worker (OffscreenCanvas) it goes
+ *  to the screen from there. The page still works out what's to be drawn each frame (HomeScreen.loop) and sends it in
+ *  one message; where a canvas can't be handed to a worker, the page draws them itself as before. */
+const LogoPainter = {
+  w: null, broken: false, ready: false,
+  SRC: `"use strict";
+let vis = null, tris = null, geo = null, grad = null, gradFor = null;
+onmessage = ({ data: m }) => {
+  if (m.ping) { postMessage({ ready: true }); return; }
+  if (m.canvases) { vis = m.canvases.vis; tris = m.canvases.tris; grad = null; return; }
+  if (m.geo) { geo = m.geo; return; }
+  if (m.vsize && vis) { vis.width = vis.height = m.vsize; }
+  if (m.tsize && tris) { tris.width = tris.height = m.tsize; grad = null; }
+  if (m.vis && vis && geo) {
+    const { R, M, CW, N, bw, cosA, sinA } = geo, k = m.vis.k, freq = m.vis.freq, x = vis.getContext('2d');
+    x.setTransform(k, 0, 0, k, 0, 0);
+    x.clearRect(0, 0, CW, CW);
+    if (freq) {
+      x.globalCompositeOperation = 'lighter';
+      x.fillStyle = 'rgba(255,255,255,0.2)';
+      x.beginPath();
+      const c = CW / 2;
+      for (let j = 0; j < N * 5; j++) {
+        const v = freq[j % N];
+        if (v < 1 / 600) continue;
+        const len = Math.min(M, 600 * v), co = cosA[j], si = sinA[j];
+        const px = c + co * R, py = c + si * R, ox = -si * bw / 2, oy = co * bw / 2, ax = co * len, ay = si * len;
+        x.moveTo(px - ox, py - oy); x.lineTo(px - ox + ax, py - oy + ay); x.lineTo(px + ox + ax, py + oy + ay); x.lineTo(px + ox, py + oy); x.closePath();
+      }
+      x.fill();
+    }
+  }
+  if (m.tri && tris) {
+    const TS = tris.width, sc = m.tri.sc, p = m.tri.pts, triW = 300 * sc, triH = 260 * sc, x = tris.getContext('2d');
+    if (!grad || gradFor !== TS) { grad = x.createLinearGradient(0, 0, 0, TS); grad.addColorStop(0, '#ff66ab'); grad.addColorStop(1, '#b6346f'); gradFor = TS; }
+    x.clearRect(0, 0, TS, TS);
+    x.strokeStyle = grad; x.lineWidth = 0.009 * 260 * sc * 2.6; x.lineJoin = 'round';
+    x.beginPath();
+    for (let i = 0; i < p.length; i += 2) { const lx = p[i], ty = p[i + 1]; x.moveTo(lx + triW / 2, ty); x.lineTo(lx + triW, ty + triH); x.lineTo(lx, ty + triH); x.closePath(); }
+    x.stroke();
+  }
+};`,
+  /** The painter's thread, started — it takes canvases only once it has answered (a canvas handed over can't be had
+   *  back: one that never ran would leave the logo blank). */
+  start() {
+    if (this.w || this.broken) return;
+    try {
+      if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined' || !HTMLCanvasElement.prototype.transferControlToOffscreen) throw new Error('no painter here');
+      this.w = new Worker(URL.createObjectURL(new Blob([this.SRC], { type: 'text/javascript' })));
+      this.w.onmessage = ({ data }) => { if (data && data.ready) this.ready = true; };
+      this.w.onerror = e => { if (e.preventDefault) e.preventDefault(); this.broken = true; this.ready = false; };
+      this.w.postMessage({ ping: true });
+      if (this._geo) this.w.postMessage({ geo: this._geo });
+    } catch (e) { this.broken = true; }
+  },
+  /** The two canvases handed to the painter's thread; false where that can't be done yet (the page draws them). */
+  adopt(vis, tris) {
+    this.start();
+    if (!this.ready || this.broken) return false;
+    try {
+      const v = vis.transferControlToOffscreen(), t = tris.transferControlToOffscreen();
+      this.w.postMessage({ canvases: { vis: v, tris: t } }, [v, t]);
+      return true;
+    } catch (e) { this.broken = true; return false; }
+  },
+  /** The visualiser's fixed geometry (sent once). */
+  geometry(g) { if (this._geo) return; this._geo = g; if (this.w) this.w.postMessage({ geo: g }); },
+  frame(m) { if (this.w) this.w.postMessage(m, [m.vis && m.vis.freq, m.tri && m.tri.pts].filter(Boolean).map(a => a.buffer)); },
+};
+
 /** A device that's known to be slow starts the menus light (see HomeScreen.loop): one found slow before (remembered
  *  for two weeks), or one whose hardware says so — a Chromebook with 4 cores and 4 GB or less, or anything with 2 GB
  *  or less — instead of dropping frames for the two seconds it takes to notice. */
@@ -327,6 +399,7 @@ const HomeScreen = {
   buildLogo() {
     this.vis = h('canvas.lz-vis');
     this.tris = h('canvas.lz-tris');
+    this._off = LogoPainter.adopt(this.vis, this.tris); this._visW = this._triW = 0;
     this.flashEl = h('span.lz-flash');
     this.impactEl = h('span.lz-impact');
     this.ripple = h('span.lz-ripple', h('span.lz-ring'));
@@ -360,6 +433,13 @@ const HomeScreen = {
     });
     return h('div.lz-logo', this.hoverEl, this.cookie);
   },
+  /** New logo canvases in place of the old: one drawn on by the page can't be handed to the painter, and one handed to
+   *  it can't be had back. */
+  swapCanvases() {
+    const v = h('canvas.lz-vis'), t = h('canvas.lz-tris');
+    this.vis.replaceWith(v); this.tris.replaceWith(t); this.vis = v; this.tris = t;
+    this._triGrad = null; this._visW = this._triW = 0;
+  },
   flash(alpha, ms, easing) {
     this.flashEl.getAnimations().forEach(a => a.cancel());
     this.flashEl.animate([{ opacity: alpha }, { opacity: 0 }], { duration: ms, easing });
@@ -372,7 +452,7 @@ const HomeScreen = {
    *  spectrum every 50ms and decaying smoothly), the cookie's triangles and the beat. */
   loop() {
     const freq = new Float32Array(200), N = 200;
-    let indexOffset = 0, lastUpd = 0, lastBeat = -1, lastT = performance.now(), triY = null, vel = 0.5, amp = 1, visA = 0.5;
+    let indexOffset = 0, lastUpd = 0, lastBeat = -1, lastT = performance.now(), triY = null, vel = 0.5, visA = 0.5;
     const S = 512, R = S * 0.47, M = 300, CW = S * 0.94 + M * 2;
     const tris = [];
     const spawn = (randomY) => ({ x: Math.random(), y: randomY ? -260 / (S * 0.94) + Math.random() * (1 + 260 / (S * 0.94)) : 1, sp: Math.max(0.5, Math.max(0.1, 0.5 + 0.16 * Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.sin(2 * Math.PI * Math.random()))) });
@@ -382,14 +462,24 @@ const HomeScreen = {
     for (let j = 0; j < 5; j++) for (let i = 0; i < N; i++) { const a = (i / N * 360 + j * 72) * Math.PI / 180; cosA[j * N + i] = Math.cos(a); sinA[j * N + i] = Math.sin(a); }
     let visClear = false, winMs = 0, winN = 0, winLate = 0, lastDraw = 0;
     const t0 = performance.now();
+    LogoPainter.geometry({ R, M, CW, N, bw, cosA, sinA });
     const tick = now => {
       this._raf = requestAnimationFrame(tick);
-      const cv = this.vis;
+      let cv = this.vis;
       if (!cv.isConnected) return;
+      // (the painter's thread ready, or — never yet seen — gone: new canvases for whichever draws them now)
+      if (this._off ? LogoPainter.broken : LogoPainter.ready && !LogoPainter.broken) {
+        this.swapCanvases(); cv = this.vis; visClear = true; this._perfClear = false;
+        this._off = LogoPainter.adopt(this.vis, this.tris);
+      }
       const dt = Math.min(100, now - lastT); lastT = now;
       // Performance mode: no visualiser, triangles, fountains or beat — the logo sits still (only the idle return runs)
       if (Settings.get('graphics.performanceMode')) {
-        if (!this._perfClear) { this._perfClear = true; cv.width = cv.height = 1; this.tris.width = this.tris.height = 1; if (this.ampEl) this.ampEl.style.scale = ''; }
+        if (!this._perfClear) {
+          this._perfClear = true;
+          if (this._off) { this._visW = this._triW = 1; LogoPainter.frame({ vsize: 1, tsize: 1 }); } else { cv.width = cv.height = 1; this.tris.width = this.tris.height = 1; }
+          if (this.ampEl) this.ampEl.style.scale = '';
+        }
         if (this.menuState !== 'initial' && this.menuState !== 'entering' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !NowPlaying.open) this.setState('initial');
         // (nothing drawn: looked in on a few times a second, not every frame)
         cancelAnimationFrame(this._raf); clearTimeout(this._perfT); this._perfT = setTimeout(() => { this._raf = requestAnimationFrame(tick); }, 400);
@@ -444,14 +534,18 @@ const HomeScreen = {
         this._visK = clamp(Math.ceil(cv.getBoundingClientRect().width * px / CW * 8) / 8, 0.25, lite ? 0.5 : 1);
         this._triS = clamp(Math.ceil(this.tris.getBoundingClientRect().width * px / 32) * 32, 96, lite ? 192 : 384);
       }
-      const dpr = this._visK || 1;
-      if (cv.width !== Math.round(CW * dpr)) { cv.width = cv.height = Math.round(CW * dpr); visClear = true; }
-      const x = cv.getContext('2d');
+      const dpr = this._visK || 1, vsz = Math.round(CW * dpr), off = this._off;
+      // (drawn in the painter's thread: what it's to draw this frame, sent as one message — LogoPainter)
+      let msg = null;
+      if (off) { if (this._visW !== vsz) { this._visW = vsz; visClear = true; msg = { vsize: vsz }; } }
+      else if (cv.width !== vsz) { cv.width = cv.height = vsz; visClear = true; }
       // (no bars and nothing on the canvas: nothing to draw, and nothing for the compositor to upload)
       let any = false;
       for (let i = 0; i < N; i++) if (freq[i] >= 1 / 600) { any = true; break; }
-      if (draw && (any || !visClear)) {
+      if (draw && (any || !visClear) && off) { visClear = !any; (msg || (msg = {})).vis = { k: dpr, freq: any ? freq.slice() : null }; }
+      else if (draw && (any || !visClear)) {
       visClear = !any;
+      const x = cv.getContext('2d');
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
       x.clearRect(0, 0, CW, CW);
       x.globalCompositeOperation = 'lighter';
@@ -472,8 +566,8 @@ const HomeScreen = {
       // (pushed on each beat — never past a steady drift, however fast the song)
       if (this._kick) { vel = Math.min(vel + this._kick, this._kiai ? 7 : 5); this._kick = 0; }
       const tc = this.tris, TS = this._triS || (lite ? 192 : 384);
-      if (tc.width !== TS) { tc.width = tc.height = TS; this._triGrad = null; }
-      const tx = tc.getContext('2d');
+      if (off) { if (this._triW !== TS) { this._triW = TS; (msg || (msg = {})).tsize = TS; } }
+      else if (tc.width !== TS) { tc.width = tc.height = TS; this._triGrad = null; }
       const D = S * 0.94, sc = TS / D, triW = 300 * sc, triH = 260 * sc;
       const moved = dt / 1000 * vel * 50 / D;
       for (let i = tris.length - 1; i >= 0; i--) {
@@ -482,8 +576,13 @@ const HomeScreen = {
         if (t.y + 260 / D < 0) tris.splice(i, 1);
       }
       while (tris.length < 14) tris.push(spawn(false));
-      if (!this._triGrad) { const g = tx.createLinearGradient(0, 0, 0, TS); g.addColorStop(0, '#ff66ab'); g.addColorStop(1, '#b6346f'); this._triGrad = g; }
-      if (draw) {
+      if (draw && off) {
+        const pts = new Float32Array(tris.length * 2);
+        tris.forEach((t, i) => { pts[i * 2] = t.x * TS; pts[i * 2 + 1] = t.y * TS; });
+        (msg || (msg = {})).tri = { sc, pts };
+      } else if (draw) {
+        const tx = tc.getContext('2d');
+        if (!this._triGrad) { const g = tx.createLinearGradient(0, 0, 0, TS); g.addColorStop(0, '#ff66ab'); g.addColorStop(1, '#b6346f'); this._triGrad = g; }
         tx.clearRect(0, 0, TS, TS);
         tx.strokeStyle = this._triGrad; tx.lineWidth = 0.009 * 260 * sc * 2.6; tx.lineJoin = 'round';
         tx.beginPath();
@@ -493,6 +592,7 @@ const HomeScreen = {
         }
         tx.stroke();
       }
+      if (msg) LogoPainter.frame(msg);
       // ── beat (60ms early, as lazer's logo), from the playing track's red lines
       const tm = Music.meta && Music.meta.timing;
       if (tm && Music.playing) {
@@ -514,11 +614,11 @@ const HomeScreen = {
         }
       } else { this._kiai = false; this._nextBeatIn = 300; if (now - (this._idleBeat || 0) > 600) { this._idleBeat = now; this.onBeat(600); } }
       this.drawFountains(now);
-      // the logo's amplitude breathing: 4% smaller as the music gets loud (lazer's Damp(0.9))
-      const target = 1 - Math.max(0, (this._peak || 0) - 0.4) * 0.04;
-      amp = target + (amp - target) * Math.pow(0.9, dt);
-      const ampS = amp.toFixed(3);
-      if (ampS !== this._ampS) { this._ampS = ampS; this.ampEl.style.scale = ampS; } // (a style write only when it moves)
+      // the logo's amplitude breathing: 4% smaller as the music gets loud (lazer's Damp(0.9)) — written as the level's
+      // read (20 times a second), the browser easing it there (.lz-la's transition): written every frame, it restyled
+      // the menu on every frame of every song
+      const ampS = (1 - Math.max(0, (this._peak || 0) - 0.4) * 0.04).toFixed(3);
+      if (ampS !== this._ampS) { this._ampS = ampS; this.ampEl.style.scale = ampS; }
       // idle for a while: back to the big logo, as when the game opens
       if (this.menuState !== 'initial' && this.menuState !== 'entering' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !NowPlaying.open) this.setState('initial');
     };
