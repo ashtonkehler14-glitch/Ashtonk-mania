@@ -23918,6 +23918,7 @@ const CHANGELOG = [
   { id: '2026.10.29c', title: 'Ranked Play', sections: [
     { icon: 'trophy', title: 'Ranked Play', items: ['Each card you play is replaced from the deck, so your hand stays full', 'No "star rating has been decided" after you both pick', 'The star rating slider fills up to where you put it', 'Songs come at random from the online listing, not your own library'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate someone in Ranked Play and see the whole match as they do: their cards, their picks, each round\'s results, and their songs live'] },
+    { icon: 'user', title: 'Multiplayer', items: ['On school networks, nothing is lost when the network drops a message, and a connection that keeps getting cut off switches over by itself'] },
   ] },
   { id: '2026.10.29b', title: 'Ranked Play, spectating and Neru', sections: [
     { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length', 'Your cards show only your own star rating', 'No song plays behind the Ranked Play lounge and matches'] },
@@ -26727,7 +26728,7 @@ const Multiplayer = {
       // (the hello kept under what a room takes — 16 KB on servers before this fix: over it, it went unanswered — so the
       // picture is the room-sized one, and none at all if it still wouldn't fit)
       ws.onopen = () => {
-        opened = true;
+        opened = true; ws._openAt = Date.now();
         const hello = { t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.roomAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), cid: clientId(), ...opts };
         let text = JSON.stringify(hello);
         if (text.length > this.MSG_MAX) { hello.avatar = ''; text = JSON.stringify(hello); }
@@ -26763,6 +26764,7 @@ const Multiplayer = {
         if (!this.room && !(ev && ev.code >= 4000)) unreachable(ev);
         else if (!settled) fail(`Connection closed (${ws._serverMsg ? NetErr.note('RS', `the server said: ${ws._serverMsg}`).code : NetErr.closeFail(ws.http ? 'RP' : 'R', ev, opened).code}).`);
         if (this.ws !== ws) return; // left on purpose
+        if (opened && !ws.http) MpNet.cutShort(ws, ev, ws._openAt);
         const wasIn = !!this.room;
         this.ws = null; this.stopKeepAlive();
         // this browser's seat was taken by a newer connection (the room opened in another tab): don't fight it for it
@@ -27245,6 +27247,16 @@ const MpNet = {
   KEY: 'am.mpHttp', HOLD: 6 * 3600e3,
   http() { if (this._http) return true; try { return Date.now() - (+localStorage.getItem(this.KEY) || 0) < this.HOLD; } catch { return false; } },
   useHttp() { this._http = true; try { localStorage.setItem(this.KEY, String(Date.now())); } catch { /* private mode */ } },
+  /** A WebSocket that opened and then was cut off (or went silent) within a minute: the third in a row means this
+   *  network lets one start but not stay — plain requests from now on. True when that's decided. */
+  cutShort(ws, ev, openedAt) {
+    const why = ws._why, cut = why !== 'ours' && (!ev || ev.code === 1006 || (why && why.code === 'MP-WD')) && Date.now() - (openedAt || 0) < 60000;
+    this._short = cut ? (this._short || 0) + 1 : 0;
+    if (this._short < 3) return false;
+    this._short = 0; this.useHttp();
+    NetErr.note('WC', 'the online connection kept being cut off soon after opening — plain requests from now on');
+    return true;
+  },
   /** A connection to `path` (api/mp/…), whichever way this network allows. */
   open(path) { return this.http() ? new HttpSocket(Host.api(`${path}/http`)) : new WebSocket(Host.ws(path)); },
 };
@@ -27254,7 +27266,7 @@ const MpNet = {
  *    0 this device is offline · 1 no answer from the network (blocked by a firewall, filter or extension; DNS; the site
  *    down) · 2 no answer in time · J an answer that isn't the game's server (a filter's or login page, a site with
  *    only the game's files) · M the server's up with multiplayer turned off · S the server said why (its words follow)
- *    · T a connection that never opened · a number: the HTTP status it answered with (H, N) or how the connection
+ *    · T a connection that never opened · C one that kept being cut off soon after it opened · a number: the HTTP status it answered with (H, N) or how the connection
  *    closed (W, R — 1006: cut off by the network, or a proxy or firewall that doesn't let WebSockets through). */
 const NetErr = {
   last: null, log: [],
@@ -27504,6 +27516,9 @@ const Presence = {
       // (cut off before it ever opened, while the server's check answered: blocked — plain requests from now on)
       // (twice in a row: once can be the server restarting)
       if (!ws._open && !ws.http && this.health === 'ok' && (!ev || ev.code === 1006) && (this._wsFails = (this._wsFails || 0) + 1) >= 2) { MpNet.useHttp(); this.retry = 0; }
+      // (or it opens, then is cut off — or goes silent — within a minute, again and again: a filter that lets it start
+      // but not stay; three in a row, and plain requests from now on)
+      if (ws._open && !ws.http && MpNet.cutShort(ws, ev, this._openAt)) this.retry = 0;
       this.isAdmin = false;
       { const now = Date.now(), seen = this._seen || (this._seen = new Map()); for (const x of this.players) if (x.pid) seen.set(x.pid, now); }
       this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping); // (asks still queued go out on the next connection)
@@ -32654,7 +32669,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '88581617b81c';
+const APP_BUILD = 'e6b23d41a000';
 
 const App = {
   lastReport: null,

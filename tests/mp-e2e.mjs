@@ -76,6 +76,18 @@ async function player(name, init = null) {
   return page;
 }
 
+/** A page script for a network that won't let the game's WebSockets through (a school Chromebook's filter): each one
+ *  fails before it opens, as a filter's does (1006); the rest of the web works. */
+const noWebSocket = () => {
+  const W = window.WebSocket;
+  window.WebSocket = function (u, p) {
+    if (!/\/api\/mp\//.test(String(u))) return new W(u, p);
+    const f = { readyState: 0, url: String(u), send() {}, close() {} };
+    setTimeout(() => { f.readyState = 3; if (f.onerror) f.onerror(new Event('error')); if (f.onclose) f.onclose({ code: 1006, reason: '' }); }, 30);
+    return f;
+  };
+};
+
 // Create room: public or private (the lounge only makes regular rooms)
 async function createRoom(page, ranked, isPublic) {
   await page.click('.mp-create');
@@ -140,15 +152,7 @@ await shot(alice, 'mp-lobby');
 // a network that won't let a WebSocket through (a school Chromebook's web filter or proxy: the web works, the multiplayer
 // connection never opens — MP-RT): the game goes over plain requests instead, and plays with everyone else as before
 {
-  const carol = await player('Carol', () => {
-    const W = window.WebSocket;
-    window.WebSocket = function (u, p) {
-      if (!/\/api\/mp\//.test(String(u))) return new W(u, p);
-      const f = { readyState: 0, url: String(u), send() {}, close() {} };
-      setTimeout(() => { f.readyState = 3; if (f.onerror) f.onerror(new Event('error')); if (f.onclose) f.onclose({ code: 1006, reason: '' }); }, 30);
-      return f;
-    };
-  });
+  const carol = await player('Carol', noWebSocket);
   await carol.waitForFunction(() => { const P = AshtonkMania.Presence; return P.ws && P.ws.http && P.ws.readyState === 1 && P.me; }, null, { timeout: 20000 }).catch(() => {});
   const on = await carol.evaluate(() => ({ http: !!(AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.http), me: !!AshtonkMania.Presence.me, kept: !!localStorage.getItem('am.mpHttp') }));
   await alice.waitForFunction(() => AshtonkMania.Presence.players.some(p => p.name === 'Carol'), null, { timeout: 15000 }).catch(() => {});
@@ -942,6 +946,45 @@ await bob.evaluate(() => AshtonkMania.Screens.go('home'));
   const listed = await bob.waitForFunction(() => [...document.querySelectorAll('.mp-room-row')].some(r => /Alice/.test(r.textContent) && /Team Versus/.test(r.textContent) && r.querySelector('.mp-rteams')), null, { timeout: 12000 }).then(() => true, () => false);
   check('lounge: Create room offers Team Versus; the room starts red vs blue (stacked, red above blue) and the lounge lists it as Team Versus', offered.length === 2 && /Team Versus/.test(offered[1]) && inTeams && stacked && listed, JSON.stringify({ offered, inTeams, stacked, listed }));
   await alice.evaluate(() => AshtonkMania.Multiplayer.leave());
+}
+
+// a whole match over plain requests (Fay's network blocks WebSockets) with a player on WebSockets: the beatmap, ready,
+// start, each other's live scores, everyone's results
+{
+  const fay = await player('Fay', noWebSocket);
+  await fay.waitForFunction(() => { const P = AshtonkMania.Presence; return P.ws && P.ws.http && P.me; }, null, { timeout: 20000 }).catch(() => {});
+  const code = await fay.evaluate(async () => { await AshtonkMania.Multiplayer.create({ isPublic: false }); return AshtonkMania.Multiplayer.inRoom() && AshtonkMania.Multiplayer.ws.http ? AshtonkMania.Multiplayer.code : null; });
+  await alice.evaluate(c => { AshtonkMania.Screens.go('multiplayer', { force: true }); return c && AshtonkMania.Multiplayer.join(c).catch(e => e.message); }, code);
+  await fay.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Multiplayer.selectMap(m, []); });
+  await Promise.all([alice, fay].map(p => p.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return r && r.map && r.players.length === 2 && r.players.every(x => x.hasMap); }, null, { timeout: 10000 }).catch(() => {})));
+  await alice.evaluate(() => AshtonkMania.Multiplayer.send({ t: 'ready', ready: true }));
+  await fay.evaluate(() => AshtonkMania.Multiplayer.send({ t: 'ready', ready: true }));
+  await fay.waitForFunction(() => AshtonkMania.Multiplayer.room.players.every(p => p.ready), null, { timeout: 10000 }).catch(() => {});
+  await fay.evaluate(() => AshtonkMania.Multiplayer.send({ t: 'start' }));
+  const began = await Promise.all([alice, fay].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.mp, null, { timeout: 15000 }).then(() => true, () => false)));
+  for (const p of [alice, fay]) await p.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; if (s) { s.feed = generateAutoInputs(s.engine.notes, s.keys).flat(); s.feedIdx = 0; } });
+  const live = await Promise.all([alice, fay].map(p => p.waitForFunction(() => [...AshtonkMania.Multiplayer.opps.values()].some(o => o.score > 0), null, { timeout: 25000 }).then(() => true, () => false)));
+  const done = await Promise.all([alice, fay].map(p => p.waitForFunction(() => AshtonkMania.Multiplayer.lastResults && AshtonkMania.Multiplayer.lastResults.rows.length === 2, null, { timeout: 60000 }).then(() => true, () => false)));
+  const rows = await fay.evaluate(() => (AshtonkMania.Multiplayer.lastResults || { rows: [] }).rows.map(x => [x.name, x.score]));
+  check('a whole match over plain requests with a player on WebSockets: start, each other\'s live scores, everyone\'s results', !!code && began.every(Boolean) && live.every(Boolean) && done.every(Boolean) && rows.length === 2 && rows.every(x => x[1] > 0), JSON.stringify({ code, began, live, done, rows }));
+  await alice.evaluate(() => { AshtonkMania.Multiplayer.leave(); AshtonkMania.Screens.go('multiplayer', {}, { replace: true }); });
+  await fay.context().close();
+}
+// a filter that lets the connection open, then cuts it off moments later, again and again: after the third, the game
+// goes over plain requests — and is online
+{
+  const erin = await player('Erin', () => {
+    const W = window.WebSocket;
+    window.WebSocket = function (u, p) {
+      const ws = new W(u, p);
+      if (/\/api\/mp\//.test(String(u))) ws.addEventListener('open', () => setTimeout(() => { const f = ws.onclose; ws.onclose = ws.onmessage = null; try { ws.close(); } catch { /* closed */ } if (f) f({ code: 1006, reason: '' }); }, 300));
+      return ws;
+    };
+  });
+  const on = await erin.waitForFunction(() => { const P = AshtonkMania.Presence; return P.ws && P.ws.http && P.ws.readyState === 1 && P.me; }, null, { timeout: 45000 }).then(() => true, () => false);
+  const r = await erin.evaluate(() => ({ kept: !!localStorage.getItem('am.mpHttp'), why: (NetErr.log.find(e => e.code === 'MP-WC') || {}).code || null }));
+  check('a connection that opens, then is cut off moments later, again and again: after the third, plain requests — and online', on && r.kept && r.why === 'MP-WC', JSON.stringify({ on, ...r }));
+  await erin.context().close();
 }
 
 check('no page errors', errors.length === 0, errors.join(' | '));

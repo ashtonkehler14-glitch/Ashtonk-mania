@@ -927,6 +927,7 @@ const CHANGELOG = [
   { id: '2026.10.29c', title: 'Ranked Play', sections: [
     { icon: 'trophy', title: 'Ranked Play', items: ['Each card you play is replaced from the deck, so your hand stays full', 'No "star rating has been decided" after you both pick', 'The star rating slider fills up to where you put it', 'Songs come at random from the online listing, not your own library'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate someone in Ranked Play and see the whole match as they do: their cards, their picks, each round\'s results, and their songs live'] },
+    { icon: 'user', title: 'Multiplayer', items: ['On school networks, nothing is lost when the network drops a message, and a connection that keeps getting cut off switches over by itself'] },
   ] },
   { id: '2026.10.29b', title: 'Ranked Play, spectating and Neru', sections: [
     { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length', 'Your cards show only your own star rating', 'No song plays behind the Ranked Play lounge and matches'] },
