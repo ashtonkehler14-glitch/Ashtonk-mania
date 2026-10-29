@@ -2076,6 +2076,14 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     return out;
   });
   check('the toolbar\'s changelog opens lazer\'s changelog listing as a page (every update, newest first), and toggles back', cl.screen === 'changelog' && cl.builds === cl.all && cl.on && !cl.popup && cl.first && cl.back, JSON.stringify(cl));
+  const clAll = await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    WhatsNew.show(); await wait(400); document.querySelector('.cl-all').click(); await wait(900);
+    const out = { screen: AshtonkMania.Screens.currentName, popup: !!document.querySelector('.cl:not(.out)') };
+    AshtonkMania.Screens.back(); await wait(700);
+    return out;
+  });
+  check('What\'s new: "All updates" closes it and opens the whole changelog page', clAll.screen === 'changelog' && !clAll.popup, JSON.stringify(clAll));
 }
 {
   // Web-Osu-Mania's request: the list comes in osu!'s own order, page after page by osu!'s cursor

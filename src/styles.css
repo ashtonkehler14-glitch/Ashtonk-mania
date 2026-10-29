@@ -2682,7 +2682,7 @@ body.f-modsel #toasts { opacity: 0; pointer-events: none; }
 .cl-sec li::marker { color: #ff66ab; }
 .cl-sec.plain { margin-top: 0; }
 .cl-sec.plain ul { margin-top: 0; padding-left: 22px; }
-.cl-foot { display: flex; justify-content: flex-end; padding: 14px 26px; background: hsl(255 10% 9%); }
+.cl-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 26px; background: hsl(255 10% 9%); }
 /* the toolbar's changelog, as lazer's ChangelogOverlay listing: each day in Light1 above its builds, a build's stream and
    version centred over its changes, each category's title in bold and its changes behind a bullet; Background6 rules
    between builds (a thicker one before a new day) */

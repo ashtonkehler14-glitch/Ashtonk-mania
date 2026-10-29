@@ -2697,7 +2697,7 @@ body.f-modsel #toasts { opacity: 0; pointer-events: none; }
 .cl-sec li::marker { color: #ff66ab; }
 .cl-sec.plain { margin-top: 0; }
 .cl-sec.plain ul { margin-top: 0; padding-left: 22px; }
-.cl-foot { display: flex; justify-content: flex-end; padding: 14px 26px; background: hsl(255 10% 9%); }
+.cl-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 26px; background: hsl(255 10% 9%); }
 /* the toolbar's changelog, as lazer's ChangelogOverlay listing: each day in Light1 above its builds, a build's stream and
    version centred over its changes, each category's title in bold and its changes behind a bullet; Background6 rules
    between builds (a thicker one before a new day) */
@@ -24053,7 +24053,8 @@ const WhatsNew = {
         // (a section named like its update isn't headed again: just its lines)
         ...e.sections.map((sec, si) => h(`div.cl-sec${sec.title === e.title ? '.plain' : ''}`, { style: { animationDelay: `${si * 60}ms` } }, sec.title === e.title ? null : h('div.cl-sech', icon(sec.icon), sec.title),
           h('ul', ...sec.items.map(t => h('li', t)))))))),
-      h('div.cl-foot', h('button.btn.primary', { onclick: () => o.close() }, 'Let\'s go!')));
+      // (and the whole changelog, as the toolbar opens it)
+      h('div.cl-foot', h('button.btn.ghost.cl-all', { onclick: () => { o.close(); Screens.go('changelog'); } }, 'All updates'), h('button.btn.primary', { onclick: () => o.close() }, 'Let\'s go!')));
     const o = makeOverlay(el, { flags: ['cl', 'neru-cover'] });
     // (Neru beside it, on her phone — reading it too; behind the dialog, so she never covers a line of it)
     const neru = typeof NeruCameo !== 'undefined' && NeruCameo.make('news', 'nc-news', { delay: 0 });
@@ -32256,7 +32257,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '002a6dfdcc21';
+const APP_BUILD = '02e86fe17cf8';
 
 const App = {
   lastReport: null,

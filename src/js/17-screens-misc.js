@@ -1092,7 +1092,8 @@ const WhatsNew = {
         // (a section named like its update isn't headed again: just its lines)
         ...e.sections.map((sec, si) => h(`div.cl-sec${sec.title === e.title ? '.plain' : ''}`, { style: { animationDelay: `${si * 60}ms` } }, sec.title === e.title ? null : h('div.cl-sech', icon(sec.icon), sec.title),
           h('ul', ...sec.items.map(t => h('li', t)))))))),
-      h('div.cl-foot', h('button.btn.primary', { onclick: () => o.close() }, 'Let\'s go!')));
+      // (and the whole changelog, as the toolbar opens it)
+      h('div.cl-foot', h('button.btn.ghost.cl-all', { onclick: () => { o.close(); Screens.go('changelog'); } }, 'All updates'), h('button.btn.primary', { onclick: () => o.close() }, 'Let\'s go!')));
     const o = makeOverlay(el, { flags: ['cl', 'neru-cover'] });
     // (Neru beside it, on her phone — reading it too; behind the dialog, so she never covers a line of it)
     const neru = typeof NeruCameo !== 'undefined' && NeruCameo.make('news', 'nc-news', { delay: 0 });
