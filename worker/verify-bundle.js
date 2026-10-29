@@ -50,6 +50,10 @@ function appendChildren(el, children) {
     else el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
   }
 }
+/** A style sheet of its own (src/styles.css's "@sheet" blocks, split out by the build) switched on or off: rules for
+ *  every element that go with one class on the page — Performance mode, animations off, the game's cursor — written as
+ *  plain "*". (Written ":root.perf *", the browser looked up through the parents of every element it restyled.) */
+function cssSheet(name, on) { const el = document.getElementById('css-' + name), m = on ? 'all' : 'not all'; if (el && el.media !== m) el.media = m; }
 function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -268,7 +272,10 @@ function bsearchLE(arr, v, key) {
 function downloadBlob(blob, name) {
   const a = h('a', { href: URL.createObjectURL(blob), download: name });
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  // (kept a good while: the browser only reads it once the download really starts — after the "save as" box on a
+  // computer that asks where to save, or when a phone's download manager gets to it. Let go after 5 s, a big file such
+  // as the game's HTML file came down empty: 0 bytes)
+  setTimeout(() => URL.revokeObjectURL(a.href), 5 * 60e3);
 }
 function downloadJSON(obj, name) { downloadBlob(new Blob([JSON.stringify(obj)], { type: 'application/json' }), name); }
 
@@ -340,6 +347,18 @@ function settleOn(sc, fn) {
   if ('onscrollend' in sc) sc.addEventListener('scrollend', go, { once: true });
   setTimeout(go, 900);
 }
+/** A page-wide state as a class on <body> (`f-<name>`): on while anything (`why`) still wants it. These stand in for
+ *  :has() rules — with even one on the page, every change of text anywhere (the clock, a list filling in) made the
+ *  browser restyle the whole page, which on a slow device was most of the menus' stutter. */
+const BodyFlag = {
+  on: new Map(),
+  set(name, on, why = name) {
+    let s = this.on.get(name);
+    if (!s) this.on.set(name, s = new Set());
+    if (on) s.add(why); else s.delete(why);
+    document.body.classList.toggle('f-' + name, s.size > 0);
+  },
+};
 /** Run `fn` when the browser has a moment to spare (not in the middle of scrolling or an animation). */
 const whenIdle = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 3000 }) : setTimeout(fn, 200));
 
@@ -363,6 +382,10 @@ const ImageWorker = {
       x.filter = 'blur(' + r.toFixed(2) + 'px)';
       x.drawImage(bm, -r * 2, -r * 2, W + r * 4, H + r * 4); bm.close();
       postMessage({ id: m.id, blob: await c.convertToBlob({ type: 'image/jpeg', quality: 0.9 }) });
+    } else if (m.op === 'shrink') {
+      const bm = await createImageBitmap(m.blob, { resizeWidth: m.W, resizeQuality: 'high' });
+      const c = new OffscreenCanvas(bm.width, bm.height); c.getContext('2d').drawImage(bm, 0, 0); bm.close();
+      postMessage({ id: m.id, blob: await c.convertToBlob({ type: 'image/jpeg', quality: m.q }) });
     } else postMessage({ id: m.id, err: 'unknown job' });
   } catch (e) { postMessage({ id: m.id, err: String(e) }); }
 };`;
@@ -378,6 +401,35 @@ const ImageWorker = {
     return new Promise(r => { const id = ++this.n; this.wait.set(id, r); this.w.postMessage({ ...job, id }); });
   },
 };
+
+/** Performance mode: an animation started from script ends at once, as the stylesheet makes every CSS one do
+ *  (:root.perf) — on a slow computer the menus' hover wobbles, pops and slides were still played out in full, frame
+ *  by frame. One meant to run forever plays once. */
+if (typeof Element !== 'undefined' && Element.prototype.animate) {
+  const animate = Element.prototype.animate;
+  Element.prototype.animate = function (keyframes, opts) {
+    if (!document.documentElement.classList.contains('perf')) return animate.call(this, keyframes, opts);
+    const o = typeof opts === 'number' ? { duration: opts } : { ...(opts || {}) };
+    if (o.iterations === Infinity) o.iterations = 1;
+    o.duration = Math.min(+o.duration || 0, 1); o.delay = 0; o.endDelay = 0;
+    return animate.call(this, keyframes, o);
+  };
+}
+
+/** An animation that runs forever (a falling leaf's flutter, a scrolling title): let go of once its element has left
+ *  the page. One still running on an element no longer shown kept the browser working through every frame, on every
+ *  screen, for the rest of the session. */
+const Endless = {
+  list: [],
+  add(a, el) { this.list.push([a, el]); if (!this._t) this._t = setInterval(() => this.sweep(), 2000); return a; },
+  sweep() {
+    // (whether each one's element is still on the page — not the animation's own state: asking that made the browser
+    // bring its styles up to date first)
+    this.list = this.list.filter(([a, el]) => { if (el.isConnected) return true; a.cancel(); return false; });
+    if (!this.list.length) { clearInterval(this._t); this._t = 0; }
+  },
+};
+function endless(el, keyframes, opts) { return Endless.add(el.animate(keyframes, { ...opts, iterations: Infinity }), el); }
 
 /** Object-URL cache so blobs from IndexedDB are only materialised once. */
 const BlobURLs = {
@@ -1218,7 +1270,9 @@ const ManiaConvert = (() => {
 /* ===== 08-mods.js ===== */
 /* ModSystem — modular, data-driven mods. Only mods that make sense for mania are offered
  * (osu!standard-only mods such as Relax / Autopilot / Spun Out are intentionally excluded).
- * Score multipliers follow osu!mania: EZ/NF/HT 0.5, CS/NLN/NR 0.9, Difficulty Adjust 0.5, others 1.0.
+ * Score multipliers are lazer's (ManiaScoreMultiplierCalculator): EZ/NF 0.5; HT/DC by their speed (0.75× → 0.3); NR,
+ * CS and Hold Off 0.9; Difficulty Adjust 0.5; the key mods 0.9; Wind Up, Wind Down and Adaptive Speed 0.5; the rest
+ * 1.0 — Double Time and Nightcore included.
  * Configurable mods (AC, DA, RT, HD/FI coverage, Percy) read their values from `mods.config`. */
 
 const MODS = [
@@ -1226,9 +1280,9 @@ const MODS = [
     desc: 'Timing windows 1.4× wider, health drains half as much.' },
   { id: 'NF', name: 'No Fail', group: 'reduction', key: 'KeyW', mult: 0.5, color: '#b2ff66', incompatible: ['SD', 'PF', 'PSS', 'AC', 'AT'],
     desc: 'You can\'t fail, no matter what.' },
-  { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.5, color: '#b2ff66', incompatible: ['DT', 'NC', 'DC', 'RT', 'WU', 'WD', 'AS'], rate: 0.75,
+  { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.3, color: '#b2ff66', incompatible: ['DT', 'NC', 'DC', 'RT', 'WU', 'WD', 'AS'], rate: 0.75,
     desc: 'Less zoom… 0.75× speed, pitch preserved.' },
-  { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.5, color: '#b2ff66', incompatible: ['DT', 'NC', 'HT', 'RT', 'WU', 'WD', 'AS'], rate: 0.75, pitch: true,
+  { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.3, color: '#b2ff66', incompatible: ['DT', 'NC', 'HT', 'RT', 'WU', 'WD', 'AS'], rate: 0.75, pitch: true,
     desc: 'Whoaaaa… 0.75× speed with lowered pitch.' },
   { id: 'NR', name: 'No Release', group: 'reduction', key: 'KeyT', mult: 0.9, color: '#b2ff66', incompatible: ['NLN', 'IN'],
     desc: 'No more timing the end of hold notes: keep holding to the end for a MAX.' },
@@ -1271,31 +1325,31 @@ const MODS = [
   { id: 'DA', name: 'Difficulty Adjust', group: 'conversion', key: 'KeyL', mult: 0.5, color: '#8c66ff', incompatible: ['EZ', 'HR'], config: 'da',
     desc: 'Override the beatmap\'s OD and HP.' },
   // lazer's key mods: a converted osu! beatmap with that many columns (osu!mania beatmaps keep theirs)
-  { id: '1K', name: 'One Key', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
+  { id: '1K', name: 'One Key', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
     desc: 'Play with one key (converted osu! beatmaps).' },
-  { id: '2K', name: 'Two Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
+  { id: '2K', name: 'Two Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
     desc: 'Play with two keys (converted osu! beatmaps).' },
-  { id: '3K', name: 'Three Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
+  { id: '3K', name: 'Three Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
     desc: 'Play with three keys (converted osu! beatmaps).' },
-  { id: '4K', name: 'Four Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '5K', '6K', '7K', '8K', '9K', '10K'],
+  { id: '4K', name: 'Four Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '5K', '6K', '7K', '8K', '9K', '10K'],
     desc: 'Play with four keys (converted osu! beatmaps).' },
-  { id: '5K', name: 'Five Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '6K', '7K', '8K', '9K', '10K'],
+  { id: '5K', name: 'Five Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '6K', '7K', '8K', '9K', '10K'],
     desc: 'Play with five keys (converted osu! beatmaps).' },
-  { id: '6K', name: 'Six Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '7K', '8K', '9K', '10K'],
+  { id: '6K', name: 'Six Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '7K', '8K', '9K', '10K'],
     desc: 'Play with six keys (converted osu! beatmaps).' },
-  { id: '7K', name: 'Seven Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '8K', '9K', '10K'],
+  { id: '7K', name: 'Seven Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '8K', '9K', '10K'],
     desc: 'Play with seven keys (converted osu! beatmaps).' },
-  { id: '8K', name: 'Eight Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '9K', '10K'],
+  { id: '8K', name: 'Eight Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '9K', '10K'],
     desc: 'Play with eight keys (converted osu! beatmaps).' },
-  { id: '9K', name: 'Nine Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '10K'],
+  { id: '9K', name: 'Nine Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '10K'],
     desc: 'Play with nine keys (converted osu! beatmaps).' },
-  { id: '10K', name: 'Ten Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K'],
+  { id: '10K', name: 'Ten Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K'],
     desc: 'Play with ten keys (converted osu! beatmaps).' },
-  { id: 'WU', name: 'Wind Up', group: 'fun', key: 'Period', mult: 1.0, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WD', 'AS'], unranked: true, ramp: [1, 1.5],
+  { id: 'WU', name: 'Wind Up', group: 'fun', key: 'Period', mult: 0.5, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WD', 'AS'], unranked: true, ramp: [1, 1.5],
     desc: 'Can you keep up? The song speeds up from 1× to 1.5× as it plays (pitch follows).' },
-  { id: 'WD', name: 'Wind Down', group: 'fun', key: 'Slash', mult: 1.0, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'AS'], unranked: true, ramp: [1, 0.75],
+  { id: 'WD', name: 'Wind Down', group: 'fun', key: 'Slash', mult: 0.5, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'AS'], unranked: true, ramp: [1, 0.75],
     desc: 'Slow down… The song slows from 1× to 0.75× as it plays (pitch follows).' },
-  { id: 'AS', name: 'Adaptive Speed', group: 'fun', key: 'Semicolon', mult: 1.0, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'WD'], unranked: true, adaptive: true,
+  { id: 'AS', name: 'Adaptive Speed', group: 'fun', key: 'Semicolon', mult: 0.5, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'WD'], unranked: true, adaptive: true,
     desc: 'Let the song speed adapt to you: hit early and it speeds up, late or miss and it slows down (0.5×–2×).' },
   { id: 'MU', name: 'Muted', group: 'fun', key: 'KeyO', mult: 1.0, color: '#ff66ab', incompatible: [], unranked: true, config: 'mu',
     desc: 'Can you still feel the rhythm without music?' },
@@ -1366,8 +1420,16 @@ const ModSystem = {
   config(cfg) { return { ...MOD_CONFIG_DEFAULTS, ...(cfg || (typeof Settings !== 'undefined' ? Settings.get('mods.config') : null) || {}) }; },
   multiplier(list, cfg) {
     let m = list.reduce((a, id) => a * (MOD_BY_ID.get(id)?.mult ?? 1), 1);
-    if (list.includes('RT') && this.config(cfg).rate < 1) m *= 0.5;
+    // (Song Speed slower than 1× counts as lazer's Half Time at that speed; at 1× or faster, as Double Time: 1.0)
+    if (list.includes('RT')) m *= this.rateMultiplier(this.rate(list, cfg));
     return m;
+  },
+  /** lazer's rateAdjustMultiplier for its slowing mods: the speed rounded down to a tenth, 0.6 at 1× falling 0.1 per
+   *  tenth slower (0.75× → 0.3, 0.5× → 0.1). */
+  rateMultiplier(speed) {
+    if (speed >= 1) return 1;
+    const tenth = Math.trunc(speed * 10 + 1e-9) / 10;
+    return Math.max(0, Math.round((0.6 + tenth - 1) * 100) / 100);
   },
   rate(list, cfg) {
     if (list.includes('RT')) return clamp(Math.round(this.config(cfg).rate * 20) / 20, 0.5, 2);
@@ -2095,11 +2157,11 @@ const ManiaStarRating = {
 };
 
 /* ===== 09c-verify.js ===== */
-/* Score verification: the game server's own judge of a play. It never takes a player's word for a score — given the
- * beatmap file (checked against its hash by the server) and the play's recorded key presses, it plays them through
- * the same judging engine the game uses, under the standard rules (the beatmap's own OD, the default accuracy), and
- * works out the score, accuracy, combo, grade, star rating and pp itself. The same file runs in the game and, bundled
- * by build.mjs, on the server (worker/verify-bundle.js). */
+/* Plays on the game server. A play goes up as the game reports it (acceptPlay): its score, accuracy, combo, grade,
+ * star rating and pp taken as they are, with the beatmap's details from its file (the file's hash is the beatmap's id).
+ * verifyPlay is the judge for a play sent the old way, as its key presses only: played through the same judging
+ * engine the game uses, under the standard rules (the beatmap's own OD, the default accuracy). The same file runs in
+ * the game and, bundled by build.mjs, on the server (worker/verify-bundle.js). */
 
 /** Mods that change the notes themselves (No Long Notes, Invert): their star rating is the changed notes'. */
 const convertsNotes = mods => mods.includes('NLN') || mods.includes('IN');
@@ -2178,4 +2240,41 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   };
 }
 
-export { verifyPlay };
+/** A beatmap file's [Metadata] section ({ Title, Artist, Version, BeatmapID, BeatmapSetID, … }) without reading the
+ *  rest of the file — or null without one. */
+function osuMetadata(text) {
+  const at = text.search(/^\[Metadata\][ \t]*\r?$/m);
+  if (at < 0) return null;
+  const end = text.indexOf('\n[', at + 10), md = {};
+  for (const line of text.slice(at, end < 0 ? undefined : end).split(/\r?\n/).slice(1)) {
+    const i = line.indexOf(':');
+    if (i > 0) md[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  return md;
+}
+/** A play as the game reports it (`res`: its result), taken as it is: tidied into the shape verifyPlay gives, with the
+ *  beatmap's details from its file. Auto's plays aren't anyone's, and a fail only counts in multiplayer (`noFail`),
+ *  as an F worth 0pp. */
+function acceptPlay(osuText, res, { noFail = false } = {}) {
+  if (typeof osuText !== 'string' || !res || typeof res !== 'object') return { error: 'bad play' };
+  // (its details are all a play taken as it is needs from the file: read from its [Metadata] alone — every note of a long
+  // map read through took longer than the server is given for a few plays at once)
+  let bm = { metadata: osuMetadata(osuText) };
+  if (!bm.metadata) try { bm = BeatmapParser.parse(osuText); } catch (e) { return { error: 'the beatmap could not be read' }; }
+  const num = (v, lo, hi, d = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+  const mods = ModSystem.normalize(Array.isArray(res.mods) ? res.mods.map(String) : []);
+  if (mods.includes('AT')) return { error: 'Auto\'s play' };
+  const failed = !!res.failed;
+  if (failed && !noFail) return { error: 'the play failed' };
+  const counts = Array.from({ length: 6 }, (_, i) => Math.round(num(Array.isArray(res.counts) ? res.counts[i] : 0, 0, 1e6)));
+  const grade = failed ? 'F' : ['XH', 'X', 'SS', 'SH', 'S', 'A', 'B', 'C', 'D'].includes(res.grade) ? res.grade : 'D';
+  const md = bm.metadata || {};
+  return {
+    score: Math.round(num(res.score, 0, 1e9)), accuracy: num(res.accuracy, 0, 1), maxCombo: Math.round(num(res.maxCombo, 0, 1e6)), counts,
+    grade, stars: num(res.stars, 0, 100), pp: failed || !ModSystem.isRanked(mods) ? 0 : num(res.pp, 0, 1e5), mods,
+    keys: Math.round(num(res.keys, 1, 18, 4)), rate: num(res.rate, VERIFY.MIN_RATE, VERIFY.MAX_RATE, 1), unstableRate: num(res.unstableRate, 0, 1e4), failed,
+    beatmapSetId: Number(md.BeatmapSetID) || -1, beatmapId: Number(md.BeatmapID) || -1, title: md.Title || '', artist: md.Artist || '', version: md.Version || '',
+  };
+}
+
+export { verifyPlay, acceptPlay };

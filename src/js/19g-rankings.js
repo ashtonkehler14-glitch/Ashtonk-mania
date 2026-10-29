@@ -15,11 +15,17 @@ const Rankings = {
 };
 for (const ev of ['scores:changed', 'profile:changed', 'library:changed']) Bus.on(ev, () => Rankings.reportSoon()); // (library: ranked statuses arriving change what counts)
 
-/** Online scores: a passed play goes to the game server as the beatmap file and the key presses — never as a score.
- *  The server checks the file against the beatmap's id, plays the key presses through the game's own judging
- *  (src/js/09c-verify.js) and works out the score, accuracy, grade and pp itself; that's what the rankings, the
- *  leaderboards and the daily challenge show. Signed with this player's secret key (Presence.key). */
+/** Online scores: a passed play goes to the game server as it finished — its score, accuracy, grade and pp, taken as
+ *  they are (acceptPlay, src/js/09c-verify.js) — with the beatmap file, whose hash is the beatmap's id; that's what the
+ *  rankings, the leaderboards and the daily challenge show. Signed with this player's secret key (Presence.key). */
 const Verified = {
+  /** What's sent of a play: its result (`score`) — or, without one, its key presses, for the server to judge. */
+  what({ score, mods, modConfig, seed, events }) { return score ? { result: this.result(score) } : { play: { mods, modConfig, seed, events: [...(events || [])] } }; },
+  /** A play's result, as the server takes it. */
+  result(sc) {
+    return { score: sc.scoreStd != null ? sc.scoreStd : sc.score, accuracy: sc.accuracy, maxCombo: sc.maxCombo, counts: sc.counts, grade: sc.grade,
+      stars: sc.stars, pp: sc.pp, mods: sc.mods || [], keys: sc.keys, rate: sc.rate || 1, unstableRate: sc.unstableRate || 0, failed: !sc.passed };
+  },
   /** The beatmap file, base64, as the server hashes it. */
   async file(rec) {
     const blob = await BeatmapManager.getFile(rec.setId, rec.osuPath).catch(() => null);
@@ -31,12 +37,12 @@ const Verified = {
   /** A multiplayer play, to the room to be judged — the match is decided by that, not by the result sent with 'finish'.
    *  The room waits 20 s for it, so a play that can't go out (the network dropped as the song ended) keeps trying
    *  until then — at once when the network is back — instead of giving up after a few seconds. */
-  async room({ rec, mods, modConfig, seed, events }) {
+  async room({ rec, score, mods, modConfig, seed, events }) {
     const code = Multiplayer.room && Multiplayer.room.code, token = Multiplayer.token;
     if (!code || !token) return;
     const osu = await this.file(rec);
     if (!osu) return;
-    const body = JSON.stringify({ id: Multiplayer.me, token, osu, play: { mods, modConfig, seed, events: [...events] } }), until = Date.now() + 22000;
+    const body = JSON.stringify({ id: Multiplayer.me, token, osu, ...this.what({ score, mods, modConfig, seed, events }) }), until = Date.now() + 22000;
     for (let i = 0; Date.now() < until && Multiplayer.code === code; i++) {
       try {
         const r = await fetch(Host.api(`api/mp/room/${code}/verify`), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(15000) });
@@ -45,17 +51,17 @@ const Verified = {
       await new Promise(res => { const t = setTimeout(done, Math.min(4000, 1000 * (i + 1))); function done() { clearTimeout(t); removeEventListener('online', done); res(); } addEventListener('online', done); });
     }
   },
-  async submit({ rec, mods, modConfig, seed, events, daily = null, background = false }) {
+  async submit({ rec, score, mods, modConfig, seed, events, daily = null, background = false, patience = 120000 }) {
     if (!Multiplayer.available() || !Presence.pid()) return null; // (signed out: no scores go up)
     if (!background) this._lastOwn = Date.now(); // (a play just finished: the catch-up below waits its turn)
     const sent = Date.now(); // (which play an answer is for: the results screen only shows its own play's rank)
     const osu = await this.file(rec);
     if (!osu) return null;
-    const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily });
+    const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, ...this.what({ score, mods, modConfig, seed, events }), daily });
     // (a play that can't go out — the network dropped as the song ended — is tried again for two minutes, at once when
     // the network is back, instead of never reaching the leaderboards and rankings. The server keeps each player's best
     // and turns down a second score within seconds, so one that did arrive isn't counted twice)
-    const until = Date.now() + 120000;
+    const until = Date.now() + patience;
     let r = null;
     for (let i = 0; !r; i++) {
       // (429: another score of yours went up seconds ago — the server takes one every few seconds — so this one waits)
@@ -66,6 +72,7 @@ const Verified = {
       const d = await r.json().catch(() => null);
       if (!r.ok || !d || !d.ok) {
         console.warn('score not counted online:', d && d.error);
+        if (background) return { ok: false, error: (d && d.error) || `The server answered ${r.status}.` }; // (the catch-up says why)
         if (daily) Toast.err('Your daily challenge score wasn\'t counted', (d && d.error) || 'The server couldn\'t check the play — try again.');
         return null;
       }
@@ -77,37 +84,122 @@ const Verified = {
       return d;
     } catch (e) { console.warn('score not counted online', e); return null; }
   },
-  /** Your best plays the server hasn't judged — set offline, in multiplayer, before it judged plays, or ones that
-   *  didn't get through — go up again with their replays, a few seconds apart, in the background (never during a
-   *  song): the server judges each itself, so the pp and best performance the rankings and other players see are the
-   *  ones on your profile. Once a session, after coming online; a play already sent isn't sent again. Plays without a
-   *  replay (imported backups, or with the replay deleted) can't be checked, so they can't count. */
-  SENT_KEY: 'am.ppSent',
+  /** Your best plays the server doesn't have — set offline, in multiplayer, on your other device, or ones that didn't
+   *  get through — go up together, straight away (never during a song), so the pp and best performance the rankings and
+   *  other players see are the ones on your profile: on coming online, and when your profile shows some not counted
+   *  yet. What the server has is the truth: a play it doesn't have at its pp goes up again (once a session) — a "sent"
+   *  note kept here used to stop that, and plays an older server had taken at 0pp stayed "not counted" for good. What it
+   *  said about one it didn't count is kept (`verdicts`), for the profile to say why. */
+  VERDICT_KEY: 'am.ppVerdicts',
+  // (plays, and beatmap file bytes, in one request: the server reads each one's file, and a big lot ran over the time it's
+  // given — every try failed the same way, and the plays were never counted)
+  BATCH: 8, BATCH_BYTES: 2e6,
+  // (a lot tried again this long apart, more each time; one at a time, each given this long to get there)
+  RETRY_MS: 3500, ONE_MS: 20000,
+  /** The server's own list of your best plays, as it last said: Map(mapHash → pp) — or null before it's been asked. It's
+   *  what "counted" means: the profile's "Not counted yet" goes by it, as the catch-up does (the best plays the server
+   *  shows on your profile can leave some of them out — ones osu! wasn't asked about yet — and those used to sit there,
+   *  "going up now", for good: the catch-up saw them on the server and sent nothing). */
+  onServer: null,
+  /** Below this the server doesn't keep a play (it keeps each player's best few hundred): not "not counted", just not
+   *  among them. */
+  floor: 0,
+  /** What the server last said about plays it didn't count: { [mapHash]: { pp, got?, err?, at } }. */
+  verdicts() { try { return JSON.parse(localStorage.getItem(this.VERDICT_KEY) || '{}') || {}; } catch { return {}; } },
+  /** Whether the server has the best play on `mapHash` at `pp` (as it last said). */
+  counted(mapHash, pp) { return !!this.onServer && (this.onServer.get(mapHash) || 0) >= pp - 0.5; },
+  /** Why a best play (on `mapHash`, worth `pp` here) isn't on the server yet, in a few words — or null (on its way). */
+  why(mapHash, pp) {
+    if (this._sending && this._sending.has(mapHash)) return 'sending…';
+    if (this._unsent && this._unsent.has(mapHash)) return 'couldn\'t reach the server — trying again in a minute';
+    const v = this.verdicts()[mapHash];
+    if (!v || Math.abs(v.pp - pp) > 0.01) return null;
+    if (v.err) return `turned down: ${String(v.err).replace(/\.$/, '').toLowerCase()}`;
+    if (v.got != null && v.got < pp - 0.5) return v.got > 0 ? `counted as ${fmtInt(v.got)}pp` : 'not ranked on osu!';
+    return null;
+  },
+  /** Whether a catch-up is going on right now. */
+  busy() { return !!this._catching; },
   async catchUp() {
     if (this._catching || !Multiplayer.available() || !Presence.pid() || !Presence.ws) return;
     this._catching = true;
+    const tried = this._tried || (this._tried = new Set()); // (this session: not sent again and again)
+    try { localStorage.removeItem('am.ppSent'); } catch { /* (the old "sent" notes: no longer trusted) */ }
+    let changed = false;
     try {
       const server = await new Promise(res => { const off = Bus.on('myBests', m => { off(); clearTimeout(t); res(m); }), t = setTimeout(() => { off(); res(null); }, 15000); Presence.send({ t: 'myBests' }); });
-      if (!server) return;
-      const have = new Map(server.list || []), keep = server.keep || 200;
-      const floor = have.size >= keep ? Math.min(...have.values()) : 0; // (the server keeps each player's best `keep`)
-      let sent = {}; try { sent = JSON.parse(localStorage.getItem(this.SENT_KEY) || '{}') || {}; } catch { /* none */ }
-      const todo = ScoreManager.bestPpPerMap().slice(0, 100).filter(({ score: s, pp }) => s.replayId && !s.synced && pp > floor
-        && !((have.get(s.mapHash) || 0) >= pp - 0.5) && !(Math.abs((sent[s.mapHash] || -1) - pp) < 0.01));
-      for (const { score: s, pp } of todo) {
+      if (!server) { this.retry(); return; }
+      const have = this.onServer, floor = this.floor;
+      const verdicts = this.verdicts();
+      const id = (s, pp) => `${s.mapHash}:${pp.toFixed(2)}`;
+      // (one the server last counted lower — osu! doesn't list the beatmap as ranked — isn't sent again for a day)
+      const lower = (s, pp) => { const v = verdicts[s.mapHash]; return v && !v.err && v.got != null && Math.abs(v.pp - pp) < 0.01 && Date.now() - v.at < 864e5; };
+      const todo = ScoreManager.bestPpPerMap().slice(0, 100).filter(({ score: s, pp }) => pp > floor && !((have.get(s.mapHash) || 0) >= pp - 0.5)
+        && !lower(s, pp) && !tried.has(id(s, pp)) && !(this._unsent && this._unsent.has(s.mapHash))); // (one that didn't get there: at the retry)
+      this._sending = new Set(todo.map(x => x.score.mapHash));
+      if (todo.length) Bus.emit('verified:verdicts');
+      let any = false;
+      for (let i = 0; i < todo.length;) {
         // (never during a song, nor right after one, whose own score goes up first)
-        while (Screens.currentName === 'gameplay' || Date.now() - (this._lastOwn || 0) < 8000) await sleep(5000);
+        while (Screens.currentName === 'gameplay' || Date.now() - (this._lastOwn || 0) < 8000) await sleep(2000);
         if (!Presence.pid()) break;
-        const rep = await ReplayManager.get(s.replayId).catch(() => null), rec = BeatmapManager.mapByHash(s.mapHash);
-        if (!rep || !Array.isArray(rep.events) || !rep.events.length || !rec) continue;
-        await this.submit({ rec, mods: rep.mods || s.mods || [], modConfig: rep.modConfig || {}, seed: rep.seed, events: rep.events, background: true });
-        sent[s.mapHash] = pp;
-        try { localStorage.setItem(this.SENT_KEY, JSON.stringify(sent)); } catch { /* full */ }
-        await sleep(4000); // (the server takes one score every few seconds from each player)
+        const batch = [];
+        for (let bytes = 0; i < todo.length && batch.length < this.BATCH && bytes < this.BATCH_BYTES; i++) {
+          const { score: s, pp } = todo[i], rec = BeatmapManager.mapByHash(s.mapHash), osu = rec ? await this.file(rec) : null;
+          tried.add(id(s, pp));
+          if (osu) batch.push({ s, pp, rec, osu });
+          else { verdicts[s.mapHash] = { pp, err: 'The beatmap isn\'t in your library to send.', at: Date.now() }; this._sending.delete(s.mapHash); changed = true; }
+        }
+        if (!batch.length) continue;
+        let got = await this.batch(batch);
+        // (a server from before plays went up together — or a lot it couldn't take, every try: one at a time)
+        if (got === null || !got.some(Boolean)) { got = []; for (const b of batch) { got.push(await this.submit({ rec: b.rec, score: { ...b.s, pp: b.pp }, background: true, patience: this.ONE_MS })); await sleep(3200); } }
+        batch.forEach((b, k) => {
+          const r = got[k], h = b.s.mapHash;
+          this._sending.delete(h);
+          changed = true;
+          // (didn't get there: said so beside it, and tried again in a minute)
+          if (!r) { tried.delete(id(b.s, b.pp)); (this._unsent ||= new Set()).add(h); return; }
+          if (this._unsent) this._unsent.delete(h);
+          if (r.ok) { any = true; this.onServer.set(h, Math.max(this.onServer.get(h) || 0, Number(r.pp) || 0)); if (Number(r.pp) >= b.pp - 0.5) delete verdicts[h]; else verdicts[h] = { pp: b.pp, got: Number(r.pp) || 0, at: Date.now() }; }
+          else verdicts[h] = { pp: b.pp, err: r.error || 'The server couldn\'t take it.', at: Date.now() };
+        });
+        try { localStorage.setItem(this.VERDICT_KEY, JSON.stringify(verdicts)); } catch { /* full */ }
+        if (i < todo.length) await sleep(3200); // (the server takes one lot every few seconds from each player)
       }
-      if (todo.length) { Presence.send({ t: 'rankings' }); Presence.send({ t: 'profile', pid: Presence.pid() }); } // (your place and profile, with them counted)
+      if (any) { Presence.send({ t: 'rankings' }); Presence.send({ t: 'profile', pid: Presence.pid() }); Presence.send({ t: 'myBests' }); } // (your place, profile and best plays, with them counted)
     } catch (e) { console.warn('catch-up', e); }
-    finally { this._catching = false; }
+    finally {
+      this._catching = false;
+      if (this._sending && this._sending.size) changed = true;
+      this._sending = null;
+      if (this._unsent && this._unsent.size) this.retry();
+      if (changed) Bus.emit('verified:verdicts'); // (the profile says why the ones left weren't counted)
+    }
+  },
+  /** The catch-up again in a minute (plays that didn't get there, or the server didn't answer) — not sooner, however
+   *  often the profile asks, so a server that can't be reached isn't asked again and again. */
+  retry() {
+    if (this._retryT) return;
+    this._retryT = setTimeout(() => { this._retryT = null; this._unsent = null; this.catchUp(); }, 60000);
+  },
+  /** Plays sent together ([{ s, pp, osu }]): the server's answer for each — { ok, pp } or { error }; none for one that
+   *  didn't get there — or null from a server too old to take them together. */
+  async batch(plays) {
+    const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), plays: plays.map(p => ({ osu: p.osu, result: this.result({ ...p.s, pp: p.pp }) })) });
+    for (let i = 0; i < 4; i++) {
+      try {
+        const r = await fetch(Host.api('api/mp/scores'), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(60000) });
+        if (r.status === 404 || r.status === 405) return null;
+        if (r.status !== 429 && r.status < 500) {
+          const d = await r.json().catch(() => null);
+          // (the whole lot turned down — not signed in as you, too big: each says so)
+          return d && d.ok && Array.isArray(d.results) ? d.results : plays.map(() => ({ ok: false, error: (d && d.error) || `The server answered ${r.status}.` }));
+        }
+      } catch { /* the network: again in a moment */ }
+      await sleep(this.RETRY_MS * (i + 1));
+    }
+    return [];
   },
 };
 
@@ -137,7 +229,7 @@ const RankingsScreen = {
       const u = { pid: r.pid, name: r.name, avatar: r.avatar, online: !!r.online, id: r.online ? (Presence.players.find(p => p.pid === r.pid) || {}).id : null };
       const el = h(`div.rk-row${r.pid === me ? '.me' : ''}`,
         h('span.rk-rank', `#${fmtInt(r.rank)}`),
-        h('span.rk-user', Presence.avatarEl(r, 22), h('span.rk-name', r.name), r.online ? h('span.rk-on', { title: 'Online' }) : null),
+        h('span.rk-user', Presence.avatarEl(r, 22), h('span.rk-name', r.name), roleBadge(r.role), r.online ? h('span.rk-on', { title: 'Online' }) : null),
         h('span', fmtInt(r.plays)), h('span.hl', `${fmtInt(Math.round(r.pp))}pp`),
         h('span', fmtInt(r.ss || 0)), h('span', fmtInt(r.s || 0)), h('span', fmtInt(r.a || 0)));
       // (lazer: a player opens their profile; right-click for the rest)
@@ -149,5 +241,13 @@ const RankingsScreen = {
     const mine = d.you && d.you.rank > 50 ? [h('div.rk-sep', '…'), row(d.you)] : [];
     clearEl(this.page).append(h('div.rk-table', head, ...d.list.map(row), ...mine),
       h('div.rk-foot', `${fmtInt(d.total)} ranked player${d.total === 1 ? '' : 's'}`));
+    // (you're #1: Neru peeks up, sunglasses on — once a session)
+    if (d.list[0] && d.list[0].pid === me && d.total > 1 && typeof NeruEggs !== 'undefined') NeruEggs.topOfTheBoard();
   },
 };
+// (the server's list of your best plays, whenever it says: what's counted — see Verified.onServer)
+Bus.on('myBests', m => {
+  const have = new Map(Array.isArray(m && m.list) ? m.list : []), keep = (m && m.keep) || 200;
+  Verified.onServer = have; Verified.floor = have.size >= keep ? Math.min(...have.values()) : 0;
+  Bus.emit('verified:verdicts');
+});

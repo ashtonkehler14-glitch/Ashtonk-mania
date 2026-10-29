@@ -2,7 +2,8 @@
  * Worker's Durable Objects over a WebSocket (/api/mp/room/<code>); see worker/multiplayer.js for the protocol and rules.
  * Ranked Play's queue and match screen are in 19b-ranked-play.js. */
 
-/** Mods that change the song's speed: in multiplayer they apply to the whole room, once everyone accepts. */
+/** Mods that change the song's speed: in multiplayer they apply to the whole room — the host's straight away, anyone
+ *  else's once everyone accepts. */
 const MP_SPEED_MODS = ['DT', 'NC', 'HT', 'DC', 'RT'];
 
 const Multiplayer = {
@@ -31,7 +32,9 @@ const Multiplayer = {
     let r;
     try { r = await fetch(Host.api(path), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}), signal: timeoutSignal(20000) }); }
     catch (e) { throw (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) ? new Error('The game\'s server didn\'t answer. Check your connection and try again.') : e; }
-    const d = await r.json().catch(() => ({}));
+    const j = /json/i.test(r.headers.get('content-type') || '') ? await r.json().catch(() => null) : null;
+    if (isNoServer(r, j)) throw new Error(NO_SERVER);
+    const d = j || {};
     if (!r.ok) throw new Error(d.error || `Server error (${r.status})`);
     return d;
   },
@@ -77,9 +80,12 @@ const Multiplayer = {
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
         this.onMessage(m);
       };
-      ws.onerror = () => fail('Couldn\'t reach the multiplayer server.');
+      // (a connection that never opened: the server is asked why — it may be turning everyone away for the day)
+      let asked = false;
+      const unreachable = () => { if (settled || asked) return; asked = true; this.whyNot(code).then(why => fail(why || 'Couldn\'t reach the multiplayer server.')); };
+      ws.onerror = unreachable;
       ws.onclose = ev => {
-        fail('Connection closed.');
+        if (!this.room && !(ev && ev.code >= 4000)) unreachable(); else fail('Connection closed.');
         if (this.ws !== ws) return; // left on purpose
         const wasIn = !!this.room;
         this.ws = null; this.stopKeepAlive();
@@ -89,6 +95,16 @@ const Multiplayer = {
         if (wasIn) { this.startReconnect(); Bus.emit('mp:changed'); }
       };
     });
+  },
+  /** Why a room's connection couldn't be made, as the server says (null when it doesn't say). */
+  async whyNot(code) {
+    try {
+      const r = await fetch(Host.api(`api/mp/room/${encodeURIComponent(code)}/status`), { cache: 'no-store', signal: timeoutSignal(5000) });
+      const d = /json/i.test(r.headers.get('content-type') || '') ? await r.json().catch(() => null) : null;
+      if (isNoServer(r, d)) return NO_SERVER;
+      if (r.ok) return null;
+      return d && typeof d.error === 'string' ? d.error : null;
+    } catch { return null; }
   },
   /** Rejoin the room after the connection dropped, retrying with backoff until it works or the player leaves.
    *  The server sees a fresh join, so this player's beatmap, difficulty and mods are sent again afterwards. */
@@ -334,7 +350,8 @@ const Multiplayer = {
     const has = !!this.localMap();
     if (has !== me.hasMap) this.send({ t: 'hasMap', has });
   },
-  /** This player's own mods; a speed mod (DT, HT…) in the list is proposed to the room instead. */
+  /** This player's own mods; a speed mod (DT, HT…) in the list is the room's instead (the host's: set; anyone else's:
+   *  proposed). */
   setMods(list, { propose = true } = {}) {
     const speed = list.filter(x => MP_SPEED_MODS.includes(x)).slice(0, 1);
     this.send({ t: 'mods', mods: list.filter(x => !MP_SPEED_MODS.includes(x) && !(MOD_BY_ID.get(x) || {}).unranked) }); // (no Auto, Cinema, Wind Up…: a room can't judge those)
@@ -342,21 +359,28 @@ const Multiplayer = {
     const r = this.room, cur = r ? r.mods || [] : [];
     const pending = r && r.vote ? r.vote.mods : null;
     const same = (a, b) => a.length === b.length && a.every(x => b.includes(x));
-    if (!same(speed, cur) && !(pending && same(speed, pending))) this.send({ t: 'rate', mods: speed, modConfig: ModSystem.config() });
+    if (!same(speed, cur) && (this.isHost() || !(pending && same(speed, pending)))) this.send({ t: 'rate', mods: speed, modConfig: ModSystem.config() });
   },
   vote(yes) { this.send({ t: 'vote', yes }); },
-  selectMap(m, mods) {
+  /** A beatmap of this player's, as the room sees it (its online IDs: for the others to download it). */
+  mapInfo(m) {
     const set = BeatmapManager.setById.get(m.setId);
-    this.send({ t: 'map', map: { hash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, length: m.length,
-      onlineSetId: set && set.onlineId > 0 ? set.onlineId : -1, onlineId: m.onlineId > 0 ? m.onlineId : -1 }, mods: mods.filter(x => !(MOD_BY_ID.get(x) || {}).unranked), modConfig: ModSystem.config() });
+    return { hash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, length: m.length,
+      onlineSetId: set && set.onlineId > 0 ? set.onlineId : -1, onlineId: m.onlineId > 0 ? m.onlineId : -1 };
   },
+  selectMap(m, mods) {
+    this.send({ t: 'map', map: this.mapInfo(m), mods: mods.filter(x => !(MOD_BY_ID.get(x) || {}).unranked), modConfig: ModSystem.config() });
+  },
+  /** Not the host: a beatmap from this player's library recommended to the host (in the room's chat, with a Pick
+   *  button for the host). False when it couldn't be sent. */
+  suggest(m) { return !!this.send({ t: 'suggest', map: this.mapInfo(m) }); },
   launch(m) {
     if (Array.isArray(m.players) && !m.players.includes(this.me)) { Toast.show('Sitting this round out', 'You didn\'t have the beatmap in time — you\'re back in next round.'); return; }
     const local = this.localMap(m.map) && this.myMap();
     if (!local) { Toast.err('Missing beatmap', 'You need the beatmap to play this match.'); this.send({ t: 'quit' }); return; }
-    this.opps = new Map();
+    this.opps = new Map(); this._lastFinish = null; // (a new song: nothing of ours finished in it yet)
     const startAt = performance.now() + m.delay - this.rtt / 2;
-    // the room's speed mod (everyone accepted it) plus this player's own mods
+    // the room's speed mod plus this player's own mods
     const mods = ModSystem.normalize([...(m.mods || []), ...((m.playerMods && m.playerMods[this.me]) || [])]);
     Game.launch({ mapId: local.id, mods, modConfig: m.modConfig ? { ...ModSystem.config(), ...m.modConfig } : null, mode: 'play', mp: { startAt, players: m.players || null, rp: this.isRP() } });
   },
@@ -444,13 +468,20 @@ const Multiplayer = {
 /** What an online page shows with no connection: "Connecting…" while the server is being reached, otherwise a calm
  *  card — the server can't be reached, what's missing, and Try again (it also keeps retrying by itself). `what` says
  *  what will appear once it's back; compact for small panels (song select's leaderboard). */
+/** A site that only serves the game's files (no server behind it): its /api answers with a web page — "not found",
+ *  or the game itself — where the server's JSON should be. (The server's own "not found"s are JSON.) */
+function isNoServer(r, d) { return !!r && !d && (r.status === 404 || r.status === 405 || r.ok); }
+const NO_SERVER = 'This copy of the game has no multiplayer server. Open Ashtonk!mania from the website its server is on — everyone in a room has to use that same website.';
+
 function offlineState(what, { compact = false } = {}) {
   const cls = `div.off-state${compact ? '.compact' : ''}`;
   if (Presence.connecting()) return h(`${cls}.connecting`, h('span.spinner'), h('div.off-sub', 'Connecting…'));
-  const local = !Multiplayer.available();
-  return stateCard('globe', local ? 'Offline' : 'Can\'t reach the server',
-    local ? `${what} needs the game's server — open Ashtonk!mania from its website.` : `${what} will show up as soon as it's back.`,
-    { slash: true, cls: compact ? '.compact' : '', action: local ? null : h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Presence.tryNow(); } }, icon('sync'), 'Try again') });
+  const local = !Multiplayer.available(), none = !local && Presence.noServer;
+  return stateCard('globe', local ? 'Offline' : none ? 'No game server here' : 'Can\'t reach the server',
+    local ? `${what} needs the game's server — open Ashtonk!mania from its website.`
+      : none ? `${what} needs the game's server, and this copy of the game doesn't have one. Open Ashtonk!mania from the website its server is on — everyone you play with has to use that same website.`
+      : `${what} will show up as soon as it's back.`,
+    { slash: true, cls: compact ? '.compact' : '', action: local || none ? null : h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Presence.tryNow(); } }, icon('sync'), 'Try again') });
 }
 
 const Presence = {
@@ -460,15 +491,14 @@ const Presence = {
     this.started = true;
     // only where the Worker serves multiplayer (a plain static copy has no /api): 'checking' until we know
     this.health = 'checking';
-    const none = () => { this.health = 'none'; Bus.emit('presence:changed'); clearTimeout(this._hT); this._hT = setTimeout(() => this.tryNow(true), 60000); };
-    // (no answer in 15 s counts as no server: "Connecting…" otherwise stays up for as long as the request hangs)
-    fetch(Host.api('api/health'), { cache: 'no-store', signal: timeoutSignal(15000) }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) { this.health = 'ok'; this.connect(); } else none(); }).catch(none);
+    this.checkHealth();
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
     Bus.on('scores:changed', () => { clearTimeout(this._rkT); this._rkT = setTimeout(() => Rankings.report(), 2000); });
   },
   status() {
     if (Screens.currentName === 'gameplay') return GameplayScreen.s && (GameplayScreen.s.spectate || GameplayScreen.s.replay) ? 'watching' : 'playing';
+    if (Screens.currentName === 'spectator' || (Screens.currentName === 'results' && typeof Spectate !== 'undefined' && Spectate.target)) return 'watching';
     return Multiplayer.inRoom() ? (Multiplayer.isRP() ? 'ranked' : 'room') : 'menu';
   },
   /** What's being played (shown on the online list). */
@@ -523,7 +553,7 @@ const Presence = {
     ws.onmessage = ev => {
       this._heard = Date.now();
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); if (!this._caughtUp) { this._caughtUp = true; setTimeout(() => Verified.catchUp(), 20000); } if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
+      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); setTimeout(() => Verified.catchUp(), 3000); /* (plays the server doesn't have yet: up they go) */ if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
@@ -575,7 +605,7 @@ const Presence = {
       else if (m.t === 'renamed') { if (m.name && m.name !== ProfileManager.profile.name) ProfileManager.setName(m.name); }
       else if (m.t === 'sayDel' || m.t === 'chatClear') Chat.on(m);
       else if (m.t === 'announce') Toast.show('Announcement', String(m.text || ''), { hold: true, timeout: 20000 });
-      else if (m.t === 'admin') { this.isAdmin = true; Bus.emit('presence:admin'); }
+      else if (m.t === 'admin') { this.isAdmin = !m.off; this.role = m.off ? null : m.role || null; Bus.emit('presence:admin'); }
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;
@@ -604,14 +634,20 @@ const Presence = {
     if (!Multiplayer.available() || this.ws) return;
     this.retry = 0; clearTimeout(this._t); clearTimeout(this._hT);
     if (this.health === 'ok') this.connect();
-    else {
-      this.health = 'checking';
-      fetch(Host.api('api/health'), { cache: 'no-store', signal: timeoutSignal(15000) }).then(r => r.ok ? r.json() : null).then(d => {
-        if (d && d.multiplayer) { this.health = 'ok'; this.connect(); return; }
-        this.health = 'none'; Bus.emit('presence:changed'); this._hT = setTimeout(() => this.tryNow(true), 60000);
-      }).catch(() => { this.health = 'none'; Bus.emit('presence:changed'); this._hT = setTimeout(() => this.tryNow(true), 60000); });
-    }
+    else { this.health = 'checking'; this.checkHealth(); }
     if (!quiet) Bus.emit('presence:changed');
+  },
+  /** Whether the site the game came from has the game's server: 'ok', or 'none' — and `noServer` when it plainly
+   *  hasn't one (a copy of the game put up somewhere that only serves its files: the page answers, its /api doesn't),
+   *  rather than a server that just didn't answer this time. Asked again every minute until it's there.
+   *  (no answer in 15 s counts as none for now: "Connecting…" otherwise stays up for as long as the request hangs) */
+  checkHealth() {
+    const none = noServer => { this.health = 'none'; this.noServer = !!noServer; Bus.emit('presence:changed'); clearTimeout(this._hT); this._hT = setTimeout(() => this.tryNow(true), 60000); };
+    fetch(Host.api('api/health'), { cache: 'no-store', signal: timeoutSignal(15000) }).then(async r => {
+      const d = /json/i.test(r.headers.get('content-type') || '') ? await r.json().catch(() => null) : null;
+      if (r.ok && d && d.multiplayer) { this.health = 'ok'; this.noServer = false; this.connect(); return; }
+      none(isNoServer(r, d));
+    }).catch(() => none(false));
   },
   /** Still finding out whether the server is there (the first look, or the first connection attempt). */
   connecting() { return Multiplayer.available() && (!this.started || this.health === 'checking' || (this.health === 'ok' && !this.retry && !(this.ws && this.ws.readyState === 1))); },
@@ -777,11 +813,13 @@ const MultiplayerScreen = {
     this.render();
     return this.el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; RankedMatch.unmount(); },
+  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; RankedMatch.unmount(); if (this._chatIO) { this._chatIO.disconnect(); this._chatIO = null; } },
   onBack() {
     if (Multiplayer.inRoom() && Multiplayer.isRP()) { RankedMatch.confirmLeave(); return true; }
     if (Multiplayer.inRoom()) {
-      Dialog.confirm('Leave room?', 'You will leave this multiplayer room.', { ok: 'Leave' }).then(ok => { if (ok) { Multiplayer.leave(); } });
+      // (the host leaving others behind: who takes over)
+      const r = Multiplayer.room, next = Multiplayer.isHost() && r.players.find(p => p.id !== Multiplayer.me);
+      Dialog.confirm('Leave room?', `You'll leave this multiplayer room.${next ? ` ${next.name} becomes the host.` : ''}`, { ok: 'Leave' }).then(ok => { if (ok) { Multiplayer.leave(); } });
       return true;
     }
     return false;
@@ -801,11 +839,21 @@ const MultiplayerScreen = {
 
   // ── lobby (osu!lazer's lounge): create a room or join one by code; every public room is listed underneath
   renderLobby() {
-    const status = h('div.mp-status');
+    if (this.el) this.el.classList.remove('mp-in-room');
+    // (why the last try to open or join a room didn't work stays up for a while: a room that fails to open redraws
+    // the lounge, which took the message with it — so "Create room" looked like it did nothing)
+    const err = this._lobbyErr && Date.now() - this._lobbyErr.at < 20000 ? this._lobbyErr.text : '';
+    const status = this.statusEl = h('div.mp-status', err ? h('span.mp-err', err) : null);
     const busy = async (label, fn) => {
-      clearEl(status).append(h('span.spinner'), label);
+      this._lobbyErr = null;
+      clearEl(this.statusEl).append(h('span.spinner'), label);
       $$('button', this.body).forEach(b => b.disabled = true);
-      try { await fn(); } catch (e) { clearEl(status).append(h('span.mp-err', friendlyError(e))); $$('button', this.body).forEach(b => b.disabled = false); }
+      try { await fn(); } catch (e) {
+        this._lobbyErr = { text: friendlyError(e), at: Date.now() };
+        clearEl(this.statusEl).append(h('span.mp-err', this._lobbyErr.text));
+        $$('button', this.body).forEach(b => b.disabled = false);
+        if (Multiplayer.available() && !this.statusEl.isConnected) Toast.err(/^Join/.test(label) ? 'Couldn\'t join the room' : 'Couldn\'t open the room', this._lobbyErr.text);
+      }
     };
     this._busy = busy;
     const code = h('input.input.mp-code', { placeholder: 'ROOM CODE', maxlength: 8, spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Room code' });
@@ -815,7 +863,10 @@ const MultiplayerScreen = {
     // a room code only opens a room of this lounge's kind (Ranked Play rooms aren't reachable from the lounge)
     const joinBtn = h('button.btn.mp-join', { onclick: () => code.value.length >= 4 && busy('Joining room…', () => this.joinHere(code.value)) }, 'Join');
     const offline = !Multiplayer.available();
-    this.body.append(overlayHeader(ranked ? 'Ranked Play' : 'Multiplayer', { icon: ranked ? 'crown' : 'multi', sub: ranked ? 'open a 1v1 duel, or join one' : 'lounge — join a room, or make your own' }), h('div.mp-lobby',
+    // (lazer's online play header: "Multiplayer · Lounge", the screen's name in yellow)
+    this.body.append(overlayHeader(ranked ? 'Ranked Play' : ['Multiplayer', h('span.ov-page', ' · lounge')], { icon: ranked ? 'crown' : 'multi', sub: ranked ? 'open a 1v1 duel, or join one' : 'join a room, or make your own',
+      // (Ranked Play's rules, and what keeps a match fair, on one page)
+      actions: ranked ? [h('button.btn.sm.ghost.rq-how', { onclick: () => { UISounds.click(); rankedRules(); } }, icon('info'), 'How it works')] : [] }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
       // lazer's LoungeSubScreen, in one bar: "Create room", the room search, then joining by code
       h('div.mp-lounge-bar',
@@ -875,6 +926,9 @@ const MultiplayerScreen = {
     clearTimeout(this._roomsT);
     const el = this.roomsEl;
     if (!el || !el.isConnected || Multiplayer.inRoom()) return;
+    // (not while the game is in the background: a lounge left open in another tab asked the server every 3 s all day,
+    // which on its own uses up much of what Cloudflare's free plan allows the server in a day)
+    if (document.hidden) { this._roomsT = setTimeout(() => this.pollRooms(), 3000); return; }
     let rooms = null;
     try { const r = await fetch(Host.api('api/mp/rooms'), { cache: 'no-store', signal: timeoutSignal(15000) }); rooms = r.ok ? (await r.json()).rooms : null; } catch { rooms = null; }
     if (!el.isConnected || Multiplayer.inRoom()) return;
@@ -904,7 +958,7 @@ const MultiplayerScreen = {
       } }, bg, h('div.mp-rshade'),
         h(`span.mp-rstate${playing ? '.on' : ''}${r.ranked ? '.ranked' : ''}`, r.ranked ? (playing ? 'Ranked Play · playing' : 'Ranked Play') : playing ? 'Playing' : 'Open'),
         h('div.mp-rbody', h('div.mp-rname', r.name),
-          r.ranked ? h('div.mp-rmap', h('span', `1v1 Ranked Play duel · ${r.keys || 4}K${r.rating ? ` · host rating ${fmtInt(r.rating)}` : ''}`))
+          r.ranked ? h('div.mp-rmap', h('span', `1v1 Ranked Play duel · ${r.keys || 4}K`))
             : h('div.mp-rmap', r.map ? [starBadge(r.map.stars), h('span', `${r.map.artist} - ${r.map.title} [${r.map.version}]`), h('span.keys-tag', `${r.map.keys}K`)] : h('span.muted', 'No beatmap picked yet')),
           h('div.mp-rmeta', r.type === 'teams' && !r.ranked ? h('span.mp-rteams', h('i.red'), h('i.blue')) : null,
             h('span', r.ranked ? 'Beatmap cards · 1,000,000 life · unrated' : `${r.type === 'teams' ? 'Team Versus' : 'Head to Head'} · ${({ pp: 'most pp', score: 'highest score', accuracy: 'best accuracy', combo: 'longest combo' })[r.win] || 'highest score'} wins`))),
@@ -933,6 +987,7 @@ const MultiplayerScreen = {
     const r = Multiplayer.room;
     this.roomCode = r.code;
     clearEl(this.body);
+    this.el.classList.add('mp-in-room'); // (the back button sits in the room's footer)
     this.headEl = h('div.mp-head'); this.resEl = h('div'); this.mapEl = h('div'); this.playersEl = h('div'); this.footEl = h('div.mp-footer');
     // chat
     this.chatList = h('div.mp-chat-list');
@@ -941,6 +996,18 @@ const MultiplayerScreen = {
     input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') Multiplayer.say(input); if (e.key === 'Escape') input.blur(); });
     const chat = h('div.mp-tabpane', this.chatList, input);
     const side = h('div.mp-side', chat);
+    // (where the chat is off the screen — a phone, where it's below the rest — a new message says so above the footer;
+    // a tap scrolls down to it)
+    this._chatNew = 0; this._chatVis = true;
+    this.chatPill = h('button.mp-chat-new', { hidden: true, onclick: () => { UISounds.click(); chat.scrollIntoView({ block: 'end', behavior: 'smooth' }); this.chatPill.hidden = true; this._chatNew = 0; } }, icon('chat'), h('span'));
+    if (this._chatIO) this._chatIO.disconnect();
+    if (typeof IntersectionObserver !== 'undefined') {
+      this._chatIO = new IntersectionObserver(([e]) => {
+        this._chatVis = e.isIntersecting;
+        if (this._chatVis) { this.chatPill.hidden = true; this._chatNew = 0; }
+      }, { threshold: 0.35 });
+      this._chatIO.observe(chat);
+    }
     this.roomEl = h('div.mp-room', this.headEl, this.resEl, h('div.mp-grid.cols3', h('div.mp-col', this.playersEl), h('div.mp-col.mp-left', h('h3.mp-sect', 'Beatmap'), this.mapEl), h('div.mp-col', h('h3.mp-sect', 'Chat'), side)));
     this.body.append(this.roomEl, this.footEl);
     requestAnimationFrame(() => { if (this.chatList) this.chatList.scrollTop = this.chatList.scrollHeight; });
@@ -970,12 +1037,14 @@ const MultiplayerScreen = {
       else if (m && m.onlineSetId > 0) panelBg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(m.onlineSetId, 'cover')}")`;
     }
     clearEl(this.headEl).append(h('div.mp-roompanel.toast-clear', panelBg, h('div.mp-rshade'),
-      h(`span.mp-rstate${playing ? '.on' : ''}`, playing ? 'Playing' : 'Open'),
+      // (you're here in the room: a match going on is the others', not something you're playing)
+      h(`span.mp-rstate${playing ? '.on' : ''}`, playing ? 'Match in progress' : 'Open'),
       h('div.mp-rbody', h('div.mp-rname', Multiplayer.quick ? 'Quick 1v1' : `${hostP ? hostP.name : 'Someone'}'s room`, reconnecting), rules),
       h('div.mp-roompanel-code', h('small', 'Room code'), h('b.mp-room-code', r.code)),
       invite, copy,
       // (lazer's match settings: the host changes the rules between matches)
       host && !Multiplayer.isQP() && !Multiplayer.isRP() ? h('button.btn.sm.mp-settings-btn', { title: 'Match type, win condition, room size, queue, visibility, auto start', disabled: playing, onclick: () => { UISounds.click(); this.openSettings(); } }, icon('cog'), 'Settings') : null));
+    { const rp = this.headEl.firstChild; if (rp) rp.classList.toggle('with-set', !!rp.querySelector(':scope > .mp-settings-btn')); }
     Toast.place();
 
     // beatmap panel
@@ -984,11 +1053,12 @@ const MultiplayerScreen = {
     if (local) BeatmapManager.bgURL(local).then(u => u && (bg.style.backgroundImage = `url("${u}")`));
     else if (map && map.onlineSetId > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(map.onlineSetId, 'cover')}")`;
     const mapInfo = map ? [h('div.mp-map-t', map.title), h('div.mp-map-a', map.artist), h('div.mp-map-d', starBadge(map.stars), h('span', map.version), h('span.keys-tag', `${map.keys}K`),
-      ...(r.mods || []).map(m => ModSystem.badge(m, true)))] : [h('div.mp-map-t', 'No beatmap selected'), h('div.mp-map-a', host ? 'Pick one from song select or search beatmaps.' : 'Waiting for the host to pick a beatmap — you can search beatmaps and recommend one.')];
+      ...(r.mods || []).map(m => ModSystem.badge(m, true)))] : [h('div.mp-map-t', 'No beatmap selected'), h('div.mp-map-a', host ? 'Pick one from song select or search beatmaps.' : 'Waiting for the host to pick a beatmap — you can recommend one from your library or search beatmaps.')];
     const mapActions = h('div.mp-map-actions');
-    if (host) mapActions.append(h('button.btn', { onclick: () => Screens.go('songselect', { mpPick: true }) }, icon('music'), map ? 'Change beatmap' : 'Select beatmap'));
+    // (anyone else: song select to recommend a beatmap of theirs to the host)
+    mapActions.append(h('button.btn', { title: host ? 'Pick one from your library' : 'Recommend a beatmap from your library to the host', onclick: () => Screens.go('songselect', { mpPick: true }) }, icon('music'), host ? (map ? 'Change beatmap' : 'Select beatmap') : 'Recommend'));
     // the real Browse screen (Beatmap Explorer), in "pick for this room" mode
-    mapActions.append(h('button.btn', { onclick: () => Screens.go('explore', { mpPick: true }) }, icon('search'), 'Search beatmaps'));
+    mapActions.append(h('button.btn', { title: host ? 'Find one online' : 'Find one online to recommend', onclick: () => Screens.go('explore', { mpPick: true }) }, icon('search'), 'Search beatmaps'));
     const status = h('div.mp-map-status');
     this.fetchEl = null;
     if (map && !local) {
@@ -1005,13 +1075,13 @@ const MultiplayerScreen = {
       const mine = Multiplayer.myMap() || local;
       // a set with a single difficulty has nothing to choose (the picker would only look like it does something)
       if (diffs.length > 1) {
-        const sel = h('select.select', { 'aria-label': 'Your difficulty' }, ...diffs.map(m => h('option', { value: m.id, selected: m.id === mine.id }, `${m.version} · ${m.keys}K · ★${m.stars.toFixed(2)}${m.id === local.id ? ' (room)' : ''}`)));
+        const sel = h('select.select', { 'aria-label': 'Your difficulty' }, ...diffs.map(m => h('option', { value: m.id, selected: m.id === mine.id }, `${m.version}${new RegExp(`\\b${m.keys}K\\b`, 'i').test(m.version) ? '' : ` · ${m.keys}K`} · ★${m.stars.toFixed(2)}${m.id === local.id ? ' (room)' : ''}`)));
         sel.addEventListener('change', () => { UISounds.click(); Multiplayer.chooseDiff(sel.value); });
         sel.addEventListener('keydown', e => e.stopPropagation());
         diffPick = h('label.mp-diff', h('span', 'Your difficulty'), sel);
       }
     }
-    // mods: the room's speed (DT, HT… — everyone must accept) and this player's own mods
+    // mods: the room's speed (DT, HT… — the host's, or one everyone accepted) and this player's own mods
     const myMods = (me && me.mods) || [];
     const badges = (list, none) => list.length ? list.map(m => ModSystem.badge(m, true)) : [h('span.mp-none', none)];
     const modsRow = h('div.mp-mods',
@@ -1037,11 +1107,12 @@ const MultiplayerScreen = {
     const slot = p => {
       // lazer's ParticipantPanel: the host's crown beside a 40px panel — the avatar, the name (bold), the difficulty
       // they're playing and their mods, and on the right their state ("ready" with a lime tick, "playing")
-      if (!p) return h('div.mp-slot', h('span.mp-crown'), h('div.mp-player.empty', h('span.mp-empty-t', r.players.length < 2 ? 'Waiting for an opponent…' : `empty slot${st.size - r.players.length > 1 ? ` (${st.size - r.players.length} open)` : ''}`), r.players.length < 2 ? h('span.spinner') : null));
+      if (!p) return h('div.mp-slot', h('span.mp-crown'), h('div.mp-player.empty', h('span.mp-empty-t', r.players.length < 2 ? (st.size > 2 ? 'Waiting for players…' : 'Waiting for an opponent…') : `empty slot${st.size - r.players.length > 1 ? ` (${st.size - r.players.length} open)` : ''}`), r.players.length < 2 ? h('span.spinner') : null));
       const isMe = p.id === Multiplayer.me;
       // (a beatmap still downloading isn't shown: it installs in the background; a dropped connection is, while the
       // room keeps their seat for them to come back)
-      const state = p.away && !isMe ? 'reconnecting' : p.playing ? (p.fin ? 'finished' : 'playing') : r.map && p.ready ? 'ready' : '';
+      // (yourself, here in the room, is never "playing": back from the song, you finished it or left it)
+      const state = p.away && !isMe ? 'reconnecting' : p.playing ? (p.fin ? (p.fin.forfeit ? 'quit' : 'finished') : isMe ? (Multiplayer._lastFinish ? 'finished' : 'quit') : 'playing') : r.map && p.ready ? 'ready' : '';
       return h('div.mp-slot', h('span.mp-crown', p.id === r.host ? h('span', { title: 'Host' }, icon('crown')) : null), h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
         h('span.mp-pav', isMe ? ProfileManager.avatarEl(40) : Presence.avatarEl(p, 40)),
         // (the name, and under it the difficulty they're playing — side by side, a ready player's difficulty was cut off)
@@ -1054,12 +1125,12 @@ const MultiplayerScreen = {
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
         } }, icon('film'), 'Spectate') : null,
-        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : state === 'reconnecting' ? 'sync' : 'check')), state) : null,
+        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : state === 'reconnecting' ? 'sync' : state === 'quit' ? 'x' : 'check')), state) : null,
         // (lazer: the host's buttons at the panel's end — hand over the host, and kick (between matches))
         host && !isMe ? h('button.mp-pact', { title: `Give host to ${p.name}`, 'aria-label': `Give host to ${p.name}`, onclick: () => { UISounds.click(); Multiplayer.send({ t: 'giveHost', id: p.id }); } }, icon('crown')) : null,
         host && !isMe && !r.players.some(x => x.playing) ? h('button.mp-pact.kick', { title: `Kick ${p.name}`, 'aria-label': `Kick ${p.name}`, onclick: async () => {
           UISounds.click();
-          if (await Dialog.confirm(`Kick ${p.name}?`, 'They\'re removed from the room (they can join again with the code).', { ok: 'Kick', danger: true })) Multiplayer.send({ t: 'kick', id: p.id });
+          if (await Dialog.confirm(`Kick ${p.name}?`, 'They\'re removed from the room (they can join again with the code).', { ok: 'Kick', danger: true, icon: 'user-times' })) Multiplayer.send({ t: 'kick', id: p.id });
         } }, icon('user-times')) : null));
     };
     const open = r.players.length < st.size ? slot(null) : null;
@@ -1082,9 +1153,11 @@ const MultiplayerScreen = {
     const nReady = r.players.filter(p => p.ready).length, count = ` (${nReady} / ${r.players.length} ready)`;
     const allReady = r.players.length >= 2 && nReady === r.players.length;
     const ready = !!(me && me.ready), canStart = host && ready && allReady;
-    const label = r.starting ? 'Starting…' : !ready ? 'Ready' : canStart ? `Start match${count}` : host ? `Waiting for players...${count}` : `Waiting for host...${count}`;
-    const readyBtn = h(`button.mp-ready${canStart ? '.mp-start' : ready ? '.on' : ''}`, {
-      disabled: !r.map || !me || !!r.starting || (canStart && !!r.vote),
+    // (back in the room while the others play on: nothing to ready up for until their match is over)
+    const inMatch = r.state === 'playing';
+    const label = inMatch ? 'Match in progress…' : r.starting ? 'Starting…' : !ready ? 'Ready' : canStart ? `Start match${count}` : host ? `Waiting for players…${count}` : `Waiting for host…${count}`;
+    const readyBtn = h(`button.mp-ready${inMatch ? '' : canStart ? '.mp-start' : ready ? '.on' : ''}`, {
+      disabled: inMatch || !r.map || !me || !!r.starting || (canStart && !!r.vote),
       title: canStart && r.vote ? 'Everyone has to accept or decline the speed mod first' : ready && !canStart ? 'Click to stop being ready' : '',
       onclick: () => { UISounds.click(); Multiplayer.send(canStart ? { t: 'start' } : { t: 'ready', ready: !ready }); },
     }, label);
@@ -1097,15 +1170,16 @@ const MultiplayerScreen = {
       b.textContent = fmtTime(Math.max(0, this._autoEnd - Date.now()));
     }, 250);
     // lazer's MultiplayerMatchFooter: the ready / start button wide in the middle (600 at most), the countdown beside it
-    clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn, h('div.grow'));
+    clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn, h('div.grow'), this.chatPill);
   },
 
-  /** The mod select, for this player's mods in the room; a speed mod picked there is proposed to the room. */
+  /** The mod select, for this player's mods in the room; a speed mod picked there is the room's (the host's) or
+   *  proposed to it. */
   openMods() {
     const r = Multiplayer.room, me = Multiplayer.self();
     if (!r) return;
     Settings.set('songselect.mods', ModSystem.normalize([...(r.mods || []), ...((me && me.mods) || [])]));
-    // every toggle reaches the room straight away; a speed mod is proposed to the room once, when mod select closes
+    // every toggle reaches the room straight away; a speed mod goes to the room once, when mod select closes
     const off = Bus.on('mods:changed', () => { if (Multiplayer.inRoom() && ModSelect.o) Multiplayer.setMods(Settings.get('songselect.mods') || [], { propose: false }); });
     ModSelect.open({ disabled: MODS.filter(x => x.unranked).map(x => x.id), why: 'not available in multiplayer', onClose: () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); } });
   },
@@ -1123,15 +1197,24 @@ const MultiplayerScreen = {
         try {
           let local = Multiplayer.localMap(map);
           if (!local && map.onlineSetId > 0) { pick.textContent = 'Downloading…'; await OnlineBeatmaps.downloadAndImport({ id: map.onlineSetId, title: map.title, artist: map.artist }); local = Multiplayer.localMap(map); }
-          if (!local) throw new Error('Beatmap not available.');
+          if (!local) throw new Error(map.onlineSetId > 0 ? 'Beatmap not available.' : 'You don\'t have this beatmap, and it isn\'t online to download.');
           Multiplayer.selectMap(local, Settings.get('songselect.mods') || []);
         } catch (e) { Toast.err('Couldn\'t pick that beatmap', friendlyError(e)); }
         pick.disabled = false; pick.textContent = 'Pick';
       } }, 'Pick') : null;
       el = h('div.mp-msg.suggest', h('b', m.name), h('span', 'recommended ', h('i', `${map.artist} - ${map.title} [${map.version}]`)), pick);
-    } else el = m.from ? h('div.mp-msg', h('b', m.name), h('span', m.text)) : h('div.mp-msg.sys', m.text);
-    this.chatList.append(el);
-    if (scroll) this.chatList.scrollTop = this.chatList.scrollHeight;
+    } else el = m.from ? h(`div.mp-msg${m.from === Multiplayer.me ? '.mine' : ''}`, h('b', m.name), h('span', m.text)) : h('div.mp-msg.sys', m.text);
+    // (when it was said, on hover — as lazer's chat lines carry their time)
+    if (m.ts) el.title = new Date(m.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    // (scrolled up to read something earlier: a new line doesn't yank the list back down — unless it's yours)
+    const l = this.chatList, atEnd = l.scrollHeight - l.scrollTop - l.clientHeight < 48;
+    l.append(el);
+    if (scroll && (atEnd || m.from === Multiplayer.me)) l.scrollTop = l.scrollHeight;
+    if (scroll && m.from && m.from !== Multiplayer.me && !this._chatVis && this.chatPill) {
+      this._chatNew++;
+      this.chatPill.lastChild.textContent = this._chatNew > 1 ? `${this._chatNew} new messages` : 'New message';
+      this.chatPill.hidden = false;
+    }
   },
   resultsPanel(res) {
     const meId = Multiplayer.me, mine = res.rows.find(x => x.id === meId);

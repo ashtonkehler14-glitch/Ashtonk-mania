@@ -36,8 +36,9 @@ const Game = {
 };
 
 /** Gameplay fills the screen: fullscreen while playing (the setting, on by default). On phones and tablets, as in
- *  lazer's mobile app, the game is used sideways and only gameplay is upright: the screen turns upright for the song
- *  and back sideways after (where the browser lets it lock the turn; otherwise Orientation asks — see 19d-mobile).
+ *  lazer's mobile app, the game is used sideways and songs as Settings → Mobile layout says: the screen turns upright
+ *  for the song (Portrait) and back sideways after (where the browser lets it lock the turn; otherwise Orientation
+ *  asks — see 19d-mobile).
  *  Leave fullscreen mid-song (the browser's bar swiped back, Esc) and a tap or click on the game puts it back. */
 /** The screen stays on while playing (a song with few notes would otherwise let a phone dim and lock). */
 const WakeLock = {
@@ -68,8 +69,8 @@ const PlayScreen = {
     if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => { this._ours = true; keys(); this.lock(); }, () => this.lock());
     else this.lock();
   },
-  // (a song plays either way up: the screen follows how the phone is held)
-  lock() { if (this.phone() && typeof Orientation !== 'undefined') Orientation.lock('any'); },
+  // (a song is played upright or sideways, as Settings → Mobile layout says)
+  lock() { if (this.phone() && typeof Orientation !== 'undefined') Orientation.lock(Orientation.wanted()); },
   unlock() {
     if (this._keys) { this._keys = false; try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); } catch { /* not supported */ } }
     if (!document.fullscreenElement) this._ours = false;
@@ -241,9 +242,10 @@ const GameplayScreen = {
     if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) document.activeElement.blur();
     el.tabIndex = -1; requestAnimationFrame(() => { if (el.isConnected) el.focus({ preventScroll: true }); });
     el.addEventListener('pointerdown', () => { if (document.activeElement !== el && !(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) el.focus({ preventScroll: true }); });
-    // turning the phone mid-song (it plays either way up) stops it for a tap, so the new layout doesn't cost notes
+    // turning the phone mid-song stops it for a tap, so the new layout (or the prompt to turn it back) doesn't cost notes
     this._upright = typeof Mobile !== 'undefined' && Mobile.portrait;
     this._orient = () => {
+      this.checkOverStage(); // (the board may lie over the columns now, or no longer)
       const up = typeof Mobile !== 'undefined' && Mobile.portrait;
       if (up === this._upright) return;
       this._upright = up;
@@ -333,13 +335,22 @@ const GameplayScreen = {
   gpChatOpen() { const s = this.s; return !!(s && s.mp && s.finished); },
   /** (the box can't be clicked into mid-song: it would take the keys) */
   gpChatTick() {
+    const R = this.renderer;
+    if (R && R.W && (R.stageX !== this._gpSx || R.W !== this._gpW)) {
+      // (the stage reaching in under the chat's corner — a phone's widened columns: there only a new message shows, for
+      // a moment, not lines of chat over the notes. Its edge measured once a size, not as the stage moves)
+      if (R.W !== this._gpW) { const c = this.gpChat, p = c.offsetParent; this._gpW = R.W; this._gpEdge = (c.offsetLeft + c.offsetWidth) / Math.max(1, p ? p.clientWidth : innerWidth); }
+      this._gpSx = R.stageX;
+      this.gpChat.classList.toggle('over', R.stageX / R.W < this._gpEdge);
+    }
     const open = this.gpChatOpen();
     if (open === this._gpOpen) return;
-    this._gpOpen = open; this.gpChatIn.disabled = !open;
+    this._gpOpen = open; this.gpChatIn.disabled = !open; this.gpChat.classList.toggle('open', open);
     this.gpChatIn.placeholder = open ? kbHint('press Enter to chat', 'tap to chat') : 'chat is available when your song is over';
   },
   leave() {
-    if (this._gpChatOff) { this._gpChatOff(); this._gpChatOff = null; } this.gpChatIn = null; this.gpChat = null;
+    if (this._quitO) { const o = this._quitO; this._quitO = null; o.close(); } // ("Quit match?" still up as the song ended)
+    if (this._gpChatOff) { this._gpChatOff(); this._gpChatOff = null; } this.gpChatIn = null; this.gpChat = null; this._gpW = this._gpSx = null;
     document.title = APP_NAME;
     AudioManager.modVolume(1, 0); // (Muted: the music is back for the menus)
     if (this.s && Spectate.host.s === this.s) Spectate.hostEnd(this.s, !this.s.finished); // (watchers: the play ended)
@@ -370,7 +381,7 @@ const GameplayScreen = {
   },
   onBack() {
     if (SkinEditor.on) { SkinEditor.close(); return true; }
-    if (this.s && this.s.spectate) { Spectate.stop(); return true; } // (Esc while spectating stops watching)
+    if (this.s && this.s.spectate) { Spectate.leavePlay(); return true; } // (Esc while watching: back to the Spectator Mode screen)
     if (!this.loaderGone) { if (!this.params.mp) this.quit(); return true; }
     if (this.s && this.s.mp) { this.mpQuit(); return true; }
     if (this.s) {
@@ -388,8 +399,7 @@ const GameplayScreen = {
     if (!tok || this._tok !== tok) return;
     this.failedScore = this.failedReplay = null; // (a fail screen offers this play's score, never an earlier one's)
     this.loaderStatus('Loading beatmap…', 0.1);
-    // (spectating a song you don't have yet: just its difficulty, fetched on its own — see Spectate.start)
-    const loaded = p.temp || await BeatmapManager.load(p.mapId);
+    const loaded = await BeatmapManager.load(p.mapId);
     if (this._tok !== tok) return;
     const { rec, bm } = loaded;
     if (bm.epilepsyWarning && !p.quick) this.loaderDisclaimer('This beatmap contains scenes with rapidly flashing colours', 'Please take caution if you are affected by epilepsy.');
@@ -443,9 +453,11 @@ const GameplayScreen = {
     const baseNotes = prepareNotes(mapNotes, keys, mods, seed, { red: redTiming.red });
     // replays keep the judging rules they were recorded with (older ones predate the rules field: rules 1)
     const rules = replay ? (replay.rules || 1) : RULES;
-    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
-    const accuracyMode = replay ? replay.accuracyMode : Settings.get('gameplay.accuracyMode');
-    const scrollMode = mods.includes('CS') ? 'constant' : Settings.get('gameplay.scrollMode');
+    // (a multiplayer match is played by the same rules for everyone, whatever their own settings: the beatmap's timing
+    // windows and weighted accuracy — and in Ranked Play osu!mania's own scrolling, SV and BPM changes and all)
+    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: p.mp ? 'od' : Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
+    const accuracyMode = replay ? replay.accuracyMode : p.mp ? 'v2' : Settings.get('gameplay.accuracyMode');
+    const scrollMode = mods.includes('CS') ? 'constant' : p.mp && p.mp.rp ? 'sv' : Settings.get('gameplay.scrollMode');
     const scroll = new ScrollMap(BeatmapParser.scrollSegments(bm, { useSV: scrollMode !== 'constant', useBPM: scrollMode === 'sv' }));
     const endTime = maxOf(baseNotes, n => n.end);
 
@@ -525,11 +537,18 @@ const GameplayScreen = {
     // sit where the panel appears (Watch on the Replays page is right under it) kept the loader up forever
     const settings = h('div.pl-settings', { onpointermove: () => { if (!this.loaderHold) { this.loaderHold = true; this.applyBackground(); } }, onpointerleave: () => { this.loaderHold = false; this.applyBackground(); } },
       ...this.playerSettings(rec, !p.replay));
+    const hers = !p.replay && !p.skinEditor && NeruEggs.herSong(rec);
+    if (hers) NeruEggs.found('song');
+    const again = !p.replay && !p.skinEditor && NeruEggs.tries(rec) >= NeruEggs.TRIES;
+    // (a Teto or Miku fan playing one of their songs: she laughs at it, their thing crossed out — NeruEggs.theirSong)
+    const fan = !p.replay && !p.skinEditor && !hers && NeruEggs.fanOf(), theirs = fan && NeruEggs.theirSong(rec);
     const el = h('div.gp-loader', card, settings,
       p.mp ? h('div.pl-hint', 'Get ready!') : null,
       // (Neru wishing you luck — or something like it — while it loads; not when watching a replay or someone playing,
       // nor for the skin editor's preview)
-      p.replay || p.skinEditor ? null : NeruCameo.make('loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
+      // (one of her own songs: she dances — NeruEggs.herSong; the same song again and again: worn out — NeruEggs.tries)
+      p.replay || p.skinEditor ? null : NeruCameo.make(hers ? 'herSong' : theirs ? 'theirSong' : again ? 'again' : 'loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
+    if (theirs) NeruEggs.propOn(el.querySelector('.nc-loader'), theirs, 900); // (the song's one, whoever you're a fan of)
     this.loaderT0 = performance.now(); this.loaderExtra = 0;
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
@@ -638,7 +657,8 @@ const GameplayScreen = {
         await sleep(100);
       }
     } else {
-      while (this._tok === tok && !this.loaderSkip && (performance.now() - this.loaderT0 < min || this.loaderHold)) await sleep(50);
+      // (and, on a phone held the wrong way for Settings → Mobile layout, till it's turned: the prompt covers the song)
+      while (this._tok === tok && ((!this.loaderSkip && (performance.now() - this.loaderT0 < min || this.loaderHold)) || (typeof Orientation !== 'undefined' && Orientation.wrong()))) await sleep(50);
     }
     if (this._tok !== tok) return;
     const el = this.loaderEl;
@@ -807,7 +827,7 @@ const GameplayScreen = {
       // touch screens have no Escape key: a pause button only shows for coarse pointers
       // (in every kind of play — your own, practice, Auto, a replay, a multiplayer match (it asks before quitting) and
       // spectating (where it stops watching) — and whatever the HUD's visibility: it's the only way out on a phone)
-      s.spectate ? h('button.hud-touch-pause.stop', { 'aria-label': 'Stop watching', onclick: e => { e.stopPropagation(); this.onBack(); } }, icon('x'))
+      s.spectate ? h('button.hud-touch-pause.stop', { 'aria-label': 'Leave', onclick: e => { e.stopPropagation(); this.onBack(); } }, icon('x'))
         : h('button.hud-touch-pause', { 'aria-label': 'Pause', onclick: e => { e.stopPropagation(); this.onBack(); } }, h('i'), h('i')),
       // (no hold-for-menu button on a computer: it sat where song select's play logo is, so starting a song from the
       // logo left the pointer on it and it showed up — Esc opens the pause menu)
@@ -823,7 +843,9 @@ const GameplayScreen = {
       this.hitbox = h('div.fnf-hitbox', ...Array.from({ length: K }, () => h('i')));
       this.hud.append(this.hitbox);
     }
-    if (s.mode === 'replay' || s.mode === 'auto') {
+    // (lazer's SpectatorPlayer: "Watching (them) play (the song) live", top centre)
+    if (s.spectate) this.hud.append(Spectate.liveEl(s));
+    else if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
     // osu!lazer's judgement counter (off unless turned on): each judgement's count, rolling up, over its name
@@ -901,6 +923,14 @@ const GameplayScreen = {
     if (Math.abs(truth - t) > (1000 / 60) * 2 * rate) t = truth;  // AllowableErrorMilliseconds
     c.t = Math.max(last, t); c.ts = ts;                           // (never backwards)
     return c.t;
+  },
+  /** The playfield as it is at `t`, drawn once and left still (before a multiplayer match's synchronised start). */
+  stillFrame(t) {
+    const s = this.s, r = this.renderer;
+    if (!s || !r || !s.scroll) return;
+    const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
+    r.render({ now: t, posNow: s.scroll.pos(t), scroll: s.scroll, pxPerMs: r.scrollLength / (timeRange * s.rate), engine: s.engine, held: s.held, hidden: s.hidden,
+      realNow: performance.now(), keyLabels: s.keyLabels, percy: s.percy, bars: s.bars, flashlight: s.flashlight, snapRed: s.snapRed });
   },
   loop() {
     // one frame description, reused every frame (no garbage for the collector to pause on mid-song)
@@ -1198,7 +1228,9 @@ const GameplayScreen = {
     const above = this._lbRows.filter(r => r.score >= sc).length;
     if (me._pos !== above + 1) {
       // (rows slide to their new places — lazer's leaderboard animates each score's move — instead of jumping)
-      const rows = [me, ...this._lbRows], before = me._pos ? rows.map(r => r.el.getBoundingClientRect().top) : null;
+      // (not while the song plays — the board shows just the places then — where measuring the rows laid the page out
+      // in the middle of a frame: they swap places)
+      const rows = [me, ...this._lbRows], before = me._pos && this.lbEl._full !== false ? rows.map(r => r.el.getBoundingClientRect().top) : null;
       me._pos = above + 1; setText(me.pos, `#${above + 1}`); me.el.style.order = above * 2 + 1; me.el.classList.toggle('first', above === 0);
       this._lbRows.forEach((r, i) => { const p = i + 1 + (i >= above ? 1 : 0); setText(r.pos, `#${p}`); r.el.style.order = i * 2 + (i >= above ? 2 : 0); r.el.classList.toggle('first', p === 1); });
       if (before) rows.forEach((r, i) => {
@@ -1257,6 +1289,7 @@ const GameplayScreen = {
       this.mpBoard.append(...this._mpRows.map(r => r.el));
       if (teams) {
         this.mpTeams = { red: h('span.tv-n'), blue: h('span.tv-n'), bar: h('i'), diff: h('span.tv-diff') };
+        this.hud.classList.add('has-teams');
         this.hud.append(h('div.hud-teams', h('div.tv-side.red', h('span.tv-l', 'Red'), this.mpTeams.red), h('div.tv-mid', h('div.tv-bar', this.mpTeams.bar), this.mpTeams.diff), h('div.tv-side.blue', this.mpTeams.blue, h('span.tv-l', 'Blue'))));
       }
     }
@@ -1293,13 +1326,15 @@ const GameplayScreen = {
       T.diff.textContent = red === blue ? '' : `${red > blue ? '◀' : ''} ${fmt(Math.abs(red - blue))} ${blue > red ? '▶' : ''}`;
     }
   },
-  /** Wait for the synchronised start; everyone begins at the same moment. */
+  /** Wait for the synchronised start; everyone begins at the same moment. (The playfield's there meanwhile, still, as it
+   *  starts — the countdown used to run over an empty screen.) */
   async mpWait(s) {
     const el = h('div.mp-countdown');
     this.el.appendChild(el);
     while (this.s === s) {
       const left = s.mp.startAt - performance.now();
       if (left <= 0) break;
+      if (!s.running) this.stillFrame(s.startPos);
       const txt = left > 3000 ? 'Get ready…' : String(Math.ceil(left / 1000));
       if (txt !== el.textContent && left <= 3000) SkinManager.skinOnly(`count${txt}s`);
       el.textContent = txt;
@@ -1310,11 +1345,19 @@ const GameplayScreen = {
   async mpQuit() {
     const s = this.s;
     if (!s || s.finished) { Screens.go('multiplayer', {}, { replace: true }); return; }
-    // Ranked Play (as lazer): leaving the song scores 0 for this round — your opponent plays on, and you take the damage
+    if (this._quitO) return; // (already asking)
+    // Ranked Play: leaving the song keeps the score you have now for this round — your opponent plays on, and the round
+    // is decided on that
     const ranked = Multiplayer.isRP(), opp = ranked && Multiplayer.opponent();
-    const ok = ranked ? await Dialog.confirm('Leave the song?', `You'll score 0 this round and take the damage while ${opp ? opp.name : 'your opponent'} plays on. The match carries on afterwards.`, { ok: 'Leave song', danger: true, icon: 'warn' })
-      : await Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true, icon: 'warn' });
+    const asked = ranked ? Dialog.confirm('Leave the song?', `Your score stops where it is now, and the round is decided on it once ${opp ? opp.name : 'your opponent'} finishes — you can watch them play on.`, { ok: 'Leave song', danger: true, icon: 'warn' })
+      : Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true, icon: 'warn' });
+    // (the song can end while it's asking — the results come up: the question goes with the song, see leave())
+    this._quitO = Overlays.top();
+    const ok = await asked;
+    this._quitO = null;
     if (!ok || this.s !== s) return;
+    // (your score as it is right now goes first: in Ranked Play that's what the round counts)
+    if (s.engine) { const e = s.engine; Multiplayer.send({ t: 'score', score: e.score.scoreStd, acc: e.score.accuracy, combo: e.score.combo, maxCombo: e.score.maxCombo, hp: e.health.value, pp: s.mpFailed ? 0 : this.livePp(e) }); }
     Multiplayer.send({ t: 'quit' });
     s.finished = true; s.running = false;
     Music.stop(150);
@@ -1404,7 +1447,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     // quick exit (lazer: hold Ctrl+`): back to song select after half a second
     if ((e.ctrlKey || e.metaKey) && e.code === 'Backquote') {
       e.preventDefault();
-      if (!e.repeat) { clearTimeout(this._exitHold); this.holdEl.classList.add('on'); this._exitHold = setTimeout(() => { this.holdEl.classList.remove('on'); if (s.mp) this.mpQuit(); else if (s.spectate) Spectate.stop(); else this.quit(); }, 500); }
+      if (!e.repeat) { clearTimeout(this._exitHold); this.holdEl.classList.add('on'); this._exitHold = setTimeout(() => { this.holdEl.classList.remove('on'); if (s.mp) this.mpQuit(); else if (s.spectate) Spectate.leavePlay(); else this.quit(); }, 500); }
       return;
     }
     // retry: hold R (or `) for half a second — never instant. Ctrl+R counts as holding R (and doesn't reload the
@@ -1471,7 +1514,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         continue;
       }
       const K = s.down.length;
-      const col = this.hitbox ? Math.max(0, Math.min(K - 1, Math.floor(tc.clientX / innerWidth * K))) : this.renderer.columnAt(tc.clientX, was ?? -1);
+      // (Portrait and Landscape (expanded): the columns themselves, no wider — elsewhere the screen's width split evenly)
+      const R = this.renderer, lanes = !!R.fnf && (R.H > R.W || Settings.get('gameplay.mobileLayout') === 'expanded');
+      const col = this.hitbox && !lanes ? Math.max(0, Math.min(K - 1, Math.floor(tc.clientX / innerWidth * K))) : R.columnAt(tc.clientX, was ?? -1, { lanes });
       if (col < 0 || col === was) continue;
       if (was != null) this.keyUp(was, id, t);
       this._touches.set(id, col);
@@ -1623,7 +1668,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.cdEl = null;
     if (!s || !cd || !cd.isConnected || s.running || s.finished) return false;
     clearTimeout(this._cdT); cd.remove();
-    if (Spectate.host.s === s) Spectate.hostPause(true, this.gameTime());
     return true;
   },
   pause({ quiet = false } = {}) {
@@ -1632,7 +1676,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.releaseAll();
     s.running = false;
     Music.pause();
-    if (Spectate.host.s === s) Spectate.hostPause(true, this.gameTime()); // (whoever's watching sees the pause too)
     SkinManager.sample('pause-loop').then(() => {});
     if (!quiet) this.showPause('Paused');
   },
@@ -1643,9 +1686,13 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     // osu!lazer's GameplayMenuOverlay: wide slanted colour buttons (DialogButton) — continue green, retry yellow,
     // quit red — with the skin's pause-menu sounds (hover and clicks) when it has them
     const btn = (label, colour, fn, cls = '') => h(`button.pm-btn${cls}`, { style: { '--c': colour }, onclick: fn }, h('span.pm-band'), h('span.pm-label', label));
-    if (!failed) btns.push(btn('Continue', '#88b300', () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); }, '.primary'));
-    btns.push(btn('Retry', '#eeaa00', () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); }));
-    btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); this.quit(); }, '.danger'));
+    // (watching someone fail: their play, so no Retry of yours — Quit goes back to the Spectator Mode screen)
+    if (s.spectate) btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); Spectate.leavePlay(); }, '.danger'));
+    else {
+      if (!failed) btns.push(btn('Continue', '#88b300', () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); }, '.primary'));
+      btns.push(btn('Retry', '#eeaa00', () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); }));
+      btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); this.quit(); }, '.danger'));
+    }
     for (const b of btns) b.addEventListener('pointerenter', () => SkinManager.skinOnly('pause-hover', 0.7));
     // lazer's layout: the yellow 48px title centred in the space above the buttons, the buttons (80px tall, 80% of the
     // width), and "Retry count / Song progress / Accuracy" centred in the space below
@@ -1654,18 +1701,19 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const el = h('div.pause-menu', h('div.pause-box',
       // (lazer's GameplayMenuOverlay descriptions under the title)
       h('div.pm-head', h(`h2${failed ? '.failed' : ''}`, title.toLowerCase()),
-        (d => d ? h('p.pm-desc', d) : null)(failed ? 'you\'re dead, try again?' : /^paused$/i.test(title) ? 'you\'re not going to do what i think you\'re going to do, are ya?' : '')),
+        (d => d ? h('p.pm-desc', d) : null)(s.spectate ? `${s.spectate.name} failed` : failed ? 'you\'re dead, try again?' : /^paused$/i.test(title) ? 'you\'re not going to do what i think you\'re going to do, are ya?' : '')),
       h('div.pm-buttons', ...btns),
       h('div.pm-info',
-        h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
+        s.spectate ? null : h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
         h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
-    if (failed && this.failedScore) el.append(this.failFooter());
+    if (failed && this.failedScore) { el.append(this.failFooter()); el.classList.add('has-foot'); }
     // (Neru: smug about a fail, teasing about a pause — when you're the one playing, and not in a match)
-    if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause', { poke: failed ? NeruCameo.EGG.failed : null }); if (n) { el.append(n); if (!failed) NeruEggs.fishLater(n); } }
+    if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause', { poke: failed ? NeruCameo.EGG.failed : NeruCameo.EGG.paused }); if (n) { el.append(n); el.classList.add('has-neru'); if (!failed) NeruEggs.fishLater(n); } }
     this.pauseEl = el;
     this.el.appendChild(el);
-    this.el.classList.add('show-cursor');
+    // (classes, not :has() rules: with any :has() on the page, every change of text anywhere restyles all of it)
+    this.el.classList.add('show-cursor', 'pm-open');
     const first = el.querySelector('button'); first && first.focus();
     el.addEventListener('keydown', ev => {
       const b = $$('button:not(.neru-cameo)', el), i = b.indexOf(document.activeElement);
@@ -1699,7 +1747,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const results = h('button.res-ab', { onclick: () => { UISounds.click(); Screens.go('results', { score, replay }, { replace: true }); }, title: 'view results', 'aria-label': 'View results' }, icon('chart'));
     return h('div.pm-foot', save, results);
   },
-  closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
+  closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor', 'pm-open'); },
   /** Phones held upright wait here until turned sideways (there's no upright gameplay). */
   /** Phones held sideways wait here until turned upright (gameplay on a phone is upright, as in lazer's app). */
   waitUpright() { return Promise.resolve(); }, // (songs now play sideways too: nothing to wait for)
@@ -1709,7 +1757,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (this.tapEl) { this.tapEl.remove(); this.tapEl = null; }
     this.closePause();
     const delay = s.feed ? 0 : Settings.get('gameplay.unpauseDelay'); // (no countdown when watching)
-    if (Spectate.host.s === s) Spectate.hostPause(false, this.gameTime());
     if (delay <= 0) { s.running = true; Music.play(Music.pausedPos); return; }
     const steps = 3, stepMs = delay / steps;
     const cd = this.cdEl = h('div.countdown', '3');
@@ -1758,10 +1805,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (s.mode === 'play') {
       const { score } = await this.saveScore(false, { store: false }); // (not kept: only a play you finish is recorded)
       this.failedScore = score; this.failedReplay = this._unsavedReplay;
-      if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
+      if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, score }); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
     }
-    // (watching someone: their fail screen is theirs — you see it as they do, with their pointer, and can't press it)
-    if (s.spectate) { setTimeout(() => { if (this.s === s) Spectate.failed(this, s); }, 900); return; }
     if (Settings.get('gameplay.retryOnFail') && s.mode === 'play') { setTimeout(() => { if (this.s === s) this.retry(); }, 1400); return; }
     setTimeout(() => { if (this.s === s) this.showPause('Failed', true); }, 900);
   },
@@ -1787,10 +1832,10 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, sd: (summary.unstableRate || 0) / 10, hits: s.engine.hitErrors.filter(e => !e.tail).length };
       // (a multiplayer play that ran out of health is a failed score: shown to the room, not recorded)
       const { score, replay } = await this.saveScore(!s.mpFailed, { store: !s.mpFailed });
-      try { Medals.check(score, { mp: !!s.mp, daily: !!(this.params.daily && score.passed) }); } catch (e) { console.warn('medals', e); }
+      try { Medals.check(score); } catch (e) { console.warn('medals', e); }
       // lazer's global leaderboard: a passed play goes up (the server keeps your best)
-      if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null });
-      if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
+      if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, score, daily: this.params.daily ? { day: this.params.daily.day } : null });
+      if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, score }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, back: this.params.back || null, daily: this.params.daily || null }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       // (watching someone in your multiplayer room: when their song ends, so does watching — back to the room)
@@ -1854,8 +1899,35 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const board = this.board();
     if (board) {
       const full = !s.running || s.finished || !!s.feed || !!s.spectate || this._inBreak || now < s.firstNote - 500 * s.rate || !!this._ctrl;
-      if (full !== board._full) { board._full = full; board.classList.toggle('compact', !full); if (full && board === this.lbEl) this.updateLeaderboard(true); }
+      if (full !== board._full) {
+        board._full = full; board.classList.toggle('compact', !full); if (full && board === this.lbEl) this.updateLeaderboard(true);
+        if (full) { if (board._over) { board._over = false; board.classList.remove('over-stage'); } } else this.checkOverStage(board);
+      }
     }
+  },
+  /** A board over the columns — a phone held upright, where they fill the width — fades while you play, so the notes
+   *  under it can be seen. Looked at once as the song starts and again when the screen turns, after the frame: never
+   *  in the middle of one (asked every few seconds while the song played, the page was laid out mid-frame and the
+   *  notes hitched). Only the touch layout's columns can reach under it. */
+  checkOverStage(board = this.board()) {
+    clearTimeout(this._overT);
+    if (!board || !this.renderer || !this.renderer.narrow) return;
+    this._overT = setTimeout(() => {
+      if (board._full !== false || !board.isConnected) return;
+      const over = this.overStage(board);
+      if (over !== !!board._over) { board._over = over; board.classList.toggle('over-stage', over); }
+    }, 0);
+  },
+  /** Whether a HUD element lies across the columns, side to side. */
+  overStage(el) {
+    const r = this.renderer;
+    if (!r || !r.canvas || !r.canvas.parentElement || !Number.isFinite(r.stageX) || !r.W) return false;
+    // (the canvas may be cropped to the stage: its host has the whole width the renderer's numbers are for)
+    // (its rows, not the board itself: they stand out of it, which can be no width at all)
+    const c = r.canvas.parentElement.getBoundingClientRect(), k = c.width / r.W;
+    const rs = [...el.children].map(x => x.getBoundingClientRect()).filter(b => b.width > 0);
+    const L = c.left + r.stageX * k, R = L + r.stageW * k;
+    return rs.some(b => b.right > L + 4 && b.left < R - 4);
   },
   // ─────────────────────────────── breaks ───────────────────────────────
   /** Break overlay between distant notes (gaps of at least the minimum break length). */
@@ -1942,7 +2014,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.rpSpeeds = REPLAY_SPEEDS.map(k => h(`button.chip${k === 1 ? '.on' : ''}`, { onclick: () => this.replaySpeed(k) }, `${k}×`));
     this._rpHover = false;
     // (on the side the notes come from, so it never covers the judgement line you're watching)
-    const bar = h(`div.replay-bar${Settings.get('gameplay.scrollDirection') === 'up' ? '' : '.top'}`, { onpointerenter: () => { this._rpHover = true; }, onpointerleave: () => { this._rpHover = false; } },
+    const bar = h(`div.replay-bar${Settings.get('gameplay.scrollDirection') === 'up' ? '' : '.top'}`, { onpointerenter: () => { this._rpHover = true; this.hud.classList.add('rp-hover'); }, onpointerleave: () => { this._rpHover = false; this.hud.classList.remove('rp-hover'); },
+        // (a keyboard's focus in it keeps it up; a tapped button keeping its focus doesn't)
+        onfocusin: e => bar.classList.toggle('kbd-focus', !!(e.target.matches && e.target.matches(':focus-visible'))), onfocusout: e => { if (!bar.contains(e.relatedTarget)) bar.classList.remove('kbd-focus'); } },
       tl,
       h('div.rp-controls',
         this.rpPlay,
@@ -1982,7 +2056,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     setText(this.rpTime, t);
     const ic = s.running ? 'pause' : 'play';
     if (this.rpPlay.dataset.ic !== ic) { this.rpPlay.dataset.ic = ic; this.rpPlay.replaceChildren(icon(ic)); }
-    this.replayBar.classList.toggle('paused', !s.running);
+    this.replayBar.classList.toggle('paused', !s.running); this.hud.classList.toggle('rp-paused', !s.running);
   },
   replayKey(e) {
     const s = this.s;

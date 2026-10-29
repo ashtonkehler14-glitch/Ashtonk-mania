@@ -55,10 +55,30 @@ const Account = {
     if (!c) throw new Error('A code is 16 letters and numbers, like K7QM-3XRA-9DPZ-W2HF. Check it and try again.');
     const was = this.linked() && !this.signedOut() ? this.me().pid : null;
     const d = await this.call('link', { code: c, ...this.me() });
+    return this.became(d, c, was);
+  },
+  /** For the game saved as an HTML file here: a one-time ticket that signs the file in as you the first time it's
+   *  opened, within a day (Matchmaker.account) — with your code mixed with the server's pad, so the file shows it
+   *  once it's signed in but doesn't hold it as it is. Null when this device has no code to go with it. */
+  async carry() {
+    const c = this.clean(this.code());
+    if (!c || !this.linked() || this.signedOut()) return null;
+    const d = await this.call('ticket', this.me()), A = this.ALPHABET;
+    return { t: d.ticket, c: [...c].map((x, i) => A[(A.indexOf(x) + A.indexOf(d.pad[i])) % 32]).join('') };
+  },
+  /** A saved HTML file opened for the first time: the ticket it was saved with makes this device you. */
+  async linkCarry(carry) {
+    const d = await this.call('link', { ticket: String(carry.t || ''), ...this.me() }), A = this.ALPHABET;
+    const c = this.clean([...String(carry.c || '')].map((x, i) => A[(A.indexOf(x) - A.indexOf((d.pad || '')[i]) + 32) % 32]).join(''));
+    return this.became(d, c, null);
+  },
+  /** The server has made this device `d.pid` (with the code `c`, '' if it isn't known here). */
+  async became(d, c, was) {
     if (was && d.pid !== was) await this.wipeLocal();
     try {
       localStorage.setItem('am.pid', d.pid); localStorage.setItem('am.key', d.key);
-      localStorage.setItem('am.code', this.format(c)); localStorage.setItem('am.linked', '1');
+      if (c) localStorage.setItem('am.code', this.format(c)); else localStorage.removeItem('am.code');
+      localStorage.setItem('am.linked', '1');
       localStorage.removeItem('am.signedOut');
       localStorage.setItem('am.restore', '1'); // (your settings and skin to come: Sync.restore)
     } catch { /* private mode */ }

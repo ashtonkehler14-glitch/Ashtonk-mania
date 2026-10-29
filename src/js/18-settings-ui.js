@@ -28,7 +28,7 @@ const SettingsPanel = {
     scroll.addEventListener('scroll', () => { if (!navRaf) navRaf = requestAnimationFrame(() => { navRaf = 0; if (this.scrollEl) this.syncNav(); }); }, { passive: true });
     // picking another skin shows or hides the Custom skin's options
     const offSkin = Bus.on('skin:changed', () => { if (this.o && this.scrollEl) { const st = this.scrollEl.scrollTop; this.build(this.q || ''); this.scrollEl.scrollTop = st; } });
-    this.o = makeOverlay(panel, { onClose: () => { offSkin(); this.o = null; KeyConfig.stop(); window.removeEventListener('keydown', this._type, true); Toolbar.sync(); } });
+    this.o = makeOverlay(panel, { cls: 'sp-wrap', flags: ['settings'], onClose: () => { offSkin(); this.o = null; KeyConfig.stop(); window.removeEventListener('keydown', this._type, true); Toolbar.sync(); } });
     Toolbar.sync();
     requestAnimationFrame(() => { if (section) this.scrollTo(section); else this.syncNav(); });
     // like lazer, the search box has focus as soon as the panel opens, and typing anywhere else in it goes there too
@@ -94,6 +94,9 @@ const SettingsPanel = {
     }
     if (!bySec.size) scroll.append(h('div.empty', 'No settings match your search.'));
     scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION} · ${WhatsNew.latest()}`, h('button.btn.sm.ghost', { onclick: () => WhatsNew.show() }, icon('sparkle'), 'What\'s new')));
+    // (and past everything, at the very bottom: Neru, bored at her desk — NeruEggs.finePrint)
+    const neru = !q && typeof NeruCameo !== 'undefined' ? NeruCameo.make('finePrint', 'nc-fine', { delay: 0 }) : null;
+    if (neru) { scroll.append(neru); NeruEggs.finePrint(neru, scroll); }
     clearEl(this.nav).append(...[...bySec.keys()].map(sec => h('button.sp-nb', { 'aria-label': sec, dataset: { sec }, onclick: () => { UISounds.click(); this.scrollTo(sec); } }, h('span.sp-nb-ind'), icon(SECTION_ICONS[sec] || 'gear'), h('span', sec.toLowerCase()))));
     this.syncNav();
   },
@@ -105,6 +108,9 @@ const SettingsPanel = {
     const isDefault = () => JSON.stringify(Settings.get(it.k)) === JSON.stringify(it.d);
     const reset = h('button.reset', { title: 'Revert to default', 'aria-label': `Revert ${it.l} to default`, onclick: e => { e.stopPropagation(); Settings.set(it.k, copyData(it.d)); UISounds.click(); rebuild(); } });
     const updReset = () => reset.classList.toggle('show', !isDefault());
+    // (a setting that won't be changed right now: it looks as it always does, but trying gets refused — it.refuse)
+    const stays = it.stays ? it.stays() : false;
+    const nope = () => { it.refuse && it.refuse(); row.classList.remove('nope'); void row.offsetWidth; row.classList.add('nope'); };
     const cap = h('div.lbl', it.l, it.hint ? h('div.hint', it.hint) : null);
     let row;
     const rebuild = () => { const n = this.row(it); row.replaceWith(n); };
@@ -114,8 +120,10 @@ const SettingsPanel = {
     if (it.when && !it.when()) return h('div', { hidden: true });
     switch (it.t) {
       case 'bool': {
-        const t = h(`button.toggle${val() ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!val()), 'aria-label': it.l, onclick: e => {
+        const t = h(`button.toggle${val() || stays ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!(val() || stays)), 'aria-label': it.l, onclick: e => {
           e.stopPropagation();
+          // (switched off, and straight back on again)
+          if (stays) { t.classList.remove('on'); UISounds.play('check-off'); clearTimeout(t._back); t._back = setTimeout(() => { t.classList.add('on'); UISounds.play('check-on'); nope(); }, 280); return; }
           const v = !val(); Settings.set(it.k, v); t.classList.toggle('on', v); t.setAttribute('aria-checked', String(v)); UISounds.play(v ? 'check-on' : 'check-off'); updReset(); flash();
         } });
         row = form('fbool', cap, t);
@@ -130,8 +138,10 @@ const SettingsPanel = {
         s.addEventListener('keydown', e => e.stopPropagation());
         s.addEventListener('change', flash);
         upd();
-        row = form('frange', h('div.fleft', cap, v,
-          it.calibrate ? h('button.btn.sm.fcal', { onclick: () => Calibration.open() }, 'Calibrate') : null), h('div.fright', s));
+        // (its help underneath, across the whole box, rather than squeezed into the half beside the slider)
+        row = form(`frange${it.hint ? '.hinted' : ''}`, h('div.fleft', it.hint ? h('div.lbl', it.l) : cap, v,
+          it.calibrate ? h('button.btn.sm.fcal', { onclick: () => Calibration.open() }, 'Calibrate') : null), h('div.fright', s),
+          it.hint ? h('div.fhint', it.hint) : null);
         break;
       }
       case 'select': {
@@ -161,11 +171,12 @@ const SettingsPanel = {
       case 'data': row = form('fwide', cap, DataPanel.build()); break;
       case 'shortcuts': row = form('fbool', cap, h('button.btn.sm', { onclick: () => Shortcuts.open() }, icon('keyboard'), 'Show all')); break;
       case 'mascot': row = form('fwide', cap, h('div.fline',
-        h('button.btn.sm', { onclick: async () => { const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) { await NeruMascot.setImage(f); Toast.ok('Main menu character updated'); } } }, icon('upload'), 'Choose image'),
-        h('button.btn.sm.ghost', { onclick: async () => { await NeruMascot.setImage(null); Toast.show('Main menu character reset'); } }, 'Reset'))); break;
+        h('button.btn.sm', { onclick: async () => { if (stays) { nope(); return; } const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) { await NeruMascot.setImage(f); Toast.ok('Main menu character updated'); } } }, icon('upload'), 'Choose image'),
+        h('button.btn.sm.ghost', { onclick: async () => { if (stays) { nope(); return; } await NeruMascot.setImage(null); Toast.show('Main menu character reset'); } }, 'Reset'))); break;
       default: row = h('div');
     }
     updReset();
+    if (stays) reset.remove();
     return row;
   },
 };
@@ -404,7 +415,7 @@ const ModSelect = {
     this.sheet = sheet; this.colsEl = null; this.footEl = null;
     this.build();
     this.render();
-    this.o = makeOverlay(sheet, {
+    this.o = makeOverlay(sheet, { flags: ['modsel'],
       onClose: () => { this.o = null; this.colsEl = this.footEl = null; this.disabled = new Set(); this.disabledWhy = ''; Bus.emit('mods:changed'); if (onClose) onClose(); },
       onKey: e => {
         if (e.key === 'Tab') { this.searchEl.focus(); return true; } // (lazer: Tab to search)

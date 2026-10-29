@@ -24,15 +24,26 @@ const ResultsScreen = {
     const card = this.gradeCard(s, p);
     this.statsToggle(card, grid);
     grid.append(card, this.rightCol(s));
-    body.append(grid);
+    // (lazer's ScorePanelList: the panels in one row that scrolls sideways when they don't all fit)
+    const row = h('div.res-row', h('div.res-sizer', grid));
+    body.append(row);
+    this.scrollRow(row);
     if (p.mp) { body.classList.add('mp'); MpResults.mount(body, grid, card, s); }
-    else if (!p.watched && s.mapHash) MpResults.mountLocal(grid, card, s);
+    // (every score on the beatmap — not for a replay or Auto being watched, nor someone being spectated)
+    else if (s.mapHash && !['replay', 'auto'].includes(p.watched) && !p.spectated) MpResults.mountLocal(grid, card, s, !!p.fresh);
     const actions = this.actions(s, p, map);
     el.append(body, actions);
     // (Neru's reaction to the play you've just finished — not to a replay, someone else's play or a match)
     if (!this._swapping) {
-      this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(NeruCameo.moodOf(s), 'nc-results', { delay: 1500, poke: NeruEggs.resultsPoke(s) }) : null;
+      // (one of her own songs: delighted you passed it — sunglasses still for an SS — and sulking if you failed it)
+      // (727 — when you see it: she points it out, NeruEggs.wysi)
+      const mood = NeruCameo.moodOf(s), hers = NeruEggs.herSong(map), wysi = p.fresh && !p.mp && !p.watched && NeruEggs.wysi(s);
+      if (wysi) NeruEggs.found('wysi');
+      this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(wysi ? 'wysi' : hers && mood === 'failed' ? 'herSongFail' : hers && mood !== 'perfect' ? 'herSongPass' : mood, 'nc-results', { delay: 1500, poke: NeruEggs.resultsPoke(s) }) : null;
       if (this._neru) el.append(this._neru);
+      // (a Teto or Miku fan's fail or poor play: she laughs, their thing crossed out — they won't save you)
+      const fan = this._neru && !wysi && !hers && (mood === 'failed' || mood === 'bad') && NeruEggs.fanOf();
+      if (fan) NeruEggs.propOn(this._neru, fan.who, 2200);
     }
     this.fitToScreen(body, grid);
     if (!this._swapping) this._origP = p; // (the results as they opened: switching back to that score restores them)
@@ -51,13 +62,60 @@ const ResultsScreen = {
       card.title = grid.classList.contains('stats-open') ? 'Click to hide statistics' : 'Click for statistics';
     });
   },
-  /** Never scroll: the panels shrink as one to fit whatever space is left (opening the statistics, or more of them,
-   *  or a small window / phone), the way lazer's results always sit whole on screen. */
+  /** lazer's ScorePanelList: a row of score panels wider than the screen scrolls sideways — the wheel, a drag, a swipe
+   *  or the arrow keys — and opens with the big panel in the middle. */
+  scrollRow(row) {
+    this._row = row; this._userScrolled = false; this._fitted = false;
+    row.addEventListener('wheel', e => {
+      if (e.ctrlKey || e.metaKey || row.scrollWidth <= row.clientWidth + 1) return;
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (!d) return;
+      e.preventDefault();
+      row.scrollLeft += d * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? row.clientWidth : 1);
+      this._userScrolled = true;
+    }, { passive: false });
+    // (dragged with the mouse — a touch screen swipes it already; a drag doesn't count as a click on a panel)
+    row.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'mouse' || e.button !== 0 || row.scrollWidth <= row.clientWidth + 1 || e.target.closest('button, a, input, .res-right')) return;
+      const x0 = e.clientX, s0 = row.scrollLeft, k = row.offsetWidth / (row.getBoundingClientRect().width || row.offsetWidth);
+      let moved = false;
+      const move = ev => {
+        if (!moved && Math.abs(ev.clientX - x0) < 6) return;
+        if (!moved) { moved = true; row.classList.add('drag'); this._userScrolled = true; }
+        row.scrollLeft = s0 - (ev.clientX - x0) * k;
+      };
+      const up = () => {
+        removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+        row.classList.remove('drag');
+        if (moved) { this._dragged = true; setTimeout(() => { this._dragged = false; }, 0); } // (the click that ends the drag)
+      };
+      addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+    });
+    row.addEventListener('scroll', () => { if (!this._centring) this._userScrolled = true; }, { passive: true });
+  },
+  /** The big panel to the middle of the row (`smooth`: scrolled there, after another panel was picked) — unless you've
+   *  scrolled the row yourself since it opened. */
+  recentre(smooth = false, force = false) {
+    const row = this._row, card = row && row.querySelector('.res-grid > .rs');
+    if (!card || !row.isConnected || !row.classList.contains('scroll') || (this._userScrolled && !force)) return;
+    // (from the layout, not the screen: a panel still flying into place mustn't be what's centred on)
+    const grid = card.parentNode, z = parseFloat(grid.style.zoom) || 1, pad = parseFloat(getComputedStyle(grid.parentNode).paddingLeft) || 0;
+    const left = pad + (card.offsetLeft + card.offsetWidth / 2) * z - row.clientWidth / 2;
+    this._centring = true;
+    row.scrollTo({ left, behavior: smooth ? 'smooth' : 'instant' });
+    clearTimeout(this._centT); this._centT = setTimeout(() => { this._centring = false; }, smooth ? 600 : 50);
+    if (force) this._userScrolled = false;
+  },
+  /** The panels shrink as one to fit whatever height is left (more of them, opening the statistics, a small window /
+   *  phone), the way lazer's results always sit whole on screen — and the wide card a phone held sideways gets grows a
+   *  little into the room it has. A row of scores wider than the screen scrolls sideways instead of shrinking (lazer's
+   *  ScorePanelList), the big panel in the middle and room either side for any other to come there; the statistics
+   *  fit the width too. */
   fitToScreen(body, grid) {
     let raf = 0, shown = false;
     // (one observer per screen: the next results screen enters before this one leaves)
     const ro = new ResizeObserver(() => { if (!raf) raf = requestAnimationFrame(fit); });
-    const fit = () => {
+    const fit = this._fit = () => {
       raf = 0;
       if (!grid.isConnected) { if (shown) ro.disconnect(); return; } // (left: done)
       shown = true;
@@ -65,10 +123,37 @@ const ResultsScreen = {
       const aw = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       // (a multiplayer results screen has its title and the match's lines above the panels: they take their room)
       let others = 0;
-      for (const c of body.children) if (c !== grid && c.offsetParent) others += c.offsetHeight + (parseFloat(cs.rowGap) || 0);
+      const row = grid.parentNode.parentNode, sizer = grid.parentNode;
+      for (const c of body.children) {
+        if (c === grid || c === row || !c.offsetParent) continue;
+        const m = getComputedStyle(c); // (its margins too: the title's gap under it is one)
+        others += c.offsetHeight + (parseFloat(m.marginTop) || 0) + (parseFloat(m.marginBottom) || 0) + (parseFloat(cs.rowGap) || 0);
+      }
       const ah = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - others;
-      const k = Math.max(0.35, Math.min(1, aw / grid.offsetWidth, ah / grid.offsetHeight));
-      const on = k < 0.995;
+      // (the wide card of a short, wide screen — a phone held sideways — may grow into the room it leaves, too)
+      const grow = !grid.classList.contains('stats-open') && matchMedia('(max-height: 520px) and (min-aspect-ratio: 3/2)').matches ? 1.3 : 1;
+      const list = body.classList.contains('mp') && !grid.classList.contains('stats-open');
+      if (list) {
+        // (the row's height fits; its width scrolls — zoomed rather than scaled, so the row's scroll width is its size)
+        const card = grid.querySelector(':scope > .rs'), z0 = parseFloat(grid.style.zoom) || 1;
+        const gh = grid.offsetHeight * z0, cw = (card ? card.offsetWidth : grid.offsetWidth) * z0;
+        const k = Math.max(0.35, Math.min(grow, ah / (gh / z0), aw / (cw / z0)));
+        grid.style.scale = ''; grid.style.transformOrigin = ''; grid.style.marginBottom = '';
+        if (Math.abs(k - z0) > 0.005) grid.style.zoom = k.toFixed(4);
+        // (the row runs the screen's full width, past the body's side padding, as lazer's does — and with room either
+        // side for the big panel to sit in the middle, the others to its left and right, however few of them there are)
+        const rw = body.clientWidth, was = row.classList.contains('scroll');
+        row.classList.add('scroll');
+        sizer.style.paddingInline = `${Math.max(0, (rw - cw / z0 * k) / 2).toFixed(1)}px`;
+        // (back from the statistics too: the row starts over at its big panel)
+        if (!was || !this._fitted || !this._userScrolled) requestAnimationFrame(() => this.recentre(false, !was));
+        this._fitted = true;
+        return;
+      }
+      if (grid.style.zoom) grid.style.zoom = '';
+      row.classList.remove('scroll'); sizer.style.paddingInline = '';
+      const k = Math.max(0.35, Math.min(grow, aw / grid.offsetWidth, ah / grid.offsetHeight));
+      const on = Math.abs(k - 1) > 0.005;
       grid.style.scale = on ? k.toFixed(4) : '';
       // (shrunk from the top, and giving back the height it no longer uses, so the column stays centred on screen)
       if (others) { grid.style.transformOrigin = on ? '50% 0' : ''; grid.style.marginBottom = on ? `${(-grid.offsetHeight * (1 - k)).toFixed(1)}px` : ''; }
@@ -86,17 +171,22 @@ const ResultsScreen = {
     const base = this._origP, back = base && score === base.score;
     this._swapping = true;
     let built;
-    try { built = this.enter(back ? base : { ...this.p, score, fromList: true, fresh: false, replay: null }); } finally { this._swapping = false; }
+    try { built = this.enter(back ? base : { ...this.p, score, fromList: true, fresh: false, replay: null, watched: score.online ? 'online' : this.p.watched === 'online' ? null : this.p.watched }); } finally { this._swapping = false; }
     old.replaceChildren(...built.childNodes);
     if (this._neru) old.append(this._neru);
     this._el = old;
     const fresh = old;
+    // (laid out now, and the picked panel brought to the middle of the row — then it grows out of where it was)
+    if (this._fit) this._fit();
+    this.recentre(false, true);
     requestAnimationFrame(() => {
+      // (inside a zoomed row, a panel's own translate is zoomed too)
+      const z = parseFloat((fresh.querySelector('.res-grid') || {}).style?.zoom) || 1;
       const fly = (el, from) => {
         if (!el || !from) return;
         const to = el.getBoundingClientRect();
         if (!to.width || !to.height) return;
-        const sx = from.width / to.width, sy = from.height / to.height, dx = from.left - to.left, dy = from.top - to.top;
+        const sx = from.width / to.width, sy = from.height / to.height, dx = (from.left - to.left) / z, dy = (from.top - to.top) / z;
         el.animate([{ transformOrigin: '0 0', transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0.6 }, { transformOrigin: '0 0', transform: 'none', opacity: 1 }],
           { duration: 450, easing: 'cubic-bezier(.22, 1, .36, 1)' });
       };
@@ -129,7 +219,14 @@ const ResultsScreen = {
     this._srcs = this._srcs.filter(Boolean);
   },
   onKey(e) {
-    if (this.p.mp || this.p.browse) return false; // (a room's match isn't yours to retry; nor, as in lazer, a score opened from a leaderboard or profile)
+    // (the row of scores, a panel at a time)
+    const row = this._row;
+    if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && row && row.scrollWidth > row.clientWidth + 1 && !(e.target && e.target.closest && e.target.closest('input, select, textarea'))) {
+      const cp = row.querySelector('.cp'), step = cp ? cp.getBoundingClientRect().width * row.offsetWidth / (row.getBoundingClientRect().width || 1) + 14 : 150;
+      row.scrollBy({ left: e.code === 'ArrowLeft' ? -step : step, behavior: 'smooth' }); this._userScrolled = true;
+      return true;
+    }
+    if (this.p.mp || this.p.browse || this.p.spectated) return false; // (a room's match isn't yours to retry; nor, as in lazer, a score opened from a leaderboard or profile, or a play you watched)
     if (e.repeat) return true; // (a column key still held as the song ended)
     if ((e.code === 'Enter' || e.code === 'Space') && e.target && e.target.closest && e.target.closest('button, summary, a, input, select')) return false;
     if (e.code === 'KeyR' || (e.ctrlKey && e.code === 'KeyR')) { this.retry(); return true; }
@@ -171,8 +268,9 @@ const ResultsScreen = {
       <circle cx="120" cy="120" r="${R - 1.2}" fill="none" stroke="rgba(47,47,47,.5)" stroke-width="${W + 2.4}"/>
       <circle class="accring" cx="120" cy="120" r="${R}" fill="none" stroke="url(#rsg)" stroke-width="${W}" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition: stroke-dashoffset ${fillMs}ms cubic-bezier(.1,1,.2,1)"/>
       ${segs.map(([a, b, c]) => arc(a, b, c)).join('')}</svg>`;
-    // badges sit on an ellipse just outside the ring; A and S are nudged down so they don't collide with SS (as lazer does)
-    const badges = [['D', 0, 0.35], ['C', 0.7, 0.75], ['B', 0.8, 0.85], ['A', 0.9, 0.9125], ['S', 0.95, 0.96], ['SS', 1, 1]];
+    // badges sit on an ellipse just outside the ring, spaced so S and SS (95% and 100%, close together at the top) never
+    // touch, nor A and S
+    const badges = [['D', 0, 0.35], ['C', 0.7, 0.75], ['B', 0.8, 0.85], ['A', 0.9, 0.905], ['S', 0.95, 0.952], ['SS', 1, 1]];
     for (const [g, cut, at] of badges) {
       if (g === 'SS' ? !isSS && s.accuracy < 1 : s.accuracy < cut && !isSS) continue;
       const ang = (at * 360 - 90) * Math.PI / 180;
@@ -335,7 +433,7 @@ const ResultsScreen = {
     // (after a multiplayer song: back to the room instead of retrying, as lazer's multiplayer results)
     if (p.mp) bar.append(h('button.res-ab.wide.green', { onclick: () => { UISounds.click(); this.onBack(); }, title: 'back to the room', 'aria-label': 'Back to the room' }, icon('multi')));
     // (lazer's AllowRetry: only after a play of your own — not on a score opened from a leaderboard or a profile)
-    else if (!p.browse) bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
+    else if (!p.browse && !p.spectated) bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
     // lazer's CollectionButton and FavouriteButton (the heart filled while the set is a favourite)
     if (map) {
       // (green while the beatmap is in a collection / the set is a favourite)

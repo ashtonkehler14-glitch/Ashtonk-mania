@@ -54,12 +54,18 @@ function visibleBox(img) {
 /** Phones and tablets: a column's width as a fraction of the screen's height (FNF's arrow is 112 of 720, ~0.156;
  *  a little larger here, easier to read and to hit). */
 const TOUCH_COL = 0.2;
+/** Settings → Mobile layout's "Landscape (expanded columns)", as lazer's looks on a phone: each column a fifth of the
+ *  screen's height on a phone's usual 1.92 : 1 (wider in proportion on a wider screen, narrower past 7 keys), a hairline
+ *  apart. (Not the skin's own width widened, as lazer does: a skin with wide columns came out half the screen tall.) */
+const EXPANDED_COL = 0.2, EXPANDED_GAP = 0.003, EXPANDED_KEYS = 7, PHONE_ASPECT = 1.92;
 
 class ManiaRenderer {
   /** crop: size the canvas to just the stage (plus room for the health bar / key display) instead of the whole
    *  screen, so each frame clears, fills and composites far fewer pixels. The canvas's parent is the screen. */
-  constructor(canvas, { crop = false } = {}) {
-    this.canvas = canvas;
+  /** `touch`: on a touch screen, laid out to be played by touch (below) — a preview of a skin shows the stage as on a
+   *  computer instead: in its small box, the touch layout's columns came out huge and cut off. */
+  constructor(canvas, { crop = false, touch = true } = {}) {
+    this.canvas = canvas; this.touchLayout = touch;
     this.crop = crop; this.cropX = 0;
     this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._tx = 0; this._noteRefW = 0;
     if (crop && typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
@@ -91,10 +97,11 @@ class ManiaRenderer {
   // (scaled with the columns when a phone resizes them: notes cross the same number of note widths per second as in
   // the skin's own layout, so a tall upright screen doesn't make them feel faster)
   // On phones (the touch layout) notes fall at the same speed as on a computer at the same scroll speed: as many
-  // column widths a second (the columns there are sized to the upright screen, so it's the same every play).
+  // column widths a second (the columns there are sized to the upright screen, so it's the same every play) — the
+  // touch layout's usual columns, so widened ones (expanded, sideways) give notes no less time to read.
   get scrollLength() {
     const L = this.layout, cw = L && L.columnWidth && L.columnWidth[0];
-    if (this.fnf && cw > 0 && this.colW && this.colW[0] > 0) return 402 * this.colW[0] / cw;
+    if (this.fnf && cw > 0 && this.colW && this.colW[0] > 0) return 402 * (this._fnfCol || this.colW[0]) / cw;
     return 402 * (this.s || this.H / 480 || 1) * (this.colScale || 1);
   }
   resize(force = false) {
@@ -130,7 +137,8 @@ class ManiaRenderer {
     this._geom();
   }
   /** The column under a point on screen (clientX), or the nearest one — for touch input. */
-  columnAt(clientX, current = -1) {
+  /** `lanes`: only a touch on a column counts (beside the stage is nothing) — Portrait and Landscape (expanded). */
+  columnAt(clientX, current = -1, { lanes = false } = {}) {
     // (the host's place on screen is read once per layout, not on every touch move: a layout read per move event
     // forced style recalculation mid-frame)
     let r = this._hostRect;
@@ -142,7 +150,7 @@ class ManiaRenderer {
     if (!this.colX || !r.width) return -1;
     // a phone held sideways (a narrow stage on a wide screen): the screen's whole width is split evenly between the
     // columns, as lazer's touch input does, so each column is a thumb-sized area
-    if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.colX && r.width) {
+    if (!lanes && typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.colX && r.width) {
       const K = this.colX.length, f = clamp((clientX - r.left) / r.width, 0, 0.9999) * K;
       if (current >= 0 && current < K && f >= current - 1 / 3 && f < current + 1 + 1 / 3) return current;
       return Math.floor(f);
@@ -154,6 +162,7 @@ class ManiaRenderer {
       const m = this.colW[current] / 3;
       if (x >= this.colX[current] - m && x <= this.colX[current] + this.colW[current] + m) return current;
     }
+    if (lanes && (x < this.colX[0] || x > this.stageW)) return -1;
     let best = -1, bd = Infinity;
     for (let i = 0; i < this.colX.length; i++) {
       const a = this.colX[i], b = a + this.colW[i];
@@ -204,15 +213,20 @@ class ManiaRenderer {
       x += this.colW[i] + (i < L.keys - 1 ? ((L.columnSpacing[i] || 0) + Settings.get('gameplay.laneSpacing')) * s * lw : 0);
     }
     this.stageW = x;
-    // touch screens play laid out as Friday Night Funkin' does on a phone (its 1280×720 screen scaled to fit): each
-    // column as wide as an FNF arrow (112 of 720, about a sixth of the screen's height), side by side with no gaps,
-    // in the middle, with the receptors as near the edge as FNF's (below); a narrow screen (a phone held upright)
-    // has them narrow to fit across it
-    const touch = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
-    this.fnf = touch;
-    if (touch) {
-      const size = Math.min(this.H * TOUCH_COL * lw, this.W * 0.96 / L.keys);
-      this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * size); this.stageW = size * L.keys;
+    // touch screens play laid out as Friday Night Funkin' does on a phone (its 1280×720 screen scaled to fit): side by
+    // side with no gaps, in the middle, with the receptors as near the edge as FNF's (below). Held upright, each column
+    // as wide as an FNF arrow (112 of 720, about a sixth of the screen's height), narrowed to fit across it; held
+    // sideways, as Settings → Mobile layout says (lazer's): "Landscape" is the stage as on a computer, "Landscape
+    // (expanded columns)" lazer's wider columns a hairline apart (EXPANDED_COL); "Automatic" keeps the arrows' size
+    // either way up
+    const touch = this.touchLayout && typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const upright = this.H > this.W, layout = Settings.get('gameplay.mobileLayout');
+    this.fnf = touch && (upright || layout !== 'landscape');
+    if (this.fnf) {
+      this._fnfCol = Math.min(this.H * TOUCH_COL * lw, this.W * 0.96 / L.keys);
+      const wide = !upright && layout === 'expanded', gap = wide ? Math.round(this.H * EXPANDED_GAP) : 0;
+      const size = !wide ? this._fnfCol : Math.min(this.H * EXPANDED_COL * Math.min(1, EXPANDED_KEYS / L.keys) * (this.W / this.H) / PHONE_ASPECT * lw, (this.W * 0.96 - gap * (L.keys - 1)) / L.keys);
+      this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * (size + gap)); this.stageW = size * L.keys + gap * (L.keys - 1);
       this.narrow = true;
     } else {
       const fit = this.W * 0.98 / x;
@@ -327,6 +341,16 @@ class ManiaRenderer {
       return;
     }
     this.ctx.drawImage(img, x, yTop, w, h);
+  }
+  /** The top `part` of `img` (a fraction of its height) stretched over the rect: its top edge at yTop (the far end
+   *  in upscroll, where flipY turns it to face the same way). */
+  _imgTop(img, x, yTop, w, h, part, flipY = false) {
+    if (!img || w <= 0 || h <= 0) return;
+    const sh = Math.min(img.height, Math.max(1e-3, img.height * part));
+    if (this.up) yTop = this.H - yTop - h;
+    const c = this.ctx;
+    if (flipY) { c.save(); c.translate(x, yTop + h); c.scale(1, -1); c.drawImage(img, 0, 0, img.width, sh, 0, 0, w, h); c.restore(); return; }
+    c.drawImage(img, 0, 0, img.width, sh, x, yTop, w, h);
   }
   _rect(x, yTop, w, h) { if (this.up) yTop = this.H - yTop - h; this.ctx.fillRect(x, yTop, w, h); }
   _noteH(tex, i) {
@@ -712,6 +736,10 @@ class ManiaRenderer {
     const img = !this.legacy || tex.frames.length < 2 ? tex.frameAt(realNow) : this._bodyT == null ? tex.frames[0] : tex.frames[Math.floor(this._bodyT / 30) % tex.frames.length];
     const len = bottom - top;
     if (style === 0) { this._img(img, x, top, w, len, flip); return; }
+    // osu! (stable, and lazer for skins) draws every other style as the image stretched 32800 units long from the
+    // tail end and cut off at the head: a long body image with its tail end cut away ("Percy" skins) shortens
+    // every hold by the same amount, however wide or tall the image is
+    if (this.legacy) { this._imgTop(img, x, top, w, len, len / Math.max(len, 32800 * this.u) / (tex.kept || 1), flip); return; }
     const th = Math.max(2, tex.h * (w / tex.w));
     const ctx = this.ctx;
     ctx.save();

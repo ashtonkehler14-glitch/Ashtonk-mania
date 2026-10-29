@@ -73,6 +73,8 @@ const SETTINGS_SCHEMA = [
     fmt: v => `${v} (${Math.round(11485 / v)}ms)`, hint: 'How long notes are visible before reaching the receptors.' },
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollDirection', l: 'Scrolling direction', t: 'select', d: 'down', o: [['down', 'Down'], ['up', 'Up']] },
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollMode', l: 'Scroll speed changes', t: 'select', d: 'sv', o: [['sv', 'SV + BPM'], ['svonly', 'SV only'], ['constant', 'Constant']], hint: 'SV + BPM is how osu!mania scrolls.' },
+  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.mobileLayout', l: 'Mobile layout', t: 'select', d: 'auto', o: [['auto', 'Automatic (as you hold it)'], ['portrait', 'Portrait'], ['landscape', 'Landscape'], ['expanded', 'Landscape (expanded columns)']],
+    hint: 'How songs are played on a phone or tablet: whichever way you hold it, or always as osu!lazer\'s — upright, or sideways with the columns as on a computer or widened to fill the screen.', when: () => TOUCH_DEVICE },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.laneWidth', l: 'Lane width', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.hitPositionOffset', l: 'Hit position', t: 'range', d: 0, min: -120, max: 60, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}`, hint: 'Moves where notes are judged (the receptors) up or down from where the skin puts them. Also in the skin editor, where you can drag it.' },
   { x: 1, s: 'Gameplay', g: 'Playfield', k: 'gameplay.stagePosition', l: 'Stage position', t: 'select', d: 'center', o: [['center', 'Centered'], ['skin', 'Skin (ColumnStart)'], ['left', 'Left'], ['right', 'Right']] },
@@ -124,12 +126,11 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Renderer', k: 'graphics.fpsLimit', l: 'Frame limiter', t: 'select', d: 0, o: [[0, 'VSync / Unlimited'], [60, '60 fps'], [120, '120 fps'], [144, '144 fps'], [165, '165 fps'], [240, '240 fps'], [360, '360 fps']], num: true },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.lowLatency', l: 'Low-latency playfield', t: 'bool', d: false, hint: 'Draws the playfield without waiting for the display\'s refresh. It can show a frame sooner, but the stage may tear, which makes notes look like they stutter. Applies from the next play.' },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: kbHint('Ctrl+F11 toggles it anywhere.') },
-  { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: true, hint: 'When a beatmap can\'t keep up (under ~45 fps), the playfield is drawn at a lower resolution until it can, and the device remembers it. After a smooth play it tries a little higher again.' },
-  { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no particles, hit lighting or stage light while playing, and the menus without animations, blur, glow or moving backgrounds.' },
+  { s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: false, hint: 'When a song can\'t keep up, the playfield is drawn at a lower resolution until it can.' },
+  { s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'How sharp the playfield is drawn. Lower is faster on slow computers.' },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no particles, hit lighting or stage light while playing, the menus without animations, blur, glow or moving backgrounds, and song pictures at a lower resolution.' },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
-  { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Background quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Thumbnail (fast)']] },
   // ── Input
   { s: 'Input', g: 'Mouse', k: 'input.noWheelVolumeInGame', l: 'Disable mouse wheel adjusting volume during gameplay', t: 'bool', d: false },
   { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key binding configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
@@ -142,8 +143,11 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'User Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'User Interface', g: 'General', k: 'ui.parallax', l: 'Parallax', t: 'bool', d: true },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.menuBackground', l: 'Background source', t: 'select', d: 'skin', o: [['skin', 'Skin'], ['beatmap', 'Beatmap']], hint: 'lazer\'s: the menu\'s triangle picture (in the playing song\'s colour), or the playing song\'s own background.' },
-  { s: 'User Interface', g: 'Main Menu', k: 'ui.mascot', l: 'Show Neru', t: 'bool', d: true, hint: 'On the main menu, and around the game: she reacts to your results, teases you when you fail and keeps you company while things load.' },
-  { s: 'User Interface', g: 'Main Menu', k: 'ui.mascotImage', l: 'Main menu character image', t: 'mascot', hint: 'Any picture (PNG with a transparent background looks best).' },
+  { s: 'User Interface', g: 'Main Menu', k: 'ui.mascot', l: 'Show Neru', t: 'bool', d: true, hint: 'On the main menu, and around the game: she reacts to your results, teases you when you fail and keeps you company while things load.',
+    // (a Teto, Miku or Neru fan: she stays — it looks as always, but try turning her off and she won't have it)
+    stays: () => typeof NeruEggs !== 'undefined' && NeruEggs.stays(), refuse: () => NeruEggs.refuse() },
+  { s: 'User Interface', g: 'Main Menu', k: 'ui.mascotImage', l: 'Main menu character image', t: 'mascot', hint: 'Any picture (PNG with a transparent background looks best).',
+    stays: () => typeof NeruEggs !== 'undefined' && NeruEggs.stays(), refuse: () => NeruEggs.refuse() },
   { s: 'User Interface', g: 'General', k: 'ui.unicodeMetadata', l: 'Prefer metadata in original language', t: 'bool', d: false },
   { s: 'User Interface', g: 'Song Select', k: 'songselect.converts', l: 'Show converted beatmaps', t: 'bool', d: true, hint: 'osu! (standard) difficulties, played as osu!mania the way lazer converts them.' },
   // ── Skin
@@ -196,6 +200,7 @@ const SETTINGS_SCHEMA = [
   // beatmap sources, as in Web-Osu-Mania's "Sources" settings
   { s: 'Maintenance', g: 'Beatmap sources', k: 'online.downloadSource', l: 'Beatmap provider', t: 'select', d: 'mino', o: [['mino', 'Mino (catboy.best)'], ['nerinyan', 'NeriNyan'], ['sayobot', 'SayoBot'], ['osudirect', 'osu.direct'], ['nekoha', 'Nekoha'], ['custom', 'Custom…']], hint: 'Where beatmaps are downloaded from (Web-Osu-Mania\'s providers). If it fails, the others are tried.' },
   { s: 'Maintenance', g: 'Beatmap sources', k: 'online.customDownload', l: 'Custom download URL', t: 'text', d: '', hint: 'Put $setId where the beatmap set number goes, e.g. https://api.nerinyan.moe/d/$setId', when: () => Settings.get('online.downloadSource') === 'custom' },
+  { x: 1, s: 'Maintenance', g: 'Beatmap sources', k: 'online.autoDownload', l: 'Automatically download missing beatmaps', t: 'bool', d: false, hint: 'Spectating someone on a beatmap you haven\'t got: it downloads by itself.' },
   { s: 'Maintenance', g: 'Beatmap sources', k: 'online.preferNoVideo', l: 'Prefer downloads without video', t: 'bool', d: false, hint: 'Smaller, quicker downloads (good on a phone): beatmaps come without their background video.' },
   { s: 'Maintenance', g: 'Beatmap sources', k: 'online.proxyDownloads', l: 'Proxy beatmap downloads', t: 'bool', d: false, hint: 'As Web-Osu-Mania: download through this site\'s server instead of straight from the provider. Turn it on if downloads are blocked where you are.' },
   { x: 1, s: 'Maintenance', g: 'Beatmap sources', k: 'online.previewSource', l: 'Audio preview source', t: 'select', d: 'official', o: [['official', 'Official osu!'], ['beatconnect', 'Beatconnect'], ['sayobot', 'SayoBot'], ['custom', 'Custom…']] },
@@ -207,7 +212,7 @@ const SETTINGS_SCHEMA = [
   // hidden (not in UI)
   { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'keys' },
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
-  { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'global' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'hud.layout', d: {} }, { k: 'mods.presets', d: [] },
+  { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: TOUCH_DEVICE ? 0.55 : 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'medals.backfilled2', d: false }, { k: 'songselect.lbScope', d: 'global' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'hud.layout', d: {} }, { k: 'mods.presets', d: [] },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
   { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1, coDir: 0 } },
 ];
@@ -252,6 +257,17 @@ const Settings = {
     v['migr.perfBack'] = true;
     // (safe mode is gone: what it left behind goes too)
     if (!v['migr.noSafe']) { delete v['online.safeMode']; delete v['online.safeModeAuto']; try { localStorage.removeItem('am.session'); } catch { /* storage blocked */ } v['migr.noSafe'] = true; }
+    // (the Performance choice in setup — and Chromebooks, given it by themselves — no longer lowers the pictures' or
+    // the playfield's resolution: what it set goes back to full, once; Picture quality and Renderer scale lower them)
+    if (!v['migr.fullRes']) {
+      if (v['setup.device'] === 'chromebook') {
+        if (v['graphics.bgQuality'] === 'low') delete v['graphics.bgQuality'];
+        if (typeof lowEndRenderScale === 'function' && v['graphics.renderScale'] < 1 && v['graphics.renderScale'] === lowEndRenderScale()) delete v['graphics.renderScale'];
+      }
+      // (nor does a song that can't keep up, unless Automatic resolution is turned on: the level it had come down to goes)
+      delete v['perf.autoScale'];
+      v['migr.fullRes'] = true;
+    }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     // a Chromebook that never picked a device (or skipped setup before it asked) gets the Chromebook settings, once
     if (!v['migr.crosAuto']) {
@@ -264,6 +280,8 @@ const Settings = {
   },
   get(k) {
     if (this.values['graphics.performanceMode'] && Settings.PERF_OFF.has(k)) return false;
+    // (song backgrounds and song select's pictures at a lower resolution: part of Performance mode, not a setting)
+    if (k === 'graphics.bgQuality') return this.values['graphics.performanceMode'] ? 'low' : 'high';
     if (k === 'ui.animSpeed' && this.values['graphics.performanceMode']) return 0; // (Performance mode: no menu animations)
     if (k in this.values) return this.values[k];
     const s = this.schema.get(k);
@@ -316,9 +334,9 @@ const Settings = {
     r.style.setProperty('--anim', sp <= 0 ? 0 : (1 / sp));
     r.dataset.theme = 'kori';
     r.classList.toggle('no-effects', !this.get('graphics.effects'));
-    r.classList.toggle('no-anim', sp <= 0);
+    r.classList.toggle('no-anim', sp <= 0); cssSheet('no-anim', sp <= 0);
     // Performance mode: the lightest of everything, menus too — no animation, blur, glass, glow or moving backgrounds
     // (without it the menus still lighten by themselves on a device that can't keep up — see .slow)
-    r.classList.toggle('perf', !!this.get('graphics.performanceMode'));
+    r.classList.toggle('perf', !!this.get('graphics.performanceMode')); cssSheet('perf', !!this.get('graphics.performanceMode'));
   },
 };

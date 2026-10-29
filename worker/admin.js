@@ -21,16 +21,19 @@ async function same(a, b) {
   for (let i = 0; i < x.length; i++) d |= x.charCodeAt(i) ^ y.charCodeAt(i);
   return d === 0;
 }
+/** Who a session is: 'o' (the owner) or an admin's pid — null when signed out. (A session from before admins could be
+ *  made has no one named: the owner's.) */
 async function signedIn(request, code) {
   const c = (request.headers.get('cookie') || '').split(/;\s*/).find(x => x.startsWith(COOKIE + '='));
-  if (!c) return false;
-  const [exp, nonce, sig] = c.slice(COOKIE.length + 1).split('.');
-  if (!(Number(exp) > Date.now()) || !/^[0-9a-f]{24}$/.test(nonce || '') || !sig) return false;
-  return same(sig, await hmac(code, `${exp}.${nonce}`));
+  if (!c) return null;
+  const parts = c.slice(COOKIE.length + 1).split('.');
+  const [exp, nonce] = parts, who = parts.length === 4 ? parts[2] : 'o', sig = parts[parts.length - 1];
+  if (!(Number(exp) > Date.now()) || !/^[0-9a-f]{24}$/.test(nonce || '') || !sig || !(who === 'o' || /^[a-z0-9]{6,24}$/.test(who))) return null;
+  return (await same(sig, await hmac(code, parts.length === 4 ? `${exp}.${nonce}.${who}` : `${exp}.${nonce}`))) ? who : null;
 }
-async function sessionCookie(code, url) {
+async function sessionCookie(code, url, who = 'o') {
   const exp = Date.now() + SESSION_H * 3600e3, nonce = hex(crypto.getRandomValues(new Uint8Array(12)));
-  return `${COOKIE}=${exp}.${nonce}.${await hmac(code, `${exp}.${nonce}`)}; Path=/admin; Max-Age=${SESSION_H * 3600}; HttpOnly; SameSite=Strict${url.protocol === 'https:' ? '; Secure' : ''}`;
+  return `${COOKIE}=${exp}.${nonce}.${who}.${await hmac(code, `${exp}.${nonce}.${who}`)}; Path=/admin; Max-Age=${SESSION_H * 3600}; HttpOnly; SameSite=Strict${url.protocol === 'https:' ? '; Secure' : ''}`;
 }
 
 const SECURE = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff', 'X-Robots-Tag': 'noindex, nofollow' };
@@ -62,27 +65,34 @@ export async function handleAdmin(request, env, url) {
   let b; try { b = JSON.parse(text || '{}'); } catch { return json({ error: 'Bad request.' }, 400); }
   if (!b || typeof b !== 'object') return json({ error: 'Bad request.' }, 400);
   const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global')), ip = request.headers.get('cf-connecting-ip') || '';
-  const ask = (action, body = {}) => stub.fetch(new Request(`https://matchmaker/internal/admin/${action}`, { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json', 'x-ip': ip } }));
+  const ask = (action, body = {}, who = 'o') => stub.fetch(new Request(`https://matchmaker/internal/admin/${action}`, { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json', 'x-ip': ip, 'x-admin-who': who === 'o' ? 'owner' : who } }));
   const action = m[1];
   if (action === 'login') {
     const t0 = Date.now(), settle = async () => { const w = 400 - (Date.now() - t0); if (w > 0) await new Promise(r => setTimeout(r, w)); }; // (every answer takes as long)
     const allowed = await ask('try').then(r => r.json()).then(r => !!r.ok).catch(() => false);
     if (!allowed) { await settle(); return json({ error: 'Too many tries from here. Wait a few minutes.' }, 429); }
+    // (the owner's code — or the code of a player the owner made an admin)
     const good = await same(cleanPlayerCode(b.code) || '-', code);
+    const staff = good ? null : await ask('staffCode', { code: String(b.code || '').slice(0, 40) }).then(r => r.json()).then(r => r.pid || null).catch(() => null);
     await settle();
-    if (!good) return json({ error: 'That isn\'t the admin code.' }, 401);
-    await ask('signedIn', { how: 'code' }).catch(() => {});
-    return json({ ok: true }, 200, { 'Set-Cookie': await sessionCookie(code, url) });
+    if (!good && !staff) return json({ error: 'That isn\'t an admin\'s code.' }, 401);
+    await ask('signedIn', { how: 'code' }, staff || 'o').catch(() => {});
+    return json({ ok: true }, 200, { 'Set-Cookie': await sessionCookie(code, url, staff || 'o') });
   }
   if (action === 'device') {
     const r = await ask('device', { pid: String(b.pid || ''), key: String(b.key || '') }).then(x => x.json()).catch(() => ({}));
     if (!r.ok) return json({ ok: false });
-    await ask('signedIn', { how: 'device' }).catch(() => {});
-    return json({ ok: true }, 200, { 'Set-Cookie': await sessionCookie(code, url) });
+    const who = r.who === 'owner' || !r.who ? 'o' : String(r.who);
+    await ask('signedIn', { how: 'device' }, who).catch(() => {});
+    return json({ ok: true }, 200, { 'Set-Cookie': await sessionCookie(code, url, who) });
   }
-  if (!(await signedIn(request, code))) return json({ error: 'Signed out. Sign in again.' }, 401);
-  if (action === 'logout') return json({ ok: true }, 200, { 'Set-Cookie': `${COOKIE}=; Path=/admin; Max-Age=0; HttpOnly; SameSite=Strict` });
-  const r = await ask(action, b);
+  const who = await signedIn(request, code);
+  const out = { 'Set-Cookie': `${COOKIE}=; Path=/admin; Max-Age=0; HttpOnly; SameSite=Strict` };
+  if (!who) return json({ error: 'Signed out. Sign in again.' }, 401);
+  if (action === 'logout') return json({ ok: true }, 200, out);
+  // (an admin the owner made: still one? — taken away, the session ends there)
+  if (who !== 'o' && !(await ask('isStaff', { pid: who }).then(x => x.json()).then(x => !!x.ok).catch(() => false))) return json({ error: 'You\'re not an admin any more.' }, 401, out);
+  const r = await ask(action, b, who);
   return new Response(r.body, { status: r.status, headers: { 'Content-Type': 'application/json', ...SECURE } });
 }
 
@@ -150,7 +160,7 @@ const OFF = `<div class="center"><div class="card login"><h1>The admin panel is 
 
 const LOGIN = `<div class="center"><div class="card login"><h1>Ashtonk!mania admin</h1>
 <p class="muted" id="sub">Checking this device…</p>
-<input id="code" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" maxlength="24" aria-label="Admin code">
+<input id="code" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" maxlength="24" aria-label="Player code">
 <button class="primary" id="go">Sign in</button><p class="bad small" id="err"></p></div></div>`;
 
 const LOGIN_JS = `
@@ -161,7 +171,7 @@ const post = (a, b) => fetch('/admin/api/' + a, { method: 'POST', headers: { 'co
   let pid = '', key = '';
   try { pid = localStorage.getItem('am.pid') || ''; key = localStorage.getItem('am.key') || ''; } catch {}
   if (pid && key) { try { const r = await (await post('device', { pid, key })).json(); if (r.ok) { location.reload(); return; } } catch {} }
-  $('sub').textContent = 'Type your player code (the one in the ADMIN_CODE secret).';
+  $('sub').textContent = 'Type your player code: the owner\\'s (the one in the ADMIN_CODE secret), or an admin\\'s.';
   $('code').focus();
 })();
 async function go() {
@@ -207,9 +217,13 @@ const avatar = (a, name) => typeof a === 'string' && (a.startsWith('data:image/'
   ? h('img.av', { src: a.startsWith('preset:') ? '/avatars/' + a.slice(7).split('-')[0] + '.jpg' : a.startsWith('file:') ? '/avatars/' + encodeURIComponent(a.slice(5)) : a, alt: '' })
   : h('span.av', String(name || '?').slice(0, 1).toUpperCase());
 const until = m => m ? (m.until ? 'until ' + when(m.until) : 'for good') + (m.reason ? ' — ' + m.reason : '') : '';
-const badges = p => [p.admin ? h('span.pill.acc', 'you') : null, p.banned ? h('span.pill.bad', 'banned') : null, p.muted ? h('span.pill.warn', 'muted') : null, p.named ? h('span.pill', 'renamed') : null, p.code ? h('span.pill.good', 'code') : null];
+// (a role's pill in its own colour — set through the style object: the page's rules allow no style attributes)
+const rolePill = (name, colour) => { const el = h('span.pill', name); if (/^#[0-9a-f]{6}$/i.test(colour || '')) { el.style.color = colour; el.style.background = colour + '26'; } return el; };
+const badges = p => [p.owner || p.admin ? rolePill('Owner', '#ffcc22') : p.role ? rolePill(p.role.name, p.role.colour) : null, p.banned ? h('span.pill.bad', 'banned') : null, p.muted ? h('span.pill.warn', 'muted') : null, p.named ? h('span.pill', 'renamed') : null, p.code ? h('span.pill.good', 'code') : null];
+let ME = { owner: true };
 
 const TABS = [['overview', 'Overview'], ['players', 'Players'], ['chat', 'Chat'], ['daily', 'Daily challenge'], ['log', 'Log']];
+const tabs = () => ME.owner ? TABS : TABS.filter(([k]) => k !== 'daily' && k !== 'log');
 let tab = (location.hash.slice(1).split('/')[0]) || 'overview';
 const app = document.getElementById('app'), main = h('main'), tabsEl = h('div.tabs');
 app.append(h('div.top', h('div.logo', 'A'), h('h1', 'Admin'), tabsEl, h('span.grow'), h('button.small', { onclick: async () => { await api('logout').catch(() => {}); location.reload(); } }, 'Sign out')), main);
@@ -217,7 +231,7 @@ const go = (t, sub) => { tab = t; location.hash = sub ? t + '/' + sub : t; rende
 window.addEventListener('hashchange', () => { const t = location.hash.slice(1).split('/')[0] || 'overview'; if (t !== tab || location.hash.includes('/')) { tab = t; render(); } });
 
 async function render() {
-  tabsEl.replaceChildren(...TABS.map(([k, l]) => h('button' + (k === tab ? '.on' : ''), { onclick: () => go(k) }, l)));
+  tabsEl.replaceChildren(...tabs().map(([k, l]) => h('button' + (k === tab ? '.on' : ''), { onclick: () => go(k) }, l)));
   main.replaceChildren(h('div.empty', 'Loading…'));
   try { await ({ overview, players, chat, daily, log })[tab](); } catch (e) { main.replaceChildren(h('div.card', h('p.bad', e.message))); }
 }
@@ -225,7 +239,10 @@ async function render() {
 async function overview() {
   const d = await api('overview');
   const map = d.daily.map;
+  if (d.me && !d.me.owner !== !ME.owner) { ME = d.me; tabsEl.replaceChildren(...tabs().map(([k, l]) => h('button' + (k === tab ? '.on' : ''), { onclick: () => go(k) }, l))); }
+  ME = d.me || ME;
   main.replaceChildren(
+    h('div.card', h('div.row', h('span.muted', 'Signed in as'), ME.owner ? rolePill('Owner', '#ffcc22') : [h('b', ME.name || ME.pid), ME.role ? rolePill(ME.role.name, ME.role.colour) : null])),
     h('div.grid', [['Online now', d.online.length], ['Ranked players', d.ranked], ['Players with a code', d.codes], ['Open rooms', d.rooms.length], ['Banned', d.bans], ['Muted', d.mutes]].map(([l, v]) => h('div.tile', h('b', fmt(v)), h('span', l)))),
     d.owner ? null : h('div.card', h('p.warn', 'No player has the code in ADMIN_CODE yet: sign in to the game with it (Your code) so the game knows you\\'re the owner.')),
     h('div.cols',
@@ -235,7 +252,9 @@ async function overview() {
         h('div.card', h('h2', 'Daily challenge'), map ? h('div', h('b', map.artist + ' - ' + map.title), h('div.muted', '[' + map.version + '] · ' + map.stars + '★ · ' + map.keys + 'K · ' + d.daily.scores + ' scores')) : h('p.' + (d.daily.error ? 'bad' : 'muted'), d.daily.error || 'Not picked yet (picked when the first player opens it).'),
           h('div.row.mt', h('button.small', { onclick: () => go('daily') }, 'Change…'))),
         h('div.card', h('h2', 'Rooms'), d.rooms.length ? h('table', d.rooms.map(r => h('tr', h('td', r.name || r.code), h('td.muted', (r.players || 0) + '/' + (r.size || '?')), h('td.muted', r.state || '')))) : h('div.empty', 'No open rooms.')),
-        h('div.card', h('h2', 'Recent actions'), d.log.length ? logTable(d.log) : h('div.empty', 'Nothing yet.')))));
+        h('div.card', h('h2', 'Admins'), h('p.muted.small', ME.owner ? 'Players you\\'ve made admins: they sign in here with their own code and can ban, mute, rename and remove scores — but not act on another admin. Make one from a player\\'s page.' : 'The admins the owner made.'),
+          d.staff && d.staff.length ? h('table', d.staff.map(p => h('tr.click', { onclick: () => openPlayer(p.pid) }, h('td', p.online ? h('span.dot') : null, p.name || p.pid, badges(p)), h('td.muted', p.online ? 'online' : ago(p.seen))))) : h('div.empty', 'No admins yet.')),
+        ME.owner ? h('div.card', h('h2', 'Recent actions'), d.log.length ? logTable(d.log) : h('div.empty', 'Nothing yet.')) : null)));
 }
 
 let lastQuery = '';
@@ -278,7 +297,8 @@ async function openPlayer(pid, inPlace) {
         h('span', 'Daily challenge'), h('div', p.daily ? p.daily.days + ' days played · best streak ' + (p.daily.best || 0) : '—'),
         p.banned ? [h('span', 'Banned'), h('div.bad', until(p.banned))] : null, p.muted ? [h('span', 'Muted'), h('div.warn', until(p.muted))] : null)),
       h('div.card.actions', h('h2', 'Actions'),
-        p.admin ? h('p.muted', 'This is you (the ADMIN_CODE player).') : [
+        p.admin ? h('p.muted', 'This is the owner (the ADMIN_CODE player).') : !ME.owner && p.role ? h('p.muted', 'An admin: only the owner can act on them.') : [
+          ME.owner ? roleBox(p, act) : null,
           p.banned && p.muted ? null : h('div.row', reason),
           h('div', h('h3', 'Ban'), h('p.muted.small', 'Taken offline now and kept offline; their scores are hidden from the boards and rankings.'),
             p.banned ? h('button', { onclick: act('unban', () => ({}), 'Unbanned') }, 'Unban')
@@ -287,10 +307,24 @@ async function openPlayer(pid, inPlace) {
             : h('div.row', muteFor, h('button', { onclick: act('mute', () => ({ minutes: Number(muteFor.value), reason: reason.value }), 'Muted') }, 'Mute')))],
         h('div', h('h3', 'Name'), h('p.muted.small', 'One their game can\\'t change, for a name that isn\\'t OK.'), h('div.row', name, h('button', { onclick: act('rename', () => ({ name: name.value }), 'Renamed') }, 'Rename'),
           p.named ? h('button', { onclick: act('rename', () => ({ name: '' }), 'Their own name is back') }, 'Give their name back') : null)),
-        h('div', h('h3', 'Scores'), h('p.muted.small', 'Take one play off below, or all of them.'), h('button.danger', { onclick: act('wipe', () => ({}), 'Every score wiped', 'Wipe every score of ' + (p.name || p.pid) + '? Their rankings, leaderboard scores and daily challenge scores go for good.') }, 'Wipe every score')))),
+        h('div', h('h3', 'Scores'), h('p.muted.small', ME.owner ? 'Take one play off below, or all of them.' : 'Take a play off below.'), !ME.owner ? null : h('button.danger', { onclick: act('wipe', () => ({}), 'Every score wiped', 'Wipe every score of ' + (p.name || p.pid) + '? Their rankings, leaderboard scores and daily challenge scores go for good.') }, 'Wipe every score')))),
     h('div.card', h('h2', 'Best plays (' + p.bests.length + ')'), p.bests.length ? h('table', h('tr', h('th', 'Beatmap'), h('th', 'pp'), h('th', 'Score'), h('th', 'Accuracy'), h('th', 'Mods'), h('th', 'Set'), h('th')),
       p.bests.map(s => h('tr', h('td', s.artist + ' - ' + s.title, h('span.muted', ' [' + s.version + ']')), h('td', fmt(s.pp)), h('td', fmt(s.score)), h('td', pct(s.acc)), h('td.muted', s.mods.join(' ') || '—'), h('td.muted', ago(s.date)),
         h('td', h('button.small.danger', { onclick: act('removeScore', () => ({ key: s.key }), 'Score removed', 'Remove this score?') }, 'Remove'))))) : h('div.empty', 'No ranked plays.')));
+}
+
+/** The owner's: make a player an admin, with a role of your naming and colour (shown beside their name on the rankings
+ *  and their profile) — or change it, or take it away. */
+function roleBox(p, act) {
+  const name = h('input.grow', { placeholder: 'Role name (e.g. Moderator)', maxlength: 24, value: p.role ? p.role.name : '' });
+  const colour = h('input', { type: 'color', value: p.role ? p.role.colour : '#66ccff', 'aria-label': 'Role colour' });
+  const preview = h('span');
+  const paint = () => preview.replaceChildren(rolePill(name.value.trim() || 'Role', colour.value));
+  name.addEventListener('input', paint); colour.addEventListener('input', paint); paint();
+  return h('div', h('h3', 'Admin'), h('p.muted.small', p.role ? 'An admin: they sign in to this panel with their own code.' : 'Make them an admin: they sign in to this panel with their own code, and the role shows beside their name.'),
+    h('div.row', name, colour, preview),
+    h('div.row.mt', h('button.primary', { onclick: act('role', () => ({ name: name.value, colour: colour.value }), p.role ? 'Role saved' : 'Made an admin', p.role ? null : 'Make ' + (p.name || p.pid) + ' an admin? They can ban, mute and rename players.') }, p.role ? 'Save role' : 'Make admin'),
+      p.role ? h('button.danger', { onclick: act('unrole', () => ({}), 'No longer an admin', 'Take admin away from ' + (p.name || p.pid) + '?') }, 'Remove admin') : null));
 }
 
 async function chat() {
@@ -300,7 +334,7 @@ async function chat() {
   text.addEventListener('keydown', e => { if (e.key === 'Enter') announce(); });
   main.replaceChildren(
     h('div.card', h('h2', 'Announce'), h('div.row', text, h('button.primary', { onclick: announce }, 'Send'))),
-    h('div.card', h('div.row', h('h2.grow', '#lobby (' + d.chat.length + ')'), h('button.small', { onclick: chat }, 'Refresh'), h('button.small.danger', { onclick: async () => { if (!confirm('Clear #lobby for everyone?')) return; await run(() => api('chatClear'), 'Cleared'); chat(); } }, 'Clear all')),
+    h('div.card', h('div.row', h('h2.grow', '#lobby (' + d.chat.length + ')'), h('button.small', { onclick: chat }, 'Refresh'), !ME.owner ? null : h('button.small.danger', { onclick: async () => { if (!confirm('Clear #lobby for everyone?')) return; await run(() => api('chatClear'), 'Cleared'); chat(); } }, 'Clear all')),
       d.chat.length ? h('div.chat', d.chat.slice().reverse().map(l => h('div.line' + (l.from && l.from.system ? '.sys' : ''), h('span.t', clock(l.at)), h('span.n', (l.from && l.from.name) || '?'), h('span.x', l.text),
         l.from && l.from.pid ? h('button.small', { onclick: () => openPlayer(l.from.pid) }, 'Player') : null,
         h('button.small.danger', { onclick: async () => { await run(() => api('chatDelete', { at: l.at, pid: (l.from && l.from.pid) || '' }), 'Deleted'); chat(); } }, 'Delete')))) : h('div.empty', 'No messages.')));
@@ -319,10 +353,11 @@ async function daily() {
     h('div.row.mt', id, h('button.primary', { onclick: set }, 'Set'))));
 }
 
-const logTable = list => h('table', list.map(e => h('tr', h('td.muted.small', when(e.at)), h('td', h('b', e.what), e.name ? ' · ' + e.name : '', e.to ? ' → ' + e.to : '',
+const logTable = list => h('table', list.map(e => h('tr', h('td.muted.small', when(e.at)), h('td', e.by ? h('span.muted', e.by + ': ') : null, h('b', e.what), e.name ? ' · ' + e.name : '', e.to ? ' → ' + e.to : '',
   e.days != null ? ' · ' + (e.days ? e.days + ' days' : 'for good') : '', e.minutes != null ? ' · ' + (e.minutes ? e.minutes + ' min' : 'for good') : '', e.map ? ' · ' + e.map : '',
   e.text ? h('div.muted.small', e.text) : null, e.reason ? h('div.muted.small', 'Reason: ' + e.reason) : null), h('td.muted.small', e.ip || ''))));
 async function log() { const d = await api('log'); main.replaceChildren(h('div.card', h('h2', 'Admin log'), d.log.length ? logTable(d.log) : h('div.empty', 'Nothing yet.'))); }
 
-render();
+// (who's signed in — the owner, or an admin they made — before the first page: what's shown depends on it)
+api('overview').then(d => { ME = d.me || ME; }).catch(() => {}).finally(render);
 `;

@@ -418,8 +418,11 @@ const ProfileManager = {
   avatarEl(size = 40) {
     const p = this.profile;
     const el = h('div.avatar', { style: { width: size + 'px', height: size + 'px' } });
-    if (p.avatar !== 'default' && this.avatarURL) el.style.backgroundImage = `url("${this.avatarURL}")`;
-    else { el.classList.add('avatar-mono'); el.textContent = (p.name || 'A').slice(0, 1).toUpperCase(); el.style.fontSize = size * 0.45 + 'px'; }
+    if (p.avatar !== 'default' && this.avatarURL) {
+      el.style.backgroundImage = `url("${this.avatarURL}")`;
+      // (Teto's or Miku's picture, big enough to see: Neru's drawn on it)
+      if (size >= 48 && typeof NeruEggs !== 'undefined') NeruEggs.doodle(el, p.avatar);
+    } else { el.classList.add('avatar-mono'); el.textContent = (p.name || 'A').slice(0, 1).toUpperCase(); el.style.fontSize = size * 0.45 + 'px'; }
     return el;
   },
   /** XP & level derived from local scores. */

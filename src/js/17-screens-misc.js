@@ -4,10 +4,12 @@
  *  lowercase title, the actions on the right, optional tabs on Dark4 underneath, then the body in Background5.
  *  `hue` picks the overlay colour scheme (lazer: Blue 200, Pink 333, Plum 320, Orange 45, Aquamarine 160, …). */
 const OVERLAY_HUES = { red: 0, orange: 45, lime: 90, green: 125, aquamarine: 160, blue: 200, purple: 255, plum: 320, pink: 333 };
+/** lazer's OverlayHeader: its icon and title on the title bar (the description is only the title's tooltip, as lazer
+ *  keeps it for the toolbar's), then the tabs. */
 function overlayHeader(title, { icon: ic = 'star', sub = null, actions = [], tabs = null } = {}) {
   return h('div.ov-head',
     h('div.ov-titlebar', h('div.ov-inner',
-      h('span.ov-icon', icon(ic)), h('h1', title), sub ? h('span.ov-sub', sub) : null, h('div.grow'), ...actions)),
+      h('span.ov-icon', icon(ic)), h('h1', sub ? { title: sub } : {}, title), h('div.grow'), ...actions)),
     tabs ? h('div.ov-tabs', h('div.ov-inner', tabs)) : null);
 }
 function pageShell(title, sub, actions = [], { icon: ic = 'star', hue = 'purple', tabs = null, wide = false } = {}) {
@@ -68,6 +70,10 @@ const AccountBeatmaps = {
   },
 };
 
+/** A beatmap card's square for a set with no background picture: a note in it, rather than an empty square that looks
+ *  like a picture still loading. */
+function noPicture(thumb) { thumb.classList.add('ex-nopic', 'loaded'); thumb.append(icon('music')); }
+
 const BeatmapsScreen = {
   q: '',
   enter() {
@@ -85,13 +91,30 @@ const BeatmapsScreen = {
     search.addEventListener('keydown', e => e.stopPropagation());
     this.list = h('div.ex-grid.lib-grid', { style: { '--o-h': OVERLAY_HUES.blue } });
     this.report = h('div');
-    page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, search, h('span.grow'), this.summary), this.list);
+    // while the list scrolls, the cards passing under the pointer don't react to it (as in the beatmap listing); they
+    // do again a moment after it stops
+    const shield = h('div.lib-shield');
+    page.classList.add('lib-page');
+    page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, search, h('span.grow'), this.summary), this.list, shield);
+    let still = 0;
+    const sc = this._scroller = el.querySelector('.screen-body');
+    sc.classList.add('lib-body');
+    sc.addEventListener('scroll', () => { shield.classList.add('on'); clearTimeout(still); still = setTimeout(() => shield.classList.remove('on'), 160); this.schedule(); }, { passive: true });
+    // (the list's columns, row height and where it starts are measured again only when something changes size: the
+    // window, the import report above it — never while it scrolls)
+    this._ro = new ResizeObserver(es => { const g = es.find(e => e.target === this.list); if (es.some(e => e.target !== this.list) || (g && g.contentRect.width !== this._gw)) { if (g) this._gw = g.contentRect.width; this._mDirty = true; this.schedule(); } });
+    for (const t of [sc, this.report, this.list]) this._ro.observe(t);
+    this._cards = new Map(); this._details = new Map(); this._open = new Set();
     this._unsub = [Bus.on('library:changed', () => this.refresh()), Bus.on('import:report', () => this.renderReport()), Bus.on('accountsets:changed', () => this.refresh()), Bus.on('scores:changed', () => this.paintMine())];
     this.refresh();
     return el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); if (this._io) this._io.disconnect(); },
-  async refresh() { this.paintMine(); this.renderSummary(); this.renderList(); this.renderReport(); },
+  leave() { (this._unsub || []).forEach(f => f()); this._ro && this._ro.disconnect(); cancelAnimationFrame(this._fr); this._fr = 0; },
+  async refresh() {
+    // (the cards are built again: a set's difficulties, favourite or status can have changed)
+    this._cards = new Map(); this._details = new Map();
+    this.paintMine(); this.renderSummary(); this.renderList(); this.renderReport();
+  },
   /** "Your beatmaps (n)": the ones on your other devices that aren't here — shown only when there are any. */
   paintMine() {
     if (!this.mineBtn) return;
@@ -103,7 +126,9 @@ const BeatmapsScreen = {
     const maps = [...BeatmapManager.maps.values()];
     const broken = maps.filter(m => m.problems.length).length;
     const est = await DB.estimate();
-    clearEl(this.summary).append(`${plural(BeatmapManager.sets.length, 'set')} · ${plural(maps.length, 'difficulty', 'difficulties')}${broken ? ` · ${broken} unplayable` : ''}${est ? ` · ${fmtBytes(est.usage || 0)} used` : ''}`);
+    clearEl(this.summary).append(`${plural(BeatmapManager.sets.length, 'set')} · ${plural(maps.length, 'difficulty', 'difficulties')}${broken ? ` · ${broken} unplayable` : ''}${est ? ` · game storage ${fmtBytes(est.usage || 0)}` : ''}`);
+    // (the whole game's storage, not the beatmaps' alone: an empty library still has skins and the like)
+    this.summary.title = est ? 'Everything the game keeps on this device: beatmaps, skins, replays and the rest' : '';
   },
   renderReport() {
     clearEl(this.report);
@@ -119,39 +144,139 @@ const BeatmapsScreen = {
   },
   renderList() {
     clearEl(this.list);
+    this.list.style.paddingTop = this.list.style.paddingBottom = '';
     const sets = BeatmapManager.sets.filter(s => !this.q || `${s.artist} ${s.title} ${s.creator} ${s.tags}`.toLowerCase().includes(this.q))
       .sort((a, b) => b.added - a.added);
+    this._sets = sets; this._range = null;
     if (!sets.length) {
       const mine = AccountBeatmaps.list().length;
       this.list.append(BeatmapManager.sets.length ? stateCard('search', 'No matches', 'Nothing in your library matches that search.', { cls: '.plain', neru: true })
         : mine ? stateCard('beatmap', 'No beatmaps on this device yet', `You have ${plural(mine, 'beatmap')} on your other devices.`, { cls: '.plain', neru: true, action: h('button.btn.primary.off-act', { onclick: () => { UISounds.click(); AccountBeatmaps.open(); } }, icon('download'), 'Show your beatmaps') })
-        : stateCard('beatmap', 'No beatmaps yet', kbHint('Drop .osz archives or beatmap folders anywhere on the window, or get some from the beatmap listing.', 'Import .osz files from your device, or get some from the beatmap listing.'), { cls: '.plain', neru: true }));
+        : stateCard('beatmap', 'No beatmaps yet', kbHint('Drop .osz archives or beatmap folders anywhere on the window, or get some from the beatmap listing.', 'Import .osz files from your device, or get some from the beatmap listing.'), { cls: '.plain', neru: true, action: h('button.btn.primary.off-act', { onclick: () => { UISounds.click(); Screens.go('explore'); } }, icon('search'), 'Browse online') }));
       return;
     }
-    // rows go in a page at a time as the list scrolls (all of a big library at once froze the screen opening), each
-    // with its picture once it's near the screen, and its table of difficulties built only when it's opened
-    this._sets = sets; this._shown = 0;
-    if (this._io) this._io.disconnect();
-    const more = h('div.lib-more');
-    this.list.append(more);
-    this._io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) this.moreRows(more); }, { rootMargin: '600px' });
-    this._io.observe(more);
-    this.moreRows(more);
+    this._mDirty = true;
+    this.renderWindow();
+    // (once more after layout: the columns and the row height are only known then)
+    requestAnimationFrame(() => requestAnimationFrame(() => { this._mDirty = true; this.renderWindow(); }));
   },
-  moreRows(more) {
-    const sets = this._sets || [], from = this._shown, to = Math.min(sets.length, from + 40);
-    if (from >= to) { more.remove(); if (this._io) this._io.disconnect(); return; }
-    this._shown = to;
-    const frag = document.createDocumentFragment();
-    for (const set of sets.slice(from, to)) frag.append(this.row(set));
-    more.before(frag);
+  schedule() { if (!this._fr) this._fr = requestAnimationFrame(() => { this._fr = 0; this.renderWindow(); }); },
+  /** The grid's columns, the distance from one row of cards to the next (with the gap), where it starts in the list and
+   *  how much of it shows. */
+  measure() {
+    const grid = this.list, sc = this._scroller, cs = getComputedStyle(grid);
+    const cols = Math.max(1, cs.gridTemplateColumns.split(' ').filter(Boolean).length), gap = parseFloat(cs.rowGap) || 0;
+    const card = grid.querySelector(':scope > .lib-card');
+    let top = 0;
+    for (let e = grid; e && e !== sc; e = e.offsetParent) { top += e.offsetTop; if (e.offsetParent && !sc.contains(e.offsetParent) && e.offsetParent !== sc) { top -= sc.offsetTop; break; } }
+    this._mDirty = !(card && card.offsetHeight && sc.clientHeight); // (not laid out yet: asked again)
+    return { cols, gap, rowH: ((card && card.offsetHeight) || 100) + gap, top, vh: sc.clientHeight || innerHeight };
+  },
+  /** Where each row of cards starts — and the tables of difficulties opened under them, in between. */
+  layout() {
+    const sets = this._sets || [], { cols, rowH, gap } = this._m, rows = [];
+    let y = 0;
+    for (let i = 0; i < sets.length; i += cols) {
+      const row = { i, y, open: [] };
+      y += rowH;
+      for (const set of sets.slice(i, i + cols)) {
+        if (!this._open.has(set.id)) continue;
+        const d = this._details.get(set.id);
+        row.open.push(set); y += (d && d._h ? d._h : 46 + 37 * (set.maps.length + 1)) + gap;
+      }
+      rows.push(row);
+    }
+    this._rows = rows; this._end = y;
+  },
+  /** Only the cards near the screen are in the page; the rest of the list is just space above and below them. What's
+   *  on screen (and a little either side) goes in at once; a few screens either side join a couple of rows at a time
+   *  while nothing else is going on, so scrolling through them costs nothing more; past that they're let go. A library
+   *  of thousands scrolls as lightly as one of a hundred — every card ever scrolled past used to stay in the page, and
+   *  each one made every frame of scrolling a little heavier. */
+  renderWindow(grow = false) {
+    const grid = this.list, sets = this._sets || [], sc = this._scroller;
+    if (!grid || !sc || !sets.length || !grid.isConnected) return;
+    if (this._mDirty !== false || !this._m) { const c = this._m && this._m.cols; this._m = this.measure(); this._layoutDirty = true; if (c !== this._m.cols) this._range = null; }
+    if (this._layoutDirty) { this._layoutDirty = false; this.layout(); }
+    const { cols, top, vh } = this._m, rows = this._rows;
+    let from = 0, to = rows.length;
+    if (sets.length > cols * 12) {
+      const lite = document.documentElement.classList.contains('perf') || document.documentElement.classList.contains('slow');
+      const st = sc.scrollTop - top;
+      const after = y => { let lo = 0, hi = rows.length; while (lo < hi) { const m = (lo + hi) >> 1; if (rows[m].y < y) lo = m + 1; else hi = m; } return lo; };
+      const band = k => { const a = Math.max(0, after(st - vh * k) - 1); return [a, Math.max(a + 1, after(st + vh + vh * k))]; };
+      const show = band(0.5), keep = band(lite ? 3 : 4), drop = band(lite ? 5 : 6);
+      const cur = this._range;
+      // (jumped somewhere else — the scrollbar dragged, a search: what's in the page now is no help)
+      if (!cur || cur[1] <= show[0] || cur[0] >= show[1] || cur[1] > rows.length) [from, to] = show;
+      else { from = Math.max(drop[0], Math.min(cur[0], show[0])); to = Math.min(drop[1], Math.max(cur[1], show[1])); }
+      // (a row or two more either side each time the page has a moment, up to a few screens)
+      if (grow) { const n = lite ? 1 : 2; from = Math.max(keep[0], from - n); to = Math.min(keep[1], to + n); }
+      if (from > keep[0] || to < keep[1]) { if (!this._growing) { this._growing = true; whenIdle(() => { this._growing = false; if (Screens.current === this) this.renderWindow(true); }); } }
+    }
+    this._range = [from, to];
+    const pt = from ? `${rows[from].y}px` : '', pb = to < rows.length ? `${this._end - rows[to].y}px` : '';
+    if (grid.style.paddingTop !== pt) grid.style.paddingTop = pt;
+    if (grid.style.paddingBottom !== pb) grid.style.paddingBottom = pb;
+    const shown = [];
+    for (let r = from; r < to; r++) {
+      for (const set of sets.slice(rows[r].i, rows[r].i + cols)) shown.push(this.cardEl(set));
+      for (const set of rows[r].open) shown.push(this.detailsEl(set));
+    }
+    // change only what differs: the cards that left go, the ones that came in are put in their places
+    const want = new Set(shown);
+    for (const k of [...grid.children]) if (!want.has(k)) k.remove();
+    let at = grid.firstElementChild;
+    for (const c of shown) {
+      if (c === at) { at = at.nextElementSibling; continue; }
+      grid.insertBefore(c, at);
+    }
+  },
+  /** A set's card, built the first time it comes near the screen (and kept for when it comes back). */
+  cardEl(set) {
+    let c = this._cards.get(set.id);
+    if (!c) { c = this.row(set); this._cards.set(set.id, c); }
+    c.classList.toggle('open', this._open.has(set.id));
+    return c;
+  },
+  /** Its table of difficulties, under the row it's in. */
+  detailsEl(set) {
+    let d = this._details.get(set.id);
+    if (d) return d;
+    const maps = [...set.maps].sort((a, b) => a.keys - b.keys || a.stars - b.stars);
+    d = h('div.lib-details',
+      h('table.table', h('tr', h('th', 'Difficulty'), h('th', 'Keys'), h('th', 'Stars'), h('th', 'Notes / LNs'), h('th', 'Length'), h('th', 'Status')),
+        ...maps.map(m => h('tr', h('td', m.version), h('td', m.keys + 'K'), h('td', h('span.lib-star', { style: { '--sc': starColour(m.stars) } }, icon('star'), m.stars.toFixed(2))), h('td', `${m.noteCount} / ${m.lnCount}`), h('td', fmtTime(m.length)),
+          h('td', m.problems.length ? h('span', { style: { color: '#ffb3bb' } }, m.problems.join('; ')) : m.warnings.length ? h('span.muted', m.warnings.join('; ')) : h('span', { style: { color: 'var(--good)' } }, 'OK'))))),
+      h('div.muted.lib-files', `Added ${fmtDate(set.added)} · files stored: ${Object.keys(set.fileIndex).length}${set.storyboard ? ' · storyboard' : ''}${set.video ? ' · video skipped' : ''} · source: ${set.sourceName || '—'}`));
+    // (its height, once it's laid out, for the space it takes when it's scrolled away)
+    new ResizeObserver(es => { const hh = es[0].borderBoxSize?.[0]?.blockSize ?? es[0].contentRect.height; if (hh && Math.abs(hh - (d._h || 0)) > 0.5) { d._h = hh; this._layoutDirty = true; this.schedule(); } }).observe(d);
+    this._details.set(set.id, d);
+    return d;
+  },
+  /** A card clicked (or Enter on it): its difficulties open underneath, across the whole row — or close. */
+  toggle(set) {
+    UISounds.click();
+    if (this._open.has(set.id)) this._open.delete(set.id);
+    else { this._open.add(set.id); const d = this.detailsEl(set); d.classList.add('lib-in'); setTimeout(() => d.classList.remove('lib-in'), 400); }
+    this._layoutDirty = true;
+    this.renderWindow();
+  },
+  /** Pictures that came in, put on their cards together a few times a second: one at a time, each redrew the whole
+   *  list again — over and over while a page of rows was loading on a slow device. */
+  showThumb(els, u) {
+    (this._thumbs || (this._thumbs = [])).push([els, u]);
+    if (!this._thumbT) this._thumbT = setTimeout(() => {
+      this._thumbT = 0;
+      for (const [list, url] of this._thumbs.splice(0)) for (const el of list) { el.style.backgroundImage = `url("${url}")`; el.classList.add('loaded'); }
+    }, 100);
   },
   /** One beatmap set as lazer's beatmap card (as in the beatmap listing): the cover faded behind, its picture on the
    *  left, title, artist and mapper, the difficulties as coloured bars, and Play / Extract / Delete sliding in on the
    *  right on hover. Clicking it opens its difficulties underneath, across the whole row. */
   row(set) {
     const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-    BeatmapManager.thumbURL(set).then(u => { if (!u) return; for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+    BeatmapManager.thumbURL(set).then(u => { if (u) this.showThumb([thumb, bg], u); else noPicture(thumb); });
     const maps = [...set.maps].sort((a, b) => a.keys - b.keys || a.stars - b.stars);
     const broken = maps.filter(m => m.problems.length);
     const keys = [...new Set(maps.map(m => m.keys))].sort((a, b) => a - b);
@@ -162,18 +287,7 @@ const BeatmapsScreen = {
     const spectrum = maps.length > 10
       ? h('span.ex-spec-more', h('i', { style: { '--sc': starColour(Math.max(...maps.map(m => m.stars))) } }), `${maps.length}`)
       : h('span.ex-spec', ...maps.map(m => h('i', { style: { '--sc': m.problems.length ? '#555' : starColour(m.stars) }, title: `[${m.version}] ${m.stars.toFixed(2)}★ ${m.keys}K` })));
-    let details = null;
-    const toggle = () => {
-      UISounds.click();
-      if (details) { details.remove(); details = null; card.classList.remove('open'); return; }
-      card.classList.add('open');
-      details = h('div.lib-details',
-        h('table.table', h('tr', h('th', 'Difficulty'), h('th', 'Keys'), h('th', 'Stars'), h('th', 'Notes / LNs'), h('th', 'Length'), h('th', 'Status')),
-          ...maps.map(m => h('tr', h('td', m.version), h('td', m.keys + 'K'), h('td', h('span.lib-star', { style: { '--sc': starColour(m.stars) } }, icon('star'), m.stars.toFixed(2))), h('td', `${m.noteCount} / ${m.lnCount}`), h('td', fmtTime(m.length)),
-            h('td', m.problems.length ? h('span', { style: { color: '#ffb3bb' } }, m.problems.join('; ')) : m.warnings.length ? h('span.muted', m.warnings.join('; ')) : h('span', { style: { color: 'var(--good)' } }, 'OK'))))),
-        h('div.muted.lib-files', `Added ${fmtDate(set.added)} · files stored: ${Object.keys(set.fileIndex).length}${set.storyboard ? ' · storyboard' : ''}${set.video ? ' · video skipped' : ''} · source: ${set.sourceName || '—'}`));
-      card.after(details);
-    };
+    const toggle = () => this.toggle(set);
     const side = (cls, ic, label, fn) => h(`button.ex-side-btn${cls}`, { title: label, 'aria-label': label, onclick: e => { e.stopPropagation(); e.currentTarget.blur(); fn(); } }, icon(ic));
     const card = h('div.ex-card.lib-card', { tabindex: '0', role: 'button', 'aria-label': `${artist} - ${title}`, onclick: toggle,
       onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); toggle(); } } },
@@ -236,7 +350,8 @@ const CollectionsScreen = {
       const m = BeatmapManager.mapByHash(hash), set = m && BeatmapManager.setById.get(m.setId);
       const best = ScoreManager.best(hash);
       const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-      if (set) BeatmapManager.thumbURL(set).then(u => { if (!u) return; for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+      if (set) BeatmapManager.thumbURL(set).then(u => { if (!u) return noPicture(thumb); for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+      else noPicture(thumb);
       const side = (cls, ic, label, fn) => h(`button.ex-side-btn${cls}`, { title: label, 'aria-label': label, onclick: e => { e.stopPropagation(); fn(); } }, icon(ic));
       const open = () => m && Screens.go('songselect', { mapId: m.id });
       list.append(h(`div.ex-card.lib-card${m ? '' : '.missing'}`, { tabindex: '0', role: 'button', onclick: open, onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); open(); } } },
@@ -323,19 +438,21 @@ const ProfileScreen = {
     const other = params.pid && params.pid !== (typeof Presence !== 'undefined' && Presence.pid());
     // (coming back from one of their scores: what was already loaded shows straight away, then is brought up to date)
     this.remote = other ? (params.cache && params.cache.pid === params.pid ? params.cache : { pid: params.pid, name: params.name, avatar: params.avatar, data: null }) : null;
-    const { el, page } = pageShell(other ? `${params.name || 'player'}'s profile` : 'Profile', null, [], { icon: 'user', hue: 'pink', wide: true });
+    const { el, page } = pageShell('player info', null, [], { icon: 'user', hue: 'pink', wide: true }); // (lazer's UserProfileHeader title, yours or anyone's)
     this.page = page;
     this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
+      Bus.on('verified:verdicts', () => { if (!this.remote) this.render(); }), // (the catch-up's answers: why a play wasn't counted)
       Bus.on('profile:remote', m => {
         // (your own profile: the server's list of your first places)
         if (!this.remote && m.pid === Presence.pid()) {
           this.ownFirsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; /* (one without its song's name isn't listed) */
+          this.ownRole = m.role || null;
           // (and your pp and best plays as the server has them — what everyone else sees on your profile)
           const v = m.verified;
           this.ownServer = { pid: m.pid, pp: v ? v.pp || 0 : 0, top: (v && v.src === 'profile' && m.data && m.data.top && m.data.top.length ? m.data.top : m.top) || [] };
           this.render(); return;
         }
-        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 };
+        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; this.remote.role = m.role || null;
         if (m.data) m.data = { ...m.data, pp: m.verified ? m.verified.pp : m.data.pp || 0, top: m.data.top && m.data.top.length ? m.data.top : m.top || [] }; /* (pp: the server's standing for them) */
         // a player whose game hasn't sent its profile yet: what the server knows of them (rank, pp, accuracy, play
         // count, ranks) — a profile is never "not shared"
@@ -422,8 +539,15 @@ const ProfileScreen = {
       const mine = new Map((d.top || []).map(x => [x._s.mapHash, x]));
       topPlays = srv.top.map(x => { const k = x.key || x.mapHash, l = k && mine.get(k); return l ? { ...l, pp: x.pp } : x; });
       pp.total = srv.pp;
-      const got = new Map(srv.top.map(x => [x.key || x.mapHash, x.pp || 0]));
-      pending = (d.top || []).filter(x => !(got.get(x._s.mapHash) >= x.pp - 0.5));
+      const got = new Map(srv.top.map(x => [x.key || x.mapHash, x.pp || 0])), shown = x => got.get(x._s.mapHash) >= x.pp - 0.5;
+      // (counted: on the server's own list of your best plays, as the catch-up goes by — the ones it shows on your
+      // profile can leave some out, and those are listed with the rest here; one below the least it keeps isn't "not
+      // counted", just not among them)
+      const extra = (d.top || []).filter(x => !shown(x) && Verified.counted(x._s.mapHash, x.pp));
+      if (extra.length) topPlays = [...topPlays, ...extra].sort((a, b) => b.pp - a.pp);
+      pending = (d.top || []).filter(x => !shown(x) && !Verified.counted(x._s.mapHash, x.pp) && !(x.pp <= Verified.floor));
+      // (plays the server doesn't have yet: sent now — not waited on)
+      if (pending.length) Verified.catchUp();
     }
     const avatar = own ? ProfileManager.avatarEl(120) : Presence.avatarEl({ name: p.name, avatar: this.remote.avatar || d.avatar }, 120);
     avatar.classList.add('pf-avatar');
@@ -450,7 +574,7 @@ const ProfileScreen = {
         h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) { await ProfileManager.setName(n); Toolbar.updateProfile(); } } }, icon('edit')) : null,
           // (your code: play as yourself on another device)
           own && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => CodePanel.open(Account.signedOut() ? { use: true } : {}) }, icon('lock'), Account.signedOut() ? 'Signed out · Use your code' : 'Your code') : null),
-        h('div.pf-tags', h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
+        h('div.pf-tags', roleBadge(this.remote ? this.remote.role : this.ownRole), h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
           u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null)),
       u ? h('div.pf-acts', ...UserPanels.menuItems(u).filter(it => !it.sep && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label))) : null));
     // (play count and time aren't repeated here: they're in the stat list below)
@@ -497,9 +621,11 @@ const ProfileScreen = {
           // (plays on beatmaps that aren't ranked on osu! — your own, or from a file — give pp in the results but never count here)
           : ScoreManager.scores.some(x => x.passed) ? 'No performance records yet: only plays on beatmaps ranked on osu! count here — find some in the beatmap listing.' : 'No performance records. Pass a ranked beatmap to earn pp.')),
       pending.length ? sub('Not counted yet', pending.length,
-        h('div.pf-note', (n => n === pending.length ? 'On their way to the server to be checked — they count once it has.' : n ? 'On their way to the server to be checked. The ones without a replay count once you play them again.'
-          : 'There\'s no replay of these for the server to check. Play them again to count them.')(pending.filter(x => x._s.replayId).length)),
-        more(pending, x => row(x, 0, false))) : null,
+        // (each says why the server hasn't got it — turned down, or not ranked on osu! — once it's been asked)
+        h('div.pf-note', !Presence.ws ? 'These go up to the server as soon as you\'re online.'
+          : !Verified.busy() && pending.every(x => Verified.why(x._s.mapHash, x.pp)) ? 'Not counted — why is beside each one.'
+          : 'Going up to the server now — they count in a moment.'),
+        more(pending, x => this.scoreRow(x._s, fmtInt(x.pp), null, null, Verified.why(x._s.mapHash, x.pp)))) : null,
       own && d.importedTop && d.importedTop.length ? sub('From imported backups', d.importedTop.length,
         h('div.pf-note', 'Not counted in your pp or on the rankings: there\'s no replay of these for the server to check. Play them again here to count them.'),
         more(d.importedTop, x => row(x, 0, false))) : null);
@@ -545,7 +671,7 @@ const ProfileScreen = {
   },
   /** lazer's DrawableProfileScore: rank pill, title / artist, difficulty and date, mods, accuracy, and the pp in a
    *  sheared block on the right (with the weighting for best performance). */
-  scoreRow(s, pp, weight = null, weighted = null) {
+  scoreRow(s, pp, weight = null, weighted = null, note = null) {
     return h(`button.pf-score${s.remote ? '.remote' : ''}`, { onclick: () => {
       UISounds.click();
       // (back from the score comes back here — this profile, scrolled where it was — not to song select)
@@ -558,7 +684,7 @@ const ProfileScreen = {
       h('div.main', h('div.t', s.title, h('span.a', ` by ${s.artist || ''}`)), h('div.s', h('span.v', s.version), h('span.d', fmtDate(s.date)))),
       h('span.pf-mods', ...(s.mods || []).map(m => ModSystem.badge(m, true))),
       // (no accuracy here: next to the weighting it read as the play's weight)
-      weight ? h('div.pf-weight', h('b', `${weighted}pp`), h('span', weight)) : null,
+      weight ? h('div.pf-weight', h('b', `${weighted}pp`), h('span', weight)) : note ? h('div.pf-weight.pf-why', h('span', note)) : null,
       h(`div.pf-ppblock${pp == null ? '.failed' : ''}`, pp == null ? h('span', 'failed') : h('span', pp, h('small', 'pp'))));
   },
 };
@@ -620,7 +746,7 @@ const ReplaysScreen = {
 // ─────────────────────────────── Skins ───────────────────────────────
 class SkinPreview {
   /** scrollSpeed: scroll at the player's scroll speed setting instead of a fixed demo speed. */
-  constructor(canvas, { scrollSpeed = false } = {}) { this.canvas = canvas; this.renderer = new ManiaRenderer(canvas); this.running = false; this.useSpeed = scrollSpeed; }
+  constructor(canvas, { scrollSpeed = false } = {}) { this.canvas = canvas; this.renderer = new ManiaRenderer(canvas, { touch: false }); this.running = false; this.useSpeed = scrollSpeed; }
   async show(skin, keys) {
     this.token = {};
     const tok = this.token;
@@ -664,7 +790,11 @@ class SkinPreview {
       if (!this.running) return;
       this._raf = requestAnimationFrame(frame);
       if (!this.engine) return;
-      const now = performance.now() - this.t0;
+      // (Performance mode: drawn at 30fps — it's a picture of the skin, not a play to keep up with)
+      const real = performance.now();
+      if (real - (this._drawn || 0) < 31 && Settings.get('graphics.performanceMode')) return;
+      this._drawn = real;
+      const now = real - this.t0;
       if (now > this.end) { this.reset(); return; }
       while (this.fi < this.feed.length && this.feed[this.fi][0] <= now) {
         const [tt, c, d] = this.feed[this.fi++];
@@ -747,7 +877,18 @@ const SkinsScreen = {
     const chips = h('div.sk-kchips', { role: 'tablist', 'aria-label': 'Key count' }, ...Array.from({ length: MAX_KEYS }, (_, i) => i + 1).map(k =>
       h(`button.sk-kc${k === this.keys ? '.on' : ''}${!meta.builtin && supported.includes(k) ? '.own' : ''}`, { role: 'tab', 'aria-selected': String(k === this.keys), dataset: { k },
         onclick: e => { if (k === this.keys) return; UISounds.click(); this.keys = k; for (const b of chips.children) { const on = +b.dataset.k === k; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); }
-          hint.textContent = kHint(k); e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }); if (this.preview) this.preview.show(skin, k); } }, `${k}K`)));
+          hint.textContent = kHint(k); centre(e.currentTarget, true); if (this.preview) this.preview.show(skin, k); } }, `${k}K`)));
+    // (on a narrow screen the row scrolls: its ends fade where more key counts are past them, and it starts on the one picked)
+    let centred = false;
+    function centre(chip, smooth) { const a = chip.getBoundingClientRect(), b = chips.getBoundingClientRect(); chips.scrollTo({ left: chips.scrollLeft + a.left - b.left - (b.width - a.width) / 2, behavior: smooth ? 'smooth' : 'instant' }); }
+    const edges = () => {
+      const on = chips.querySelector('.on');
+      if (!centred && on && chips.clientWidth) { centred = true; centre(on); }
+      chips.classList.toggle('more-l', chips.scrollLeft > 1);
+      chips.classList.toggle('more-r', chips.scrollLeft + chips.clientWidth < chips.scrollWidth - 1);
+    };
+    chips.addEventListener('scroll', edges, { passive: true });
+    new ResizeObserver(edges).observe(chips);
     const canvas = h('canvas');
     const pv = h('div.skin-preview', canvas);
     const inUse = SkinManager.current.id === meta.id;
@@ -758,7 +899,7 @@ const SkinsScreen = {
         h('button.btn.sk-edit', { title: 'Edit this skin\'s layout (Ctrl+Shift+S)', onclick: async () => { if (!inUse) await SkinManager.select(meta.id); SkinEditor.open(); } }, icon('edit'), 'Edit skin'),
         !meta.builtin ? h('button.btn.ghost', { onclick: () => SkinManager.exportOsk(meta.id) }, icon('download'), 'Export') : null,
         !meta.builtin ? h('button.btn.danger', { title: 'Delete skin', 'aria-label': 'Delete skin', onclick: async () => { if (await Dialog.confirm('Delete skin?', `${skin.name} will be removed.`, { ok: 'Delete', danger: true })) { await SkinManager.remove(meta.id); this.sel = SkinManager.current.id; } } }, icon('trash')) : null),
-      h('div.sk-keys', h('span.muted.sk-kl', 'Preview'), chips, hint),
+      h('div.sk-keys.with-chips', h('span.muted.sk-kl', 'Preview'), chips, hint),
       meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel(true)) : pv,
       h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}`));
     // (again once the screen's entrance animation has settled: it moves the page while it plays)
@@ -778,8 +919,81 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.29', title: 'Neru', sections: [
+    { icon: 'heart', title: 'Neru', items: ['A few more Neru secrets to find on the main menu'] },
+  ] },
+  { id: '2026.10.28n', title: 'Ranked Play', sections: [
+    { icon: 'trophy', title: 'Ranked Play', items: ['Leave a song and the score you had so far counts for the round, instead of 0', 'Once your song is over, Spectate your opponent as they play on'] },
+  ] },
+  { id: '2026.10.28m', title: 'Mod multipliers and smoother menus', sections: [
+    { icon: 'sparkle', title: 'Mods', items: ['Score multipliers match lazer\'s: Half Time and Daycore 0.30x, key mods 0.90x, Wind Up, Wind Down and Adaptive Speed 0.50x, and Song Speed below 1× counts as Half Time at that speed'] },
+    { icon: 'bolt', title: 'Performance', items: ['After a song, the menus no longer keep your computer busy in the background', 'Scrolling the settings is smoother'] },
+  ] },
+  { id: '2026.10.28l', title: 'Phones and performance', sections: [
+    { icon: 'sparkle', title: 'Phones', items: ['Landscape (expanded columns) as lazer\'s looks on a phone: wider columns a hairline apart, the same size whatever the skin (a skin with wide columns no longer fills the screen)'] },
+    { icon: 'bolt', title: 'Performance mode', items: ['Performance mode shows song pictures at a lower resolution too — the separate Picture quality option is gone', 'Picking Performance in first-run setup also turns on Automatic resolution'] },
+    { icon: 'sparkle', title: 'More like lazer', items: ['Page titles as in lazer: just the name ("player info", "multiplayer · lounge"), with what the page is for when you hover it'] },
+  ] },
+  { id: '2026.10.28k', title: 'Results and song select', sections: [
+    { icon: 'trophy', title: 'Results', items: ['Every score on the beatmap sits in a row beside yours, as in lazer: scroll, drag or use ← / → to look through them, yours and the online ones, and click one to open it', 'In multiplayer, your score sits in the middle with everyone else\'s either side, as in lazer'] },
+    { icon: 'sparkle', title: 'Song select', items: ['Typing a search no longer starts playing a song — it plays once you pick a beatmap', 'A long list of scores no longer cuts off the grades at the top of the list', 'Your own score is no longer highlighted on the online boards'] },
+  ] },
+  { id: '2026.10.28j', title: 'HTML file', sections: [
+    { icon: 'download', title: 'Saved as an HTML file', items: ['Save the game as an HTML file while you have a code and the file opens as you the first time — your scores, settings, collections, favourites and skin come with it, no code to type (it works once, within a day)'] },
+  ] },
+  { id: '2026.10.28i', title: 'Polish', sections: [
+    { icon: 'sparkle', title: 'Polish', items: ['On a phone with wide columns, the chat during a multiplayer song only shows new messages, so it stays off your notes', 'Neru no longer pops up over the back button after a match', 'The Spectator Mode screen fits a phone held sideways', 'In Ranked Play, Neru steps down into the corner while a round\'s results are shown', 'Duels in the Ranked Play lounge no longer show a rating (they\'re unrated)', 'The end of a Ranked Play match counts the rounds played to the end, not one cut short', 'On a smaller screen, Neru steps aside during the countdown instead of standing in front of the beatmap card', 'Playing in Portrait: Neru no longer covers your results, and the buttons at the bottom sit clear of the back button', 'A box with more to read than fits (How Ranked Play works on a phone) fades at the edge, so you can tell it scrolls'] },
+  ] },
+  { id: '2026.10.28g', title: 'Song select', sections: [
+    { icon: 'sparkle', title: 'Song select', items: ['The scores on a beatmap look as in lazer: they lean as a column, each a step in from the one below, with "MAX COMBO" and a bigger grade', 'Your own scores are only lit up on the online boards'] },
+  ] },
+  { id: '2026.10.28f', title: 'Spectating, as in lazer', sections: [
+    { icon: 'film', title: 'Spectating', items: ['Spectate someone and you get lazer\'s Spectator Mode screen: who you\'re watching, the beatmap they\'re playing, and Start Watching', 'Their song starts by itself once you have the beatmap — download it from the card, or turn on "Automatically download missing beatmaps"', 'While watching: "Watching (them) play (song) live" at the top, and their results at the end (no retry — it\'s their play)', 'Esc takes you back to the Spectator Mode screen; their next song starts there too', 'Their screen is no longer copied onto yours between songs'] },
+  ] },
+  { id: '2026.10.28e', title: 'Phones and roles', sections: [
+    { icon: 'sparkle', title: 'Phones', items: ['First-run setup asks how you want to play on a phone — Portrait, Landscape or Landscape (expanded) — with a picture of each', 'Signing in to your account on a phone asks it first', 'In Portrait and Landscape (expanded), only a tap on a lane hits a note — a tap beside the stage does nothing'] },
+    { icon: 'trophy', title: 'Rankings', items: ['The server\'s owner shows as Owner beside their name, on the rankings and their profile', 'The owner can make players admins, each with a role name and colour of their choosing, shown beside their name'] },
+  ] },
+  { id: '2026.10.28d', title: 'Fairer Ranked Play', sections: [
+    { icon: 'trophy', title: 'Fairer Ranked Play', items: ['Both players play by the same rules: the beatmap\'s timing, the same accuracy and the same scrolling, whatever your settings', 'Opening hands are dealt in matched pairs, so neither of you starts with the harder cards', 'One song does at most 500,000 damage, so one bad song can\'t decide the match', 'The cards lean towards the lower of the two star ratings chosen', 'No gimmick or joke beatmaps, and nothing under 45 seconds or over 6 minutes', '"How it works" in the Ranked Play lounge explains the rules', 'Neru watches your matches (when she\'s on) and has something to say about them'] },
+  ] },
+  { id: '2026.10.28c', title: 'Multiplayer', sections: [
+    { icon: 'multi', title: 'Multiplayer', items: ['The playfield shows during the countdown before a match', 'Team Versus results show both teams\' totals in their colours', 'On a phone, a new chat message pops up when the chat is off the screen', 'Neru no longer peeks up over the back button', 'Quit a match early: you show as quit, and the room says the match is still going', '"Quit match?" no longer stays up over the results if the song ends first'] },
+  ] },
+  { id: '2026.10.28b', title: 'Look and feel', sections: [
+    { icon: 'sparkle', title: 'Look and feel', items: ['Long windows, like Keyboard shortcuts, scroll inside and keep their Close button in view', 'First-run setup: the Web-Osu-Mania question looks like the others'] },
+  ] },
+  { id: '2026.10.28', title: 'Multiplayer', sections: [
+    { icon: 'multi', title: 'Multiplayer', items: ['Not the host? Recommend a beatmap from your own library', 'The host changes speed mods (DT, HT…) without a vote', 'Room buttons no longer wrap, and difficulties don\'t say the key count twice'] },
+  ] },
+  { id: '2026.10.27d', title: 'Lighter menus', sections: [
+    { icon: 'sparkle', title: 'Lighter menus', items: ['Song select uses far less of your computer while you sit on it, with performance mode off too', 'Stepping through songs and typing a search are lighter, looking the same', 'Browse and your library scroll more smoothly on slow computers'] },
+  ] },
+  { id: '2026.10.27c', title: 'Fixes', sections: [
+    { icon: 'sparkle', title: 'Fixes', items: ['Notes scroll without the little hitches every few seconds', 'Percy skins: long notes are cut short by the same amount, like in osu!', 'Skins that hide the health bar with empty images hide it, instead of getting another bar', 'Updating the HTML file checks the new version saved properly before restarting, instead of opening a blank page'] },
+    { icon: 'heart', title: 'Neru', items: ['Playing as Miku or Teto, single clicks don\'t set her off: the leek, the baguette or a picture comes when she\'d get angry', 'She only twirls in Neru mode', 'The thought bubble goes before she changes back'] },
+  ] },
+  { id: '2026.10.27b', title: 'Fixes', sections: [
+    { icon: 'download', title: 'Fixes', items: ['Updating the HTML file updates the file you\'re playing, instead of restarting into the old version and asking again', 'Pictures and songs stay at full resolution: lower them in Settings → Graphics (Picture quality, Renderer scale, Automatic resolution)'] },
+  ] },
+  { id: '2026.10.27', title: 'Smoother menus', sections: [
+    { icon: 'sparkle', title: 'Performance mode', items: ['Song select stutters far less on slow computers: stepping through songs, scrolling the list and opening it', 'A song\'s preview starts once you stop on it, so flicking past songs stays smooth', 'The main menu\'s buttons hover without a hitch'] },
+    { icon: 'heart', title: 'Neru', items: ['Clicking Neru over and over sets her off after the same number of clicks every time', 'Once she\'s going, more clicks can\'t cut her short', 'Playing as Neru, she twirls instead'] },
+  ] },
+  { id: '2026.10.22d', title: 'Look and feel', sections: [
+    { icon: 'sparkle', title: 'Look and feel', items: ['Phones play whichever way you hold them, unless you pick one', 'A bigger results card on a phone held sideways', 'Tablets: two beatmaps a row in the listing, and song select\'s filters fit', 'Chat opens taller on phones and tablets, and the skin editor gives the game more room', 'Held upright, the leaderboard fades while you play so notes under it show', 'Beatmaps without a picture show a note, not an empty square', 'An empty library has a Browse online button'] },
+  ] },
+  { id: '2026.10.22c', title: 'Scores fix', sections: [
+    { icon: 'trophy', title: 'Scores fix', items: ['Plays stuck on "Not counted yet" now count', 'Plays that can\'t reach the server say so and try again'] },
+  ] },
+  { id: '2026.10.22b', title: 'Neru touch-ups', sections: [
+    { icon: 'heart', title: 'Neru touch-ups', items: ['She blushes after headpats', 'Clicked a lot, she spins as often as she gets mad', 'Searching Miku or Teto shows the one you searched', 'Changing songs no longer sits her at her desk'] },
+  ] },
+  { id: '2026.10.22', title: 'Phones and fixes', sections: [
+    { icon: 'sparkle', title: 'Phones and fixes', items: ['Mobile layout setting: Portrait, Landscape or Landscape (expanded columns)', 'Updating the HTML file no longer leaves an empty file', 'Copies of the game without a multiplayer server say so', 'Menus run smoother in performance mode'] },
+  ] },
   { id: '2026.10.21', title: 'Neru update', sections: [
-    { icon: 'sparkle', title: 'Neru update', items: ['New Neru poses, and lots more secrets to find', 'Neru on the main menu changes with the seasons', 'Your profile picture and background show on every device', 'On phones, the typing bar waits for the keyboard'] },
+    { icon: 'sparkle', title: 'Neru update', items: ['Neru all around the game, with seasons and secrets to find', 'Only the hard medals are left (and Neru\'s secret ones)', 'Plays count online straight away', 'Rooms that can\'t be created say why'] },
   ] },
   { id: '2026.10.20c', title: 'Skins update', sections: [
     { icon: 'brush', title: 'Skins update', items: ['Preview any skin from 1K to 18K', 'A cleaner skin editor that shows hidden parts too', 'A few Neru secrets to find'] },
@@ -866,7 +1080,10 @@ const WhatsNew = {
         ...e.sections.map((sec, si) => h(`div.cl-sec${sec.title === e.title ? '.plain' : ''}`, { style: { animationDelay: `${si * 60}ms` } }, sec.title === e.title ? null : h('div.cl-sech', icon(sec.icon), sec.title),
           h('ul', ...sec.items.map(t => h('li', t)))))))),
       h('div.cl-foot', h('button.btn.primary', { onclick: () => o.close() }, 'Let\'s go!')));
-    const o = makeOverlay(el);
+    const o = makeOverlay(el, { flags: ['cl', 'neru-cover'] });
+    // (Neru beside it, on her phone — reading it too; behind the dialog, so she never covers a line of it)
+    const neru = typeof NeruCameo !== 'undefined' && NeruCameo.make('news', 'nc-news', { delay: 0 });
+    if (neru) { o.el.insertBefore(neru, el); NeruCameo.beside(neru, el, o.el); }
     UISounds.play('check-on');
     return o;
   },

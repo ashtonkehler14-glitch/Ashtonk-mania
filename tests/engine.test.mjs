@@ -471,6 +471,19 @@ test('osu!lazer standardised score: 1,000,000 for all MAX, accuracy^(2+2acc), lo
   assert.equal(play(100, Array(100).fill(J.MARV)).score, 1000000);
 });
 
+test('mod score multipliers are lazer\'s (ManiaScoreMultiplierCalculator)', () => {
+  const { ModSystem } = M, mul = (mods, cfg) => +ModSystem.multiplier(mods, cfg).toFixed(4);
+  for (const [id, v] of [['EZ', 0.5], ['NF', 0.5], ['HT', 0.3], ['DC', 0.3], ['NR', 0.9], ['CS', 0.9], ['NLN', 0.9], ['DA', 0.5], ['WU', 0.5], ['WD', 0.5], ['AS', 0.5],
+    ['HR', 1], ['SD', 1], ['PF', 1], ['AC', 1], ['DT', 1], ['NC', 1], ['HD', 1], ['FI', 1], ['CO', 1], ['FL', 1], ['MR', 1], ['RD', 1], ['IN', 1], ['MU', 1], ['AT', 1], ['CN', 1]])
+    assert.equal(mul([id]), v, id);
+  for (let k = 1; k <= 10; k++) assert.equal(mul([`${k}K`]), 0.9, `${k}K`);
+  // Song Speed: slower than 1× as Half Time at that speed (rounded down to a tenth), 1× and faster as Double Time
+  for (const [rate, v] of [[0.5, 0.1], [0.75, 0.3], [0.8, 0.4], [0.95, 0.5], [1, 1], [1.25, 1], [2, 1]]) assert.equal(mul(['RT'], { rate }), v, `RT ${rate}`);
+  // they multiply together
+  assert.equal(mul(['EZ', 'HT']), 0.15);
+  assert.equal(mul(['NF', '7K', 'CS']), 0.405);
+});
+
 test('the engine summary carries both scores', () => {
   const eng = engineFor(osu([note(0, 1000), note(1, 1500), ln(2, 2000, 2600)]));
   for (const [t, c, d] of generateAutoInputs(eng.notes, 4).flat().reduce((a, x, i, arr) => (i % 3 ? a : a.concat([[arr[i], arr[i + 1], arr[i + 2]]])), [])) eng.input(c, d === 1, t);
@@ -542,6 +555,20 @@ test('score verification: the server judges a play from its key presses — not 
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000.5, 0, 0] }).error, 'impossible input');
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 900, 0, 0] }).error, 'input out of order');
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000, 0, 1] }).error, 'impossible input');
+});
+
+test('plays go up as the game reports them (acceptPlay): taken as they are, with the beatmap\'s details from its file', () => {
+  const V = load(['00-util.js', '03-beatmap-parser.js', '03b-mania-convert.js', '08-mods.js', '09-gameplay.js', '09a-osu-math.js', '09c-verify.js']);
+  const text = osu([note(0, 1000), note(1, 1500), ln(2, 2000, 2600), note(3, 3000)]);
+  const r = V.acceptPlay(text, { score: 812345, accuracy: 0.9712, maxCombo: 4, counts: [3, 1, 0, 0, 0, 1], grade: 'A', stars: 3.21, pp: 87.5, mods: ['HD'], keys: 4, rate: 1, failed: false });
+  assert.ok(!r.error, r.error);
+  assert.deepEqual([r.score, r.accuracy, r.maxCombo, r.grade, r.stars, r.pp, r.mods.join(), r.counts.join()], [812345, 0.9712, 4, 'A', 3.21, 87.5, 'HD', '3,1,0,0,0,1']);
+  // tidied: numbers kept in range, a fail only counts in multiplayer (an F, 0pp), Auto's plays never
+  assert.equal(V.acceptPlay(text, { accuracy: 7, pp: -5, grade: 'Z' }).accuracy, 1);
+  assert.equal(V.acceptPlay(text, { accuracy: 0.5, failed: true }).error, 'the play failed');
+  const f = V.acceptPlay(text, { accuracy: 0.5, pp: 40, grade: 'C', failed: true }, { noFail: true });
+  assert.deepEqual([f.grade, f.pp, f.failed], ['F', 0, true]);
+  assert.ok(V.acceptPlay(text, { mods: ['AT'] }).error);
 });
 
 test('bar lines: one per bar from each timing point, every fourth major, "omit first bar line" honoured', () => {

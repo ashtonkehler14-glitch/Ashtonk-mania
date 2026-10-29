@@ -11,13 +11,17 @@ const HtmlFile = {
   busy: false,
   /** The website the file is put together from. */
   base() { return Host.standalone ? Host.server() : new URL('.', location.href).href; },
-  async build(onProgress = () => {}) {
+  /** `carry`: the sign-in it opens with the first time (Account.carry), when it's saved by a player with a code. */
+  async build(onProgress = () => {}, fresh = false, carry = null) {
     const base = this.base();
     if (!base) throw new Error('Set the game\'s website address first.');
     const get = async (path, as) => {
       let r;
+      // (`fresh`: past any copy kept on the way — the address made new, so nothing kept answers for it)
+      const at = new URL(path, base);
+      if (fresh && /\.(html|json)$/.test(path)) at.searchParams.set('v', Date.now().toString(36));
       // (a file that stops coming part-way is given up on, not waited for with the save stuck at its percent)
-      try { r = await fetchStalled(new URL(path, base), { cache: 'no-cache' }, 30000); } catch { throw new Error('Couldn\'t reach the game\'s website. Check your connection and try again.'); }
+      try { r = await fetchStalled(at, { cache: fresh ? 'reload' : 'no-cache' }, 30000); } catch { throw new Error('Couldn\'t reach the game\'s website. Check your connection and try again.'); }
       if (!r.ok) throw new Error(`${path}: ${r.status}`);
       try { return await (as === 'text' ? r.text() : as === 'json' ? r.json() : r.blob()); }
       catch (e) { if (e instanceof SyntaxError) throw e; throw new Error('The download stopped part-way. Check your connection and try again.'); }
@@ -42,7 +46,7 @@ const HtmlFile = {
     // the page's own references to bundled files (favicon, the cursor's glow in the CSS); the manifest is for the website
     for (const [path, data] of Object.entries(assets)) page = page.split(`url(${path})`).join(`url("${data}")`).split(`href="${path}"`).join(`href="${data}"`);
     page = page.replace(/<link rel="manifest"[^>]*>\n?/, '');
-    const head = `<script>window.AM_SERVER=${jsString(base)};window.AM_SAVED=${Date.now()};window.AM_ASSETS=${jsString(assets)};<\/script>\n`;
+    const head = `<script>window.AM_SERVER=${jsString(base)};window.AM_SAVED=${Date.now()};${carry ? `window.AM_CARRY=${JSON.stringify({ t: String(carry.t).replace(/[^0-9a-f]/g, ''), c: String(carry.c).replace(/[^0-9A-Z]/g, '') })};` : ''}window.AM_ASSETS=${jsString(assets)};<\/script>\n`;
     // (before the game's script, which reads them as it starts; after the loading screen, so that shows first)
     const at = page.lastIndexOf('<script>\n"use strict"');
     page = at >= 0 ? page.slice(0, at) + head + page.slice(at) : page.replace('</head>', head + '</head>');
@@ -74,7 +78,10 @@ const HtmlFile = {
     this.busy = true;
     const p = Toast.progress(Host.standalone ? 'Getting the newest version' : 'Saving the game as an HTML file', 'Packing the skins and pictures…');
     try {
-      const blob = await this.build(f => p.set(f));
+      // (saved from the website by a player with a code: the file opens as them — once, within a day — and brings
+      // their things along, rather than starting as a new player)
+      const carry = Host.standalone ? null : await Account.carry().catch(e => { console.warn('file sign-in', e); return null; });
+      const blob = await this.build(f => p.set(f), false, carry);
       downloadBlob(blob, this.NAME);
       p.done('HTML file saved', `${this.NAME} (${fmtBytes(blob.size)}): open it in a browser to play — no website needed.`);
     } catch (e) { p.fail('Couldn\'t save the HTML file', friendlyError(e)); }
@@ -90,10 +97,44 @@ const HtmlFile = {
   },
   /** This file's name on the device (the update is written over it). */
   fileName() { try { return decodeURIComponent(location.pathname.split('/').pop()) || this.NAME; } catch { return this.NAME; } },
+  /** Where this file is on the device, written as you'd find it (to pick it in the save box). */
+  where() {
+    let p = location.pathname;
+    try { p = decodeURIComponent(p); } catch { /* as it is */ }
+    const cros = /\/MyFiles\/(.*)$/.exec(p), drive = /\/drivefs-[^/]+\/root\/(.*)$/.exec(p);
+    if (cros) return 'My files/' + cros[1];
+    if (drive) return 'Google Drive/' + drive[1];
+    return /^\/[A-Za-z]:\//.test(p) ? p.slice(1).replace(/\//g, '\\') : p;
+  },
+  /** The version a page of the game is (its APP_BUILD). */
+  async buildOf(blob) { const m = /const APP_BUILD = '([0-9a-f]+)'/.exec(await blob.text()); return m ? m[1] : null; },
+  /** Whether the file `handle` names holds all of the version just written (`size` bytes, build `build`) — given a few
+   *  seconds to get there. */
+  WRITE_WAIT: 8000,
+  async written(handle, size, build) {
+    for (const until = Date.now() + this.WRITE_WAIT; ;) {
+      try { const f = await handle.getFile(); if (f.size === size && await this.buildOf(f) === build) return true; } catch { /* not readable yet */ }
+      if (Date.now() > until) return false;
+      await new Promise(r => setTimeout(r, 400));
+    }
+  },
+  /** Whether a file on the device is this very one — the copy you're playing from, not another with the same name
+   *  (each saved copy carries the moment it was saved). */
+  async isThisFile(handle) {
+    try { const f = await handle.getFile(); return !!f.size && (!window.AM_SAVED || (await f.text()).includes(`window.AM_SAVED=${window.AM_SAVED};`)); }
+    catch { return false; }
+  },
   /** A saved file looks for a newer version as it opens and every few hours while it stays open, and asks — not in
    *  the middle of a song (as lazer holds notifications back), and "Not now" holds for a day. */
   watch() {
     if (!Host.standalone || !Host.server()) return;
+    // (just restarted after an update: the new version — or, still the old one, the update was written over another
+    // copy with this file's name, and this one's left as it was. It's said so, rather than offered again and again.)
+    let upd = null; try { upd = JSON.parse(localStorage.getItem('am.fileUpdated') || 'null'); localStorage.removeItem('am.fileUpdated'); } catch { /* none */ }
+    if (upd && Date.now() - upd.at < 10 * 60e3) {
+      if (upd.build === APP_BUILD) setTimeout(() => Toast.ok('Updated', 'You\'re playing the newest version.'), 1500);
+      else { this._asked = upd.build; DB.kvSet('htmlFile.handle', null).catch(() => {}); setTimeout(() => this.wrongCopy(upd), 2500); }
+    }
     const check = this.check = async () => {
       const v = await this.latest().catch(() => null);
       if (!v || v === APP_BUILD || this._asked === v) return;
@@ -109,33 +150,70 @@ const HtmlFile = {
     setTimeout(check, 6000);
     setInterval(check, 3 * 3600e3);
   },
+  /** The update went over another copy of the file (one in Downloads, say): this one's still the old version. */
+  async wrongCopy(upd) {
+    if (Screens.currentName === 'gameplay' || document.querySelector('.dialog')) { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); setTimeout(() => this.wrongCopy(upd), 1500); } }); return; }
+    const ok = await Dialog.confirm('This file wasn\'t updated', `The new version was saved over another file named ${upd.name}, not the one you're playing from. This one is at ${this.where()}. Update again and pick this file in the box that opens.`, { ok: 'Update again', cancel: 'Not now', icon: 'download' });
+    if (ok) this.update();
+  },
   async offer(v) {
     const ok = await Dialog.confirm('A new version of Ashtonk!mania is out', `This file is out of date. Update it now? The new version is written over ${this.fileName()} — your beatmaps, scores and settings stay as they are.`, { ok: 'Update', cancel: 'Not now', icon: 'download' });
     if (!ok) { try { localStorage.setItem('am.fileUpdateLater', JSON.stringify({ v, at: Date.now() })); } catch { /* private mode */ } return; }
     this.update();
   },
   /** Write the newest version over this file: the place it was saved to before (remembered), or — the first time —
-   *  where you point the save box (already on this file's name). A browser that can't write files gets a download. */
+   *  where you point the save box (already on this file's name). A browser that can't write files gets a download.
+   *  The new version is all fetched before the file is touched: the save box empties the file you pick there and then,
+   *  so asking first and then failing to get the new version (the connection dropped, the website not reachable) left
+   *  a 0-byte file where the game was. */
   async update() {
     if (this.busy) return;
     const name = this.fileName();
-    // (asked straight away, while the click that asked for it still counts: the browser only allows the save box then)
-    let handle = await DB.kvGet('htmlFile.handle', null).catch(() => null);
-    if (handle && handle.name !== name) handle = null;
-    if (handle) { try { if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') handle = null; } catch { handle = null; } }
-    if (!handle && window.showSaveFilePicker) {
-      try { handle = await window.showSaveFilePicker({ suggestedName: name, startIn: 'downloads', types: [{ description: 'Ashtonk!mania', accept: { 'text/html': ['.html'] } }] }); }
-      catch (e) { if (e && e.name === 'AbortError') return; handle = null; }
-    }
-    if (!handle) { await this.save(); Toast.show('Put the new file in place of this one', `Then open ${this.NAME} again to play the new version.`, { timeout: 10000 }); return; }
     this.busy = true;
-    const p = Toast.progress('Updating Ashtonk!mania', 'Getting the newest version…');
+    let p = Toast.progress('Updating Ashtonk!mania', 'Getting the newest version…');
     try {
-      const blob = await this.build(f => p.set(f * 0.97));
-      const w = await handle.createWritable();
-      await w.write(blob); await w.close();
+      let blob = await this.build(f => p.set(f * 0.97));
+      // (the website handing back the version this file already is — a copy of the page kept somewhere on the way —
+      // is asked again past any such copy; still the same, nothing's written: written and restarted, the file was the
+      // old version again and asked to update again, over and over)
+      if (await this.buildOf(blob) === APP_BUILD) blob = await this.build(f => p.set(f * 0.97), true);
+      const build = await this.buildOf(blob);
+      if (build === APP_BUILD) { p.fail('No newer version yet', 'The website is still putting it up. Try again in a few minutes.'); return; }
+      let handle = window.showSaveFilePicker ? await DB.kvGet('htmlFile.handle', null).catch(() => null) : null;
+      if (handle && handle.name !== name) handle = null;
+      let ok = false; try { ok = !!handle && await handle.queryPermission({ mode: 'readwrite' }) === 'granted'; } catch { /* asked below */ }
+      // (the file it was written to last time, only if that's this very one: another copy with the same name — in
+      // Downloads, say — was updated while this one stayed as it was)
+      if (ok && !await this.isThisFile(handle)) { handle = null; ok = false; }
+      if (!ok) {
+        // (the browser only opens the save box, or asks to let the game write the file, straight after a click)
+        p.cancelled();
+        if (!await Dialog.confirm('The new version is ready', window.showSaveFilePicker ? `Save it over this file? In the box that opens, pick ${this.where()}. Your beatmaps, scores and settings stay as they are.` : `It downloads as ${this.NAME}: put it in place of this file, then open it to play the new version.`, { ok: window.showSaveFilePicker ? 'Save' : 'Download', cancel: 'Not now', icon: 'download' })) return;
+        if (handle) { try { if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted' || !await this.isThisFile(handle)) handle = null; } catch { handle = null; } }
+        if (!handle && window.showSaveFilePicker) {
+          try { handle = await window.showSaveFilePicker({ suggestedName: name, startIn: 'downloads', types: [{ description: 'Ashtonk!mania', accept: { 'text/html': ['.html'] } }] }); }
+          catch (e) { if (e && e.name === 'AbortError') return; handle = null; }
+        }
+        if (!handle) { downloadBlob(blob, this.NAME); Toast.show('Put the new file in place of this one', `Then open ${this.NAME} again to play the new version.`, { timeout: 10000 }); return; }
+        p = Toast.progress('Updating Ashtonk!mania', 'Saving…');
+      }
+      // (written, then read back before restarting: on some drives — Google Drive on a Chromebook — the new file
+      // isn't all there the moment it's written, and restarting then opened a blank white page. Not all there after a
+      // while, it's written again; still not, nothing restarts and the new version downloads instead.)
+      let there = false;
+      for (let i = 0; i < 2 && !there; i++) {
+        const w = await handle.createWritable();
+        await w.write(blob); await w.close();
+        there = await this.written(handle, blob.size, build);
+      }
+      if (!there) {
+        p.fail('The file didn\'t save properly', `Don't close this tab. The new version downloads as ${this.NAME}: put it in place of this file.`);
+        downloadBlob(blob, this.NAME);
+        return;
+      }
       DB.kvSet('htmlFile.handle', handle).catch(() => {});
-      if (handle.name === name) { p.done('Updated', 'Starting the new version…'); setTimeout(() => location.reload(), 1200); }
+      // (restarted, the file says whether it's the new version — see watch())
+      if (handle.name === name) { try { localStorage.setItem('am.fileUpdated', JSON.stringify({ build, at: Date.now(), name: handle.name })); } catch { /* private mode */ } p.done('Updated', 'Starting the new version…'); setTimeout(() => location.reload(), 1200); }
       else p.done('New version saved', `As ${handle.name}: open it to play the new version.`);
     } catch (e) { p.fail('Couldn\'t update the file', friendlyError(e)); }
     finally { this.busy = false; }

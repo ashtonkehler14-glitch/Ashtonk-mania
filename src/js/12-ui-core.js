@@ -9,6 +9,14 @@ function stateCard(ic, title, sub, { slash = false, action = null, cls = '', ner
   return h(`div.off-state${cls}`, top || h('div.off-ico', icon(ic), slash ? h('i') : null), h('div.off-t', title), sub ? h('div.off-sub', sub) : null, action);
 }
 
+/** A player's role beside their name (the rankings, their profile): the server's owner, or an admin the owner made,
+ *  in the role's own colour. Null when they have none. */
+function roleBadge(role) {
+  if (!role || !role.name) return null;
+  const c = /^#[0-9a-f]{6}$/i.test(role.colour || '') ? role.colour : '#66ccff';
+  return h(`span.role-badge${role.owner ? '.owner' : ''}`, { style: { '--rc': c }, title: role.owner ? 'The server\'s owner' : `${role.name} (an admin)` }, role.owner ? icon('crown') : null, String(role.name).slice(0, 24));
+}
+
 // (every icon is one of lazer's: 12-icons.js)
 const ICONS = {};
 function icon(name, cls = '') {
@@ -420,8 +428,9 @@ const Overlays = {
   closeAll() { for (const o of [...this.stack].reverse()) o.close(); },
 };
 
-function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass = 'out', dismissable = true } = {}) {
-  const wrap = h('div', { style: { position: 'absolute', inset: '0' } });
+/** (`flags`: page-wide classes — BodyFlag — on while it's up, until it's gone from the page; `cls`: a class for its wrapper) */
+function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass = 'out', dismissable = true, flags = [], cls = '' } = {}) {
+  const wrap = h('div', { class: cls || null, style: { position: 'absolute', inset: '0' } });
   let bd = null;
   if (backdrop) { bd = h('div.backdrop'); wrap.appendChild(bd); }
   wrap.appendChild(contentEl);
@@ -435,8 +444,8 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
     close() {
       if (closed) return; closed = true;
       Overlays.remove(o);
-      contentEl.classList.add(animOutClass); bd && bd.classList.add('out');
-      setTimeout(() => wrap.remove(), 220 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1) + 10);
+      contentEl.classList.add(animOutClass); bd && bd.classList.add('out'); wrap.classList.add('closing');
+      setTimeout(() => { wrap.remove(); for (const f of flags) BodyFlag.set(f, false, o); }, 220 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1) + 10);
       onClose && onClose();
       const a = document.activeElement;
       // (only a text box gets it back: a button refocused after a dialog showed a focus ring nobody asked for)
@@ -444,6 +453,7 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
     },
   };
   if (bd && dismissable) bd.addEventListener('click', () => { UISounds.back(); o.close(); });
+  for (const f of flags) BodyFlag.set(f, true, o);
   return Overlays.push(o);
 }
 
@@ -499,7 +509,15 @@ const Dialog = {
     let o;
     const dlg = h('div.dialog', { role: 'dialog', 'aria-modal': 'true' }, h('h2', title), h('div.body', bodyEl),
       h('div.actions', ...actions.map(a => h(`button.btn${a.primary ? '.primary' : a.danger ? '.danger' : '.ghost'}`, { onclick: () => { a.onClick && a.onClick(); if (a.close !== false) o.close(); } }, a.label))));
+    // (sized for what's in it: .for-<its class>)
+    if (bodyEl && bodyEl.classList && bodyEl.classList[0]) dlg.classList.add('for-' + bodyEl.classList[0]);
     o = makeOverlay(dlg);
+    // (a body taller than the dialog has room for — a phone on its side — fades at its foot while there's more to read,
+    // and at its top once scrolled)
+    const body = dlg.querySelector(':scope > .body');
+    const more = () => { body.classList.toggle('more', body.scrollHeight - body.scrollTop - body.clientHeight > 4); body.classList.toggle('less', body.scrollTop > 4); };
+    body.addEventListener('scroll', more, { passive: true });
+    requestAnimationFrame(more);
     return o;
   },
 };
@@ -514,7 +532,7 @@ function showMenu(x, y, items, { above = false } = {}) {
     menu.appendChild(h(`button${it.danger ? '.danger' : ''}`, { role: 'menuitem', onclick: () => { UISounds.click(); o.close(); it.onClick && it.onClick(); } },
       it.icon ? icon(it.icon) : null, it.label, it.checked ? h('span.check', '✓') : null));
   }
-  const o = makeOverlay(menu, { backdrop: false });
+  const o = makeOverlay(menu, { backdrop: false, flags: ['menu'] });
   const closer = e => { if (!menu.contains(e.target)) { o.close(); document.removeEventListener('pointerdown', closer, true); } };
   setTimeout(() => document.addEventListener('pointerdown', closer, true), 0);
   requestAnimationFrame(() => {
@@ -596,7 +614,11 @@ const Background = {
     apply(show);
   },
   parallax(e) {
-    if (!Settings.get('ui.parallax') || $('#app').classList.contains('in-game')) { $('#bg-layer').style.transform = ''; return; }
+    // (Performance mode holds the background still: nothing to move — and setting it anyway restyled it on every move of
+    // the pointer)
+    const off = !Settings.get('ui.parallax') || Settings.get('graphics.performanceMode') || $('#app').classList.contains('in-game');
+    if (off) { if (this._px) { this._px = false; $('#bg-layer').style.transform = ''; } return; }
+    this._px = true;
     const x = (e.clientX / innerWidth - 0.5) * -16, y = (e.clientY / innerHeight - 0.5) * -12;
     $('#bg-layer').style.transform = `translate(${x}px, ${y}px) scale(1.02)`;
   },
@@ -645,6 +667,19 @@ const Toolbar = {
       });
       tb.addEventListener('pointerout', e => { const b = e.target.closest('.tb-btn'); if (b && !b.contains(e.relatedTarget)) b.classList.remove('tip-off'); });
       tb.addEventListener('pointerover', e => { const b = e.target.closest('.tb-btn'); if (b && !b.contains(e.relatedTarget)) UISounds.hover(); });
+      // the drifting triangles behind the ruleset: Chrome leaves a CSS animation that (re)started while the bar was
+      // hidden — after every song, as the bar slides back — running on the main thread, a style recalculation every
+      // frame on every screen from then on. Started again once the bar is back in view, it runs on the compositor.
+      const app = $('#app'), hidden = () => app.classList.contains('in-game') || app.classList.contains('hide-toolbar');
+      let was = hidden(), wake = 0;
+      new MutationObserver(() => {
+        const now = hidden(); if (now === was) return; was = now;
+        clearTimeout(wake);
+        if (!now) wake = setTimeout(() => {
+          if (hidden()) return;
+          for (const a of tb.getAnimations({ subtree: true })) if (a.animationName === 'tbTris') { const t = a.currentTime; a.cancel(); a.play(); if (t != null) a.currentTime = t; }
+        }, 600); // (the bar's 500ms slide back in)
+      }).observe(app, { attributes: true, attributeFilter: ['class'] });
     }
     const btn = (ic, title, sub, fn, { key, right, cls = '', ...extra } = {}) =>
       h(`button.tb-btn${cls}`, { 'aria-label': title, onclick: () => { UISounds.click(); fn(); }, ...extra },
@@ -747,13 +782,14 @@ const Toolbar = {
   CLOCK_MODES: ['full', 'runtime', 'digital', 'analog'],
   buildClock() {
     const mode = this.CLOCK_MODES.includes(Settings.get('ui.clockMode')) ? Settings.get('ui.clockMode') : 'full';
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 22 22'); svg.setAttribute('class', 'tb-analog');
     // hands drawn pointing at 12, rotated about the centre: lazer's LargeHand is 2.4px thick, 34% / 48% of the face
-    // long, with a 0.7px Gray2 rim; the SecondHand is 66% long, 1.68px thick and starts 3.36px behind the centre
-    const hand = (cls, len) => `<g class="${cls}"><line x1="11" y1="11" x2="11" y2="${(11 - (len * 22 - 2.4)).toFixed(2)}" class="rim"/><line x1="11" y1="11" x2="11" y2="${(11 - (len * 22 - 2.4)).toFixed(2)}" class="core"/></g>`;
-    svg.innerHTML = '<circle cx="11" cy="11" r="10" class="face"/>' + hand('hr', 0.34) + hand('mn', 0.48) +
-      '<g class="sc"><line x1="11" y1="13.52" x2="11" y2="0.68"/></g><circle cx="11" cy="11" r="1.2" class="dot"/><circle cx="11" cy="11" r="0.84" class="dot2"/>';
+    // long, with a 0.7px Gray2 rim; the SecondHand is 66% long, 1.68px thick and starts 3.36px behind the centre.
+    // (each hand a picture of its own, turned as a whole: the graphics card turns it, where turning a hand inside one
+    // picture had the page lay itself out again for every frame of every tick)
+    const pic = (inner, cls = '') => { const el = h(`span${cls}`); el.innerHTML = `<svg viewBox="0 0 22 22">${inner}</svg>`; return el; };
+    const hand = (cls, len) => pic(`<line x1="11" y1="11" x2="11" y2="${(11 - (len * 22 - 2.4)).toFixed(2)}" class="rim"/><line x1="11" y1="11" x2="11" y2="${(11 - (len * 22 - 2.4)).toFixed(2)}" class="core"/>`, `.tb-hand.${cls}`);
+    const svg = h('span.tb-analog', pic('<circle cx="11" cy="11" r="10" class="face"/>'), hand('hr', 0.34), hand('mn', 0.48),
+      pic('<line x1="11" y1="13.52" x2="11" y2="0.68"/>', '.tb-hand.sc'), pic('<circle cx="11" cy="11" r="1.2" class="dot"/><circle cx="11" cy="11" r="0.84" class="dot2"/>'));
     this.hands = { hr: svg.querySelector('.hr'), mn: svg.querySelector('.mn'), sc: svg.querySelector('.sc') };
     this._rot = { hr: null, mn: null, sc: null };
     this.clockTime = h('span.tb-time'); this.clockRun = h('span.tb-run', h('span', 'running'), this.clockRunT = h('span'));
@@ -793,7 +829,8 @@ const Toolbar = {
   turn(k, deg) {
     const prev = this._rot[k];
     const next = prev == null ? deg : prev + ((((deg - prev) % 360) + 540) % 360 - 180);
-    if (next === prev) return;
+    // (the hour and minute hands move on once it shows — half a degree — not by a fraction every second)
+    if (next === prev || (prev != null && k !== 'sc' && Math.abs(next - prev) < 0.5)) return;
     this._rot[k] = next;
     this.hands[k].style.transform = `rotate(${next}deg)`;
     if (prev == null) { this.hands[k].style.transition = 'none'; void this.hands[k].getBoundingClientRect(); this.hands[k].style.transition = ''; }
@@ -860,7 +897,7 @@ function marquee(el, make) {
     flow.append(h('span.mq-copy', make()));
     const dist = w + 15, ms = 1000 + dist * 1000 / 50;
     el.classList.add('scroll');
-    flow.animate([{ transform: 'none' }, { transform: 'none', offset: 1000 / ms }, { transform: `translateX(${-dist}px)` }], { duration: ms, iterations: Infinity });
+    endless(flow, [{ transform: 'none' }, { transform: 'none', offset: 1000 / ms }, { transform: `translateX(${-dist}px)` }], { duration: ms, iterations: Infinity });
   });
 }
 
@@ -915,7 +952,7 @@ const NowPlaying = {
       window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
     });
     $('#app').appendChild(this.el);
-    Bus.on('music:changed', () => this.render());
+    Bus.on('music:changed', () => { if (this.open) this.render(); }); // (closed, it's brought up to date when it opens)
     document.addEventListener('pointerdown', e => {
       if (this.open && !this.el.contains(e.target) && !Toolbar.npBtn.contains(e.target)) this.hide();
     }, true);
@@ -959,13 +996,13 @@ const NowPlaying = {
     this.ensure();
     if (this.open) return;
     this.open = true;
-    this.el.classList.add('show');
+    this.el.classList.add('show'); BodyFlag.set('np', true);
     this.render();
     const loop = () => { if (!this.open) return; this.update(); this._raf = requestAnimationFrame(loop); };
     loop();
     Toolbar.sync();
   },
-  hide() { if (!this.el) return; this.open = false; this.el.classList.remove('show'); cancelAnimationFrame(this._raf); Toolbar.sync(); },
+  hide() { if (!this.el) return; this.open = false; this.el.classList.remove('show'); BodyFlag.set('np', false); cancelAnimationFrame(this._raf); Toolbar.sync(); },
   async render() {
     if (!this.el) return;
     const m = MenuMusic.current;
@@ -1105,7 +1142,7 @@ const LazerCursor = {
   ease(fn) { const pts = []; for (let i = 0; i <= 48; i++) pts.push(fn(i / 48).toFixed(4)); return `linear(${pts.join(', ')})`; },
   apply() {
     const on = !this.missing && Settings.get('ui.lazerCursor') !== false && matchMedia('(hover: hover)').matches;
-    document.body.classList.toggle('lz-cursor', on);
+    document.body.classList.toggle('lz-cursor', on); cssSheet('lz-cursor', on);
     if (!on) { if (this.el) this.el.hidden = true; return; }
     if (!this.el) this.build();
     this.size();
@@ -1241,11 +1278,11 @@ const Notifications = {
       Bus.on('screen:changed', () => this.close());
     }
     this.render();
-    this.el.classList.add('open');
+    this.el.classList.add('open'); BodyFlag.set('nf', true);
     this.unread = 0; Bus.emit('notif:changed');
     Toolbar.sync();
   },
-  close() { if (this.el) this.el.classList.remove('open'); Toolbar.sync(); },
+  close() { if (this.el) this.el.classList.remove('open'); BodyFlag.set('nf', false); Toolbar.sync(); },
   clear() { this.list = []; this.render(); Bus.emit('notif:changed'); },
   /** How long ago, in whole units rounded down (90 minutes is "1h ago", not "2h"; 59½ minutes isn't "60m"). */
   ago(t) {

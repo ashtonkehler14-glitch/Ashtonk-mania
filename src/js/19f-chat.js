@@ -118,7 +118,7 @@ const Chat = {
       const up = () => { top.removeEventListener('pointermove', move); top.removeEventListener('pointerup', up); if (this._h) Settings.set('ui.chatHeight', +this._h.toFixed(3)); };
       top.addEventListener('pointermove', move); top.addEventListener('pointerup', up);
     });
-    this.o = makeOverlay(this.panel, { onClose: () => { this.o = null; Toolbar.sync(); } });
+    this.o = makeOverlay(this.panel, { flags: ['chat'], onClose: () => { this.o = null; Toolbar.sync(); } });
     this.o.el.classList.add('chat-ov');
     this.paint();
     Toolbar.sync();
@@ -144,6 +144,7 @@ const Chat = {
       else if (!rest.trim()) return false;
     }
     if (c.pm) Presence.send({ t: 'pm', to: c.pid, text }); else Presence.send({ t: 'say', text });
+    if (typeof NeruEggs !== 'undefined') NeruEggs.mentioned(text);
     return true;
   },
   /** A line only you see (a command's answer). */
@@ -196,7 +197,7 @@ const Chat = {
     clearEl(this.list).append(
       h('div.ch-group', h('span', 'CHANNELS'), icon('globe')), ...pub.map(item),
       h('div.ch-group', h('span', 'DIRECT MESSAGES'), icon('user')),
-      ...(pms.length ? pms.map(item) : [h('div.ch-hint', 'Message a friend from their ⋯ menu.')]));
+      ...(pms.length ? pms.map(item) : [h('div.ch-hint', 'Message a friend from their\u00a0⋯\u00a0menu.')]));
   },
   /** The toolbar button shows unread messages, like the notification bell. */
   badge() {

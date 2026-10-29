@@ -48,7 +48,6 @@ MINIFLARE_DIR=<dir> node tests/admin-e2e.mjs     # the admin panel
 MINIFLARE_DIR=<dir> node tests/sync-e2e.mjs      # everything of yours on every device
 node tests/monkey.mjs 600 7                    # random clicks and keys; MONKEY_PHONE=1 for a phone
 python3 tools/neru-art.py IN.png --out public/ # Neru's pictures: upscaled and cut out (what it needs is at its top; spare poses: art/neru/)
-python3 tools/neru-polish.py IN.png --out public/ # where a picture of hers runs off a side, a longer, softer fade there
 ```
 
 ## Credits
@@ -56,3 +55,4 @@ python3 tools/neru-polish.py IN.png --out public/ # where a picture of hers runs
 - Formulas and the Web-Osu-Mania skins (arrows, judgement sets, Roboto Mono) are from [Web-Osu-Mania](https://github.com/hectickiwi/Web-Osu-Mania) by Danny Duong, MIT License. Its judgement sets credit their skin authors in `public/wom/CREDITS.txt`.
 - The menu cursor and its sound are from [osu-resources](https://github.com/ppy/osu-resources) by ppy, CC BY-NC 4.0.
 - 《NM》 Kori 3.0 skin by Kori.
+- The photos Neru laughs at (`public/neru-photos/`) are fan art and memes by their artists, among them @Koebiiiii and @1_ain.

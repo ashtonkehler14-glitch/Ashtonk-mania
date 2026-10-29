@@ -44,6 +44,7 @@ const App = {
     Screens.register('beatmaps', BeatmapsScreen);
     Screens.register('explore', ExplorerScreen);
     Screens.register('dashboard', DashboardScreen);
+    Screens.register('spectator', SpectatorScreen);
     Screens.register('rankings', RankingsScreen);
     Screens.register('daily', DailyScreen);
     Screens.register('multiplayer', MultiplayerScreen);
@@ -74,6 +75,7 @@ const App = {
     if (BeatmapManager.sets.length) this.keepStorage({ start: true }); // (a library to keep: see keepStorage)
     setTimeout(() => this.checkSpace().catch(() => {}), 8000);
     const returning = !!ProfileManager.profile.onboarded;
+    if (!returning) await this.signInFromFile();
     if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }
     else setTimeout(() => WhatsNew.maybeShow(), 1200);
     this.takeShared();
@@ -394,6 +396,18 @@ const App = {
       this.importFiles(files);
     });
   },
+  /** The game saved as an HTML file by a player with a code, opened here for the first time: its ticket makes this
+   *  device them (Account.linkCarry) before the setup, which then starts at "Welcome back" and brings their things.
+   *  Tried once a file: one that's run out (a day on, or opened already) is the usual setup. */
+  async signInFromFile() {
+    const carry = window.AM_CARRY;
+    if (!Host.standalone || !Host.online() || !carry || !carry.t || Account.linked()) return;
+    try { if (localStorage.getItem('am.carryTried') === carry.t) return; localStorage.setItem('am.carryTried', carry.t); } catch { return; }
+    const p = setTimeout(() => Toast.show('Signing in…', 'Bringing your scores, settings and skin into this file.'), 1500);
+    try { await Account.linkCarry(carry); }
+    catch (e) { console.warn('file sign-in', e); }
+    finally { clearTimeout(p); }
+  },
   /** Files shared to the installed app from another app (Android's share sheet): the service worker kept them. */
   async takeShared() {
     if (!/[?&]shared=1/.test(location.search) || !('caches' in window)) return;
@@ -450,8 +464,11 @@ const App = {
   globalLoop() {
     const dbg = h('div.debug-overlay', { hidden: true });
     $('#app').appendChild(dbg);
-    let lastDbg = 0;
+    let lastDbg = 0, running = false;
+    // (only while the FPS counter or the debug overlay is up: a loop waking every frame for nothing kept slow devices busy)
+    const wanted = () => Settings.get('graphics.showFps') || Settings.get('debug.overlay');
     const tick = now => {
+      if (!wanted()) { running = false; FPS.frame(now); if (!dbg.hidden) dbg.hidden = true; return; }
       requestAnimationFrame(tick);
       // (only write `hidden` when it changes: an attribute write every frame forces a style pass every frame)
       if (Screens.current === GameplayScreen) { if (!dbg.hidden) dbg.hidden = true; return; }
@@ -474,7 +491,9 @@ DPR          ${devicePixelRatio} · ${innerWidth}×${innerHeight}
 Memory       ${performance.memory ? fmtBytes(performance.memory.usedJSHeapSize) : 'n/a'}`;
       }
     };
-    requestAnimationFrame(tick);
+    const start = () => { if (!running && wanted()) { running = true; requestAnimationFrame(tick); } };
+    Bus.on('settings:changed', k => { if (k === 'graphics.showFps' || k === 'debug.overlay' || k === '*') start(); });
+    start();
   },
 };
 
@@ -494,10 +513,20 @@ const MediaKeys = {
     set('pause', () => { if (Music.playing) { MenuMusic.toggle(); OSD.show('Music playback', 'Pause track'); } });
     set('nexttrack', () => { MenuMusic.next(); OSD.show('Music playback', 'Next track'); });
     set('previoustrack', () => { const restart = Music.loaded && Music.time >= 5000; MenuMusic.prev(); OSD.show('Music playback', restart ? 'Restart track' : 'Previous track'); });
-    Bus.on('music:changed', async m => {
+    let artT = 0;
+    Bus.on('music:changed', m => {
       if (!m || typeof MediaMetadata === 'undefined') return;
-      const url = await BeatmapManager.bgURL(m).catch(() => null);
-      try { ms.metadata = new MediaMetadata({ title: m.title, artist: m.artist, album: APP_NAME, artwork: url ? [{ src: url }] : [] }); } catch { /* ignore */ }
+      const meta = artwork => { try { ms.metadata = new MediaMetadata({ title: m.title, artist: m.artist, album: APP_NAME, artwork }); } catch { /* ignore */ } };
+      meta([]);
+      // its picture once the song's been on a moment: the browser reads and decodes it on the page's own thread, and for
+      // every song stepped past in song select that was a good part of what changing songs cost on a slow computer. (The
+      // song's card picture, already read for its panel, not the full background.)
+      clearTimeout(artT);
+      artT = setTimeout(async () => {
+        const bs = BeatmapManager.setById.get(m.setId), url = await (bs && BeatmapManager.thumbURL(bs).catch(() => null)) || await BeatmapManager.bgURL(m).catch(() => null);
+        // (not once a song's being played: decoding it then could cost a frame of the notes)
+        if (url && MenuMusic.current === m && Screens.currentName !== 'gameplay') meta([{ src: url }]);
+      }, 2000);
     });
   },
 };

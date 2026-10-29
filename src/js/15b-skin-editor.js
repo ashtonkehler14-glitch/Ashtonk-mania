@@ -106,7 +106,7 @@ const SkinEditor = {
         h('div.se-ph', 'Stage'), this.stageEl,
         h('div.se-ph', 'HUD', this.countEl), this.listEl,
         h('p.se-hint', kbHint('Drag to move · corner to scale · arrow keys nudge (Shift: 10px) · Delete hides · Ctrl+Z undoes · Esc closes', 'Drag to move, the corner to scale. Tap the eye to show or hide.'))),
-      h('div.se-side.se-r', h('div.se-ph', 'Settings'), this.setEl));
+      this.rEl = h('div.se-side.se-r', h('div.se-ph', 'Settings'), this.setEl));
     document.body.append(this.el);
     document.body.classList.add('se-open');
     // (every component, the ones turned off too — dimmed — so each can be placed before it's turned on)
@@ -243,7 +243,8 @@ const SkinEditor = {
     if (this.sel === id) return;
     this.sel = id; this.paintList(); this.paintSettings();
     // (the chosen one in view in the list)
-    const it = id && this.el && this.el.querySelector(`.se-item[data-id="${id}"]`); if (it) it.scrollIntoView({ block: 'nearest' });
+    // (with its settings open under it, at the top: the settings below it in view too)
+    const it = id && this.el && this.el.querySelector(`.se-item[data-id="${id}"]`); if (it) it.scrollIntoView({ block: this._short ? 'start' : 'nearest' });
   },
 
   paintList() {
@@ -260,6 +261,19 @@ const SkinEditor = {
         h('button.se-eye', { title: on ? 'Hide' : 'Show', 'aria-label': `${on ? 'Hide' : 'Show'} ${p.name}`, 'aria-pressed': String(on), onclick: e => { e.stopPropagation(); UISounds.play(on ? 'check-off' : 'check-on'); this.setShown(p, !on); } }, icon(on ? 'eye' : 'eye-slash')));
     }));
     this.countEl.textContent = `${n} of ${HUD_PARTS.length} shown`;
+    this.placeSettings();
+  },
+  /** A phone held sideways: no room for a settings panel as well — the chosen one's settings open under it in the list,
+   *  and the game gets that room. */
+  short() { return innerHeight <= 500 && innerWidth >= 700; },
+  placeSettings() {
+    if (!this.el) return;
+    const short = this._short = this.short();
+    this.el.classList.toggle('se-short', short);
+    const it = short && this.sel && this.el.querySelector(`.se-l .se-item[data-id="${this.sel}"]`);
+    if (it) it.after(this.setEl);
+    else if (short) this.setEl.remove();
+    else if (this.setEl.parentElement !== this.rEl) this.rEl.append(this.setEl);
   },
   paintSettings() {
     const sd = this.stageDef(this.sel);
@@ -302,7 +316,8 @@ const SkinEditor = {
     this._gone = 0;
     // (the panels as the CSS lays them out: beside the game, narrower on a small screen, under it on a narrow one)
     const vw = window.innerWidth, vh = window.innerHeight, narrow = vw < 700, mid = !narrow && vw < 1000;
-    const L = narrow ? 0 : mid ? 180 : 248, R = narrow ? 0 : mid ? 196 : 268, T = narrow || mid ? 48 : 56, B = narrow ? Math.round(vh * 0.42) : 0, pad = narrow ? 8 : 16;
+    if (this.short() !== this._short) this.placeSettings(); // (turned, or the window resized)
+    const L = narrow ? 0 : this._short ? 236 : mid ? 180 : 248, R = narrow || this._short ? 0 : mid ? 196 : 268, T = narrow || mid ? 48 : 56, B = narrow ? Math.round(vh * 0.42) : 0, pad = narrow ? 8 : 16;
     const k = Math.min((vw - L - R - pad * 2) / vw, (vh - T - B - pad * 2) / vh);
     if (k > 0.2) {
       // (in the screen's own pixels: the page itself may be scaled, by z)

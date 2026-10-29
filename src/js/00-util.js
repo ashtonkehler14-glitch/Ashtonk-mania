@@ -48,6 +48,10 @@ function appendChildren(el, children) {
     else el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
   }
 }
+/** A style sheet of its own (src/styles.css's "@sheet" blocks, split out by the build) switched on or off: rules for
+ *  every element that go with one class on the page — Performance mode, animations off, the game's cursor — written as
+ *  plain "*". (Written ":root.perf *", the browser looked up through the parents of every element it restyled.) */
+function cssSheet(name, on) { const el = document.getElementById('css-' + name), m = on ? 'all' : 'not all'; if (el && el.media !== m) el.media = m; }
 function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -266,7 +270,10 @@ function bsearchLE(arr, v, key) {
 function downloadBlob(blob, name) {
   const a = h('a', { href: URL.createObjectURL(blob), download: name });
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  // (kept a good while: the browser only reads it once the download really starts — after the "save as" box on a
+  // computer that asks where to save, or when a phone's download manager gets to it. Let go after 5 s, a big file such
+  // as the game's HTML file came down empty: 0 bytes)
+  setTimeout(() => URL.revokeObjectURL(a.href), 5 * 60e3);
 }
 function downloadJSON(obj, name) { downloadBlob(new Blob([JSON.stringify(obj)], { type: 'application/json' }), name); }
 
@@ -338,6 +345,18 @@ function settleOn(sc, fn) {
   if ('onscrollend' in sc) sc.addEventListener('scrollend', go, { once: true });
   setTimeout(go, 900);
 }
+/** A page-wide state as a class on <body> (`f-<name>`): on while anything (`why`) still wants it. These stand in for
+ *  :has() rules — with even one on the page, every change of text anywhere (the clock, a list filling in) made the
+ *  browser restyle the whole page, which on a slow device was most of the menus' stutter. */
+const BodyFlag = {
+  on: new Map(),
+  set(name, on, why = name) {
+    let s = this.on.get(name);
+    if (!s) this.on.set(name, s = new Set());
+    if (on) s.add(why); else s.delete(why);
+    document.body.classList.toggle('f-' + name, s.size > 0);
+  },
+};
 /** Run `fn` when the browser has a moment to spare (not in the middle of scrolling or an animation). */
 const whenIdle = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 3000 }) : setTimeout(fn, 200));
 
@@ -361,6 +380,10 @@ const ImageWorker = {
       x.filter = 'blur(' + r.toFixed(2) + 'px)';
       x.drawImage(bm, -r * 2, -r * 2, W + r * 4, H + r * 4); bm.close();
       postMessage({ id: m.id, blob: await c.convertToBlob({ type: 'image/jpeg', quality: 0.9 }) });
+    } else if (m.op === 'shrink') {
+      const bm = await createImageBitmap(m.blob, { resizeWidth: m.W, resizeQuality: 'high' });
+      const c = new OffscreenCanvas(bm.width, bm.height); c.getContext('2d').drawImage(bm, 0, 0); bm.close();
+      postMessage({ id: m.id, blob: await c.convertToBlob({ type: 'image/jpeg', quality: m.q }) });
     } else postMessage({ id: m.id, err: 'unknown job' });
   } catch (e) { postMessage({ id: m.id, err: String(e) }); }
 };`;
@@ -376,6 +399,35 @@ const ImageWorker = {
     return new Promise(r => { const id = ++this.n; this.wait.set(id, r); this.w.postMessage({ ...job, id }); });
   },
 };
+
+/** Performance mode: an animation started from script ends at once, as the stylesheet makes every CSS one do
+ *  (:root.perf) — on a slow computer the menus' hover wobbles, pops and slides were still played out in full, frame
+ *  by frame. One meant to run forever plays once. */
+if (typeof Element !== 'undefined' && Element.prototype.animate) {
+  const animate = Element.prototype.animate;
+  Element.prototype.animate = function (keyframes, opts) {
+    if (!document.documentElement.classList.contains('perf')) return animate.call(this, keyframes, opts);
+    const o = typeof opts === 'number' ? { duration: opts } : { ...(opts || {}) };
+    if (o.iterations === Infinity) o.iterations = 1;
+    o.duration = Math.min(+o.duration || 0, 1); o.delay = 0; o.endDelay = 0;
+    return animate.call(this, keyframes, o);
+  };
+}
+
+/** An animation that runs forever (a falling leaf's flutter, a scrolling title): let go of once its element has left
+ *  the page. One still running on an element no longer shown kept the browser working through every frame, on every
+ *  screen, for the rest of the session. */
+const Endless = {
+  list: [],
+  add(a, el) { this.list.push([a, el]); if (!this._t) this._t = setInterval(() => this.sweep(), 2000); return a; },
+  sweep() {
+    // (whether each one's element is still on the page — not the animation's own state: asking that made the browser
+    // bring its styles up to date first)
+    this.list = this.list.filter(([a, el]) => { if (el.isConnected) return true; a.cancel(); return false; });
+    if (!this.list.length) { clearInterval(this._t); this._t = 0; }
+  },
+};
+function endless(el, keyframes, opts) { return Endless.add(el.animate(keyframes, { ...opts, iterations: Infinity }), el); }
 
 /** Object-URL cache so blobs from IndexedDB are only materialised once. */
 const BlobURLs = {

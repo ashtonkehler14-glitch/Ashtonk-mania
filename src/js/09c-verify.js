@@ -1,8 +1,8 @@
-/* Score verification: the game server's own judge of a play. It never takes a player's word for a score — given the
- * beatmap file (checked against its hash by the server) and the play's recorded key presses, it plays them through
- * the same judging engine the game uses, under the standard rules (the beatmap's own OD, the default accuracy), and
- * works out the score, accuracy, combo, grade, star rating and pp itself. The same file runs in the game and, bundled
- * by build.mjs, on the server (worker/verify-bundle.js). */
+/* Plays on the game server. A play goes up as the game reports it (acceptPlay): its score, accuracy, combo, grade,
+ * star rating and pp taken as they are, with the beatmap's details from its file (the file's hash is the beatmap's id).
+ * verifyPlay is the judge for a play sent the old way, as its key presses only: played through the same judging
+ * engine the game uses, under the standard rules (the beatmap's own OD, the default accuracy). The same file runs in
+ * the game and, bundled by build.mjs, on the server (worker/verify-bundle.js). */
 
 /** Mods that change the notes themselves (No Long Notes, Invert): their star rating is the changed notes'. */
 const convertsNotes = mods => mods.includes('NLN') || mods.includes('IN');
@@ -78,5 +78,42 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
     grade, stars, pp, mods, keys, rate, unstableRate: sum.unstableRate, failed,
     beatmapSetId: Number(bm.metadata && bm.metadata.BeatmapSetID) || -1,
     beatmapId: Number(bm.metadata && bm.metadata.BeatmapID) || -1, title: (bm.metadata && bm.metadata.Title) || '', artist: (bm.metadata && bm.metadata.Artist) || '', version: (bm.metadata && bm.metadata.Version) || '',
+  };
+}
+
+/** A beatmap file's [Metadata] section ({ Title, Artist, Version, BeatmapID, BeatmapSetID, … }) without reading the
+ *  rest of the file — or null without one. */
+function osuMetadata(text) {
+  const at = text.search(/^\[Metadata\][ \t]*\r?$/m);
+  if (at < 0) return null;
+  const end = text.indexOf('\n[', at + 10), md = {};
+  for (const line of text.slice(at, end < 0 ? undefined : end).split(/\r?\n/).slice(1)) {
+    const i = line.indexOf(':');
+    if (i > 0) md[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  return md;
+}
+/** A play as the game reports it (`res`: its result), taken as it is: tidied into the shape verifyPlay gives, with the
+ *  beatmap's details from its file. Auto's plays aren't anyone's, and a fail only counts in multiplayer (`noFail`),
+ *  as an F worth 0pp. */
+function acceptPlay(osuText, res, { noFail = false } = {}) {
+  if (typeof osuText !== 'string' || !res || typeof res !== 'object') return { error: 'bad play' };
+  // (its details are all a play taken as it is needs from the file: read from its [Metadata] alone — every note of a long
+  // map read through took longer than the server is given for a few plays at once)
+  let bm = { metadata: osuMetadata(osuText) };
+  if (!bm.metadata) try { bm = BeatmapParser.parse(osuText); } catch (e) { return { error: 'the beatmap could not be read' }; }
+  const num = (v, lo, hi, d = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+  const mods = ModSystem.normalize(Array.isArray(res.mods) ? res.mods.map(String) : []);
+  if (mods.includes('AT')) return { error: 'Auto\'s play' };
+  const failed = !!res.failed;
+  if (failed && !noFail) return { error: 'the play failed' };
+  const counts = Array.from({ length: 6 }, (_, i) => Math.round(num(Array.isArray(res.counts) ? res.counts[i] : 0, 0, 1e6)));
+  const grade = failed ? 'F' : ['XH', 'X', 'SS', 'SH', 'S', 'A', 'B', 'C', 'D'].includes(res.grade) ? res.grade : 'D';
+  const md = bm.metadata || {};
+  return {
+    score: Math.round(num(res.score, 0, 1e9)), accuracy: num(res.accuracy, 0, 1), maxCombo: Math.round(num(res.maxCombo, 0, 1e6)), counts,
+    grade, stars: num(res.stars, 0, 100), pp: failed || !ModSystem.isRanked(mods) ? 0 : num(res.pp, 0, 1e5), mods,
+    keys: Math.round(num(res.keys, 1, 18, 4)), rate: num(res.rate, VERIFY.MIN_RATE, VERIFY.MAX_RATE, 1), unstableRate: num(res.unstableRate, 0, 1e4), failed,
+    beatmapSetId: Number(md.BeatmapSetID) || -1, beatmapId: Number(md.BeatmapID) || -1, title: md.Title || '', artist: md.Artist || '', version: md.Version || '',
   };
 }

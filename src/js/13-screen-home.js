@@ -71,7 +71,7 @@ const HomeScreen = {
     return el;
   },
   leave() {
-    cancelAnimationFrame(this._raf); NeruMascot.stop(); MenuTriangles.stop();
+    cancelAnimationFrame(this._raf); clearTimeout(this._perfT); NeruMascot.stop(); MenuTriangles.stop();
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.removeEventListener(ev, this._poke);
     if (this._offMusic) this._offMusic();
     if (this._offDaily) this._offDaily(); clearInterval(this._dailyT);
@@ -204,6 +204,10 @@ const HomeScreen = {
   hoverIn(b) {
     if (!b.classList.contains('exp')) return;
     UISounds.hover();
+    // (animations off — Performance mode —: the icon stays as it is. Tipping it over and back, each hover read the
+    // page's styles three times over for nothing that showed)
+    if (!Settings.get('ui.animSpeed')) return;
+    b._tipped = true;
     const ico = b._ico, until = clamp(this._nextBeatIn || 300, 60, 1000);
     this._rightward = !!this._rightward;
     ico.getAnimations().forEach(a => a.cancel());
@@ -212,6 +216,8 @@ const HomeScreen = {
     ico.firstChild.animate([{ scale: '1 1' }, { scale: '1.2 1.08' }], { duration: until, easing: 'cubic-bezier(.5, 1, .89, 1)', fill: 'forwards' });
   },
   hoverOut(b) {
+    if (!b._tipped) return;
+    b._tipped = false;
     const ico = b._ico, inner = ico.firstChild;
     const r = getComputedStyle(ico).rotate, s = getComputedStyle(inner).scale, t = getComputedStyle(inner).translate;
     ico.getAnimations().forEach(a => a.cancel()); inner.getAnimations().forEach(a => a.cancel());
@@ -221,8 +227,9 @@ const HomeScreen = {
   /** On each beat the hovered button's icon swings to the other side over the beat and hops up 10px and back. */
   onBeat(beatLength) {
     this._rightward = !this._rightward;
-    const b = this.el && this.btns.find(x => x.matches(':hover') && x.classList.contains('exp'));
+    const b = this.el && Settings.get('ui.animSpeed') && this.btns.find(x => x.matches(':hover') && x.classList.contains('exp'));
     if (!b) return;
+    b._tipped = true;
     const ico = b._ico, inner = ico.firstChild, half = beatLength / 2;
     const r = getComputedStyle(ico).rotate;
     ico.getAnimations().forEach(a => a.cancel()); inner.getAnimations().forEach(a => a.cancel());
@@ -347,12 +354,14 @@ const HomeScreen = {
     const tick = now => {
       this._raf = requestAnimationFrame(tick);
       const cv = this.vis;
-      if (!cv.isConnected || (typeof Spectate !== 'undefined' && Spectate.rkEl)) return; // (covered by a spectated player's screen: nothing to draw)
+      if (!cv.isConnected) return;
       const dt = Math.min(100, now - lastT); lastT = now;
       // Performance mode: no visualiser, triangles, fountains or beat — the logo sits still (only the idle return runs)
       if (Settings.get('graphics.performanceMode')) {
         if (!this._perfClear) { this._perfClear = true; cv.width = cv.height = 1; this.tris.width = this.tris.height = 1; if (this.ampEl) this.ampEl.style.scale = ''; }
         if (this.menuState !== 'initial' && this.menuState !== 'entering' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !NowPlaying.open) this.setState('initial');
+        // (nothing drawn: looked in on a few times a second, not every frame)
+        cancelAnimationFrame(this._raf); clearTimeout(this._perfT); this._perfT = setTimeout(() => { this._raf = requestAnimationFrame(tick); }, 400);
         return;
       }
       if (this._perfClear) { this._perfClear = false; this._szAt = 0; this._ampS = null; }
@@ -686,7 +695,9 @@ onmessage = async ({ data: m }) => {
   mount() {
     this.el = h('div.lz-tri', { 'aria-hidden': 'true' });
     this.running = true; this.col = null; this._drawn = null;
-    if (!this._sub) this._sub = Bus.on('bg:changed', url => this.fromImage(url));
+    // (only while the menu's showing: in song select each new background was being read for a colour nobody saw —
+    // coming back, mount() reads the one there is then)
+    if (!this._sub) this._sub = Bus.on('bg:changed', url => { if (this.running) this.fromImage(url); });
     this._ro = new ResizeObserver(() => { clearTimeout(this._rt); this._rt = setTimeout(() => this.render(true), 120); });
     this._ro.observe(this.el);
     this.fromImage(Background.current);

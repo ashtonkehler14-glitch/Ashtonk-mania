@@ -45,3 +45,11 @@ test('the server\'s score judge is built from the current sources', () => {
   for (const f of ['00-util.js', '03-beatmap-parser.js', '03b-mania-convert.js', '08-mods.js', '09-gameplay.js', '09a-osu-math.js', '09c-verify.js'])
     assert.ok(bundle.includes(read('src/js/' + f)), `${f} changed since the last build: run node build.mjs`);
 });
+
+test('the stylesheet has no :has() selectors', () => {
+  // (a :has() rule anywhere made the browser restyle the whole page for every element added, removed or changed —
+  // a text tick, a toast — which was most of what kept the menus busy on a slow device; a class set from the script
+  // does the same job, see BodyFlag and makeOverlay's flags)
+  const css = read('src/styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(!css.includes(':has('), 'src/styles.css uses :has() — set a class from the script instead');
+});

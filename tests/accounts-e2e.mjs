@@ -51,8 +51,13 @@ async function device(name, label) {
   await page.goto(url);
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await page.waitForTimeout(300);
-  if (await page.$('.onboarding')) { await setupName(page, name); await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300); }
-  await page.evaluate(() => AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(AshtonkMania.Medals.all.map(m => [m.id, 1]))));
+  if (await page.$('.onboarding')) { await setupName(page, name); await page.waitForSelector('.setup-step-wom, .setup-step-mobile'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300); }
+  await page.evaluate(async () => {
+    const M = AshtonkMania.Medals;
+    AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(M.all.map(m => [m.id, 1])));
+    M.queue.length = 0; // (one already on its way — Night Owl, after midnight — put away too)
+    for (let i = 0; i < 40 && document.querySelector('.medal-ov'); i++) { document.querySelector('.medal-ov').click(); await new Promise(r => setTimeout(r, 100)); }
+  });
   await page.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
   await page.waitForFunction(() => AshtonkMania.BeatmapManager.sets.length === 1, null, { timeout: 15000 });
   await page.waitForFunction(() => AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1 && AshtonkMania.Presence.me, null, { timeout: 15000 });
@@ -322,9 +327,10 @@ try {
   });
   const rk = await rankings(c);
   check('a backup\'s scores are marked imported, aren\'t sent with the profile, and the device that imported it isn\'t on the rankings', imp.marked === 'backup' && !imp.sent && !rk.names.includes('Someone'), JSON.stringify({ imp, rk }));
-  // a play the server never got (set offline, or in multiplayer): the game sends it up with its replay and the server
-  // judges it — the best plays and pp the rankings have are the ones on your profile (last: its play would otherwise go
-  // to the other devices and change what they count)
+  // a play the server never got (set offline, or in multiplayer): the game sends it straight up, with any others, in
+  // one go — the best plays and pp the rankings have are the ones on your profile (last: its play would otherwise go to
+  // the other devices and change what they count)
+  let lots = 0; const onReq = r => { if (r.url().includes('api/mp/scores')) lots++; }; a.on('request', onReq);
   const caught = await a.evaluate(async () => {
     const A = AshtonkMania, m = [...A.BeatmapManager.maps.values()].find(x => x.version === '8K Insane');
     A.BeatmapManager.setById.get(m.setId).status = 'ranked'; // (the test beatmaps aren't online)
@@ -338,11 +344,25 @@ try {
       score: 1e6, scoreStd: 1e6, accuracy: 1, maxCombo: 100, counts: [100, 0, 0, 0, 0, 0], grade: 'X', passed: true, date: Date.now(), duration: 30000, player: A.ProfileManager.profile.name, own: true, srVersion: SR_VERSION });
     await ReplayManager.save(rep);
     while (Verified._catching) await new Promise(r => setTimeout(r, 200));
+    // (an older game noted plays as "sent" when the server took them — at 0pp from a server that couldn't ask osu! — and
+    // never sent them again, so they stayed "not counted yet" for good: a note like that mustn't hold this one back)
+    const mine = A.ScoreManager.bestPpPerMap().find(x => x.score.mapHash === m.hash);
+    localStorage.setItem('am.ppSent', JSON.stringify({ [m.hash]: mine.pp }));
     Verified._lastOwn = 0;
     await Verified.catchUp();
-    return { had, has: (await bests()).includes(m.hash), local: A.ScoreManager.bestPpPerMap().some(x => x.score.mapHash === m.hash) };
+    return { had, has: (await bests()).includes(m.hash), local: A.ScoreManager.bestPpPerMap().some(x => x.score.mapHash === m.hash), noted: localStorage.getItem('am.ppSent') };
   });
-  check('a play the server never got (offline, multiplayer) goes up with its replay and is judged there: the rankings have the best plays your profile has', !caught.had && caught.has && caught.local, JSON.stringify(caught));
+  a.off('request', onReq);
+  check('a play the server never got (offline, multiplayer) goes straight up, together with any others — an old "already sent" note doesn\'t hold it back: the rankings have the best plays your profile has', !caught.had && caught.has && caught.local && lots >= 1 && caught.noted === null, JSON.stringify({ ...caught, lots }));
+  // a play the server didn't count says why, beside it on your profile
+  const why = await a.evaluate(() => {
+    const V = AshtonkMania.Verified || Verified, h = 'f'.repeat(64);
+    localStorage.setItem(V.VERDICT_KEY, JSON.stringify({ [h]: { pp: 50, got: 0, at: Date.now() }, ['e'.repeat(64)]: { pp: 20, err: 'Bad beatmap file.', at: Date.now() } }));
+    const r = [V.why(h, 50), V.why('e'.repeat(64), 20), V.why(h, 51), V.why('d'.repeat(64), 5)];
+    localStorage.removeItem(V.VERDICT_KEY);
+    return r;
+  });
+  check('a play the server didn\'t count says why (not ranked on osu!, or what it turned down)', why[0] === 'not ranked on osu!' && why[1] === 'turned down: bad beatmap file' && why[2] === null && why[3] === null, JSON.stringify(why));
   // your own profile shows the server's pp and best plays: the same numbers everyone else sees
   const own = await a.evaluate(async () => {
     const A = AshtonkMania, srv = await new Promise(r => { const off = A.Bus.on('profile:remote', m => { if (m.pid !== A.Presence.pid()) return; off(); r(m); }); A.Screens.go('profile'); });
@@ -352,6 +372,47 @@ try {
     return { shown: big ? big.querySelector('b').textContent : null, server: A.fmtInt ? A.fmtInt(srv.verified ? srv.verified.pp : 0) + 'pp' : null, pp: srv.verified && srv.verified.pp, rows: document.querySelectorAll('.pf-subsec:first-child .pf-scores > :not(.pf-more)').length, top: srv.top.length, subs };
   });
   check('your own profile shows the server\'s pp and best plays (what others see)', own.pp > 0 && own.shown === (Math.round(own.pp).toLocaleString('en-US') + 'pp') && own.top > 0 && !own.subs.some(t => /Not counted/.test(t)), JSON.stringify(own));
+  // the server has a play on its own list of your best plays, but the ones it shows on your profile leave it out (osu!
+  // not asked about it yet, say): it's counted — listed with the rest, never "not counted yet" (it sat there for good,
+  // "going up now", with the game sending nothing)
+  const left = await a.evaluate(async () => {
+    const A = AshtonkMania, P = A.ProfileScreen, m = [...A.BeatmapManager.maps.values()].find(x => x.version === '8K Insane');
+    await new Promise(r => { const off = A.Bus.on('myBests', () => { off(); r(); }); A.Presence.send({ t: 'myBests' }); });
+    P.ownServer = { ...P.ownServer, top: P.ownServer.top.filter(x => (x.key || x.mapHash) !== m.hash) };
+    P.render(); await new Promise(r => setTimeout(r, 300));
+    const subs = [...document.querySelectorAll('.pf-subsec h3')].map(x => x.textContent);
+    const best = [...document.querySelectorAll('.pf-subsec')].find(x => /Best performance/.test(x.querySelector('h3').textContent));
+    for (let i = 0; i < 20 && best && best.querySelector('.pf-more'); i++) { best.querySelector('.pf-more').click(); await new Promise(r => setTimeout(r, 50)); }
+    const rows = best ? [...best.querySelectorAll('.pf-score')].map(x => x.textContent) : [];
+    return { pending: subs.some(t => /Not counted/.test(t)), listed: rows.some(t => t.includes('8K Insane')), counted: Verified.counted(m.hash, 1) };
+  });
+  check('a play on the server\'s own list of your best plays counts, though the ones it shows left it out: with the rest, not "not counted yet"', !left.pending && left.listed && left.counted, JSON.stringify(left));
+  // a lot the server can't take, every try (it ran over its time): one at a time instead; and one that can't get there
+  // at all says so beside it, and goes again in a minute
+  const one = await a.evaluate(async () => {
+    const A = AshtonkMania, V = Verified, m = [...A.BeatmapManager.maps.values()].find(x => x.version === '9K Expert');
+    A.BeatmapManager.setById.get(m.setId).status = 'ranked';
+    while (V._catching) await new Promise(r => setTimeout(r, 200));
+    const f = window.fetch, hits = { lot: 0, one: 0 }, ms = [V.RETRY_MS, V.ONE_MS];
+    let block = true;
+    V.RETRY_MS = 10; V.ONE_MS = 300;
+    window.fetch = (u, o) => { const s = String(u); if (/api\/mp\/scores/.test(s)) { hits.lot++; return Promise.resolve(new Response('busy', { status: 503 })); } if (/api\/mp\/score$/.test(s)) { hits.one++; if (block) return Promise.reject(new TypeError('offline')); } return f(u, o); };
+    try {
+      // (nothing gets there: it says so — the profile open sends it up as soon as it's there, so it's caught from the start)
+      await A.ScoreManager.add({ id: 'sc-one-' + Math.random().toString(36).slice(2, 10), mapHash: m.hash, mapId: m.id, setId: m.setId, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, mods: [], rate: 1,
+        score: 9e5, scoreStd: 9e5, accuracy: 0.97, maxCombo: 90, counts: [90, 8, 2, 0, 0, 0], grade: 'S', passed: true, date: Date.now(), duration: 30000, player: A.ProfileManager.profile.name, own: true, srVersion: SR_VERSION });
+      await new Promise(r => setTimeout(r, 300));
+      while (V._catching) await new Promise(r => setTimeout(r, 200));
+      V._lastOwn = 0; await V.catchUp();
+      const said = V.why(m.hash, A.ScoreManager.bestPpPerMap().find(x => x.score.mapHash === m.hash).pp), again = !!V._retryT;
+      // (one at a time does)
+      const asked = hits.lot + hits.one; await new Promise(r => setTimeout(r, 1500)); const quiet = hits.lot + hits.one === asked; // (not asked again and again meanwhile)
+      block = false; clearTimeout(V._retryT); V._retryT = null; V._unsent = null; V._lastOwn = 0; await V.catchUp();
+      const has = await new Promise(r => { const off = A.Bus.on('myBests', x => { off(); r(x.list.some(e => e[0] === m.hash)); }); A.Presence.send({ t: 'myBests' }); });
+      return { ...hits, said, again, quiet, has, counted: V.counted(m.hash, 1), still: V.why(m.hash, 1) };
+    } finally { window.fetch = f; [V.RETRY_MS, V.ONE_MS] = ms; }
+  });
+  check('a lot of plays the server can\'t take goes up one at a time instead; one that can\'t get there at all says so, and goes again in a minute (not straight away, again and again)', one.lot >= 2 && one.one >= 2 && /couldn't reach the server/.test(one.said || '') && one.again && one.quiet && one.has && one.counted && one.still === null, JSON.stringify(one));
 } catch (e) { check('ran to the end', false, e.stack); }
 
 check('no page errors', !errors.length, errors.join(' | '));

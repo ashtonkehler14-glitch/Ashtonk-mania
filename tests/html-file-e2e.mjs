@@ -51,8 +51,15 @@ async function open(ctx, where, name) {
   await page.goto(where);
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 60000 });
   await page.waitForTimeout(300);
-  if (await page.$('.onboarding')) { await setupName(page, name); await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300); }
-  await page.evaluate(() => AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(AshtonkMania.Medals.all.map(m => [m.id, 1]))));
+  // (a file signing itself in first: its setup comes once that's been tried)
+  if (where.startsWith('file:')) await page.waitForSelector('.onboarding', { timeout: 5000 }).catch(() => {});
+  if (await page.$('.onboarding')) { await setupName(page, name); await page.waitForSelector('.setup-step-wom, .setup-step-mobile'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300); }
+  await page.evaluate(async () => {
+    const M = AshtonkMania.Medals;
+    AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(M.all.map(m => [m.id, 1])));
+    M.queue.length = 0; // (one already on its way — Night Owl, after midnight — put away too)
+    for (let i = 0; i < 40 && document.querySelector('.medal-ov'); i++) { document.querySelector('.medal-ov').click(); await new Promise(r => setTimeout(r, 100)); }
+  });
   return page;
 }
 
@@ -67,6 +74,7 @@ try {
     return !!b;
   });
   check('Settings → Maintenance has "Save as an HTML file"', btn);
+  await site.waitForFunction(() => !!AshtonkMania.Account.code() && AshtonkMania.Account.linked(), null, { timeout: 20000 }).catch(() => {});
   const [download] = await Promise.all([site.waitForEvent('download', { timeout: 60000 }), site.evaluate(() => AshtonkMania.HtmlFile.save())]);
   const dir = mkdtempSync(join(tmpdir(), 'am-html-'));
   const file = join(dir, download.suggestedFilename());
@@ -83,13 +91,30 @@ try {
   const viaKey = await Promise.all([site.waitForEvent('download', { timeout: 60000 }), site.keyboard.press('Control+s')]).then(([d]) => d.suggestedFilename()).catch(e => 'ERR ' + e.message);
   check('Ctrl+S saves the game as the HTML file', viaKey === 'Ashtonk!mania.html', viaKey);
 
-  // 2) opened from the device
+  // 1b) saved by a player with a code: the file signs itself in as them the first time it's opened — once
+  const siteMe = await site.evaluate(() => ({ code: AshtonkMania.Account.code(), pid: AshtonkMania.Presence.pid() }));
+  const carried = /window\.AM_CARRY=\{"t":"[0-9a-f]{32}","c":"[0-9A-Z]{16}"\}/.test(html) && !!siteMe.code && !html.includes(siteMe.code.replace(/-/g, ''));
+  check('saved by a player with a code, the file carries a one-time sign-in (not the code as it is)', carried, siteMe.code);
+  {
+    const cctx = await browser.newContext({ viewport: { width: 1400, height: 800 } });
+    const cp = await cctx.newPage();
+    cp.on('pageerror', e => errors.push(`FirstOpen pageerror: ${e.message}`));
+    await cp.goto(pathToFileURL(file).href);
+    await cp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 60000 });
+    await cp.waitForFunction(() => /Playing as/.test((document.querySelector('.onboarding') || {}).textContent || ''), null, { timeout: 20000 }).catch(() => {});
+    const first = await cp.evaluate(() => ({ text: ((document.querySelector('.onboarding') || {}).textContent || '').slice(0, 160), pid: AshtonkMania.Presence.pid(), code: AshtonkMania.Account.code() }));
+    check('opened for the first time, it\'s that player: the setup says welcome back and brings their things', /Welcome back/.test(first.text) && /Playing as Site/.test(first.text) && first.pid === siteMe.pid && first.code === siteMe.code, JSON.stringify(first));
+    await cctx.close();
+  }
+
+  // 2) opened from the device (another one: the file's sign-in is spent, so the usual setup — a new player)
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 800 } });
   const failed = [];
   ctx.on('requestfailed', r => failed.push(r.url().slice(0, 120) + ' ' + (r.failure() || {}).errorText));
   const fp = await open(ctx, pathToFileURL(file).href, 'FileCopy');
   const st = await fp.evaluate(() => ({ standalone: AshtonkMania.Host.standalone, server: AshtonkMania.Host.server(), proto: location.protocol }));
   check('opened from the device, it runs as the saved copy and talks to the website', st.proto === 'file:' && st.standalone && st.server === url + '/', JSON.stringify(st));
+  check('…opened again elsewhere, its sign-in is spent: a new player, set up as usual', await fp.evaluate(p => AshtonkMania.Presence.pid() !== p && AshtonkMania.ProfileManager.profile.name === 'FileCopy', siteMe.pid));
   const skins = await fp.evaluate(() => ({ current: AshtonkMania.SkinManager.current.name, all: AshtonkMania.SkinManager.skins.map(s => s.name) }));
   check('Kori is installed and selected from inside the file', /kori/i.test(skins.current), JSON.stringify(skins));
   const looks = await fp.evaluate(() => ({ cursor: (document.querySelector('.lzc-img') || {}).src || '', avatar: AshtonkMania.AvatarPresets.url('miku') || '', neru: (document.querySelector('.neru-img') || {}).src || '' }));
@@ -130,18 +155,95 @@ try {
   check('a saved file can write itself (the browser offers File System Access to file:// pages)', canWrite);
   const same = await fp.evaluate(async () => { await AshtonkMania.HtmlFile.check(); return !document.querySelector('.dialog'); });
   check('a file of the website\'s current version doesn\'t ask to update', same);
+  const kept = await fp.evaluate(async () => {
+    const F = AshtonkMania.HtmlFile, build = F.build, pick = window.showSaveFilePicker;
+    let picked = false;
+    F.build = async () => { throw new Error('The download stopped part-way.'); };
+    window.showSaveFilePicker = async () => { picked = true; throw new DOMException('no', 'AbortError'); };
+    try { await F.update(); } finally { F.build = build; window.showSaveFilePicker = pick; }
+    return !picked && !document.querySelector('.dialog');
+  });
+  check('an update that can\'t get the new version never touches the file', kept);
+  // the website with nothing newer than the file (a copy of the old page kept on the way): nothing is written — written
+  // and restarted, the file was the same version again and asked to update again, over and over
+  const noNew = await fp.evaluate(async () => {
+    const F = AshtonkMania.HtmlFile, pick = window.showSaveFilePicker; let picked = false;
+    window.showSaveFilePicker = async () => { picked = true; throw new DOMException('no', 'AbortError'); };
+    try { await F.update(); } finally { window.showSaveFilePicker = pick; }
+    await new Promise(r => setTimeout(r, 300));
+    return { picked, dialog: !!document.querySelector('.dialog'), toasts: [...document.querySelectorAll('#toasts .t-title')].map(e => e.textContent).join('|') };
+  });
+  check('an update with nothing newer on the website writes nothing (no restart into the same version)', !noNew.picked && !noNew.dialog && /No newer version/.test(noNew.toasts), JSON.stringify(noNew));
+  // (from here on the website has a newer version: what it sends is stamped as another build)
+  await fp.evaluate(() => {
+    const F = AshtonkMania.HtmlFile, build = F.build;
+    F.build = async (...a) => { const b = await build.apply(F, a); return new Blob([(await b.text()).replace(/const APP_BUILD = '[0-9a-f]+'/, "const APP_BUILD = 'feedfacecafe'")], { type: 'text/html' }); };
+  });
+  // the file it was written to last time being another copy with this name (in Downloads, say): not written to — the
+  // save box is asked for, saying where this file is
+  const other = await fp.evaluate(async () => {
+    const F = AshtonkMania.HtmlFile, kv = AshtonkMania.DB.kvGet;
+    let wrote = 0;
+    const fake = { name: F.fileName(), queryPermission: async () => 'granted', requestPermission: async () => 'granted', getFile: async () => new File(['<script>window.AM_SAVED=1;</script>'], F.fileName()), createWritable: async () => ({ write: async () => { wrote++; }, close: async () => {} }) };
+    AshtonkMania.DB.kvGet = async (k, d) => k === 'htmlFile.handle' ? fake : kv.call(AshtonkMania.DB, k, d);
+    const done = F.update();
+    for (let i = 0; i < 600 && !document.querySelector('.dialog'); i++) await new Promise(r => setTimeout(r, 100));
+    const text = (document.querySelector('.dialog') || {}).textContent || '';
+    const notNow = [...document.querySelectorAll('.dialog button')].find(b => b.textContent.trim() === 'Not now');
+    if (notNow) notNow.click();
+    await done; AshtonkMania.DB.kvGet = kv;
+    for (let i = 0; i < 40 && document.querySelector('.dialog'); i++) await new Promise(r => setTimeout(r, 100)); // (faded away)
+    return { wrote, text, where: F.where() };
+  });
+  check('the file remembered from last time, if it\'s another copy, isn\'t written over — the save box is asked for, saying where this file is', other.wrote === 0 && other.text.includes(other.where), JSON.stringify(other).slice(0, 300));
   await fp.evaluate(() => {
     AshtonkMania.HtmlFile.latest = async () => 'feedfacecafe';
     // (the browser's save box can't be clicked in a test: it hands back a file that records what's written)
-    window.showSaveFilePicker = async o => { window.__picked = o.suggestedName; return { name: 'Ashtonk!mania (2).html', requestPermission: async () => 'granted', createWritable: async () => ({ write: async b => { window.__written = b.size; }, close: async () => {} }) }; };
+    window.showSaveFilePicker = async o => { window.__picked = o.suggestedName; let file = new File([], 'x'); return { name: 'Ashtonk!mania (2).html', requestPermission: async () => 'granted', getFile: async () => file, createWritable: async () => { let b = null; return { write: async x => { b = x; }, close: async () => { file = b; window.__written = b.size; } }; } }; };
     return AshtonkMania.HtmlFile.check();
   });
   const asked = await fp.evaluate(() => (document.querySelector('.dialog h2') || {}).textContent || '');
   check('an out-of-date file asks whether to update', /new version of Ashtonk!mania/.test(asked), asked);
   await fp.evaluate(() => [...document.querySelectorAll('.dialog button')].find(b => b.textContent.trim() === 'Update').click());
+  // (the new version is all fetched before the save box opens: that box empties the file you pick there and then, so a
+  // version that never came used to leave a 0-byte file where the game was)
+  const saveBtn = () => [...document.querySelectorAll('.dialog button')].find(b => b.textContent.trim() === 'Save');
+  await fp.waitForFunction(`(${saveBtn})()`, null, { timeout: 60000 }).catch(() => {});
+  check('the save box only opens once the new version is all here', await fp.evaluate(`!window.__picked && !!(${saveBtn})()`));
+  await fp.evaluate(`(${saveBtn})().click()`);
   await fp.waitForFunction(() => window.__written > 0, null, { timeout: 60000 }).catch(() => {});
   const wrote = await fp.evaluate(() => ({ picked: window.__picked, size: window.__written || 0 }));
   check('"Update" writes the newest version to the file (the save box opens on this file\'s name)', wrote.picked === 'Ashtonk!mania.html' && wrote.size > 6e6, JSON.stringify(wrote));
+  // a write that doesn't stick (the drive not having the new file all there, read back): written again, then — still
+  // not there — nothing restarts (that opened a blank white page) and the new version downloads instead
+  await fp.waitForFunction(() => !AshtonkMania.HtmlFile.busy, null, { timeout: 30000 }).catch(() => {});
+  const lost = await fp.evaluate(async () => {
+    const F = AshtonkMania.HtmlFile, kv = AshtonkMania.DB.kvGet, dl = window.downloadBlob, reload = F.WRITE_WAIT;
+    let writes = 0, downloaded = null, unloaded = false;
+    const onUnload = () => { unloaded = true; }; window.addEventListener('beforeunload', onUnload);
+    const fake = { name: F.fileName(), queryPermission: async () => 'granted', requestPermission: async () => 'granted', getFile: async () => new File([`<script>window.AM_SAVED=${window.AM_SAVED};</script>`], F.fileName()), createWritable: async () => ({ write: async () => { writes++; }, close: async () => {} }) };
+    AshtonkMania.DB.kvGet = async (k, d) => k === 'htmlFile.handle' ? fake : kv.call(AshtonkMania.DB, k, d);
+    window.downloadBlob = (b, n) => { downloaded = `${n}|${b.size > 6e6}`; };
+    F.WRITE_WAIT = 600;
+    try { await F.update(); } finally { AshtonkMania.DB.kvGet = kv; window.downloadBlob = dl; F.WRITE_WAIT = reload; }
+    await new Promise(r => setTimeout(r, 1500));
+    window.removeEventListener('beforeunload', onUnload);
+    return { writes, downloaded, unloaded, toasts: [...document.querySelectorAll('#toasts .t-title')].map(e => e.textContent).join('|') };
+  });
+  check('a write that doesn\'t stick is tried again, then nothing restarts and the new version downloads instead', lost.writes === 2 && lost.downloaded === 'Ashtonk!mania.html|true' && !lost.unloaded && /didn.t save properly/.test(lost.toasts), JSON.stringify(lost));
+  // restarted after an update that went over another copy (still the old version here): it says so, and forgets that
+  // file, instead of offering the update again and again; restarted as the new version, it says it's updated
+  await fp.evaluate(() => localStorage.setItem('am.fileUpdated', JSON.stringify({ build: 'feedfacecafe', at: Date.now(), name: 'Ashtonk!mania.html' })));
+  await fp.reload(); await fp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 60000 });
+  await fp.waitForFunction(() => /wasn.t updated/.test((document.querySelector('.dialog h2') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => {});
+  const wrong = await fp.evaluate(async () => ({ dialog: (document.querySelector('.dialog') || {}).textContent || '', handle: await AshtonkMania.DB.kvGet('htmlFile.handle', 'none') }));
+  check('restarted as the old version after an update, it says that file wasn\'t the one updated (and forgets it)', /wasn.t updated/.test(wrong.dialog) && wrong.handle === null, JSON.stringify(wrong).slice(0, 300));
+  await fp.evaluate(() => { const b = [...document.querySelectorAll('.dialog button')].find(x => x.textContent.trim() === 'Not now'); if (b) b.click(); });
+  await fp.evaluate(() => localStorage.setItem('am.fileUpdated', JSON.stringify({ build: APP_BUILD, at: Date.now(), name: 'Ashtonk!mania.html' })));
+  await fp.reload(); await fp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 60000 });
+  await fp.waitForFunction(() => [...document.querySelectorAll('#toasts .t-title')].some(e => e.textContent === 'Updated'), null, { timeout: 15000 }).catch(() => {});
+  const okNow = await fp.evaluate(() => ({ toast: [...document.querySelectorAll('#toasts .t-title')].some(e => e.textContent === 'Updated'), dialog: !!document.querySelector('.dialog') }));
+  check('restarted as the new version, it says it\'s updated and asks nothing', okNow.toast && !okNow.dialog, JSON.stringify(okNow));
 } catch (e) { check('ran to the end', false, e.stack); }
 
 check('no page errors', !errors.length, errors.join(' | '));

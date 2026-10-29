@@ -5,7 +5,7 @@
 //
 // Protocol (client → server): hello {name, create, mode?, keys?, size?, sr?}, settings {settings} (host), team {team}, pool {maps}
 // (Quick Play host), pick {i} (Quick Play), chat {text}, suggest {map}, diff {diff}, map {map, mods, modConfig} (host),
-// mods {mods} (your own mods), rate {mods, modConfig} (propose a room speed mod), vote {yes}, hasMap {has}, ready {ready},
+// mods {mods} (your own mods), rate {mods, modConfig} (the host: set the room's speed mod; anyone else: propose one), vote {yes}, hasMap {has}, ready {ready},
 // start (host), skip (vote to skip the intro), score {score, acc, combo, hp}, finish {result}, quit, ping {c}.
 // Server → client: welcome {you, room}, room {room}, chat {...}, start {delay, map, mods, modConfig, playerMods},
 // skipvote {votes, total}, skip, opp {id, score, acc, combo, hp}, results {results}, error {msg, fatal}, pong {c, s},
@@ -29,7 +29,7 @@
 
 import { RankedPlay, RankedQueue, RP } from './ranked-play.js';
 import { SETTINGS_MAX, SKIN_MAX, SCORE_MAX, SCORES_SEND } from './vault.js';
-export { RP, RankedPlay, RankedQueue, rateMatch, deckTargets, beatmapRating, starsForRating, initialRating, RATING, QUEUE } from './ranked-play.js';
+export { RP, RankedPlay, RankedQueue, rateMatch, deckTargets, deckTargetsForStars, beatmapRating, starsForRating, initialRating, RATING, QUEUE } from './ranked-play.js';
 
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const START_DELAY = 5000;
@@ -274,7 +274,8 @@ export class RoomLogic {
     this.hostId = next.id;
     return [this.system(`${next.name} is now the host`)];
   }
-  leave(id) {
+  /** (`said`: the room's already been told why they're gone — kicked — so no "left the room" after it) */
+  leave(id, { said = false } = {}) {
     const p = this.get(id);
     if (!p) return [];
     const out = [], wasPlaying = !!p.playing;
@@ -292,7 +293,7 @@ export class RoomLogic {
     if (wasHost) this.hostId = this.players[0].id;
     this.unreadyAll();
     if (this.vote) { this.vote = null; out.push(this.system('Speed mod vote cancelled')); }
-    out.push(this.system(`${p.name} left the room`));
+    if (!said) out.push(this.system(`${p.name} left the room`));
     const q = this.qp;
     if (q && this.state !== 'playing') {
       if (q.phase === 'gather') this.qpGather();
@@ -340,7 +341,7 @@ export class RoomLogic {
       case 'kick': {
         const t = this.get(String(m.id || ''));
         if (!host || !t || t === p || this.state !== 'lobby') return [];
-        return [{ to: t.id, msg: { t: 'kicked' } }, this.system(`${t.name} was removed from the room`), ...this.leave(t.id)];
+        return [{ to: t.id, msg: { t: 'kicked' } }, this.system(`${t.name} was removed from the room`), ...this.leave(t.id, { said: true })];
       }
       case 'giveHost': {
         const t = this.get(String(m.id || ''));
@@ -397,8 +398,8 @@ export class RoomLogic {
         const out = [this.system(`Beatmap changed to ${map.artist} - ${map.title} [${map.version}]`)];
         if (Array.isArray(m.mods)) {
           p.mods = personalMods(m.mods);
-          // the host's speed mod (DT…) is only a proposal: everyone has to accept it. Picking a map without one keeps
-          // the room's current speed (removing it goes through the Mods button — and a vote)
+          // the host's speed mod (DT…) becomes the room's. Picking a map without one keeps the room's current speed
+          // (removing it goes through the Mods button)
           const sp = speedMods(m.mods);
           if (sp.length) out.push(...this.propose(p, sp, cleanConfig(m.modConfig)));
         }
@@ -473,10 +474,12 @@ export class RoomLogic {
         return (o => o.length ? o : [this.roomMsg()])(this.checkFinished());
       case 'quit':
         if (this.state !== 'playing' || !p.playing || p.finished) return [];
-        // Ranked Play: leaving the song scores 0 for this round; the other player plays on
-        if (this.rp) { p.finished = { ...cleanResult({ score: 0, accuracy: p.live ? p.live.acc : 0, maxCombo: p.live ? p.live.maxCombo : 0 }), forfeit: true }; return [this.system(`${p.name} left the song`), ...this.checkFinished()]; }
+        // Ranked Play: leaving the song keeps the score you had when you left it (the game sends it just before) — the
+        // round is decided on that; the other player plays on
+        // (with the room as it is now: their row shows they're out, not still playing)
+        if (this.rp) { p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, maxCombo: p.live.maxCombo } : {}), forfeit: true }; return [this.system(`${p.name} left the song`), ...this.checkFinished(), this.roomMsg()]; }
         p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
-        return [this.system(`${p.name} quit the match`), ...this.checkFinished()];
+        return [this.system(`${p.name} quit the match`), ...this.checkFinished(), this.roomMsg()];
     }
     return [];
   }
@@ -590,6 +593,14 @@ export class RoomLogic {
   propose(p, mods, modConfig) {
     const rateOfCfg = c => (c && Number.isFinite(+c.rate) ? +c.rate : 1);
     const same = (a, b, ca, cb) => a.length === b.length && a.every(x => b.includes(x)) && (!a.includes('RT') || Math.abs(rateOfCfg(ca) - rateOfCfg(cb)) < 0.005);
+    // the host sets the room's speed outright (an open vote is settled by it); anyone else's goes to everyone
+    if (p.id === this.hostId) {
+      if (same(mods, this.mods, modConfig, this.modConfig)) return [];
+      this.vote = null;
+      this.mods = mods; this.modConfig = mods.includes('RT') ? modConfig : null; this.autoAt = 0; this.pendingStart = false;
+      for (const x of this.players) x.ready = false;
+      return [this.system(mods.length ? `${p.name} changed the speed to ${mods.join('')}` : `${p.name} removed the speed mod`)];
+    }
     if (!this.vote && same(mods, this.mods, modConfig, this.modConfig)) return [];
     if (this.vote && same(mods, this.vote.mods, modConfig, this.vote.modConfig)) return [];
     this.vote = { mods, modConfig, by: p.id, yes: [p.id] };
@@ -728,6 +739,8 @@ export function cleanPlayerCode(s) {
   return /^[0-9A-HJKMNP-TV-Z]{16}$/.test(c) ? c : '';
 }
 export const codeHash = c => sha256hex('ashtonk-code:' + c);
+/** How long a ticket in a saved HTML file signs it in for (Matchmaker.account). */
+export const TICKET_MS = 24 * 3600 * 1000;
 /** The hash of the server owner's code (the ADMIN_CODE secret), or '' when there's none. */
 export const adminCodeHash = env => { const c = cleanPlayerCode(env && env.ADMIN_CODE); return c ? codeHash(c) : ''; };
 
@@ -916,9 +929,34 @@ export class PresenceLogic {
     this.bans = new Map(); this.mutes = new Map(); this.names = new Map(); this.persistMod = null;
     // which player is the server's owner: the one whose code is the ADMIN_CODE secret (its hash, set by Matchmaker)
     this.adminHash = '';
+    // the admins the owner has made, each with a role of the owner's naming and colour (pid → { name, colour, at }; rl:)
+    this.roles = new Map();
   }
   isAdmin(pid) { return !!pid && !!this.adminHash && this.codes.get(this.adminHash) === pid; }
-  loadMod({ bans = {}, mutes = {}, names = {} } = {}) {
+  /** Owner, or an admin the owner made: the admin panel opens for them. */
+  isStaff(pid) { return this.isAdmin(pid) || (!!pid && this.roles.has(pid)); }
+  /** The role shown beside a player's name (the rankings, their profile): the owner's, or the one they were given. */
+  roleOf(pid) {
+    if (this.isAdmin(pid)) return { name: 'Owner', colour: '#ffcc22', owner: true };
+    const r = pid && this.roles.get(pid);
+    return r ? { name: r.name, colour: r.colour } : null;
+  }
+  /** Make a player an admin with a role (a name up to 24 characters and a colour, #rrggbb), or change theirs. Their
+   *  game's admin menu opens straight away. */
+  adminRole(pid, { name = '', colour = '' } = {}) {
+    const n = str(name, 24).trim(), c = /^#[0-9a-f]{6}$/i.test(String(colour)) ? String(colour).toLowerCase() : '#66ccff';
+    if (!n || this.isAdmin(pid)) return null;
+    const v = { name: n, colour: c, at: (this.roles.get(pid) || {}).at || this.now() };
+    this.roles.set(pid, v); if (this.persistMod) this.persistMod('rl', pid, v);
+    return [...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id]) => ({ to: id, msg: { t: 'admin', role: { name: v.name, colour: v.colour } } }));
+  }
+  adminUnrole(pid) {
+    if (!this.roles.delete(pid)) return [];
+    if (this.persistMod) this.persistMod('rl', pid, null);
+    return [...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id]) => ({ to: id, msg: { t: 'admin', off: true } }));
+  }
+  loadMod({ bans = {}, mutes = {}, names = {}, roles = {} } = {}) {
+    for (const [pid, v] of Object.entries(roles)) if (v && typeof v === 'object' && v.name) this.roles.set(pid, { name: str(v.name, 24), colour: /^#[0-9a-f]{6}$/i.test(String(v.colour)) ? v.colour : '#66ccff', at: Number(v.at) || 0 });
     for (const [pid, v] of Object.entries(bans)) if (v && typeof v === 'object') this.bans.set(pid, v);
     for (const [pid, v] of Object.entries(mutes)) if (v && typeof v === 'object') this.mutes.set(pid, v);
     for (const [pid, v] of Object.entries(names)) if (v && typeof v === 'object' && (v.name || v.was)) this.names.set(pid, { name: str(v.name, 24), was: str(v.was, 24) });
@@ -951,7 +989,7 @@ export class PresenceLogic {
     const r = this.ranks.get(pid), p = this.profiles.get(pid), u = [...this.users.values()].find(x => x.pid === pid), given = this.givenName(pid);
     const banned = this.modOf('bn', pid), muted = this.modOf('mu', pid);
     return { pid, name: given || (u && u.name) || name || (r && r.name) || (p && p.name) || (banned && banned.name) || (muted && muted.name) || '', pp: r ? Math.round(r.pp || 0) : 0, plays: r ? r.plays || 0 : 0,
-      online: !!u, seen: this.seen.get(pid) || 0, code: this.codeOf.has(pid), banned, muted, named: given };
+      online: !!u, seen: this.seen.get(pid) || 0, code: this.codeOf.has(pid), banned, muted, named: given, owner: this.isAdmin(pid), role: this.roles.get(pid) || null };
   }
   /** The name the server's owner gave this player ('' when there's none). */
   givenName(pid) { const g = pid && this.names.get(pid); return (g && g.name) || ''; }
@@ -1435,7 +1473,7 @@ export class PresenceLogic {
     }
     const n = r ? r.n || 0 : 0, bonus = n > 0 ? Math.round(416.6667 * (1 - 0.995 ** Math.min(1000, n)) * 100) / 100 : 0;
     return { t: 'profile', pid, data: shown, top, firsts, firstCount: f1.length, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
-      rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a, n, bonus, src: r.src || 'judged' } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
+      role: this.roleOf(pid), rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a, n, bonus, src: r.src || 'judged' } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
   }
   setFirst(pid, key, v) {
     const m = this.firsts.get(pid) || {};
@@ -1629,7 +1667,9 @@ export class PresenceLogic {
     const online = new Set([...this.users.values()].filter(u => u.vis !== 'offline').map(u => u.pid));
     const at = all.findIndex(r => r.pid === pid);
     const pub = ({ bests, v, rep, _lazy, sb, okh, rk, ...r }) => r; // (not each player's whole list of plays)
-    return { t: 'rankings', mode: byScore ? 'score' : 'performance', total: all.length, you: at < 0 ? null : { ...pub(all[at]), rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...pub(r), rank: i + 1, online: online.has(r.pid) })) };
+    // (the owner, and the admins they made, with their role beside their name)
+    const withRole = r => { const role = this.roleOf(r.pid); return role ? { ...pub(r), role } : pub(r); };
+    return { t: 'rankings', mode: byScore ? 'score' : 'performance', total: all.length, you: at < 0 ? null : { ...withRole(all[at]), rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...withRole(r), rank: i + 1, online: online.has(r.pid) })) };
   }
   load(friends, requests) {
     for (const [pid, l] of Object.entries(friends || {})) this.friends.set(pid, new Map(l));
@@ -1678,7 +1718,7 @@ export class PresenceLogic {
     this.dropped = gone;
     const me = this.users.get(id);
     return [...out, { to: id, msg: { t: 'welcome', you: id } }, { to: id, msg: { t: 'chatHist', list: this.chat } }, ...(me.pid ? [{ to: id, msg: this.friendsMsg(me.pid) }] : []),
-      ...(this.isAdmin(me.pid) ? [{ to: id, msg: { t: 'admin' } }] : []), this.broadcast()];
+      ...(this.isStaff(me.pid) ? [{ to: id, msg: { t: 'admin', role: this.roleOf(me.pid) } }] : []), this.broadcast()];
   }
   /** Forget everyone who hasn't been heard from in a while; returns their ids (to close) and the update. */
   prune() {
@@ -1900,41 +1940,18 @@ export class PresenceLogic {
       const out = u.watching && u.watching !== to ? this.unwatch(id, u.watching) : [];
       const first = !tu.watchers.size;
       tu.watchers.add(id); u.watching = to;
-      const screen = tu.rk ? tu.rk.z.map((z, part) => ({ to: id, msg: { t: 'specRk', id: to, seq: tu.rk.seq, part, parts: tu.rk.parts, z } })) : tu.rkview ? [{ to: id, msg: { t: 'specRk', id: to, html: tu.rkview } }] : [];
-      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name } }, ...screen, { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
+      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name } }, { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
       // mid-play: what's kept so far, or (nobody was watching, so nothing was streamed) ask the player for all of it
-      out.push({ to: id, msg: { t: 'specStart', id: to, name: tu.name, head: tu.play, ev: tu.hist ? tu.ev : [], at: tu.t, hist: tu.hist, paused: tu.paused ?? null } });
+      out.push({ to: id, msg: { t: 'specStart', id: to, name: tu.name, head: tu.play, ev: tu.hist ? tu.ev : [], at: tu.t, hist: tu.hist } });
       out.push({ to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu), full: first || !tu.hist } });
       return out;
     }
     if (msg.t === 'unwatch') return this.unwatch(id, String(msg.to || u.watching || ''));
-    // a Ranked Play match's screen as the player sees it (between songs), for their spectators
-    // (the player's whole screen whenever they're not mid-song: compressed and sent in chunks, each passed straight on
-    // and the latest full set kept for anyone who starts watching)
-    if (msg.t === 'rkview') {
-      if (typeof msg.z === 'string') {
-        const parts = Math.trunc(Number(msg.parts)), part = Math.trunc(Number(msg.part)), seq = Number(msg.seq);
-        if (!(parts >= 1 && parts <= 40 && part >= 0 && part < parts && Number.isFinite(seq)) || msg.z.length > 61000) return [];
-        if (!u.rk || u.rk.seq !== seq) u.rk = { seq, parts, z: [] };
-        u.rk.z[part] = msg.z; u.rkview = null;
-        return [...u.watchers].map(w => ({ to: w, msg: { t: 'specRk', id, seq, part, parts, z: msg.z } }));
-      }
-      const html = typeof msg.html === 'string' && msg.html.length <= 60000 ? msg.html : null;
-      u.rkview = html; u.rk = null;
-      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specRk', id, html } }));
-    }
-    // where their pointer is on that screen (0–1 across and down) and whether it's pressed, passed straight on
-    if (msg.t === 'rkcur') {
-      if (!u.watchers.size) return [];
-      const c = v => Math.min(1, Math.max(0, Number(v) || 0));
-      const cur = { t: 'specCur', id, x: Math.round(c(msg.x) * 10000) / 10000, y: Math.round(c(msg.y) * 10000) / 10000, d: !!msg.d, p: msg.p ? 1 : 0 }; // (p: a touch screen)
-      return [...u.watchers].map(w => ({ to: w, msg: cur }));
-    }
     if (msg.t === 'play') {
       if (!msg.head || typeof msg.head !== 'object') return [];
       const head = cleanHead(msg.head);
       if (!head) return [];
-      u.play = head; u.ev = []; u.t = 0; u.hist = u.watchers.size > 0; u.paused = null; // (a fresh play: nothing to catch up on)
+      u.play = head; u.ev = []; u.t = 0; u.hist = u.watchers.size > 0; // (a fresh play: nothing to catch up on)
       return [...u.watchers].map(w => ({ to: w, msg: { t: 'specStart', id, name: u.name, head, ev: [], at: 0, hist: true } }));
     }
     if (msg.t === 'frames') {
@@ -1945,11 +1962,6 @@ export class PresenceLogic {
       u.t = Math.max(u.t, t);
       if (msg.last) u.hist = true;
       return [...u.watchers].map(w => ({ to: w, msg: { t: 'specFrames', id, ev, at: u.t, reset: !!msg.reset, last: !!msg.last } }));
-    }
-    if (msg.t === 'pause') {
-      if (!u.play) return [];
-      u.paused = msg.paused ? num(msg.at, -1e4, 1e8) : null;
-      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specPause', id, paused: !!msg.paused, at: u.paused } }));
     }
     if (msg.t === 'playEnd') {
       if (!u.play) return [];
@@ -1982,7 +1994,7 @@ const cleanStatus = s => ['menu', 'room', 'ranked', 'playing', 'watching'].inclu
  *  The same (single) instance also runs presence — who's online — for invites. */
 import { officialGet, osuApi, osuLoginState, osuStatus, beatmapListing, beatmapInfo } from './index.js';
 import { sha256hex } from './sha256.js';
-import { verifyPlay } from './verify-bundle.js';
+import { verifyPlay, acceptPlay } from './verify-bundle.js';
 
 export class Matchmaker {
   constructor(state, env) { this.state = state; this.env = env; this.waiting = null; this.qp = {}; this.rooms = new Map(); this.presence = new PresenceLogic(); this.socks = new Map(); this.rq = new RankedQueue(Date.now, Math.random, () => makeCode()); }
@@ -2130,18 +2142,37 @@ export class Matchmaker {
     const P = this.presence, b = (await request.json().catch(() => null)) || {}, ip = request.headers.get('x-ip') || '';
     P.adminHash = adminCodeHash(this.env);
     const pid = /^[a-z0-9]{6,24}$/.test(String(b.pid || '')) ? String(b.pid) : '';
+    // (an admin the owner made: their name goes in the log with what they did)
+    const actorHdr = request.headers.get('x-admin-who') || 'owner';
     const log = (what, extra = {}) => {
-      this.adminLog = [...(this.adminLog || []), { at: Date.now(), what, ip, ...extra }].slice(-300);
+      this.adminLog = [...(this.adminLog || []), { at: Date.now(), what, ip, ...(actorHdr !== 'owner' ? { by: P.adminRow(actorHdr).name || actorHdr } : {}), ...extra }].slice(-300);
       this.state.storage.put('adminLog', this.adminLog).catch(() => {});
     };
     const who = p => ({ pid: p, name: P.adminRow(p).name || p });
     const noPlayer = () => json({ error: 'No such player.' }, 400);
+    // who's acting: the owner (their code is ADMIN_CODE), or an admin the owner made (their pid). Admins moderate players;
+    // making and unmaking admins, wiping a player, the daily challenge and the log are the owner's — and nobody but the
+    // owner acts on an admin
+    const actor = actorHdr, owner = actor === 'owner';
+    const PRE = new Set(['try', 'device', 'signedIn', 'staffCode', 'isStaff']);
+    if (!PRE.has(action)) {
+      if (!owner && !P.roles.has(actor)) return json({ error: 'You\'re not an admin any more.' }, 401);
+      if (!owner && ['role', 'unrole', 'wipe', 'dailyPick', 'dailySet', 'chatClear', 'log'].includes(action)) return json({ error: 'Only the owner can do that.' }, 403);
+      if (!owner && pid && P.isStaff(pid) && ['ban', 'mute', 'rename', 'removeScore', 'wipe'].includes(action)) return json({ error: 'Only the owner can do that to an admin.' }, 403);
+    }
+
     const daily = () => { const d = P.dailyNow(); return { day: d.day, map: d.map, scores: d.scores.length, error: d.map ? null : P.dailyError, endsAt: PresenceLogic.dayEnd(d.day) }; };
     switch (action) {
       // signing in with the code: tries per address, and everyone's (the Worker compares the code itself)
       case 'try': return json({ ok: this.allowTry('adm:' + ip, 8) && this.allowTry('adm:all', 60) });
       // signing in from a device that plays as the owner (the game's own pid and key, read by the panel's page)
-      case 'device': return json({ ok: !!pid && P.keyOk(pid, String(b.key || '')) && P.isAdmin(pid) });
+      case 'device': {
+        const ok = !!pid && P.keyOk(pid, String(b.key || '')) && P.isStaff(pid);
+        return json({ ok, who: ok ? (P.isAdmin(pid) ? 'owner' : pid) : null });
+      }
+      // signing in with an admin's own player code (one the owner made an admin): whose it is
+      case 'staffCode': { const c = cleanPlayerCode(b.code), p = c ? P.codes.get(codeHash(c)) : null; return json({ pid: p && P.roles.has(p) ? p : null }); }
+      case 'isStaff': return json({ ok: !!pid && P.roles.has(pid) });
       case 'signedIn': log('Signed in', { how: str(b.how, 20) }); return json({ ok: true });
       case 'overview': {
         for (const [c, r] of this.rooms) if (Date.now() - r.at > 40000) this.rooms.delete(c);
@@ -2149,9 +2180,19 @@ export class Matchmaker {
           song: u.song ? { title: str(u.song.title, 120), artist: str(u.song.artist, 120), version: str(u.song.version, 120) } : null }));
         const live = m => [...m.keys()].filter(x => P.modOf(m === P.bans ? 'bn' : 'mu', x)).length;
         return json({ online, ranked: [...P.ranks.values()].filter(r => r.pp > 0).length, codes: P.codes.size, bans: live(P.bans), mutes: live(P.mutes),
-          rooms: [...this.rooms.values()].slice(0, 50), daily: daily(), chat: P.chat.slice(-100), log: (this.adminLog || []).slice(-15).reverse(), owner: P.adminHash ? P.codes.get(P.adminHash) || null : null });
+          rooms: [...this.rooms.values()].slice(0, 50), daily: daily(), chat: P.chat.slice(-100), log: owner ? (this.adminLog || []).slice(-15).reverse() : [], owner: P.adminHash ? P.codes.get(P.adminHash) || null : null,
+          me: owner ? { owner: true } : { pid: actor, name: P.adminRow(actor).name, role: P.roles.get(actor) },
+          staff: [...P.roles.keys()].map(x => P.adminRow(x)) });
       }
       case 'search': return json({ players: P.adminSearch(b.q) });
+      case 'role': {
+        if (!pid) return noPlayer();
+        const out = P.adminRole(pid, { name: b.name, colour: b.colour });
+        if (!out) return json({ error: P.isAdmin(pid) ? 'That\'s you, the owner.' : 'Give the role a name.' }, 400);
+        this.send(out); log('Made admin', { ...who(pid), to: P.roles.get(pid).name });
+        return json({ ok: true });
+      }
+      case 'unrole': { if (!pid) return noPlayer(); this.send(P.adminUnrole(pid)); log('No longer admin', who(pid)); return json({ ok: true }); }
       case 'player': {
         if (!pid) return noPlayer();
         await this.ensureBests(pid);
@@ -2248,7 +2289,11 @@ export class Matchmaker {
   /** Player codes: code {pid, key} → a new code for this player (the old one stops working); link {code, pid, key} →
    *  this device becomes the code's player (a key of its own; the player it was goes into them); logout {pid, key} →
    *  this device's key stops working; others {pid, key} → every other device's does. Codes are tried a few times per
-   *  address and only so often overall; a wrong one gets the same answer, after the same pause, as any other. */
+   *  address and only so often overall; a wrong one gets the same answer, after the same pause, as any other.
+   *  ticket {pid, key} → a one-time ticket for the game saved as an HTML file on this device: link {ticket, pid, key}
+   *  makes the device opening that file this player, once, within TICKET_MS, while their code is still the same.
+   *  Their code isn't in the file as it is — only mixed with a pad that link hands back with the ticket — and the
+   *  server keeps only the ticket's fingerprint. */
   async account(what, request) {
     await this.loadFriends();
     const body = await request.json().catch(() => null);
@@ -2266,6 +2311,32 @@ export class Matchmaker {
       do code = newPlayerCode(); while (P.codes.has(codeHash(code)));
       P.setCode(pid, codeHash(code));
       return json({ ok: true, code });
+    }
+    if (what === 'ticket') {
+      if (!mine || !P.codeOf.has(pid)) return json({ error: 'Get your code first: the file signs in with it.' }, 403);
+      if (!this.allowTry('tk:' + pid, 10)) return json({ error: 'Too many at once. Try again in a few minutes.' }, 429);
+      // (tickets never used — a file saved and never opened — are cleared as new ones are made)
+      const kept = await this.state.storage.list({ prefix: 'tk:', limit: 200 }).catch(() => new Map());
+      for (const [k, v] of kept) if (!v || v.exp < Date.now()) await this.state.storage.delete(k).catch(() => {});
+      const ticket = randomHex(16), pad = newPlayerCode();
+      await this.state.storage.put(`tk:${codeHash(ticket)}`, { pid, ch: P.codeOf.get(pid), pad, exp: Date.now() + TICKET_MS });
+      return json({ ok: true, ticket, pad });
+    }
+    if (what === 'link' && typeof body.ticket === 'string') {
+      const t0 = Date.now(), ticket = body.ticket.slice(0, 64);
+      const settle = async () => { const w = 400 - (Date.now() - t0); if (w > 0) await new Promise(r => setTimeout(r, w)); };
+      if (this.triesOf('lw:' + ip) >= 10 || !this.allowTry('l:' + ip, 100)) { await settle(); return json({ error: 'Too many codes tried from here. Wait a few minutes and try again.' }, 429); }
+      const at = `tk:${codeHash(ticket)}`, t = /^[0-9a-f]{32}$/.test(ticket) ? await this.state.storage.get(at).catch(() => null) : null;
+      if (t) await this.state.storage.delete(at).catch(() => {}); // (once only, whatever comes of it)
+      // (gone, used, out of date, or the player has had a new code since)
+      if (!t || t.exp < Date.now() || P.codeOf.get(t.pid) !== t.ch) { this.allowTry('lw:' + ip, 1e9); await settle(); return json({ error: 'This file\'s sign-in has run out. Type your code to play as yourself here.' }, 401); }
+      if (/^[a-z0-9]{6,24}$/.test(pid) && pid !== t.pid && P.keyOk(pid, key)) await Promise.all([this.preloadPlayer(pid), this.preloadPlayer(t.pid, false)]);
+      else await this.preloadPlayer(t.pid, false);
+      const newKey = randomHex(32), r = P.linkDevice(t.pid, pid, key, newKey);
+      this.send(r.out);
+      if (r.merged && pid !== r.pid && this.env && this.env.VAULT) this.env.VAULT.get(this.env.VAULT.idFromName(pid)).fetch('https://vault/wipe', { method: 'POST' }).catch(() => {});
+      await settle();
+      return json({ ok: true, pid: r.pid, key: newKey, name: r.name, merged: r.merged, pad: t.pad });
     }
     if (what === 'link') {
       const t0 = Date.now(), c = cleanPlayerCode(body.code);
@@ -2296,6 +2367,9 @@ export class Matchmaker {
     }
     if (what === 'others') {
       if (!mine) return json({ error: 'This device isn\'t signed in as that player.' }, 403);
+      // (an HTML file saved with a sign-in in it, not opened yet: that's shut out too)
+      const kept = await this.state.storage.list({ prefix: 'tk:' }).catch(() => new Map());
+      for (const [k, v] of kept) if (v && (v.pid === pid || v.exp < Date.now())) await this.state.storage.delete(k).catch(() => {});
       const r = P.onlyKey(pid, key);
       this.send(r.out);
       setTimeout(() => this.closeGone(r.gone), 200); // (after they've been told)
@@ -2372,6 +2446,31 @@ export class Matchmaker {
     this.send(out);
     return json({ ok: true, key, score: entry.score, accuracy: entry.acc, combo: entry.combo, grade: entry.grade, pp: entry.pp, stars: entry.stars, total, rank, of, best, daily: dailyRes });
   }
+  /** Several plays of one player's at once (the game catching up on best plays the server doesn't have): { pid, key,
+   *  items: [{ hash, r }] } — each onto the boards and into their best plays as score() puts one. */
+  async scores(request) {
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object' || !Array.isArray(body.items)) return json({ error: 'Bad request.' }, 400);
+    await this.loadFriends();
+    const pid = String(body.pid || '');
+    if (!/^[a-z0-9]{6,24}$/.test(pid) || !this.presence.keyOk(pid, body.key)) return json({ error: 'Not signed in as that player.' }, 403);
+    if (this.presence.isBanned(pid)) return json({ error: 'You\'re banned from online play.' }, 403);
+    const t = Date.now(), last = (this._lastBatch || (this._lastBatch = new Map())).get(pid) || 0;
+    if (t - last < 3000) return json({ error: 'Too many scores at once.' }, 429);
+    this._lastBatch.set(pid, t);
+    await this.ensureBests(pid);
+    const out = [], results = [];
+    for (const it of body.items.slice(0, 25)) {
+      const key = String((it && it.hash) || ''), r = it && it.r;
+      if (!r || typeof r !== 'object' || r.error || !/^[a-f0-9]{64}$/.test(key)) { results.push({ key, error: (r && r.error) || 'Bad beatmap file.' }); continue; }
+      if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []); }
+      const got = this.presence.recordVerified(pid, key, r, {});
+      out.push(...got.out);
+      results.push({ key, ok: true, pp: got.entry.pp });
+    }
+    this.send(out);
+    return json({ ok: true, results });
+  }
   /** Friends and friend requests live in this object's storage (fr:<pid>, fq:<pid>), loaded once before anyone connects. */
   async loadFriends() {
     if (this._friendsLoaded) return this._friendsLoaded;
@@ -2404,6 +2503,7 @@ export class Matchmaker {
         for (const [k, v] of await st.list({ prefix: 'bn:' })) mod.bans[k.slice(3)] = v;
         for (const [k, v] of await st.list({ prefix: 'mu:' })) mod.mutes[k.slice(3)] = v;
         for (const [k, v] of await st.list({ prefix: 'nm:' })) mod.names[k.slice(3)] = v;
+        mod.roles = {}; for (const [k, v] of await st.list({ prefix: 'rl:' })) mod.roles[k.slice(3)] = v;
         this.presence.loadMod(mod);
         const al = await st.get('adminLog'); this.adminLog = Array.isArray(al) ? al : [];
       } catch (e) {
@@ -2649,6 +2749,7 @@ export class Matchmaker {
       return this.presenceSocket();
     }
     if (url.pathname === '/judged-score' && request.method === 'POST') return this.score(request);
+    if (url.pathname === '/judged-scores' && request.method === 'POST') return this.scores(request);
     if (url.pathname.startsWith('/internal/admin/') && request.method === 'POST') return this.admin(url.pathname.slice(16), request);
     // (a player's kept settings or plays changed: their other devices online fetch them — not the one that sent them)
     if (url.pathname === '/internal/synced' && request.method === 'POST') {
@@ -2715,16 +2816,38 @@ async function judgePlay(request, { noFail = false } = {}) {
   if (Number(request.headers.get('content-length') || 0) > 8e6) return { res: json({ error: 'Too big.' }, 413) };
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== 'object') return { res: json({ error: 'Bad request.' }, 400) };
+  const j = await judgeFile(body.osu, { result: body.result, play: body.play, noFail });
+  if (!j) return { body, res: json({ error: 'Bad beatmap file.' }, 400) };
+  return { body, ...j };
+}
+/** A beatmap file (base64) and a play on it: { hash, md5, r } — r the play's result, or { error } — or null for a file
+ *  that isn't one. */
+async function judgeFile(osu, { result = null, play = null, noFail = false } = {}) {
+  // (each byte by hand: a callback for every one of a long map's bytes took longer than the rest of the play together,
+  // and a few plays at once ran over the time the server is given — none of them counted)
   let bytes;
-  try { bytes = Uint8Array.from(atob(String(body.osu || '')), c => c.charCodeAt(0)); } catch { return { body, res: json({ error: 'Bad beatmap file.' }, 400) }; }
-  if (!bytes.length || bytes.length > 5e6) return { body, res: json({ error: 'Bad beatmap file.' }, 400) };
+  try { const bin = atob(String(osu || '')); bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); } catch { return null; }
+  if (!bytes.length || bytes.length > 5e6) return null;
   const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
   const hash = hex(await crypto.subtle.digest('SHA-256', bytes));
-  // (the file's MD5 is how osu! itself knows a beatmap: it finds the set of a file that doesn't say which it's from)
-  let md5 = ''; try { md5 = hex(await crypto.subtle.digest('MD5', bytes)); } catch { md5 = ''; }
   let r;
-  try { r = verifyPlay(new TextDecoder().decode(bytes), body.play, { noFail }); } catch { r = { error: 'The play could not be judged.' }; }
-  return { body, hash, md5, r };
+  // (the game's own result, taken as it is; a play sent as its key presses only — an older game — is judged)
+  try { const text = new TextDecoder().decode(bytes); r = result && typeof result === 'object' ? acceptPlay(text, result, { noFail }) : verifyPlay(text, play, { noFail }); }
+  catch { r = { error: 'The play could not be judged.' }; }
+  // (the file's MD5 is how osu! itself knows a beatmap: it finds the set of a file that doesn't say which it's from —
+  // only worked out for one that doesn't)
+  let md5 = '';
+  if (!(r && r.beatmapId > 0)) try { md5 = hex(await crypto.subtle.digest('MD5', bytes)); } catch { md5 = ''; }
+  return { hash, md5, r };
+}
+/** As in osu!, only ranked / approved beatmaps give pp: the set's status from the osu! API (kept a week). When osu!
+ *  can't say — not reachable, no osu! API key on this server, the beatmap not found there — the play keeps the pp the
+ *  game gave it (the game only gives pp on beatmaps osu! told it are ranked). */
+async function rankedOnly(r, md5, env) {
+  if (!r || r.error || !(r.pp > 0) || env.TEST_ALL_RANKED === '1') return r;
+  const { status: st, setId } = await beatmapStatus(r, md5, env);
+  if (setId > 0 && !(r.beatmapSetId > 0)) r = { ...r, beatmapSetId: setId };
+  return st && st !== 'ranked' && st !== 'approved' ? { ...r, pp: 0, unranked: true } : r;
 }
 
 /** A judged beatmap's ranked status on osu!: by its set id, else its beatmap id, else its file's MD5 ('' when unknown). */
@@ -2751,10 +2874,10 @@ export async function beatmapStatus(r, md5, env, get = officialGet, again = true
  *  keeps them (each once), scores {pid, key, after} sends the ones kept after that sequence number, a page at a time. */
 export async function handleAccount(request, env, url) {
   if (!env.MATCHMAKER) return json({ error: 'Accounts aren\'t available on this server.' }, 503);
-  const m = /^\/api\/account\/(code|link|logout|others|settings|restore|skin|skin-up|scores|scores-up)$/.exec(url.pathname);
+  const m = /^\/api\/account\/(code|link|ticket|logout|others|settings|restore|skin|skin-up|scores|scores-up)$/.exec(url.pathname);
   if (request.method !== 'POST' || !m) return json({ error: 'Not found' }, 404);
   const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global')), what = m[1];
-  if (/^(code|link|logout|others)$/.test(what)) {
+  if (/^(code|link|ticket|logout|others)$/.test(what)) {
     const body = (await request.text()).slice(0, 4096);
     return stub.fetch(new Request(new URL(url.pathname, url), { method: 'POST', body, headers: { 'content-type': 'application/json', 'x-ip': request.headers.get('cf-connecting-ip') || '' } }));
   }
@@ -2802,12 +2925,7 @@ export async function handleMultiplayer(request, env, url) {
   if (path === '/api/mp/score' && request.method === 'POST') {
     const j = await judgePlay(request, {});
     if (j.res) return j.res;
-    // (as in osu!, only ranked / approved beatmaps give pp: the set's status from the osu! API, kept a week)
-    if (j.r && !j.r.error && j.r.pp > 0 && env.TEST_ALL_RANKED !== '1') {
-      const { status: st, setId } = await beatmapStatus(j.r, j.md5, env);
-      if (setId > 0 && !(j.r.beatmapSetId > 0)) j.r = { ...j.r, beatmapSetId: setId };
-      if (st !== 'ranked' && st !== 'approved') j.r = { ...j.r, pp: 0, unranked: true };
-    }
+    j.r = await rankedOnly(j.r, j.md5, env);
     // (a daily challenge play on a beatmap whose file doesn't say its id — older ones don't: found from the file's MD5,
     // or it could never match the day's beatmap)
     if (j.r && !j.r.error && j.body.daily && !(j.r.beatmapId > 0) && /^[a-f0-9]{32}$/.test(j.md5 || '')) {
@@ -2815,6 +2933,19 @@ export async function handleMultiplayer(request, env, url) {
     }
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL('/judged-score', url), { method: 'POST', body: JSON.stringify({ pid: j.body.pid, key: j.body.key, daily: j.body.daily, playlist: j.body.playlist, hash: j.hash, r: j.r }), headers: { 'content-type': 'application/json' } }));
+  }
+  // (several plays at once — your best plays the server doesn't have yet, from the game catching up: { pid, key, plays:
+  // [{ osu, result }] }, up to 25 — each taken as score() takes one)
+  if (path === '/api/mp/scores' && request.method === 'POST') {
+    if (Number(request.headers.get('content-length') || 0) > 30e6) return json({ error: 'Too big.' }, 413);
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object' || !Array.isArray(body.plays)) return json({ error: 'Bad request.' }, 400);
+    const items = await Promise.all(body.plays.slice(0, 25).map(async p => {
+      const j = p && typeof p === 'object' && p.result && typeof p.result === 'object' ? await judgeFile(p.osu, { result: p.result }) : null;
+      return j ? { hash: j.hash, r: await rankedOnly(j.r, j.md5, env) } : { hash: '', r: { error: 'Bad beatmap file.' } };
+    }));
+    const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
+    return stub.fetch(new Request(new URL('/judged-scores', url), { method: 'POST', body: JSON.stringify({ pid: body.pid, key: body.key, items }), headers: { 'content-type': 'application/json' } }));
   }
   if (path === '/api/mp/rooms') {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));

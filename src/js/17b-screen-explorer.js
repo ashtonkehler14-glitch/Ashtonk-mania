@@ -270,13 +270,13 @@ const OnlineBeatmaps = {
     return this.fill(tpl, id, kind);
   },
   /** Load a set's cover into `el` as its background, trying each size in turn (older sets lack the @2x ones). */
-  loadCover(el, id, kinds, done, queue = null) {
+  loadCover(el, id, kinds, done, queue = null, failed = null) {
     const urls = [...new Set(kinds.map(k => this.coverURL(id, k)))]; // (sources with one cover size give one URL)
     // a cover that has loaded before goes straight in, so rebuilt cards don't fade in again
     const known = this._covers.get(urls.join('|'));
     if (known) { el.style.transition = 'none'; el.style.backgroundImage = `url("${known}")`; done && done(null); return; }
     const next = i => {
-      if (i >= urls.length) return;
+      if (i >= urls.length) { failed && failed(); return; }
       const img = new Image();
       // (decoded off the main thread before it's shown, so a card scrolling in doesn't stall a frame decoding it)
       // (`queue`: the picture goes on in the page's next frame along with everything else, not the moment it's decoded —
@@ -687,8 +687,10 @@ const ExplorerScreen = {
       // (Performance mode, or a device found to be slow: the plain-size thumbnail alone — a quarter of the pixels to
       // decode, and one picture per card instead of two)
       const q = f => this.later(f);
-      if (this.lite()) { OnlineBeatmaps.loadCover(thumb, set.id, ['list', 'card'], show(thumb), q); return; }
-      OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], show(thumb), q);
+      // (a set with no cover anywhere gets a note, as in your library — not an empty square)
+      const none = () => q(() => thumb.isConnected && noPicture(thumb));
+      if (this.lite()) { OnlineBeatmaps.loadCover(thumb, set.id, ['list', 'card'], show(thumb), q, none); return; }
+      OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], show(thumb), q, none);
       OnlineBeatmaps.loadCover(bg, set.id, ['card@2x', 'card', 'cover'], show(bg), q);
     };
     const keys = [...new Set(set.diffs.map(d => d.keys))].sort((a, b) => a - b);

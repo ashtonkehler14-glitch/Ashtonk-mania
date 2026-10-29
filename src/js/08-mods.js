@@ -1,6 +1,8 @@
 /* ModSystem — modular, data-driven mods. Only mods that make sense for mania are offered
  * (osu!standard-only mods such as Relax / Autopilot / Spun Out are intentionally excluded).
- * Score multipliers follow osu!mania: EZ/NF/HT 0.5, CS/NLN/NR 0.9, Difficulty Adjust 0.5, others 1.0.
+ * Score multipliers are lazer's (ManiaScoreMultiplierCalculator): EZ/NF 0.5; HT/DC by their speed (0.75× → 0.3); NR,
+ * CS and Hold Off 0.9; Difficulty Adjust 0.5; the key mods 0.9; Wind Up, Wind Down and Adaptive Speed 0.5; the rest
+ * 1.0 — Double Time and Nightcore included.
  * Configurable mods (AC, DA, RT, HD/FI coverage, Percy) read their values from `mods.config`. */
 
 const MODS = [
@@ -8,9 +10,9 @@ const MODS = [
     desc: 'Timing windows 1.4× wider, health drains half as much.' },
   { id: 'NF', name: 'No Fail', group: 'reduction', key: 'KeyW', mult: 0.5, color: '#b2ff66', incompatible: ['SD', 'PF', 'PSS', 'AC', 'AT'],
     desc: 'You can\'t fail, no matter what.' },
-  { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.5, color: '#b2ff66', incompatible: ['DT', 'NC', 'DC', 'RT', 'WU', 'WD', 'AS'], rate: 0.75,
+  { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.3, color: '#b2ff66', incompatible: ['DT', 'NC', 'DC', 'RT', 'WU', 'WD', 'AS'], rate: 0.75,
     desc: 'Less zoom… 0.75× speed, pitch preserved.' },
-  { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.5, color: '#b2ff66', incompatible: ['DT', 'NC', 'HT', 'RT', 'WU', 'WD', 'AS'], rate: 0.75, pitch: true,
+  { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.3, color: '#b2ff66', incompatible: ['DT', 'NC', 'HT', 'RT', 'WU', 'WD', 'AS'], rate: 0.75, pitch: true,
     desc: 'Whoaaaa… 0.75× speed with lowered pitch.' },
   { id: 'NR', name: 'No Release', group: 'reduction', key: 'KeyT', mult: 0.9, color: '#b2ff66', incompatible: ['NLN', 'IN'],
     desc: 'No more timing the end of hold notes: keep holding to the end for a MAX.' },
@@ -53,31 +55,31 @@ const MODS = [
   { id: 'DA', name: 'Difficulty Adjust', group: 'conversion', key: 'KeyL', mult: 0.5, color: '#8c66ff', incompatible: ['EZ', 'HR'], config: 'da',
     desc: 'Override the beatmap\'s OD and HP.' },
   // lazer's key mods: a converted osu! beatmap with that many columns (osu!mania beatmaps keep theirs)
-  { id: '1K', name: 'One Key', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
+  { id: '1K', name: 'One Key', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
     desc: 'Play with one key (converted osu! beatmaps).' },
-  { id: '2K', name: 'Two Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
+  { id: '2K', name: 'Two Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
     desc: 'Play with two keys (converted osu! beatmaps).' },
-  { id: '3K', name: 'Three Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
+  { id: '3K', name: 'Three Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
     desc: 'Play with three keys (converted osu! beatmaps).' },
-  { id: '4K', name: 'Four Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '5K', '6K', '7K', '8K', '9K', '10K'],
+  { id: '4K', name: 'Four Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '5K', '6K', '7K', '8K', '9K', '10K'],
     desc: 'Play with four keys (converted osu! beatmaps).' },
-  { id: '5K', name: 'Five Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '6K', '7K', '8K', '9K', '10K'],
+  { id: '5K', name: 'Five Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '6K', '7K', '8K', '9K', '10K'],
     desc: 'Play with five keys (converted osu! beatmaps).' },
-  { id: '6K', name: 'Six Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '7K', '8K', '9K', '10K'],
+  { id: '6K', name: 'Six Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '7K', '8K', '9K', '10K'],
     desc: 'Play with six keys (converted osu! beatmaps).' },
-  { id: '7K', name: 'Seven Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '8K', '9K', '10K'],
+  { id: '7K', name: 'Seven Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '8K', '9K', '10K'],
     desc: 'Play with seven keys (converted osu! beatmaps).' },
-  { id: '8K', name: 'Eight Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '9K', '10K'],
+  { id: '8K', name: 'Eight Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '9K', '10K'],
     desc: 'Play with eight keys (converted osu! beatmaps).' },
-  { id: '9K', name: 'Nine Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '10K'],
+  { id: '9K', name: 'Nine Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '10K'],
     desc: 'Play with nine keys (converted osu! beatmaps).' },
-  { id: '10K', name: 'Ten Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K'],
+  { id: '10K', name: 'Ten Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K'],
     desc: 'Play with ten keys (converted osu! beatmaps).' },
-  { id: 'WU', name: 'Wind Up', group: 'fun', key: 'Period', mult: 1.0, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WD', 'AS'], unranked: true, ramp: [1, 1.5],
+  { id: 'WU', name: 'Wind Up', group: 'fun', key: 'Period', mult: 0.5, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WD', 'AS'], unranked: true, ramp: [1, 1.5],
     desc: 'Can you keep up? The song speeds up from 1× to 1.5× as it plays (pitch follows).' },
-  { id: 'WD', name: 'Wind Down', group: 'fun', key: 'Slash', mult: 1.0, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'AS'], unranked: true, ramp: [1, 0.75],
+  { id: 'WD', name: 'Wind Down', group: 'fun', key: 'Slash', mult: 0.5, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'AS'], unranked: true, ramp: [1, 0.75],
     desc: 'Slow down… The song slows from 1× to 0.75× as it plays (pitch follows).' },
-  { id: 'AS', name: 'Adaptive Speed', group: 'fun', key: 'Semicolon', mult: 1.0, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'WD'], unranked: true, adaptive: true,
+  { id: 'AS', name: 'Adaptive Speed', group: 'fun', key: 'Semicolon', mult: 0.5, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'WD'], unranked: true, adaptive: true,
     desc: 'Let the song speed adapt to you: hit early and it speeds up, late or miss and it slows down (0.5×–2×).' },
   { id: 'MU', name: 'Muted', group: 'fun', key: 'KeyO', mult: 1.0, color: '#ff66ab', incompatible: [], unranked: true, config: 'mu',
     desc: 'Can you still feel the rhythm without music?' },
@@ -148,8 +150,16 @@ const ModSystem = {
   config(cfg) { return { ...MOD_CONFIG_DEFAULTS, ...(cfg || (typeof Settings !== 'undefined' ? Settings.get('mods.config') : null) || {}) }; },
   multiplier(list, cfg) {
     let m = list.reduce((a, id) => a * (MOD_BY_ID.get(id)?.mult ?? 1), 1);
-    if (list.includes('RT') && this.config(cfg).rate < 1) m *= 0.5;
+    // (Song Speed slower than 1× counts as lazer's Half Time at that speed; at 1× or faster, as Double Time: 1.0)
+    if (list.includes('RT')) m *= this.rateMultiplier(this.rate(list, cfg));
     return m;
+  },
+  /** lazer's rateAdjustMultiplier for its slowing mods: the speed rounded down to a tenth, 0.6 at 1× falling 0.1 per
+   *  tenth slower (0.75× → 0.3, 0.5× → 0.1). */
+  rateMultiplier(speed) {
+    if (speed >= 1) return 1;
+    const tenth = Math.trunc(speed * 10 + 1e-9) / 10;
+    return Math.max(0, Math.round((0.6 + tenth - 1) * 100) / 100);
   },
   rate(list, cfg) {
     if (list.includes('RT')) return clamp(Math.round(this.config(cfg).rate * 20) / 20, 0.5, 2);

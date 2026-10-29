@@ -56,8 +56,15 @@ async function player(name) {
   await page.goto(url);
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await page.waitForTimeout(300);
-  if (await page.$('.onboarding')) { await setupName(page, name); await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300); }
-  await page.evaluate(() => AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(AshtonkMania.Medals.all.map(m => [m.id, 1])))); // (no medal pop-ups over the tests)
+  if (await page.$('.onboarding')) { await setupName(page, name); await page.waitForSelector('.setup-step-wom, .setup-step-mobile'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300); }
+  // (no medal pop-ups over the tests)
+  await page.evaluate(async () => {
+    const M = AshtonkMania.Medals;
+    AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(M.all.map(m => [m.id, 1])));
+    // (one already on its way — Night Owl, the tests run after midnight — put away too)
+    M.queue.length = 0;
+    for (let i = 0; i < 40 && document.querySelector('.medal-ov'); i++) { document.querySelector('.medal-ov').click(); await new Promise(r => setTimeout(r, 100)); }
+  });
   await page.evaluate(async () => {
     const b = await (await fetch('/tests/fixtures/test-set.osz')).blob();
     await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]);
@@ -86,6 +93,44 @@ async function holdBtn(page, sel) {
 const alice = await player('Alice');
 const bob = await player('Bob');
 await shot(alice, 'mp-lobby');
+// a room the server can't open (Cloudflare turning it away for the day, say): the lounge says why, and keeps saying it
+// (failing redrew the lounge, which took the message with it — "Create room" looked like it did nothing)
+{
+  const why = 'The game\'s server has used up today\'s free allowance on Cloudflare, so rooms can\'t open — they will again after midnight UTC.';
+  await alice.route(/api\/mp\/room\/[A-Z0-9]+\/status/, r => r.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: why }) }));
+  await alice.evaluate(() => { const W = window.WebSocket; window._W = W; window.WebSocket = function (u, p) { if (!/api\/mp\/room\//.test(String(u))) return new W(u, p); const f = { readyState: 0, close() {}, send() {} }; setTimeout(() => { f.readyState = 3; f.onerror && f.onerror({}); f.onclose && f.onclose({ code: 1006 }); }, 50); return f; }; });
+  await alice.click('.mp-create'); await alice.waitForSelector('.mp-cr');
+  await alice.click('.dialog .actions .btn.primary');
+  await alice.waitForFunction(w => (document.querySelector('.mp-status') || {}).textContent === w, why, { timeout: 8000 }).catch(() => {});
+  await alice.waitForTimeout(600);
+  const r = await alice.evaluate(() => ({ status: (document.querySelector('.mp-status') || {}).textContent, enabled: !document.querySelector('.mp-create').disabled, inRoom: AshtonkMania.Multiplayer.inRoom() }));
+  check('a room the server can\'t open says why in the lounge (and Create room works again)', r.status === why && r.enabled && !r.inRoom, JSON.stringify(r));
+  await alice.evaluate(() => { window.WebSocket = window._W; });
+  await alice.unroute(/api\/mp\/room\/[A-Z0-9]+\/status/);
+}
+// the lounge's room list isn't asked for while the game is in the background (a lounge left open in another tab asked
+// every 3 s all day)
+{
+  let n = 0; const count = r => { if (/api\/mp\/rooms/.test(r.url())) n++; };
+  alice.on('request', count);
+  await alice.evaluate(() => Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }));
+  await alice.waitForTimeout(7000);
+  const hidden = n;
+  await alice.evaluate(() => { delete document.hidden; });
+  await alice.waitForTimeout(4000);
+  alice.off('request', count);
+  check('the lounge stops asking for the room list while the game is in the background, and starts again after', hidden === 0 && n > 0, `${hidden} hidden, ${n - hidden} after`);
+}
+// alone in a room a while, nobody joining: Neru peeks up, bored (once a room)
+{
+  await alice.evaluate(() => { NeruEggs.ROOM_ALONE_MS = 400; });
+  await createRoom(alice, false, false);
+  await alice.waitForFunction(() => document.querySelector('.nc-peek .nc-img'), null, { timeout: 5000 }).catch(() => {});
+  const pose = await alice.evaluate(() => ((document.querySelector('.nc-peek .nc-img') || {}).src || '').split('/').pop());
+  await alice.evaluate(() => { NeruEggs.ROOM_ALONE_MS = 60000; AshtonkMania.Multiplayer.leave(); document.querySelectorAll('.nc-peek').forEach(x => x.remove()); });
+  await alice.waitForSelector('.mp-create', { timeout: 10000 });
+  check('alone in a room a while: Neru peeks up, bored', pose === 'neru-bored.png', pose);
+}
 // lazer's chat overlay: #lobby reaches everyone online
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Chat && document.querySelector('#toolbar [data-ov="chat"]') && window.AshtonkMania.Presence && AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1, null, { timeout: 10000 })));
 await alice.keyboard.press('F8');
@@ -123,6 +168,8 @@ check('a play goes up as the beatmap and the key presses, and the server judges 
 // a play sent with someone else's id but not their key is refused
 const forged = await bob.evaluate(async () => { const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pid: AshtonkMania.Presence.pid(), key: 'not-bobs-key-0000000000', osu: btoa('x'), play: { mods: [], events: [] } }) }); return r.status; });
 check('…and nobody can send scores as someone else (their key)', forged === 403, String(forged));
+const forgedLot = await bob.evaluate(async () => { const r = await fetch('api/mp/scores', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pid: AshtonkMania.Presence.pid(), key: 'not-bobs-key-0000000000', plays: [{ osu: btoa('x'), result: { score: 1 } }] }) }); return r.status; });
+check('…nor several at once', forgedLot === 403, String(forgedLot));
 // lazer's user tags: only a player with a score on the beatmap can tag it; everyone sees the votes
 {
   const hash = await bob.evaluate(() => [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal').hash);
@@ -332,18 +379,22 @@ check('winner row: full score and its pp', ra.res.rows[0].name === 'Alice' && ra
 check('results panel leads with the score', await alice.evaluate(() => /^[\d,]+$/.test(document.querySelector('.mp-res-score').textContent.trim())));
 check('scores are also saved locally', await alice.evaluate(() => AshtonkMania.ScoreManager.scores.length === 1));
 
-// mods: Alice wants DT (+ her own Hidden) — Bob has to accept DT; Bob picks Mirror for himself
+// mods: Alice (the host) picks DT (+ her own Hidden) — the room's straight away; Bob asking for HT needs Alice to accept
+// (she declines); Bob picks Mirror for himself
 await alice.evaluate(() => AshtonkMania.Multiplayer.setMods(['DT', 'HD']));
-await bob.waitForSelector('.mp-vote .mp-accept', { timeout: 5000 });
-await shot(bob, 'mp-vote');
-// (Alice's copy of the room arrives on its own socket message: wait for it rather than checking the instant Bob sees the vote)
-check('a speed mod (DT) needs the other player to accept', await alice.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room, v = document.querySelector('.mp-vote'); return !r.mods.length && r.vote && r.vote.mods[0] === 'DT' && v && /Waiting for everyone/.test(v.textContent); }, null, { timeout: 5000 }).then(() => true, async () => { console.log('  alice:', await alice.evaluate(() => JSON.stringify({ mods: AshtonkMania.Multiplayer.room.mods, vote: AshtonkMania.Multiplayer.room.vote, text: document.querySelector('.mp-vote')?.textContent }))); return false; }));
-await bob.evaluate(() => AshtonkMania.Multiplayer.setMods(['MR']));
-await bob.click('.mp-vote .mp-accept');
-await alice.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return !r.vote && r.mods[0] === 'DT'; }, null, { timeout: 5000 });
+check('the host\'s speed mod (DT) applies to the room straight away — no vote', await bob.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return r.mods[0] === 'DT' && !r.vote && !document.querySelector('.mp-vote'); }, null, { timeout: 5000 }).then(() => true, () => false), await bob.evaluate(() => JSON.stringify({ mods: AshtonkMania.Multiplayer.room.mods, vote: AshtonkMania.Multiplayer.room.vote })));
+await bob.evaluate(() => AshtonkMania.Multiplayer.setMods(['HT']));
+await alice.waitForSelector('.mp-vote .mp-accept', { timeout: 5000 });
+await shot(alice, 'mp-vote');
+// (Bob's copy of the room arrives on its own socket message: wait for it rather than checking the instant Alice sees the vote)
+check('another player\'s speed mod (HT) needs everyone to accept', await bob.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room, v = document.querySelector('.mp-vote'); return r.mods[0] === 'DT' && r.vote && r.vote.mods[0] === 'HT' && v && /Waiting for everyone/.test(v.textContent); }, null, { timeout: 5000 }).then(() => true, async () => { console.log('  bob:', await bob.evaluate(() => JSON.stringify({ mods: AshtonkMania.Multiplayer.room.mods, vote: AshtonkMania.Multiplayer.room.vote, text: document.querySelector('.mp-vote')?.textContent }))); return false; }));
+await alice.click('.mp-vote .mp-decline');
+await bob.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return !r.vote && r.mods[0] === 'DT'; }, null, { timeout: 5000 });
+await bob.evaluate(() => AshtonkMania.Multiplayer.setMods(['MR'], { propose: false }));
+await alice.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return r.players.some(p => p.id !== r.host && p.mods.join() === 'MR'); }, null, { timeout: 5000 }).catch(() => {});
 await bob.waitForTimeout(300);
-const afterVote = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room; const m = id => r.players.find(p => p.id === id).mods.join(); return { host: m(r.host), me: m(AshtonkMania.Multiplayer.me), banner: !!document.querySelector('.mp-vote') }; });
-check('after both accept, DT applies to the room; each player keeps their own mods', afterVote.host === 'HD' && afterVote.me === 'MR' && !afterVote.banner, JSON.stringify(afterVote));
+const afterVote = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room; const m = id => r.players.find(p => p.id === id).mods.join(); return { host: m(r.host), me: m(AshtonkMania.Multiplayer.me), banner: !!document.querySelector('.mp-vote'), mods: r.mods.join() }; });
+check('declined: the room keeps DT; each player keeps their own mods', afterVote.host === 'HD' && afterVote.me === 'MR' && !afterVote.banner && afterVote.mods === 'DT', JSON.stringify(afterVote));
 
 // rematch: forfeit by quitting
 await alice.click('.mp-ready'); await alice.waitForFunction(() => AshtonkMania.Multiplayer.self().ready, null, { timeout: 5000 }); await bob.click('.mp-ready');
@@ -416,6 +467,17 @@ check('guests suggest from Browse; the suggestion reaches the host with a Pick b
 await alice.evaluate(() => [...document.querySelectorAll('.mp-msg.suggest')].find(m => m.textContent.includes('Online Easy')).querySelector('button').click());
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.map && AshtonkMania.Multiplayer.room.map.version === 'Online Easy', null, { timeout: 10000 });
 check('host picks a suggested beatmap', true);
+// a guest recommends one from their own library: song select, then Play — the host gets it with a Pick button, and
+// the room's beatmap stays as it is
+const sugCount = () => alice.evaluate(() => document.querySelectorAll('.mp-msg.suggest').length);
+const sug0 = await sugCount();
+await bob.evaluate(() => [...document.querySelectorAll('.mp-map-actions .btn')].find(b => /^Recommend$/.test(b.textContent.trim())).click());
+await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'songselect' && AshtonkMania.SongSelect.selectedId, null, { timeout: 8000 });
+const recTag = await bob.evaluate(() => document.querySelector('.ss-footer .tag.accent')?.textContent || '');
+await bob.evaluate(() => AshtonkMania.SongSelect.play());
+await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
+const gotRec = await alice.waitForFunction(n => { const all = document.querySelectorAll('.mp-msg.suggest'); return all.length > n && all[all.length - 1].querySelector('button'); }, sug0, { timeout: 5000 }).then(() => true, () => false);
+check('a guest recommends a beatmap from their library (song select): it reaches the host with a Pick button; the room\'s beatmap stays', /Recommend to the host/.test(recTag) && gotRec && await alice.evaluate(() => AshtonkMania.Multiplayer.room.map.version === 'Online Easy'), JSON.stringify({ recTag, gotRec, n: await sugCount() }));
 // mod select in a room: every toggle reaches the room (on, off, on again); Auto is greyed out and can't be picked
 const bobMods = () => alice.evaluate(() => (AshtonkMania.Multiplayer.room.players.find(p => p.name === 'Bob') || {}).mods || []);
 const m0 = await bobMods();
@@ -608,11 +670,12 @@ await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = g
 await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes.filter((n, i) => i % 3), s.keys).flat(); s.feedIdx = 0; });
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.rp.stage === 'results', null, { timeout: 45000 })));
 const r1 = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room, g = r.rp, id = n => r.players.find(p => p.name === n).id, a = id('Alice'), b = id('Bob'); return { a: g.users[a].life, b: g.users[b].life, sa: g.results.scores[a], sb: g.results.scores[b], d: g.results.dmg[b] }; });
-check('round 1: the lower score takes ⌈difference × (0.5 + 0.5)⌉ + 50,000 damage', r1.a === 1000000 && r1.b === 1000000 - (Math.ceil((r1.sa - r1.sb) * 1) + 50000) && r1.d.bonusDamage === 50000, JSON.stringify(r1));
+check('round 1: the lower score takes the difference + 50,000 damage — at most 500,000 for a song both played', r1.a === 1000000 && r1.b === 1000000 - Math.min(r1.sa - r1.sb + 50000, 500000) && r1.d.bonusDamage === 50000 && (r1.sa - r1.sb + 50000 > 500000) === (r1.d.capped === 500000), JSON.stringify(r1));
 await bob.waitForFunction(() => document.querySelector('.rkr-col.hit'), null, { timeout: 12000 });
 check('results: both scores side by side, then the damage lands on the loser', await bob.evaluate(() => document.querySelectorAll('.rkr-col').length === 2 && /Damage/.test(document.querySelector('.rkr-break').textContent)));
 await shot(bob, 'mp-rp-results');
-// round 2: the other player's turn (turns alternate); they leave the song part-way and score 0
+// round 2: the other player's turn (turns alternate); Bob leaves the song part-way, keeping the score he had, and
+// spectates Alice playing on
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Multiplayer.room.rp.stage === 'pick' && AshtonkMania.Multiplayer.room.rp.round === 2, null, { timeout: 25000 })));
 check('round 2 is the other player\'s turn; the round multiplier is now ×1', await alice.evaluate(n => { const r = AshtonkMania.Multiplayer.room; return r.players.find(p => p.id === r.rp.active).name !== n && r.rp.mult === 1; }, active));
 await otherPage.waitForTimeout(1500);
@@ -620,18 +683,31 @@ await otherPage.click('.rkm-myhand .rkh-slot:nth-child(1)');
 await otherPage.click('.rkm-myhand .rkh-slot.sel .rkh-play');
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.mp && AshtonkMania.Music.playing, null, { timeout: 45000 })));
 await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes, s.keys).flat(); s.feedIdx = 0; });
+// (Bob hits every other note for a bit before he gives up)
+await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes.filter((n, i) => i % 2), s.keys).flat(); s.feedIdx = 0;
+  const M = AshtonkMania.Multiplayer, send = M.send.bind(M); M.send = m => { if (m && m.t === 'score') window.__lastScore = m.score; if (m && m.t === 'quit') window.__quitScore = window.__lastScore; return send(m); }; });
+await bob.waitForFunction(() => AshtonkMania.GameplayScreen.s.engine.score.scoreStd > 0, null, { timeout: 20000 });
 const lifeBefore = await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room; return r.rp.users[r.players.find(p => p.name === 'Bob').id].life; });
 await bob.keyboard.press('Escape');
 await bob.waitForSelector('.dialog', { timeout: 5000 });
-check('leaving the song in Ranked Play warns that it scores 0 for the round', await bob.evaluate(() => /score 0/.test(document.querySelector('.dialog').textContent)));
+check('leaving the song in Ranked Play: your score stops where it is, and you can watch them play on', await bob.evaluate(() => /score stops where it is now/.test(document.querySelector('.dialog').textContent) && /watch them play on/.test(document.querySelector('.dialog').textContent)));
 await bob.waitForTimeout(100); await bob.keyboard.down('Enter'); await bob.waitForTimeout(750); await bob.keyboard.up('Enter'); // (a dangerous button: held)
 await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.rp.stage === 'playing', null, { timeout: 10000 });
 check('…you wait in the match while your opponent plays on', await bob.evaluate(() => /Gameplay is in progress/.test(document.querySelector('.rkm-stage').textContent)));
 await bob.waitForFunction(() => /[1-9]/.test((document.querySelector('.rkm-live b') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => {});
 check('…watching their score climb as they play', await bob.evaluate(() => /[1-9]/.test((document.querySelector('.rkm-live b') || {}).textContent || '')), await bob.evaluate(() => (document.querySelector('.rkm-live') || {}).textContent));
+await bob.waitForSelector('.rkm-spec:not([hidden])', { timeout: 10000 }).catch(() => {});
+check('…with Spectate (Alice) on the waiting screen', await bob.evaluate(() => { const b = document.querySelector('.rkm-spec'); return !!b && !b.hidden && /Spectate Alice/.test(b.textContent); }));
+await shot(bob, 'mp-rp-gaveup');
+await bob.click('.rkm-spec');
+await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.spectate, null, { timeout: 15000 }).catch(() => {});
+check('…which plays her song live, as she plays it', await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return AshtonkMania.Screens.currentName === 'gameplay' && !!s && !!s.spectate && !s.mp && /Watching Alice play/.test((document.querySelector('.spec-live') || {}).textContent || ''); }));
+await bob.waitForTimeout(1500); await shot(bob, 'mp-rp-spectating');
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.rp.stage === 'results' && AshtonkMania.Multiplayer.room.rp.round === 2, null, { timeout: 45000 })));
-const r2 = await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room, b = r.players.find(p => p.name === 'Bob').id; return { score: r.rp.results.scores[b], life: r.rp.users[b].life }; });
-check('…and take the damage for a score of 0', r2.score === 0 && r2.life < lifeBefore, JSON.stringify({ ...r2, lifeBefore }));
+check('…and back to the match for the round\'s results when her song ends', !(await bob.evaluate(() => !!AshtonkMania.Spectate.target)));
+const r2 = await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room, b = r.players.find(p => p.name === 'Bob').id, a = r.players.find(p => p.name === 'Alice').id; return { score: r.rp.results.scores[b], alice: r.rp.results.scores[a], winner: r.rp.results.winner === a ? 'Alice' : r.rp.results.winner, life: r.rp.users[b].life }; });
+const quitScore = await bob.evaluate(() => window.__quitScore);
+check('…the round counts the score he had when he left (not 0), and he takes the damage', r2.score > 0 && r2.score === Math.round(quitScore) && r2.winner === 'Alice' && r2.life < lifeBefore, JSON.stringify({ ...r2, quitScore, lifeBefore }));
 // Bob leaves the match: he loses it (nothing rated)
 await bob.evaluate(() => AshtonkMania.Multiplayer.leave());
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room && AshtonkMania.Multiplayer.room.rp.stage === 'ended', null, { timeout: 30000 });
@@ -647,54 +723,19 @@ check('back in the Ranked Play lounge', true);
 
 // the dashboard: Alice's friends (Bob among them), then she spectates his play live from his panel's ⋯ menu
 await alice.evaluate(() => AshtonkMania.Screens.go('home')); await bob.evaluate(() => AshtonkMania.Screens.go('home'));
-// spectating someone in the menus: their screen, as they see it, kept up to date
+// spectating (lazer's): Spectate someone and you're on their Spectator Mode screen — between songs, waiting for them
 {
   await bob.waitForTimeout(800);
   await alice.evaluate(() => { const b = AshtonkMania.Presence.players.find(p => p.name === 'Bob'); AshtonkMania.Spectate.watch(b); });
-  const homeSeen = await alice.waitForSelector('.spec-rk .lz-menu', { timeout: 8000 }).then(() => true, () => false);
-  await bob.evaluate(() => AshtonkMania.Screens.go('songselect')); 
-  const ssSeen = await alice.waitForSelector('.spec-rk .ss', { timeout: 8000 }).then(() => true, () => false);
-  const specState = homeSeen && ssSeen ? null : await alice.evaluate(() => { const S = AshtonkMania.Spectate; return { target: !!S.target, rkEl: !!S.rkEl, connected: !!(S.rkEl && S.rkEl.isConnected), n: document.querySelectorAll('.spec-rk').length, rk: (S._rk || '').length, view: S.rkView ? S.rkView.innerHTML.length : -1, raf: S._rkRaf, hidden: document.hidden, screen: AshtonkMania.Screens.currentName, watching: S.watchingNow(), screens: S.rkView ? [...S.rkView.querySelectorAll('main > *, #screens > *')].map(e => e.className).join(' | ').slice(0, 300) : '', head: S._rk ? S._rk.slice(0, 200) : '' }; });
-  const hostState = homeSeen && ssSeen ? null : await bob.evaluate(() => { const S = AshtonkMania.Spectate; return { watchers: S.host.watchers, mirOn: S._mirOn, mo: !!S._mo, html: (S._mirHtml || '').length, screen: AshtonkMania.Screens.currentName, busy: AshtonkMania.Screens.busy }; });
-  check('spectating someone in the menus shows their screen and follows it (main menu, then song select)', homeSeen && ssSeen, JSON.stringify({ homeSeen, ssSeen, specState, hostState }));
-  // (their main menu idling — its logo pulsing to the beat every frame — isn't copied every frame: that work made the
-  // watcher's game lag; nothing in the copy lights up under the watcher's pointer, and their own screen isn't drawn)
-  await bob.evaluate(() => AshtonkMania.Screens.go('home')); await alice.waitForSelector('.spec-rk .lz-menu', { timeout: 8000 });
-  await alice.waitForTimeout(600);
-  const idle = await alice.evaluate(async () => {
-    const S = AshtonkMania.Spectate, real = S.applyRk; let n = 0;
-    S.applyRk = function (html) { n++; return real.call(this, html); };
-    await new Promise(r => setTimeout(r, 2000));
-    S.applyRk = real;
-    const b = document.querySelector('.spec-rk .lz-menu button') || document.querySelector('.spec-rk button:not(.btn)');
-    const mine = document.querySelector('body > #app'), theirs = document.querySelector('.spec-rk-view > #app');
-    return { applied: n, pointer: b ? getComputedStyle(b).pointerEvents : null, own: getComputedStyle(mine).visibility, shown: theirs ? getComputedStyle(theirs).visibility : null };
-  });
-  check('…an idle main menu is copied a few times a second, not every frame; the copy doesn\'t react to the watcher\'s pointer; their own screen isn\'t drawn under it',
-    idle.applied <= 14 && idle.pointer === 'none' && idle.own === 'hidden' && idle.shown === 'visible', JSON.stringify(idle));
-  await bob.evaluate(() => AshtonkMania.Screens.go('songselect')); await alice.waitForSelector('.spec-rk .ss', { timeout: 8000 });
-  const pics = await alice.waitForFunction(() => [...document.querySelectorAll('.spec-rk [style*="url("]')].some(e => /url\("?data:image\//.test(e.getAttribute('style'))), null, { timeout: 8000 }).then(() => true, () => false);
-  check('…with the pictures only their browser has (a beatmap\'s own background) sent along', pics);
-  // no lag: a change on Bob's screen is on Alice's within a few frames
-  await bob.waitForTimeout(500);
-  const lags = [];
-  for (let i = 0; i < 5; i++) {
-    const t0 = await bob.evaluate(i => { document.querySelector('#app .ss').setAttribute('data-mark', 'k' + i); return Date.now(); }, i);
-    const t1 = await alice.waitForFunction(i => document.querySelector(`.spec-rk [data-mark="k${i}"]`) && Date.now(), i, { timeout: 3000, polling: 'raf' }).then(h => h.jsonValue(), () => null);
-    lags.push(t1 ? t1 - t0 : 9999);
-  }
-  // his pointer shows; her keys and clicks don't touch her own menus; Esc stops watching
-  await bob.mouse.move(300, 300); await bob.mouse.move(600, 400);
-  const cur = await alice.waitForSelector('.spec-rk .spec-cur:not([hidden])', { timeout: 3000 }).then(() => true, () => false);
-  const was = await alice.evaluate(() => AshtonkMania.Screens.currentName);
-  await alice.mouse.click(700, 400); await alice.keyboard.press('Enter'); await alice.waitForTimeout(300);
-  const still = await alice.evaluate(was => AshtonkMania.Screens.currentName === was && !!AshtonkMania.Spectate.target, was);
-  await alice.keyboard.press('Escape'); await alice.waitForTimeout(300);
-  const stopped = await alice.evaluate(() => !AshtonkMania.Spectate.target && !document.querySelector('.spec-rk'));
-  check('menu spectating: changes arrive within ~100ms, the pointer shows, input is blocked and Esc stops', Math.max(...lags) < 150 && cur && still && stopped, JSON.stringify({ lags, cur, still, stopped }));
-  await alice.evaluate(() => AshtonkMania.Spectate.stop({ quiet: true }));
-  await bob.evaluate(() => AshtonkMania.Screens.go('home'));
+  await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'spectator' && document.querySelector('.spm-box .spm-idle'), null, { timeout: 8000 }).catch(() => {});
+  const spm = await alice.evaluate(() => ({ title: (document.querySelector('.spm-t') || {}).textContent, user: !!document.querySelector('.spm-user .up[data-name="Bob"]'), idle: (document.querySelector('.spm-idle') || {}).textContent || '',
+    off: !!(document.querySelector('.spm-watch') || {}).disabled, auto: /Automatically download missing beatmaps/.test((document.querySelector('.spm-auto') || {}).textContent || '') && !document.querySelector('.spm-auto .toggle.on') }));
+  await shot(alice, 'mp-spec-screen');
+  check('Spectate: lazer\'s Spectator Mode screen — the player, "Waiting for Bob to play…", Start Watching off till he does, automatic downloads off', spm.title === 'Spectator Mode' && spm.user && /Waiting for Bob to play/.test(spm.idle) && spm.off && spm.auto, JSON.stringify(spm));
+  await alice.evaluate(() => AshtonkMania.Screens.back());
+  await alice.waitForFunction(() => AshtonkMania.Screens.currentName !== 'spectator', null, { timeout: 5000 }).catch(() => {});
   await bob.waitForFunction(() => AshtonkMania.Spectate.host.watchers === 0, null, { timeout: 5000 }).catch(() => {});
+  check('…Back leaves it, and stops watching', await alice.evaluate(() => !AshtonkMania.Spectate.target) && await bob.evaluate(() => AshtonkMania.Spectate.host.watchers === 0));
 }
 // (Bob's page was opened again from an invite link since: his picture again)
 await bob.evaluate(() => { AshtonkMania.ProfileManager.sharedAvatar = 'preset:neru'; AshtonkMania.Presence.pushStatus(); });
@@ -716,10 +757,10 @@ await menuPick(alice, 'Spectate');
 check('…his panel says what he\'s playing, and its menu offers Spectate', playingMenu.includes('Spectate'), JSON.stringify(playingMenu));
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.spectate, null, { timeout: 20000 });
 await alice.waitForTimeout(5000);
-const sp = await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return { feed: s.feed.length, judged: s.engine.score.judged, t: AshtonkMania.Music.time, pill: !!document.querySelector('.spec-pill'), synced: !!s.spectate.synced, bar: !!document.querySelector('.rp-bar, .replay-bar') }; });
+const sp = await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return { feed: s.feed.length, judged: s.engine.score.judged, t: AshtonkMania.Music.time, live: (document.querySelector('.spec-live') || {}).textContent || '', synced: !!s.spectate.synced, bar: !!document.querySelector('.rp-bar, .replay-bar') }; });
 const bobT = await bob.evaluate(() => AshtonkMania.Music.time);
 clearInterval(mash);
-check('spectating: Alice watches Bob\'s play live, a little behind him, from what he presses', sp.feed > 30 && sp.judged > 5 && sp.synced && sp.pill && sp.t < bobT && bobT - sp.t < 6000, JSON.stringify({ ...sp, bobT }));
+check('spectating: from the Spectator Mode screen his song starts by itself — "Watching Bob play … live" — a little behind him, from what he presses', sp.feed > 30 && sp.judged > 5 && sp.synced && /^Watching Bob play .+ live$/.test(sp.live) && sp.t < bobT && bobT - sp.t < 6000, JSON.stringify({ ...sp, bobT }));
 const st = await bob.evaluate(() => (AshtonkMania.Presence.players.find(p => p.name === 'Alice') || {}).status);
 {
   // the notes played before Alice started watching are judged from Bob's own presses (not all perfect)
@@ -736,34 +777,34 @@ check('Bob sees who\'s spectating him on his HUD', /Spectators \(1\)/.test(seen)
 // Alice's window losing focus doesn't pause what she's watching
 await alice.evaluate(() => window.dispatchEvent(new Event('blur'))); await alice.waitForTimeout(300);
 check('spectating: switching away doesn\'t bring up the pause menu', await alice.evaluate(() => !document.querySelector('.pause-menu') && AshtonkMania.GameplayScreen.s.running));
-// Bob pauses: once Alice's playback reaches that moment she sees the pause screen; it goes when he continues
+// Bob pauses: Alice's playback catches up with him and waits there ("Waiting for Bob…", as lazer waits for his
+// frames) — no pause menu of her own — and carries on when he continues
 await bob.keyboard.press('Escape');
 await bob.waitForSelector('.pause-menu', { timeout: 3000 });
-const sawPause = await alice.waitForSelector('.spec-pause', { state: 'attached', timeout: 8000 }).then(() => true, () => false); // (under the copy of his own pause menu, checked next)
-const mirPause = await alice.waitForSelector('.spec-rk .pause-menu', { timeout: 6000 }).then(() => true, () => false);
-check('spectating: the watcher sees the player\'s own screen while the song can\'t go on (their pause menu, as they see it)', mirPause);
+const sawWait = await alice.waitForSelector('.spec-wait', { timeout: 10000 }).then(() => true, () => false);
 const pausedT = await alice.evaluate(() => AshtonkMania.Music.time);
 await alice.waitForTimeout(600);
-const held = await alice.evaluate(t => Math.abs(AshtonkMania.Music.time - t) < 50 && !AshtonkMania.GameplayScreen.s.running, pausedT);
+const held = await alice.evaluate(t => Math.abs(AshtonkMania.Music.time - t) < 50 && !AshtonkMania.GameplayScreen.s.running && !document.querySelector('.pause-menu'), pausedT);
 await bob.click('.pause-menu .pm-btn.primary');
-const resumed = await alice.waitForFunction(() => !document.querySelector('.spec-pause') && AshtonkMania.GameplayScreen.s.running, null, { timeout: 6000 }).then(() => true, () => false);
-check('spectating: the player pausing shows the watcher the pause screen, held there, and it carries on when they continue', sawPause && held && resumed, JSON.stringify({ sawPause, held, resumed }));
-// Bob fails: Alice's playback fails at the same moment — she gets no menu of her own (its Retry / Quit would be
-// hers), but Bob's fail screen as he sees it, with his pointer, that she can't press
+const resumed = await alice.waitForFunction(() => !document.querySelector('.spec-wait') && AshtonkMania.GameplayScreen.s.running, null, { timeout: 10000 }).then(() => true, () => false);
+check('spectating: the player pausing holds the watcher\'s playback ("Waiting for Bob…"), and it carries on when he continues', sawWait && held && resumed, JSON.stringify({ sawWait, held, resumed }));
+// Bob fails: Alice's playback fails at the same moment — the fail screen with only Quit (it's his play: no Retry of
+// hers), which takes her back to the Spectator Mode screen, still watching him
 {
   await bob.evaluate(() => AshtonkMania.GameplayScreen.fail(AshtonkMania.GameplayScreen.gameTime()));
   await alice.evaluate(() => AshtonkMania.GameplayScreen.fail(AshtonkMania.GameplayScreen.gameTime()));
-  await alice.waitForTimeout(1300);
-  const own = await alice.evaluate(() => ({ buttons: [...document.querySelectorAll('.pause-menu .pm-btn')].filter(b => !b.closest('.spec-rk')).length, failed: !!document.querySelector('.spec-failed') }));
-  const mirrored = await alice.waitForSelector('.spec-rk .pause-menu', { timeout: 6000 }).then(() => true, () => false);
-  const inert = await alice.evaluate(() => getComputedStyle(document.querySelector('.spec-rk-view')).pointerEvents === 'none');
+  await alice.waitForSelector('.pause-menu .pm-btn', { timeout: 5000 }).catch(() => {});
+  const own = await alice.evaluate(() => ({ buttons: [...document.querySelectorAll('.pause-menu .pm-btn')].map(b => b.textContent.trim()), head: (document.querySelector('.pause-menu h2') || {}).textContent, desc: (document.querySelector('.pause-menu .pm-desc') || {}).textContent || '' }));
   await shot(alice, 'mp-spec-failed');
-  check('spectating a fail: no Retry / Quit of the watcher\'s own — the player\'s fail screen, as they see it, can\'t be pressed', own.buttons === 0 && own.failed && mirrored && inert, JSON.stringify({ ...own, mirrored, inert }));
+  check('spectating a fail: the fail screen with only Quit, saying who failed', own.buttons.join() === 'Quit' && /failed/.test(own.head) && /Bob failed/.test(own.desc), JSON.stringify(own));
+  await alice.click('.pause-menu .pm-btn');
+  await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'spectator', null, { timeout: 8000 }).catch(() => {});
+  check('…Quit goes back to the Spectator Mode screen, still watching Bob', await alice.evaluate(() => AshtonkMania.Screens.currentName === 'spectator' && !!AshtonkMania.Spectate.target && AshtonkMania.Spectate.target.name === 'Bob'));
 }
-await alice.keyboard.press('Escape');
-await alice.waitForFunction(() => AshtonkMania.Screens.currentName !== 'gameplay' && !document.querySelector('.spec-pill'), null, { timeout: 8000 });
+await alice.evaluate(() => AshtonkMania.Screens.back());
+await alice.waitForFunction(() => AshtonkMania.Screens.currentName !== 'spectator', null, { timeout: 8000 }).catch(() => {});
 await bob.waitForFunction(() => AshtonkMania.Spectate.host.watchers === 0, null, { timeout: 5000 }).catch(() => {});
-check('Esc stops spectating; Bob stops streaming', await bob.evaluate(() => AshtonkMania.Spectate.host.watchers === 0));
+check('leaving the Spectator Mode screen stops spectating; Bob stops streaming', await bob.evaluate(() => AshtonkMania.Spectate.host.watchers === 0));
 await bob.evaluate(() => AshtonkMania.Screens.go('home'));
 
 // the lounge's Create room offers Team Versus; the room starts in teams and shows as Team Versus in the lounge

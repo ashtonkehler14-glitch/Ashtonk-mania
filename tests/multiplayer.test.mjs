@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { beatmapStatus, RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE, codeHash, adminCodeHash } from '../worker/multiplayer.js';
+import { beatmapStatus, RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, deckTargetsForStars, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE, codeHash, adminCodeHash } from '../worker/multiplayer.js';
 
 // (in these tests a finished play is judged straight away as what the player said — as if the server's judge agreed;
 // the judging itself is tested in engine.test.mjs, and what happens without it at the end of this file)
@@ -235,11 +235,11 @@ test('equal pp (e.g. two fails at 0pp) falls back to score, then accuracy', () =
   assert.equal(live.length, 0, 'no live scores outside a match');
 });
 
-test('speed mods (DT…) need every player to accept; other mods are per player', () => {
+test('the host sets the room\'s speed mod (DT…) outright; anyone else\'s needs every player to accept; other mods are per player', () => {
   const r = room();
   r.message('a', { t: 'map', map: MAP, mods: ['DT', 'HD'] });
-  assert.deepEqual(r.mods, []);
-  assert.deepEqual(r.vote.mods, ['DT']);
+  assert.deepEqual(r.mods, ['DT']);
+  assert.equal(r.vote, null);
   r.message('b', { t: 'hasMap', has: true });
   r.message('b', { t: 'mods', mods: ['MR', 'DT', 'AT'] });
   assert.deepEqual(r.get('b').mods, ['MR']);
@@ -247,11 +247,21 @@ test('speed mods (DT…) need every player to accept; other mods are per player'
   // would be an F with no score
   r.message('b', { t: 'mods', mods: ['MR', 'WU', 'WD', 'AS', 'MU', 'CN'] });
   assert.deepEqual(r.get('b').mods, ['MR']);
+  // another player asking for HT: a vote, and no start while it's open
+  r.message('b', { t: 'rate', mods: ['HT'] });
+  assert.deepEqual(r.vote.mods, ['HT']);
+  assert.deepEqual(r.mods, ['DT']);
   r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
   assert.equal(msgs(r.message('a', { t: 'start' }), 'error').length, 1); // vote still open
-  r.message('b', { t: 'vote', yes: true });
+  r.message('a', { t: 'vote', yes: true });
+  assert.deepEqual(r.mods, ['HT']);
+  assert.equal(r.vote, null);
+  // the host changing it back: no vote (and everyone readies up again)
+  r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
+  r.message('a', { t: 'rate', mods: ['DT'] });
   assert.deepEqual(r.mods, ['DT']);
   assert.equal(r.vote, null);
+  assert.ok(!r.get('b').ready);
   r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
   const st = msgs(r.message('a', { t: 'start' }), 'start')[0].msg;
   assert.deepEqual(st.mods, ['DT']);
@@ -259,6 +269,12 @@ test('speed mods (DT…) need every player to accept; other mods are per player'
   r.checkFinished(); r.state = 'lobby';
   r.message('a', { t: 'map', map: { ...MAP, hash: 'next' }, mods: ['HD'] }); // a new map without DT keeps the room's DT
   assert.deepEqual(r.mods, ['DT']);
+  assert.equal(r.vote, null);
+  // an open vote is settled by the host's own change
+  r.message('b', { t: 'rate', mods: ['HT'] });
+  assert.ok(r.vote);
+  r.message('a', { t: 'rate', mods: [] });
+  assert.deepEqual(r.mods, []);
   assert.equal(r.vote, null);
 });
 
@@ -466,6 +482,29 @@ test('Ranked Play maths: beatmap ratings from stars, a new player\'s rating from
   assert.ok(Math.abs(median - starsForRating(1400)) < 0.35, `centred on the lower rating (${median}★ vs ${starsForRating(1400).toFixed(2)}★)`);
 });
 
+test('Ranked Play fairness: the deck leans to the lower star choice, and the opening hands are matched pairs', () => {
+  let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const t = deckTargetsForStars([2, 6], 400, rnd), mean = t.reduce((a, b) => a + b, 0) / t.length;
+  assert.ok(Math.abs(mean - (2 + 4 / 3)) < 0.15, `a third of the way up from the lower choice (${mean.toFixed(2)}★)`);
+  const same = deckTargetsForStars([4, 4], 400, rnd), sd = x => Math.sqrt(x.reduce((a, b) => a + (b - 4) ** 2, 0) / x.length);
+  assert.ok(sd(same) < sd(t), 'wider when the two choices are far apart');
+  // the opening hands: ten cards paired off by difficulty, one of each pair each — the same difficulty both sides
+  const clock = { t: 0 };
+  const r = new RoomLogic('RF', () => clock.t, () => 0.25);
+  r.join('a', 'Alice', true, { mode: 'rp', keys: 4 }); r.join('b', 'Bob', false, {});
+  r.message('a', { t: 'rpStars', stars: 3 }); r.message('b', { t: 'rpStars', stars: 3 });
+  const spread = Array.from({ length: 50 }, (_, i) => ({ ...MAP, hash: 'f' + i, title: 'S' + i, stars: 1 + (i * 37 % 50) / 7, onlineSetId: 500 + i, onlineId: 5000 + i }));
+  r.message('a', { t: 'pool', maps: spread });
+  const stars = id => r.rp.user(id).hand.map(i => r.rp.pool[i].stars);
+  const [ha, hb] = [stars('a'), stars('b')];
+  assert.equal(ha.length, RP.HAND); assert.equal(hb.length, RP.HAND);
+  assert.deepEqual(ha, [...ha].sort((x, y) => x - y), 'laid out easiest first');
+  const sum = x => x.reduce((a, b) => a + b, 0), all = [...ha, ...hb].sort((x, y) => y - x);
+  // (each pair split between the two: the totals differ by no more than the pairs' gaps)
+  let gaps = 0; for (let k = 0; k < RP.HAND; k++) gaps += all[2 * k] - all[2 * k + 1];
+  assert.ok(Math.abs(sum(ha) - sum(hb)) <= gaps + 1e-9, `matched hands (${sum(ha).toFixed(2)} vs ${sum(hb).toFixed(2)})`);
+});
+
 test('Ranked Play rating: OpenSkill Plackett–Luce on the final life (μ 1500, σ 150, τ 15)', () => {
   const [w, l] = rateMatch([{ mu: 1500, sigma: 150, score: 600000 }, { mu: 1500, sigma: 150, score: 0 }]);
   assert.ok(Math.abs(w.mu - 1553.3) < 0.5 && Math.abs(l.mu - 1446.7) < 0.5, `±53 between equals (${w.mu}, ${l.mu})`);
@@ -572,22 +611,35 @@ test('Ranked Play damage: the score difference + 50,000 every round (no multipli
   assert.deepEqual([r.rp.user('a').life, r.rp.user('b').life], [lifeA, lifeB]);
 });
 
-test('Ranked Play: last stand at full life, the match ends at 0 life, and rated matches update both ratings', () => {
+test('Ranked Play: one song does at most 500,000; last stand at full life, the match ends at 0 life, ratings move', () => {
   const clock = { t: 0 };
   const { r } = rpMatch(clock);
   tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
   tickTo(r, clock); tickTo(r, clock);
+  // a song both played, however lopsided: 500,000 at most — one bad song can't decide the match
   r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
-  playRound(r, clock, 1000000, 0); // 1,050,000 damage at full life
-  assert.equal(r.rp.user('b').life, 1, 'last stand: a hit at full life leaves 1');
+  playRound(r, clock, 1000000, 0);
+  assert.equal(r.rp.user('b').life, RP.LIFE - RP.MAX_HIT);
+  assert.equal(r.rp.results.dmg.b.damage, RP.MAX_HIT); assert.equal(r.rp.results.dmg.b.capped, RP.MAX_HIT);
+  assert.equal(r.rp.results.dmg.b.directDamage, 1000000, 'the full difference is still shown');
+  tickTo(r, clock);
+  // leaving a song isn't capped: Alice leaves hers at full life — last stand leaves her 1
+  r.message('a', { t: 'play', card: r.rp.user('a').hand[0] });
+  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
+  r.message('a', { t: 'rpready', ready: true }); r.message('b', { t: 'rpready', ready: true });
+  tickTo(r, clock);
+  r.message('a', { t: 'quit' });
+  fin(r, 'b', { score: 990000 });
+  assert.equal(r.rp.user('a').life, 1, 'last stand: a hit at full life leaves 1');
+  assert.equal(r.rp.results.dmg.a.capped, undefined);
   assert.notEqual(r.rp.stage, 'ended');
   tickTo(r, clock);
-  r.message('a', { t: 'play', card: r.rp.user('a').hand[0] });
-  playRound(r, clock, 300000, 200000);
-  assert.equal(r.rp.user('b').life, 0);
-  assert.equal(r.rp.winner, 'a');
+  r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
+  playRound(r, clock, 200000, 300000);
+  assert.equal(r.rp.user('a').life, 0);
+  assert.equal(r.rp.winner, 'b');
   const u = r.snapshot('a').rp.users;
-  assert.ok(u.a.ratingAfter > 1600 && u.b.ratingAfter < 1400, `ratings move (${u.a.ratingAfter}, ${u.b.ratingAfter})`);
+  assert.ok(u.b.ratingAfter > 1400 && u.a.ratingAfter < 1600, `ratings move (${u.a.ratingAfter}, ${u.b.ratingAfter})`);
   tickTo(r, clock);
   assert.equal(r.rp.stage, 'ended');
 });
@@ -637,7 +689,7 @@ test('Ranked Play: leaving the match mid-song ends it there (the other player is
   assert.deepEqual(Object.keys(q.rp.users).sort(), ['a', 'b']);
 });
 
-test('Ranked Play: leaving the song scores 0 for the round; the other player plays on', () => {
+test('Ranked Play: leaving the song keeps the score you had then (not 0, not a draw); the other player plays on', () => {
   const clock = { t: 0 };
   const { r } = rpMatch(clock);
   tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
@@ -651,9 +703,24 @@ test('Ranked Play: leaving the song scores 0 for the round; the other player pla
   assert.equal(r.state, 'playing', 'Bob is still playing');
   fin(r, 'b', { score: 300000 });
   assert.equal(r.rp.stage, 'results');
-  assert.equal(r.rp.results.scores.a, 0);
-  assert.equal(r.rp.user('a').life, RP.LIFE - (300000 + 50000));
+  assert.equal(r.rp.results.scores.a, 400000, 'the score Alice had when she left');
+  assert.equal(r.rp.results.quit.a, true);
+  assert.equal(r.rp.results.winner, 'a', 'and it beats a lower score');
+  assert.equal(r.rp.user('b').life, RP.LIFE - (100000 + 50000));
   assert.equal(r.players.length, 2, 'the match goes on');
+  // both leave: still decided on the scores they had, not a draw
+  tickTo(r, clock);
+  r.message('a', { t: 'play', card: r.rp.user('a').hand[0] });
+  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
+  r.message('a', { t: 'rpready', ready: true }); r.message('b', { t: 'rpready', ready: true });
+  tickTo(r, clock);
+  r.message('a', { t: 'score', score: 120000, acc: 0.9, combo: 20, maxCombo: 40 });
+  r.message('b', { t: 'score', score: 250000, acc: 0.95, combo: 60, maxCombo: 60 });
+  r.message('a', { t: 'quit' }); r.message('b', { t: 'quit' });
+  assert.equal(r.rp.stage, 'results');
+  assert.deepEqual([r.rp.results.scores.a, r.rp.results.scores.b], [120000, 250000]);
+  assert.equal(r.rp.results.winner, 'b');
+  assert.equal(r.rp.user('a').life, RP.LIFE - (130000 + 50000), 'the leaver who lost takes the whole difference');
 });
 
 test('Ranked Play: leaving the match loses it (and a rated one bans from the queue); a dropped connection can come back', () => {
@@ -753,6 +820,26 @@ test('Ranked Play queue: pairs close ratings, both accept → one room; a declin
   const quiet = q.join({ cid: 'qq', keys: 4, rating: 3000 });
   clock.t += QUEUE.STALE + 1; q.update();
   assert.equal(q.status(quiet.ticket).status, 'none');
+});
+
+test('Ranked Play queue: not the same opponent again straight away — unless nobody else is around for a while', () => {
+  const clock = { t: 0 };
+  const q = new RankedQueue(() => clock.t, () => 0.5, () => 'R');
+  const play = (x, y) => { q.accept(x.ticket); q.accept(y.ticket); q.decline(x.ticket); q.decline(y.ticket); };
+  let a = q.join({ cid: 'ca', keys: 4, rating: 1500 }), b = q.join({ cid: 'cb', keys: 4, rating: 1510 });
+  assert.equal(q.status(a.ticket).status, 'found');
+  play(a, b);
+  // back in the queue together: not paired again at once…
+  a = q.join({ cid: 'ca', keys: 4, rating: 1500 }); b = q.join({ cid: 'cb', keys: 4, rating: 1510 });
+  assert.equal(q.status(a.ticket).status, 'search');
+  // …someone else is, as soon as they're there
+  const c = q.join({ cid: 'cc', keys: 4, rating: 1520 });
+  assert.equal(q.status(c.ticket).status, 'found');
+  assert.equal(q.status(c.ticket).opponent.rating, 1500);
+  // with nobody else, after both have waited 45 s, the two are paired after all
+  q.decline(c.ticket);
+  for (let i = 0; i < 10; i++) { clock.t += 5000; q.status(a.ticket); q.status(b.ticket); q.update(); }
+  assert.equal(q.status(b.ticket).status, 'found');
 });
 
 test('shared avatars: presets, public pictures and small inline images only', () => {
@@ -947,16 +1034,36 @@ test('presence: public ids and songs on the list; spectating streams a play only
   assert.ok(gone.some(o => o.to === 'a' && o.msg.t === 'specEnd' && o.msg.gone));
 });
 
-test('presence: a Ranked Play screen reaches spectators, and someone who starts watching gets the latest', () => {
+test('presence: watching someone between songs only waits for their next play (their screen is never sent)', () => {
   const p = new PresenceLogic(() => 0);
   p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
-  p.message('a', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
   p.message('a', { t: 'status', status: 'ranked' });
-  assert.equal(p.list().find(x => x.id === 'a').status, 'ranked');
-  assert.deepEqual(p.message('a', { t: 'rkview', html: '<div class="rkm">pick</div>' }), [], 'nobody watching yet');
+  assert.deepEqual(p.message('a', { t: 'rkview', html: '<div class="rkm">pick</div>' }), [], 'an old copy\'s screen goes nowhere');
   const w = p.message('b', { t: 'watch', to: 'a' });
-  assert.deepEqual(w.find(o => o.msg.t === 'specRk'), { to: 'b', msg: { t: 'specRk', id: 'a', html: '<div class="rkm">pick</div>' } });
-  assert.deepEqual(p.message('a', { t: 'rkview', html: null }), [{ to: 'b', msg: { t: 'specRk', id: 'a', html: null } }]);
+  assert.deepEqual(w.map(o => o.msg.t).sort(), ['specWait', 'spectators']);
+  assert.deepEqual(p.message('a', { t: 'pause', paused: true, at: 5 }), [], 'pauses aren\'t passed on: the stream just stops');
+});
+
+test('roles: the owner shows as Owner on the rankings; admins the owner makes get a role of their naming and colour', () => {
+  const p = new PresenceLogic(() => 1000);
+  p.codes.set('h-owner', 'ownerpid1'); p.adminHash = 'h-owner';
+  for (const [pid, name, pp] of [['ownerpid1', 'Ash', 500], ['modpid22', 'Mo', 400], ['plainpid3', 'Pl', 300]]) p.ranks.set(pid, { pid, name, pp, acc: 0.97, plays: 5 });
+  const kept = {}; p.persistMod = (k, pid, v) => { kept[k + ':' + pid] = v; };
+  assert.equal(p.adminRole('ownerpid1', { name: 'X' }), null, 'the owner is the owner');
+  p.join('m1', { name: 'Mo', pid: 'modpid22', key: 'key-modpid22-0123456789' });
+  assert.deepEqual(p.adminRole('modpid22', { name: 'Moderator', colour: '#FF3366' }), [{ to: 'm1', msg: { t: 'admin', role: { name: 'Moderator', colour: '#ff3366' } } }], 'their game opens its admin menu');
+  assert.equal(kept['rl:modpid22'].name, 'Moderator');
+  p.adminRole('plainpid3', { name: 'Odd', colour: 'red; background: url(x)' });
+  assert.equal(p.roles.get('plainpid3').colour, '#66ccff', 'only a #rrggbb colour is kept');
+  p.adminUnrole('plainpid3');
+  assert.deepEqual(p.rankings('plainpid3').list.map(r => r.role || null), [{ name: 'Owner', colour: '#ffcc22', owner: true }, { name: 'Moderator', colour: '#ff3366' }, null]);
+  assert.deepEqual(p.profileMsg('ownerpid1').role, { name: 'Owner', colour: '#ffcc22', owner: true });
+  assert.equal(p.isStaff('modpid22'), true); assert.equal(p.isStaff('plainpid3'), false);
+  // (back after a restart: from storage)
+  const q = new PresenceLogic(() => 1000); q.loadMod({ roles: { modpid22: kept['rl:modpid22'] } });
+  assert.equal(q.roleOf('modpid22').name, 'Moderator');
+  assert.deepEqual(p.adminUnrole('modpid22'), [{ to: 'm1', msg: { t: 'admin', off: true } }], 'their admin menu goes');
+  assert.equal(kept['rl:modpid22'], null);
 });
 
 test('presence: friend requests — sent, answered, mutual, kept, and removable; watchers are named', () => {
@@ -1387,7 +1494,7 @@ test('lazer\'s user tags: only players with a play on the beatmap can tag it; vo
   assert.match(tags('a', { tag: PresenceLogic.USER_TAGS[20], on: true }).err, /10 tags/);
 });
 
-test('a judged beatmap\'s ranked status: by its set id, else its beatmap id, else its file\'s MD5; unknown is unranked', async () => {
+test('a judged beatmap\'s ranked status: by its set id, else its beatmap id, else its file\'s MD5; "" when osu! can\'t say', async () => {
   const asked = [], api = { 'beatmapsets/7': { status: 'ranked' }, 'beatmaps/42': { beatmapset_id: 9, beatmapset: { id: 9, status: 'loved' } }, ['beatmaps/lookup?checksum=' + 'a'.repeat(32)]: { beatmapset_id: 11, beatmapset: { id: 11, status: 'approved' } } };
   const get = async p => { asked.push(p); if (!api[p]) throw Object.assign(new Error('nope'), { status: 404 }); return api[p]; };
   assert.deepEqual(await beatmapStatus({ beatmapSetId: 7, beatmapId: 42 }, 'a'.repeat(32), {}, get), { status: 'ranked', setId: 7 });
@@ -1482,6 +1589,8 @@ test('the host can hand the room over and kick players between matches (lazer\'s
   const out = r.message('a', { t: 'kick', id: 'c' });
   assert.deepEqual(out[0], { to: 'c', msg: { t: 'kicked' } });
   assert.deepEqual(r.players.map(p => p.id), ['a', 'b']);
+  // (the room's told once why Cat's gone — not "removed" and then "left" as well)
+  assert.deepEqual(msgs(out, 'chat').map(m => m.msg.text), ['Cat was removed from the room']);
   assert.deepEqual(r.message('b', { t: 'giveHost', id: 'b' }), [], 'only the host hands it over');
   assert.equal(msgs(r.message('a', { t: 'giveHost', id: 'b' }), 'room').length, 1);
   assert.equal(r.hostId, 'b');
@@ -1531,16 +1640,20 @@ test('Team Versus: someone who drops out and comes back is put back on their own
   assert.equal(res.msg.results.rows.length, 2, 'and everyone else\'s is still there');
 });
 
-test('a room\'s Rate Adjust speed is part of its mods; a new speed is a new vote; leaving and un-readying leave nothing armed', () => {
+test('a room\'s Rate Adjust speed is part of its mods; a new speed is a new vote (or the host\'s, outright); leaving and un-readying leave nothing armed', () => {
   const clock = { t: 0 };
   const r = new RoomLogic('RTROOM', () => clock.t);
   r.join('a', 'Alice', true); r.join('b', 'Bob', false); r.join('c', 'Cat', false);
   r.message('a', { t: 'map', map: { hash: 'h'.repeat(64), title: 'Song', artist: 'Art', keys: 4, onlineSetId: 5, length: 60000 } });
   // the room agrees on RT 1.5x; a new speed (1.2x) under the same mod is a vote of its own, not dropped
   r.mods = ['RT']; r.modConfig = { rate: 1.5 };
-  const out = r.propose(r.get('a'), ['RT'], { rate: 1.2 });
+  const out = r.propose(r.get('b'), ['RT'], { rate: 1.2 });
   assert.ok(r.vote && r.vote.modConfig.rate === 1.2 && out.length, 'a new Rate Adjust speed starts a vote');
   r.vote = null;
+  // the host's new speed is the room's straight away; the same speed again changes nothing
+  assert.ok(r.propose(r.get('a'), ['RT'], { rate: 1.25 }).length && !r.vote && r.modConfig.rate === 1.25, 'the host\'s Rate Adjust speed applies outright');
+  assert.equal(r.propose(r.get('a'), ['RT'], { rate: 1.25 }).length, 0);
+  r.modConfig = { rate: 1.5 };
   // a play judged at another speed under RT isn't the room's play
   for (const id of ['a', 'b', 'c']) { r.message(id, { t: 'hasMap', has: true }); r.message(id, { t: 'ready', ready: true }); }
   r.message('a', { t: 'start' });
