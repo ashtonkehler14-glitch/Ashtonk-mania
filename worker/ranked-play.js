@@ -14,8 +14,9 @@
 //    same), at most 500,000 for a song both played (one bad song can't decide the match; leaving one costs all of
 //    it). Leaving a song keeps the score you had when you left it: the round is decided on that. A hit taken at full
 //    life always leaves 1 (last stand).
-//  - Fair from the start: both hands are dealt from matched pairs of cards (the same difficulty each), and the deck
-//    leans towards the lower of the two star ratings chosen.
+//  - Each card is a song with a difficulty for each player near the star rating they chose — the two of the same
+//    length, so it's one song for both — and each plays their own. (Without such songs: one difficulty for both, the
+//    deck leaning towards the lower of the two star ratings.) Both hands are dealt from matched pairs of cards.
 //  - Leaving mid-song ends the match there (the other player goes back to the match screen and wins).
 //  - Once it's over, both players can ask for a rematch: a new (unrated) match in the same room.
 //  - The match ends when a player has no life left or the cards run out; the most life wins. Leaving loses (life 0); a dropped connection gets a minute to come back.
@@ -233,7 +234,9 @@ export class RankedPlay {
     this.go('deal', RP.DEAL);
     const prefs = Object.values(this.users).map(u => u.pref).filter(v => v != null);
     const targets = prefs.length ? deckTargetsForStars(prefs, RP.DECK, this.room.rnd) : deckTargets(Object.values(this.users).map(u => u.mu), RP.DECK, this.room.rnd);
-    return [{ to: this.dealer, msg: { t: 'rpDeck', keys: this.keys, targets } }, this.room.roomMsg()];
+    // (each player's own star rating: the dealer finds songs with a difficulty near each, one for each player)
+    const own = Object.fromEntries(Object.entries(this.users).filter(([, u]) => u.pref != null).map(([id, u]) => [id, u.pref]));
+    return [{ to: this.dealer, msg: { t: 'rpDeck', keys: this.keys, targets, prefs: own } }, this.room.roomMsg()];
   }
   /** The dealer's beatmaps arrive: shuffle them into the deck, deal five each, and the first round starts. The
    *  opening hands are fair: cards picked at random are paired off by star rating — the two closest together, then the
@@ -246,7 +249,8 @@ export class RankedPlay {
     this.stars = Math.round(this.pool.reduce((a, m) => a + (m.stars || 0), 0) / this.pool.length * 100) / 100;
     const ids = this.order.filter(x => this.users[x]);
     if (ids.length === 2 && this.deck.length >= RP.HAND * 2) {
-      const sr = i => this.pool[i].stars || 0;
+      // (a card with a difficulty for each player: as hard as theirs together)
+      const sr = i => { const m = this.pool[i], per = m.per && Object.values(m.per); return per && per.length ? per.reduce((a, d) => a + d.stars, 0) / per.length : m.stars || 0; };
       const opening = this.deck.splice(0, RP.HAND * 2).sort((a, b) => sr(b) - sr(a));
       for (let k = 0; k < RP.HAND; k++) {
         const [hard, easy] = [opening[2 * k], opening[2 * k + 1]], first = ids[k % 2];
@@ -289,7 +293,9 @@ export class RankedPlay {
     this.played = card;
     const room = this.room;
     room.map = this.pool[card]; room.mods = []; room.modConfig = null;
-    for (const p of this.players) { p.hasMap = false; p.ready = false; p.diff = null; }
+    // (each player's own difficulty of it, when the card has one for each)
+    const per = room.map.per || null;
+    for (const p of this.players) { p.hasMap = false; p.ready = false; p.diff = per && per[p.id] ? { version: per[p.id].version, stars: per[p.id].stars, keys: room.map.keys } : null; }
     this.ready = {};
     this.go('picked', RP.FINISH_PICK);
     const p = room.get(this.active), m = this.pool[card];

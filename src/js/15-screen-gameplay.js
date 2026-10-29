@@ -1160,7 +1160,8 @@ const GameplayScreen = {
       }
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
     const oe = this.outroEnd(s), outro = !!oe && s.running && e.finished && now > s.endTime + 400 * s.rate && now < oe - 500;
-    const canSkip = (s.running && now < s.skipTarget - 1500 * s.rate && !s.practice) || outro;
+    // (watching someone: their skips are theirs — it skips when they do, never by itself or from here)
+    const canSkip = !s.spectate && ((s.running && now < s.skipTarget - 1500 * s.rate && !s.practice) || outro);
     if (canSkip !== this._canSkip || outro !== this._canSkipOut) {
       this._canSkip = canSkip; this._canSkipOut = outro; this.skipBtn.style.display = canSkip ? '' : 'none'; this._skipFrom = now;
       setText(this.skipBtn.querySelector('.sk-label'), outro ? 'Skip outro' : 'Skip');
@@ -1602,8 +1603,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   outroEnd(s) { return !s.mp && !s.practice && this.sb && this.sb.end > s.endTime + 400 * s.rate ? this.sb.end : 0; },
   skip() {
     const s = this.s;
-    if (!s || !s.running) return;
-    if (this._canSkipOut) { UISounds.click(); this._canSkipOut = false; this.complete(); return; }
+    if (!s || !s.running || s.spectate) return;
+    if (this._canSkipOut) { UISounds.click(); this._canSkipOut = false; Spectate.hostAct(s, 'outro', this.gameTime()); this.complete(); return; }
     const now = this.gameTime();
     if (now >= s.skipTarget - 1000 * s.rate) return;
     if (s.mp) {
@@ -1616,6 +1617,15 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       return;
     }
     UISounds.click();
+    Spectate.hostAct(s, 'skip', now);
+    Music.play(s.skipTarget + this.offsetMs() * s.rate);
+  },
+  /** Watching someone: they skipped (the intro, at `at`) — so does their play here. */
+  specSkip(s, outro = false) {
+    if (this.s !== s) return;
+    if (outro) { if (!s.finished) this.complete(); return; }
+    const now = this.gameTime();
+    if (now >= s.skipTarget - 1000 * s.rate) return;
     Music.play(s.skipTarget + this.offsetMs() * s.rate);
   },
   /** Multiplayer: show how many players want to skip. */
@@ -1632,6 +1642,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const now = this.gameTime();
     if (now >= s.skipTarget - 1000 * s.rate) return;
     UISounds.click();
+    Spectate.hostAct(s, 'skip', now);
     Music.play(s.skipTarget + this.offsetMs() * s.rate);
   },
 
@@ -1677,6 +1688,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     s.running = false;
     Music.pause();
     SkinManager.sample('pause-loop').then(() => {});
+    Spectate.hostAct(s, 'pause', this.gameTime()); // (anyone watching sees your pause menu)
     if (!quiet) this.showPause('Paused');
   },
   showPause(title, failed = false) {
@@ -1686,14 +1698,20 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     // osu!lazer's GameplayMenuOverlay: wide slanted colour buttons (DialogButton) — continue green, retry yellow,
     // quit red — with the skin's pause-menu sounds (hover and clicks) when it has them
     const btn = (label, colour, fn, cls = '') => h(`button.pm-btn${cls}`, { style: { '--c': colour }, onclick: fn }, h('span.pm-band'), h('span.pm-label', label));
-    // (watching someone fail: their play, so no Retry of yours — Quit goes back to the Spectator Mode screen)
-    if (s.spectate) btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); Spectate.leavePlay(); }, '.danger'));
-    else {
+    // (watching someone pause or fail: their menu, as they have it — theirs to choose from, so nothing here does
+    // anything, but what they're on lights up as they go; Stop watching goes back to the Spectator Mode screen)
+    if (s.spectate) {
+      if (!failed) btns.push(btn('Continue', '#88b300', null, '.primary.theirs'));
+      btns.push(btn('Retry', '#eeaa00', null, '.theirs'), btn('Quit', '#aa1b27', null, '.danger.theirs'));
+      for (const b of btns) { b.tabIndex = -1; b.dataset.k = b.textContent.toLowerCase(); b.classList.toggle('spec-sel', b.dataset.k === s.spectate.sel); }
+    } else {
       if (!failed) btns.push(btn('Continue', '#88b300', () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); }, '.primary'));
       btns.push(btn('Retry', '#eeaa00', () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); }));
       btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); this.quit(); }, '.danger'));
+      // (anyone watching sees which you're on)
+      for (const b of btns) { const k = b.textContent.toLowerCase(), sel = () => Spectate.hostAct(s, 'sel', null, { sel: k }); b.addEventListener('pointerenter', sel); b.addEventListener('focus', sel); }
     }
-    for (const b of btns) b.addEventListener('pointerenter', () => SkinManager.skinOnly('pause-hover', 0.7));
+    for (const b of btns) if (!s.spectate) b.addEventListener('pointerenter', () => SkinManager.skinOnly('pause-hover', 0.7));
     // lazer's layout: the yellow 48px title centred in the space above the buttons, the buttons (80px tall, 80% of the
     // width), and "Retry count / Song progress / Accuracy" centred in the space below
     let prog = null;
@@ -1701,8 +1719,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const el = h('div.pause-menu', h('div.pause-box',
       // (lazer's GameplayMenuOverlay descriptions under the title)
       h('div.pm-head', h(`h2${failed ? '.failed' : ''}`, title.toLowerCase()),
-        (d => d ? h('p.pm-desc', d) : null)(s.spectate ? `${s.spectate.name} failed` : failed ? 'you\'re dead, try again?' : /^paused$/i.test(title) ? 'you\'re not going to do what i think you\'re going to do, are ya?' : '')),
+        (d => d ? h('p.pm-desc', d) : null)(s.spectate ? `${s.spectate.name} ${failed ? 'failed' : 'paused'}` : failed ? 'you\'re dead, try again?' : /^paused$/i.test(title) ? 'you\'re not going to do what i think you\'re going to do, are ya?' : '')),
       h('div.pm-buttons', ...btns),
+      s.spectate ? h('button.btn.pm-leave', { onclick: () => { UISounds.click(); Spectate.leavePlay(); } }, icon('x'), 'Stop watching') : null,
       h('div.pm-info',
         s.spectate ? null : h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
@@ -1714,9 +1733,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.el.appendChild(el);
     // (classes, not :has() rules: with any :has() on the page, every change of text anywhere restyles all of it)
     this.el.classList.add('show-cursor', 'pm-open');
-    const first = el.querySelector('button'); first && first.focus();
+    const first = el.querySelector(s.spectate ? '.pm-leave' : 'button'); first && first.focus();
     el.addEventListener('keydown', ev => {
-      const b = $$('button:not(.neru-cameo)', el), i = b.indexOf(document.activeElement);
+      const b = $$('button:not(.neru-cameo):not(.theirs)', el), i = b.indexOf(document.activeElement);
       if (ev.key === 'ArrowDown') { b[(i + 1) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
       if (ev.key === 'ArrowUp') { b[(i - 1 + b.length) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
     });
@@ -1757,7 +1776,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (this.tapEl) { this.tapEl.remove(); this.tapEl = null; }
     this.closePause();
     const delay = s.feed ? 0 : Settings.get('gameplay.unpauseDelay'); // (no countdown when watching)
-    if (delay <= 0) { s.running = true; Music.play(Music.pausedPos); return; }
+    if (delay <= 0) { s.running = true; Music.play(Music.pausedPos); Spectate.hostAct(s, 'resume', this.gameTime()); return; }
     const steps = 3, stepMs = delay / steps;
     const cd = this.cdEl = h('div.countdown', '3');
     this.el.appendChild(cd);
@@ -1766,7 +1785,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const step = () => {
       if (!this.s || this.s !== s) { cd.remove(); return; }
       n--;
-      if (n <= 0) { cd.remove(); this.cdEl = null; SkinManager.skinOnly('gos'); s.running = true; Music.play(Music.pausedPos); return; }
+      if (n <= 0) { cd.remove(); this.cdEl = null; SkinManager.skinOnly('gos'); s.running = true; Music.play(Music.pausedPos); Spectate.hostAct(s, 'resume', this.gameTime()); return; }
       SkinManager.skinOnly(`count${n}s`);
       cd.textContent = String(n);
       this._cdT = setTimeout(step, stepMs);
@@ -1789,6 +1808,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   async fail(now) {
     const s = this.s;
     s.failClock = { real: performance.now(), t: this.gameTime() };
+    Spectate.hostAct(s, 'fail', s.failClock.t); // (anyone watching sees it fail there too, and the fail menu)
     s.running = false; s.failed = true; s.finished = true;
     this.releaseAll();
     this.failEl.classList.add('on');

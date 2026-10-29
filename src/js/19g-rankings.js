@@ -24,7 +24,7 @@ const Verified = {
   /** A play's result, as the server takes it. */
   result(sc) {
     return { score: sc.scoreStd != null ? sc.scoreStd : sc.score, accuracy: sc.accuracy, maxCombo: sc.maxCombo, counts: sc.counts, grade: sc.grade,
-      stars: sc.stars, pp: sc.pp, mods: sc.mods || [], keys: sc.keys, rate: sc.rate || 1, unstableRate: sc.unstableRate || 0, failed: !sc.passed };
+      stars: sc.stars, pp: sc.pp, mods: sc.mods || [], keys: sc.keys, rate: sc.rate || 1, unstableRate: sc.unstableRate || 0, failed: !sc.passed, date: sc.date || 0 };
   },
   /** The beatmap file, base64, as the server hashes it. */
   async file(rec) {
@@ -134,8 +134,10 @@ const Verified = {
       const id = (s, pp) => `${s.mapHash}:${pp.toFixed(2)}`;
       // (one the server last counted lower — osu! doesn't list the beatmap as ranked — isn't sent again for a day)
       const lower = (s, pp) => { const v = verdicts[s.mapHash]; return v && !v.err && v.got != null && Math.abs(v.pp - pp) < 0.01 && Date.now() - v.at < 864e5; };
+      // (one an admin took off: it stays off — never sent again; a better play since is another one)
+      const removed = (s, pp) => { const v = verdicts[s.mapHash]; return v && v.removed && Math.abs(v.pp - pp) < 0.01; };
       const todo = ScoreManager.bestPpPerMap().slice(0, 100).filter(({ score: s, pp }) => pp > floor && !((have.get(s.mapHash) || 0) >= pp - 0.5)
-        && !lower(s, pp) && !tried.has(id(s, pp)) && !(this._unsent && this._unsent.has(s.mapHash))); // (one that didn't get there: at the retry)
+        && !lower(s, pp) && !removed(s, pp) && !tried.has(id(s, pp)) && !(this._unsent && this._unsent.has(s.mapHash))); // (one that didn't get there: at the retry)
       this._sending = new Set(todo.map(x => x.score.mapHash));
       if (todo.length) Bus.emit('verified:verdicts');
       let any = false;
@@ -162,7 +164,7 @@ const Verified = {
           if (!r) { tried.delete(id(b.s, b.pp)); (this._unsent ||= new Set()).add(h); return; }
           if (this._unsent) this._unsent.delete(h);
           if (r.ok) { any = true; this.onServer.set(h, Math.max(this.onServer.get(h) || 0, Number(r.pp) || 0)); if (Number(r.pp) >= b.pp - 0.5) delete verdicts[h]; else verdicts[h] = { pp: b.pp, got: Number(r.pp) || 0, at: Date.now() }; }
-          else verdicts[h] = { pp: b.pp, err: r.error || 'The server couldn\'t take it.', at: Date.now() };
+          else verdicts[h] = { pp: b.pp, err: r.error || 'The server couldn\'t take it.', removed: !!r.removed || undefined, at: Date.now() };
         });
         try { localStorage.setItem(this.VERDICT_KEY, JSON.stringify(verdicts)); } catch { /* full */ }
         if (i < todo.length) await sleep(3200); // (the server takes one lot every few seconds from each player)
@@ -229,7 +231,7 @@ const RankingsScreen = {
       const u = { pid: r.pid, name: r.name, avatar: r.avatar, online: !!r.online, id: r.online ? (Presence.players.find(p => p.pid === r.pid) || {}).id : null };
       const el = h(`div.rk-row${r.pid === me ? '.me' : ''}`,
         h('span.rk-rank', `#${fmtInt(r.rank)}`),
-        h('span.rk-user', Presence.avatarEl(r, 22), h('span.rk-name', r.name), roleBadge(r.role), r.online ? h('span.rk-on', { title: 'Online' }) : null),
+        h('span.rk-user', Presence.avatarEl(r, 22), fxName(h('span.rk-name', r.name), r.role), roleBadge(r.role), r.online ? h('span.rk-on', { title: 'Online' }) : null),
         h('span', fmtInt(r.plays)), h('span.hl', `${fmtInt(Math.round(r.pp))}pp`),
         h('span', fmtInt(r.ss || 0)), h('span', fmtInt(r.s || 0)), h('span', fmtInt(r.a || 0)));
       // (lazer: a player opens their profile; right-click for the rest)

@@ -54,7 +54,7 @@ const App = {
     Screens.register('replays', ReplaysScreen);
     Screens.register('skins', SkinsScreen);
     this.bindGlobal();
-    VolumeOverlay.bind();
+    VolumeOverlay.bind(); MenuScroll.bind();
     LazerCursor.init();
     MediaKeys.init();
     KeyNames.load(); // (the keyboard's own key names, for the key bindings and the keys under the stage)

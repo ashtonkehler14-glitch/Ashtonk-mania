@@ -245,17 +245,16 @@ const SongSelect = {
       // (nothing to pulse to — no music, animations off (Performance mode) — looked in on a few times a second)
       if (!tm || !Music.playing || !this.logoBeat || !Settings.get('ui.animSpeed')) { this._beatT = setTimeout(() => { this._beatRaf = requestAnimationFrame(tick); }, 300); return; }
       const t = Music.time + 60, i = Math.max(0, bsearchLE(tm, t, 'time')), tp = tm[i];
-      const beat = Math.floor((t - tp.time) / tp.beatLength), key = i * 100000 + beat;
+      const L = menuBeatLength(tp.beatLength), beat = Math.floor((t - tp.time) / L), key = i * 100000 + beat;
       if (key !== last && t >= tp.time && beat >= 0) {
         last = key;
-        const L = tp.beatLength;
         this.panelPulse(beat, tp);
         this.logoBeat.getAnimations().forEach(a => a.cancel());
         this.logoBeat.animate([{ scale: 1, easing: 'cubic-bezier(.5, 1, .89, 1)' }, { scale: 0.98, offset: 60 / (60 + L * 2), easing: 'cubic-bezier(.22, 1, .36, 1)' }, { scale: 1 }], { duration: 60 + L * 2 });
       }
       // (looked in on again as the next beat — or timing point — comes round, not every frame: a frame asked for each
       // time, for nothing, had the whole page work out its styles and layers again sixty times a second)
-      const nx = tm[i + 1], until = Math.min(t < tp.time ? tp.time - t : tp.time + (beat + 1) * tp.beatLength - t, nx && nx.time > t ? nx.time - t : Infinity);
+      const nx = tm[i + 1], until = Math.min(t < tp.time ? tp.time - t : tp.time + (beat + 1) * L - t, nx && nx.time > t ? nx.time - t : Infinity);
       this._beatT = setTimeout(() => { this._beatRaf = requestAnimationFrame(tick); }, clamp(until / (Music.rate || 1) - 12, 0, 1000));
     };
     this._beatRaf = requestAnimationFrame(tick);
@@ -266,7 +265,7 @@ const SongSelect = {
   panelPulse(beat, tp) {
     const sc = this.scrollEl || document.querySelector('.carousel-scroll');
     if (!sc || document.documentElement.classList.contains('slow')) return;
-    let len = tp.beatLength; while (len < 250) len *= 2;
+    const len = menuBeatLength(tp.beatLength);
     const meter = tp.meter || 4, f = (() => { for (let i = 2; i <= meter / i; i++) if (meter % i === 0) return i; return meter > 1 ? meter : 2; })();
     const pulse = el => el.animate([{ opacity: .5 }, { opacity: 1, offset: Math.min(.5, 40 / (40 + len)), easing: 'ease-out' }, { opacity: .5 }],
       { duration: 40 + len, pseudoElement: '::after' });

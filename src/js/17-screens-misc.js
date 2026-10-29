@@ -568,10 +568,12 @@ const ProfileScreen = {
     else if (bestSet) online();
     else if (own) { const last = ScoreManager.recent(1)[0], m = last && BeatmapManager.mapByHash(last.mapHash); if (m) BeatmapManager.bgURL(m).then(setCover).catch(() => {}); }
     const u = this.remote ? { pid: this.remote.pid, name: p.name, avatar: this.remote.avatar, online: !!this.remote.online, id: this.remote.id, status: this.remote.status } : null;
-    const top = h('div.pf-top', cover, h('div.pf-top-in',
-      avatar,
+    // (a role's effects: Neru's gold round the picture and on the name — see roleFx)
+    const role = this.remote ? this.remote.role : (this.ownRole || (typeof Presence !== 'undefined' && Presence.role) || null), fx = roleFx(role);
+    const top = h(`div.pf-top${fx ? `.fx-${fx}` : ''}`, { style: fx ? { '--rc': /^#[0-9a-f]{6}$/i.test(role.colour || '') ? role.colour : '#ffcc22' } : {} }, cover, h('div.pf-top-in',
+      fxAvatar(avatar, role),
       h('div.pf-id',
-        h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) { await ProfileManager.setName(n); Toolbar.updateProfile(); } } }, icon('edit')) : null,
+        h('div.pf-name', fxName(h('span.pf-nm', p.name), role), own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) { await ProfileManager.setName(n); Toolbar.updateProfile(); } } }, icon('edit')) : null,
           // (your code: play as yourself on another device)
           own && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => CodePanel.open(Account.signedOut() ? { use: true } : {}) }, icon('lock'), Account.signedOut() ? 'Signed out · Use your code' : 'Your code') : null),
         h('div.pf-tags', roleBadge(this.remote ? this.remote.role : this.ownRole), h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
@@ -919,6 +921,12 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.29b', title: 'Ranked Play, spectating and Neru', sections: [
+    { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length'] },
+    { icon: 'film', title: 'Spectating', items: ['Skips happen only when the player you\'re watching skips', 'Their pause and fail menus show, with what they\'re choosing'] },
+    { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Admins and the Neru role get a gold, Neru-style profile and Ranked look'] },
+    { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly at a speed every computer can keep up with', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
+  ] },
   { id: '2026.10.29', title: 'Neru', sections: [
     { icon: 'heart', title: 'Neru', items: ['A few more Neru secrets to find on the main menu'] },
   ] },

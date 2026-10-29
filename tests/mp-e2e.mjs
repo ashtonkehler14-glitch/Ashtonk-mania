@@ -777,29 +777,34 @@ check('Bob sees who\'s spectating him on his HUD', /Spectators \(1\)/.test(seen)
 // Alice's window losing focus doesn't pause what she's watching
 await alice.evaluate(() => window.dispatchEvent(new Event('blur'))); await alice.waitForTimeout(300);
 check('spectating: switching away doesn\'t bring up the pause menu', await alice.evaluate(() => !document.querySelector('.pause-menu') && AshtonkMania.GameplayScreen.s.running));
-// Bob pauses: Alice's playback catches up with him and waits there ("Waiting for Bob…", as lazer waits for his
-// frames) — no pause menu of her own — and carries on when he continues
+// no Skip of her own while she watches: it skips when Bob does
+check('spectating: no Skip button for the watcher — it skips only when the player does', await alice.evaluate(() => { const b = document.querySelector('.hud-skip'); return !b || b.style.display === 'none'; }));
+// Bob pauses: Alice's playback stops where he paused, and she sees his pause menu — the button he's on lit up as he
+// goes — and it carries on when he continues
 await bob.keyboard.press('Escape');
 await bob.waitForSelector('.pause-menu', { timeout: 3000 });
-const sawWait = await alice.waitForSelector('.spec-wait', { timeout: 10000 }).then(() => true, () => false);
-const pausedT = await alice.evaluate(() => AshtonkMania.Music.time);
+const sawMenu = await alice.waitForSelector('.pause-menu .pm-btn.theirs', { timeout: 10000 }).then(() => true, () => false);
+const pm = await alice.evaluate(() => ({ buttons: [...document.querySelectorAll('.pause-menu .pm-btn')].map(b => b.textContent.trim()).join(), desc: (document.querySelector('.pause-menu .pm-desc') || {}).textContent || '', leave: !!document.querySelector('.pause-menu .pm-leave'), t: AshtonkMania.Music.time, running: AshtonkMania.GameplayScreen.s.running }));
 await alice.waitForTimeout(600);
-const held = await alice.evaluate(t => Math.abs(AshtonkMania.Music.time - t) < 50 && !AshtonkMania.GameplayScreen.s.running && !document.querySelector('.pause-menu'), pausedT);
+const held = await alice.evaluate(t => Math.abs(AshtonkMania.Music.time - t) < 50 && !AshtonkMania.GameplayScreen.s.running, pm.t);
+await bob.hover('.pause-menu .pm-btn:nth-child(2)');
+const lit = await alice.waitForFunction(() => (document.querySelector('.pause-menu .pm-btn.spec-sel') || {}).textContent === 'Retry', null, { timeout: 8000 }).then(() => true, () => false);
+await shot(alice, 'mp-spec-paused');
 await bob.click('.pause-menu .pm-btn.primary');
-const resumed = await alice.waitForFunction(() => !document.querySelector('.spec-wait') && AshtonkMania.GameplayScreen.s.running, null, { timeout: 10000 }).then(() => true, () => false);
-check('spectating: the player pausing holds the watcher\'s playback ("Waiting for Bob…"), and it carries on when he continues', sawWait && held && resumed, JSON.stringify({ sawWait, held, resumed }));
-// Bob fails: Alice's playback fails at the same moment — the fail screen with only Quit (it's his play: no Retry of
-// hers), which takes her back to the Spectator Mode screen, still watching him
+const resumed = await alice.waitForFunction(() => !document.querySelector('.pause-menu') && AshtonkMania.GameplayScreen.s.running, null, { timeout: 10000 }).then(() => true, () => false);
+check('spectating: the player pausing shows the watcher his pause menu ("Bob paused"), playback held where he paused; the button he\'s on lights up; it carries on when he continues',
+  sawMenu && pm.buttons === 'Continue,Retry,Quit' && /Bob paused/.test(pm.desc) && pm.leave && held && lit && resumed, JSON.stringify({ sawMenu, pm, held, lit, resumed }));
+// Bob fails: Alice's playback fails there too — his fail menu (Retry and Quit, his to choose), saying who failed —
+// and Stop watching takes her back to the Spectator Mode screen, still watching him
 {
   await bob.evaluate(() => AshtonkMania.GameplayScreen.fail(AshtonkMania.GameplayScreen.gameTime()));
-  await alice.evaluate(() => AshtonkMania.GameplayScreen.fail(AshtonkMania.GameplayScreen.gameTime()));
-  await alice.waitForSelector('.pause-menu .pm-btn', { timeout: 5000 }).catch(() => {});
-  const own = await alice.evaluate(() => ({ buttons: [...document.querySelectorAll('.pause-menu .pm-btn')].map(b => b.textContent.trim()), head: (document.querySelector('.pause-menu h2') || {}).textContent, desc: (document.querySelector('.pause-menu .pm-desc') || {}).textContent || '' }));
+  await alice.waitForSelector('.pause-menu .pm-btn', { timeout: 10000 }).catch(() => {});
+  const own = await alice.evaluate(() => ({ buttons: [...document.querySelectorAll('.pause-menu .pm-btn')].map(b => b.textContent.trim()), head: (document.querySelector('.pause-menu h2') || {}).textContent, desc: (document.querySelector('.pause-menu .pm-desc') || {}).textContent, failed: !!AshtonkMania.GameplayScreen.s.failed }));
   await shot(alice, 'mp-spec-failed');
-  check('spectating a fail: the fail screen with only Quit, saying who failed', own.buttons.join() === 'Quit' && /failed/.test(own.head) && /Bob failed/.test(own.desc), JSON.stringify(own));
-  await alice.click('.pause-menu .pm-btn');
+  check('spectating a fail: it fails here too — his fail menu (Retry, Quit), saying who failed', own.failed && own.buttons.join() === 'Retry,Quit' && /failed/.test(own.head) && /Bob failed/.test(own.desc), JSON.stringify(own));
+  await alice.click('.pause-menu .pm-leave');
   await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'spectator', null, { timeout: 8000 }).catch(() => {});
-  check('…Quit goes back to the Spectator Mode screen, still watching Bob', await alice.evaluate(() => AshtonkMania.Screens.currentName === 'spectator' && !!AshtonkMania.Spectate.target && AshtonkMania.Spectate.target.name === 'Bob'));
+  check('…Stop watching goes back to the Spectator Mode screen, still watching Bob', await alice.evaluate(() => AshtonkMania.Screens.currentName === 'spectator' && !!AshtonkMania.Spectate.target && AshtonkMania.Spectate.target.name === 'Bob'));
 }
 await alice.evaluate(() => AshtonkMania.Screens.back());
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName !== 'spectator', null, { timeout: 8000 }).catch(() => {});

@@ -133,6 +133,14 @@ const RANKED_GIMMICK = /\b(gimmick|meme|joke|troll|april ?fools?|aspire|sv ?map|
 async function buildRankedDeck(m) {
   const keys = m.keys === 7 ? 7 : 4, targets = (Array.isArray(m.targets) ? m.targets : []).map(Number).filter(Number.isFinite).slice(0, 50);
   if (!targets.length) return;
+  // (each player's star rating: songs with a difficulty near each, one for each player — enough of them, and that's
+  // the deck)
+  const prefs = m.prefs && typeof m.prefs === 'object' ? Object.entries(m.prefs).map(([id, v]) => [id, Number(v)]).filter(([, v]) => Number.isFinite(v) && v > 0) : [];
+  if (prefs.length === 2) {
+    const pairs = await rankedPairDeck(keys, prefs, targets.length);
+    const g = Multiplayer.room && Multiplayer.room.rp;
+    if (pairs.length >= 12) { if (g && g.stage === 'deal') Multiplayer.send({ t: 'pool', maps: pairs }); return; }
+  }
   const sorted = [...targets].sort((a, b) => a - b), lo = Math.max(0, sorted[0] - 0.35), hi = sorted[sorted.length - 1] + 0.35;
   const cand = [], seen = new Set();
   try {
@@ -174,6 +182,61 @@ async function buildRankedDeck(m) {
   if (g && g.stage === 'deal') Multiplayer.send({ t: 'pool', maps: deck.map(({ group, known, ...c }) => c) });
 }
 
+/** Ranked Play cards for two players (`prefs`: [[their id, the star rating they chose], …]): songs — ranked mania sets
+ *  for the key count, online, and from this player's library — with a difficulty near each player's star rating, each
+ *  card holding both (`per`: their id → the difficulty they play). Only a set whose difficulties for the key count are
+ *  all about the same length: one song, never a pack of several songs (or a short and a full version) of different
+ *  lengths. Closest matches first, one card per set, up to `want`. */
+async function rankedPairDeck(keys, prefs, want) {
+  const vals = prefs.map(([, v]) => v), sets = [];
+  const near = (len, a) => Math.abs(len - a) <= Math.max(3000, Math.max(len, a) * 0.03);
+  try {
+    const d = await OnlineBeatmaps.searchPages({ q: '', status: 'ranked', keys: [keys], minStars: Math.max(0, Math.min(...vals) - 0.9), maxStars: Math.max(...vals) + 0.9, nsfw: false }, 6, 12000);
+    for (const set of d.sets || []) {
+      if (RANKED_GIMMICK.test(`${set.title} ${set.tags || ''}`)) continue;
+      sets.push({ title: set.title, artist: set.artist, creator: set.creator, onlineSetId: set.id, hash: '', known: (set.favourites || 0) + (set.playCount || 0) / 100,
+        diffs: (set.diffs || []).filter(x => x.keys === keys && x.id > 0 && !RANKED_GIMMICK.test(x.version || '')).map(x => ({ version: x.version, stars: x.stars, onlineId: x.id, length: (x.length || 0) * 1000 })) });
+    }
+  } catch (e) { console.warn('Ranked Play deck: online search failed', e); }
+  // (this player's own library too: ranked sets already found online aside)
+  const online = new Set(sets.map(s => s.onlineSetId)), local = new Map();
+  for (const x of BeatmapManager.maps.values()) {
+    if (x.keys !== keys || x.problems.length) continue;
+    const set = BeatmapManager.setById.get(x.setId), osid = set && set.onlineId > 0 ? set.onlineId : -1;
+    if (osid > 0 && online.has(osid)) continue;
+    if (!local.has(x.setId)) local.set(x.setId, { title: x.title, artist: x.artist, creator: x.creator, onlineSetId: osid, hash: x.hash, diffs: [] });
+    local.get(x.setId).diffs.push({ version: x.version, stars: x.stars, onlineId: x.onlineId > 0 ? x.onlineId : -1, length: x.length, hash: x.hash });
+  }
+  sets.push(...local.values());
+  const cards = [];
+  for (const tol of [0.5, 0.9]) {
+    cards.length = 0;
+    for (const s of sets) {
+      const ds = s.diffs.filter(x => x.length >= 45000 && x.length <= 360000);
+      if (ds.length < 1) continue;
+      // (one song: every difficulty of the key count about the same length)
+      const lens = s.diffs.map(x => x.length).filter(x => x > 0);
+      if (!lens.length || Math.max(...lens) - Math.min(...lens) > Math.max(5000, Math.max(...lens) * 0.05)) continue;
+      let best = null;
+      for (const a of ds) {
+        if (Math.abs(a.stars - vals[0]) > tol) continue;
+        for (const b of ds) {
+          if (Math.abs(b.stars - vals[1]) > tol || !near(a.length, b.length)) continue;
+          const cost = Math.abs(a.stars - vals[0]) + Math.abs(b.stars - vals[1]) + (s.known != null && s.known < 25 ? 0.12 : 0) + (s.onlineSetId > 0 ? 0 : 0.3);
+          if (!best || cost < best.cost) best = { a, b, cost };
+        }
+      }
+      if (!best) continue;
+      const base = best.a.stars <= best.b.stars ? best.a : best.b;
+      cards.push({ cost: best.cost, card: { hash: base.hash || s.hash || '', title: s.title, artist: s.artist, version: base.version, creator: s.creator, keys,
+        stars: Math.round((best.a.stars + best.b.stars) / 2 * 100) / 100, length: base.length, onlineSetId: s.onlineSetId, onlineId: base.onlineId,
+        per: { [prefs[0][0]]: { version: best.a.version, stars: best.a.stars, onlineId: best.a.onlineId, length: best.a.length }, [prefs[1][0]]: { version: best.b.version, stars: best.b.stars, onlineId: best.b.onlineId, length: best.b.length } } } });
+    }
+    if (cards.length >= 12) break;
+  }
+  return cards.sort((x, y) => x.cost - y.cost).slice(0, want).map(x => x.card);
+}
+
 /** The match screen. Mounted inside the multiplayer screen whenever the room is a Ranked Play match. */
 const RankedMatch = {
   root: null, scr: null,
@@ -182,7 +245,13 @@ const RankedMatch = {
   oppId() { const g = this.g; return g ? Object.keys(g.users).find(id => id !== Multiplayer.me) || null : null; },
   player(id) { return Multiplayer.room ? Multiplayer.room.players.find(p => p.id === id) || null : null; },
   name(id) { const p = this.player(id), u = this.g && this.g.users[id]; return id === Multiplayer.me ? ProfileManager.profile.name : p ? p.name : (u && u.name) || (this._names && this._names[id]) || 'Opponent'; },
-  avatar(id, size) { const u = this.g && this.g.users[id]; return id === Multiplayer.me ? ProfileManager.avatarEl(size) : Presence.avatarEl(this.player(id) || { name: this.name(id), avatar: (u && u.avatar) || '' }, size); },
+  avatar(id, size) { const u = this.g && this.g.users[id]; return fxAvatar(id === Multiplayer.me ? ProfileManager.avatarEl(size) : Presence.avatarEl(this.player(id) || { name: this.name(id), avatar: (u && u.avatar) || '' }, size), this.role(id)); },
+  /** A player's picture in its round frame (`cls`) — one in their role's effects not cut off at the frame's edge. */
+  avBox(cls, id, size) { const a = this.avatar(id, size); return h(`div.${cls}${a.classList.contains('fx-av') ? '.fx-in' : ''}`, a); },
+  /** A player's role (their Neru effects: roleFx), as the game last heard it. */
+  role(id) { const p = id && (id === Multiplayer.me ? { pid: Presence.pid() } : this.player(id)); return p ? roleOfPid(p.pid) : null; },
+  /** A player's name, in their role's effects. */
+  nameEl(id, tag = 'b') { return fxName(h(tag, this.name(id)), this.role(id)); },
 
   mount(scr) {
     this.scr = scr;
@@ -357,11 +426,11 @@ const RankedMatch = {
       el._life = null;
       el.hp = h('i.rkm-hpfill'); el.hpTxt = h('span.rkm-hptxt'); el.multTxt = h('span.rkm-mult'); el.stand = h('span.rkm-stand', 'Last Stand!');
       el.state = h('span.rkm-state'); el.won = h('span.rkm-won');
-      el.av = h('div.rkm-av', this.avatar(id, 72));
+      el.av = this.avBox('rkm-av', id, 72);
       clearEl(el).append(el.av, h('div.rkm-cinfo',
         h('div.rkm-row', el.multTxt, el.stand),
         h('div.rkm-hp', h('div.rkm-hptrack', el.hp), h('span.rkm-heart', '♥'), el.hpTxt),
-        h('div.rkm-row', h('span.rkm-name', this.name(id)), el.won, el.state)));
+        h('div.rkm-row', fxName(h('span.rkm-name', this.name(id)), this.role(id)), el.won, el.state)));
     }
     // the bar eases to the new life; the number follows it (a hit can also arrive mid-results, animated there)
     const life = u.life;
@@ -461,9 +530,9 @@ const RankedMatch = {
     const pub = !(r.settings && r.settings.public === false);
     m.append(h('div.rkm-duel',
       h('div.rkm-duel-t', `${g.keys}K Ranked Play`), h('div.rkm-duel-s', 'No rating at stake · you\'ll both choose a star rating, and the cards are dealt around it'),
-      h('div.rkm-duel-vs', h('div.rkm-duel-p', this.avatar(Multiplayer.me, 84), h('b', ProfileManager.profile.name)),
+      h('div.rkm-duel-vs', h('div.rkm-duel-p', this.avatar(Multiplayer.me, 84), this.nameEl(Multiplayer.me)),
         h('div.rkm-duel-x', 'VS'),
-        opp ? h('div.rkm-duel-p', this.avatar(opp, 84), h('b', this.name(opp))) : h('div.rkm-duel-p.searching', h('div.rkm-duel-ping', h('i'), h('i'), icon('user')), h('b', 'Waiting…'), h('span', 'for someone to join'))),
+        opp ? h('div.rkm-duel-p', this.avatar(opp, 84), this.nameEl(opp)) : h('div.rkm-duel-p.searching', h('div.rkm-duel-ping', h('i'), h('i'), icon('user')), h('b', 'Waiting…'), h('span', 'for someone to join'))),
       h('div.rkm-duel-l', pub ? 'Listed under Open rooms — or share the code' : 'Private — share the code'),
       h('div.rkm-code', h('span', r.code),
         h('button.icon-btn', { title: 'Copy code', 'aria-label': 'Copy code', onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); UISounds.click(); Toast.ok('Room code copied', r.code); } }, icon('copy')),
@@ -512,7 +581,7 @@ const RankedMatch = {
     if (prev === 'deal' && g.stage === 'warmup' && this._introEl) { m.replaceWith(this._introEl); this.stageEl = this._introEl; this._intro = this._introState; this._intro.stars = g.stars; return; }
     const me = Multiplayer.me, opp = this.oppId();
     const side = (id, cls, sc) => h(`div.rki-side.${cls}`, { style: { '--p': sc.primary, '--pd': sc.darker } },
-      h('div.rki-av', this.avatar(id, 132)), h('div.rki-name', id ? this.name(id) : '…'),
+      this.avBox('rki-av', id, 132), id ? fxName(h('div.rki-name', this.name(id)), this.role(id)) : h('div.rki-name', '…'),
       h('div.rki-rt', id && g.users[id] && g.users[id].pref != null ? `Chose ${g.users[id].pref.toFixed(2)}★` : ''));
     const star = h('div.rki-stars', '~0.00'), title = h('div.rki-st', 'Refining star difficulty range...'), sub = h('div.rki-sub', 'Drawn around the star ratings you both chose.');
     const after = h('div.rki-after', 'There\'s always a chance that you get maps outside this range');
@@ -552,6 +621,9 @@ const RankedMatch = {
   card(m, i, { back = false } = {}) {
     const el = h(`div.rkc${back ? '.back' : ''}`, { dataset: { i: String(i) } });
     if (back || !m) { el.append(h('div.rkc-in', h('div.rkc-backside', h('div.rkc-logo', h('span', 'ashtonk!'), h('small', 'ranked play'))))); return el; }
+    // (a card with a difficulty for each player: yours on it — the other player's star rating under it)
+    const own = m.per && m.per[Multiplayer.me], theirs = m.per && Object.entries(m.per).find(([id]) => id !== Multiplayer.me);
+    if (own) m = { ...m, version: own.version, stars: own.stars, length: own.length || m.length };
     const sc = starColour(m.stars || 0), local = Multiplayer.localMap(m);
     el.style.setProperty('--sc', sc);
     const cover = h('div.rkc-cover');
@@ -564,6 +636,7 @@ const RankedMatch = {
         h('div.rkc-top', starBadge(m.stars || 0), h('span.rkc-keys', `${m.keys}K`)),
         h('div.rkc-body',
           h('div.rkc-t', { title: m.title }, m.title), h('div.rkc-a', m.artist), h('div.rkc-v', m.version),
+          theirs && own ? h('div.rkc-vs', { title: `${this.name(theirs[0])} plays ${theirs[1].version}` }, 'vs ', h('b', { style: { color: starColour(theirs[1].stars) } }, `${theirs[1].stars.toFixed(2)}★`)) : null,
           h('div.rkc-meta', len ? h('span', icon('clock'), len) : null, m.creator ? h('span', icon('user'), m.creator) : null))),
       h('div.rkc-backside', h('div.rkc-logo', h('span', 'ashtonk!'), h('small', 'ranked play')))));
     return el;
@@ -718,8 +791,10 @@ const RankedMatch = {
   /** Gameplay warmup (lazer's GameplayWarmupScreen): the card beside the beatmap's details, its song playing from the
    *  preview point; you're ready as soon as you have it, and once both are, a 10 second countdown starts the song. */
   renderWarmup(m, g) {
-    const map = Multiplayer.room.map, card = map ? this.card(map, g.played) : null;
-    const local = Multiplayer.localMap();
+    const card = Multiplayer.room.map ? this.card(Multiplayer.room.map, g.played) : null, own = Multiplayer.room.map && Multiplayer.room.map.per && Multiplayer.room.map.per[Multiplayer.me];
+    // (your own difficulty of it, when each player has one)
+    const map = own ? { ...Multiplayer.room.map, version: own.version, stars: own.stars, length: own.length || Multiplayer.room.map.length } : Multiplayer.room.map;
+    const local = Multiplayer.myMap() || Multiplayer.localMap();
     const mine = g.active === Multiplayer.me;
     this.countEl = h('div.rkw-count');
     const stat = (ic, v, t) => v ? h('span.rkw-stat', { title: t }, icon(ic), v) : null;
@@ -798,7 +873,7 @@ const RankedMatch = {
       const oldLife = d ? d.oldLife : u.life;
       hp.style.transform = `scaleX(${clamp(oldLife / RP_LIFE, 0, 1)})`; hpTxt.textContent = fmtInt(oldLife);
       const el = h(`div.rkr-col${id === res.winner ? '.win' : ''}`, { style: { '--p': sc.primary, '--pd': sc.darker, '--sf': sc.surface } },
-        h('div.rkr-who', this.avatar(id, 56), h('div', h('b', this.name(id)), h('span', res.quit && res.quit[id] ? 'left the song' : `${res.accuracy && res.accuracy[id] != null ? fmtAcc(res.accuracy[id]) : ''}${res.maxCombo && res.maxCombo[id] != null ? ` · ${fmtInt(res.maxCombo[id])}x` : ''}`)),
+        h('div.rkr-who', this.avatar(id, 56), h('div', this.nameEl(id), h('span', res.quit && res.quit[id] ? 'left the song' : `${res.accuracy && res.accuracy[id] != null ? fmtAcc(res.accuracy[id]) : ''}${res.maxCombo && res.maxCombo[id] != null ? ` · ${fmtInt(res.maxCombo[id])}x` : ''}`)),
           res.grade && res.grade[id] && !(res.quit && res.quit[id]) ? rankPill(res.grade[id]) : null),
         scoreEl,
         h('div.rkr-bar', h('i', { style: { '--w': (score / max).toFixed(4) } })),

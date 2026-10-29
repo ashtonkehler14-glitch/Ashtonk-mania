@@ -835,6 +835,11 @@ html.touch .settings-panel .set-row .reset::after { content: ""; position: absol
 .pm-btn:hover .pm-band { left: 6%; right: 6%; box-shadow: 0 0 26px var(--c); filter: brightness(1.12); }
 .pm-btn:active .pm-band { filter: brightness(.9); }
 .pm-btn .pm-label { position: relative; text-shadow: 0 1px 4px rgba(0, 0, 0, .55); }
+/* watching someone's pause or fail menu: theirs to choose from — the button they're on lit up as it would be for them */
+.pm-btn.theirs { cursor: default; pointer-events: none; }
+.pm-btn.theirs .pm-band { filter: saturate(.55) brightness(.7); }
+.pm-btn.theirs.spec-sel .pm-band { left: 6%; right: 6%; box-shadow: 0 0 26px var(--c); filter: brightness(1.12); }
+.pause-box .pm-leave { margin-top: 18px; gap: 6px; }
 .pause-box .pb-sub { color: var(--muted); font-weight: 600; margin-top: 18px; max-width: 440px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .countdown { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font-size: 5rem; font-weight: 700; color: var(--accent-3); text-shadow: 0 0 40px rgba(var(--accent-rgb), .8); pointer-events: none; }
 .practice-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(980px, calc(calc(100 * var(--vw)) - 40px)); padding: 12px 14px; border-radius: 16px; background: rgba(12, 8, 20, .88); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; cursor: default; transition: opacity var(--t-med); }
@@ -1737,7 +1742,7 @@ body.f-chat .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260
 .neru-cameo.nc-card { position: relative; z-index: auto; height: clamp(110px, calc(26 * var(--vh)), 240px); margin: 0 auto 6px; } /* (smaller on a short screen — a phone on its side — so what she's saying stays on it) */
 .neru-cameo.nc-card[hidden] { display: block; visibility: hidden; } /* (her room kept while her picture loads: no jump) */
 .nc-card .nc-img { filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .4)); }
-.slow .nc-img { animation: none; filter: none; }
+.slow .nc-img, .perf .nc-img { animation: none; filter: none; }
 /* ── Neru's easter eggs (NeruEggs) ── */
 .neru.shake .neru-img { animation: neruShake 380ms cubic-bezier(.36, .07, .19, .97); }
 .neru.huff .neru-img { animation: neruShake 560ms cubic-bezier(.36, .07, .19, .97); }
@@ -1758,9 +1763,6 @@ body.f-chat .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260
 .neru-photo::after { content: ""; position: absolute; left: 6%; right: 6%; top: 4.6%; aspect-ratio: 1; background: linear-gradient(130deg, rgba(255, 255, 255, .22), transparent 42%); pointer-events: none; }
 .neru-photo .np-tape { position: absolute; top: -8px; left: 50%; width: 44%; height: 17px; translate: -50% 0; rotate: -5deg; background: rgba(255, 168, 204, .66); box-shadow: 0 1px 2px rgba(0, 0, 0, .14);
   clip-path: polygon(0 8%, 6% 0, 12% 10%, 18% 0, 24% 8%, 30% 0, 36% 10%, 42% 0, 48% 8%, 54% 0, 60% 10%, 66% 0, 72% 8%, 78% 0, 84% 10%, 90% 0, 96% 8%, 100% 0, 100% 92%, 94% 100%, 88% 90%, 82% 100%, 76% 92%, 70% 100%, 64% 90%, 58% 100%, 52% 92%, 46% 100%, 40% 90%, 34% 100%, 28% 92%, 22% 100%, 16% 90%, 10% 100%, 4% 92%, 0 100%); }
-/* something Neru says (her "I'm back~"): a speech bubble beside her face, its tail pointing back at her */
-  padding: .45em .95em .5em; border-radius: 999px; background: linear-gradient(#fff, #f7f2fb); color: #2e1f3d; font-weight: 800; letter-spacing: .01em;
-  font-size: clamp(15px, calc(1.5 * var(--vw)), 24px); line-height: 1.2; box-shadow: 0 8px 22px rgba(0, 0, 0, .38), 0 1px 3px rgba(0, 0, 0, .2); }
 /* Neru's marker on a Teto or Miku profile picture: glasses and a moustache, in ink with a faint paper-white edge */
 .avatar.doodled { position: relative; }
 .neru-doodle { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
@@ -1867,7 +1869,7 @@ body.f-chat .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260
 .nd > i { transform-origin: 50% 0; } /* (a leaf swings from above, as from a stem) */
 .neru-dust { position: absolute; z-index: 2; left: 50%; bottom: -2px; width: 34px; height: 16px; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 255, 255, .55), transparent); }
 @media (prefers-reduced-motion: reduce) { .neru.huff .neru-img, .neru.shake .neru-img, .neru.startle .neru-img, .neru.giggle .neru-img, .neru.wobble .neru-img, .neru.twirl .neru-img, .neru-cameo.twirl .nc-img { animation: none; } }
-.slow .neru-cameo.hop .nc-img { animation: neruHop 620ms linear; }
+.slow .neru-cameo.hop .nc-img, .perf .neru-cameo.hop .nc-img { animation: neruHop 620ms linear; }
 /* ── Invite dialog */
 .inv { display: flex; flex-direction: column; gap: 8px; }
 .inv-label { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
@@ -2982,6 +2984,8 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .rkc-t { font-size: .95rem; font-weight: 700; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .rkc-a { font-size: .76rem; color: rgba(255, 255, 255, .75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rkc-v { margin-top: 3px; font-size: .74rem; font-weight: 700; color: var(--sc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; filter: brightness(1.35); }
+.rkc-vs { font-size: .66rem; color: rgba(255, 255, 255, .5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rkc-vs b { font-weight: 700; }
 .rkc-meta { display: flex; gap: 8px; margin-top: 4px; font-size: .68rem; color: rgba(255, 255, 255, .55); white-space: nowrap; overflow: hidden; }
 .rkc-meta span { display: inline-flex; align-items: center; gap: 3px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .rkc-meta .i { width: 11px; height: 11px; flex: none; }
@@ -3183,6 +3187,34 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 /* a player's role (the server's owner, or an admin the owner made) beside their name, in the role's colour */
 .role-badge { display: inline-flex; align-items: center; gap: 4px; flex: none; height: 18px; padding: 0 7px; border-radius: 99px; background: color-mix(in srgb, var(--rc) 18%, transparent); color: var(--rc); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rc) 45%, transparent); font-size: 11px; font-weight: 700; letter-spacing: .02em; line-height: 1; white-space: nowrap; }
 .role-badge .i { width: 11px; height: 11px; }
+/* a role's effects (roleFx), in Neru's colours: her gold round the picture, glowing, sparkles twinkling on it, and the
+   name shimmering gold and pink — an admin's (the owner's too) the same, quieter, in the role's own colour */
+.fx-neru { --fxc: #ffd23f; } .fx-admin { --fxc: #f5c842; }
+.fx-av { position: relative; display: inline-grid; flex: none; isolation: isolate; }
+.fx-av > .avatar, .fx-av > img { box-shadow: 0 0 0 2px #1d1527, 0 0 0 4px var(--fxc), 0 0 18px 2px color-mix(in srgb, var(--fxc) 50%, transparent) !important; }
+.fx-admin > .avatar, .fx-admin > img { box-shadow: 0 0 0 2px var(--rc, #1d1527), 0 0 0 4px var(--fxc), 0 0 14px 1px color-mix(in srgb, var(--fxc) 40%, transparent) !important; }
+.fx-av::before { content: ""; position: absolute; inset: -16%; z-index: -1; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--fxc) 42%, transparent), transparent); animation: fxGlow 3.2s ease-in-out infinite; pointer-events: none; }
+.fx-admin::before { animation-duration: 4.4s; opacity: .7; }
+@keyframes fxGlow { 0%, 100% { opacity: .5; scale: .95; } 50% { opacity: 1; scale: 1.04; } }
+.fx-spark { position: absolute; top: -9%; right: -9%; width: 24%; min-width: 9px; max-width: 26px; aspect-ratio: 1; z-index: 1; pointer-events: none;
+  background: radial-gradient(circle, #fff 18%, #fff2a8 38%, var(--fxc) 70%); clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+  animation: fxTwinkle 2.6s ease-in-out infinite both; }
+.fx-spark:nth-of-type(2) { top: auto; right: auto; bottom: -2%; left: -8%; width: 16%; animation-delay: .9s; }
+.fx-spark:nth-of-type(3) { right: auto; top: 14%; left: -14%; width: 12%; animation-delay: 1.7s; }
+@keyframes fxTwinkle { 0%, 100% { opacity: 0; scale: .3; rotate: 0deg; } 30% { opacity: 1; scale: 1; } 60% { opacity: .9; scale: .8; rotate: 45deg; } 85% { opacity: 0; scale: .3; rotate: 90deg; } }
+.fx-name.fx-neru, .fx-name.fx-admin { background: linear-gradient(100deg, #ffe680, #ffc53d 30%, #ff9fd0 50%, #ffc53d 70%, #ffe680) 0 0 / 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; text-shadow: none; }
+.fx-name.fx-admin { background-image: linear-gradient(100deg, #ffe680, #f5c842 35%, #fff6d0 50%, #f5c842 65%, #ffe680); }
+/* (shimmering where it's big: the profile, Ranked Play's introductions) */
+.pf-name .fx-name, .rki-name.fx-name, .rkm-duel-p .fx-name { animation: fxShimmer 6s linear infinite; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .55)); }
+@keyframes fxShimmer { to { background-position: -200% 0; } }
+/* the profile's header: a line of her gold along its foot */
+.pf-top.fx-neru::after, .pf-top.fx-admin::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 1; background: linear-gradient(90deg, transparent, var(--fxc) 18%, #ff9fd0 50%, var(--fxc) 82%, transparent); opacity: .9; pointer-events: none; }
+/* (in Ranked Play's round frames, sized as the picture would be there — and not cut off at the frame's edge) */
+.rkm-av.fx-in, .rki-av.fx-in { overflow: visible; }
+.rkm-av > .fx-av > .avatar, .rkm-av > .fx-av > img { width: 72px !important; height: 72px !important; border-radius: 50%; object-fit: cover; }
+.rki-av > .fx-av > * { width: 132px !important; height: 132px !important; border-radius: 50%; object-fit: cover; }
+.rkm-duel-p > .fx-av > .avatar, .rkm-duel-p > .fx-av > img { width: 84px !important; height: 84px !important; border-radius: 50%; object-fit: cover; }
+.rkr-who > .fx-av > .avatar, .rkr-who > .fx-av > img { width: 56px !important; height: 56px !important; border-radius: 50%; object-fit: cover; }
 .rk-user .role-badge { margin-left: 6px; }
 .pf-tags .role-badge { height: 22px; font-size: 12px; padding: 0 9px; }
 .rq-rules { max-width: 520px; font-size: .9rem; line-height: 1.45; color: var(--text-2); }
@@ -3577,8 +3609,8 @@ html.touch .explorer.ov .ex-flabel { padding-top: 7px; }
 .rkm-stage.st-stars { display: flex; }
 
 /* Performance (Chromebook) mode: lighter menus — no idle sway or soft shadows on Neru, no glow shadows on big panels */
-.slow .neru-img { animation: none; filter: none; }
-.slow .neru.hop .neru-img { animation: neruHop 620ms linear; }
+.slow .neru-img, .perf .neru-img { animation: none; filter: none; }
+.slow .neru.hop .neru-img, .perf .neru.hop .neru-img { animation: neruHop 620ms linear; }
 .slow .settings-panel, .slow .np-player, .slow .np-playlist, .slow .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); } /* (the now-playing card's own edge — round the panel, it drew an empty strip below it) */
 
 /* lazer's spectator list on the HUD (left, under the score area), and friend request bits in the online list */
@@ -4652,8 +4684,9 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 
 /* ── Performance mode: the menus at their lightest — nothing moves by itself, no blur, glass or glow, no decoration
    layers. (Gameplay's own effects are turned off by the settings it forces; the playfield itself is untouched.) */
+/* (Neru keeps hers: they're short, set off by what you do — what of hers never stops is left out below) */
 /*@sheet perf*/
-*, *::before, *::after { transition: none !important; animation-duration: 1ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; scroll-behavior: auto !important; }
+:not(.neru, .neru *, .neru-cameo, .neru-cameo *, .neru-dim), :not(.neru, .neru *, .neru-cameo, .neru-cameo *, .neru-dim)::before, :not(.neru, .neru *, .neru-cameo, .neru-cameo *, .neru-dim)::after { transition: none !important; animation-duration: 1ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; scroll-behavior: auto !important; }
 /*@end*/
 :root.perf .lz-vis, :root.perf .lz-fountain, :root.perf .ov-waves, :root.perf .rkm-bgmap, :root.perf .up-cover { display: none !important; }
 :root.perf .panel.glass, :root.perf .bso-card { background-color: rgba(18, 16, 24, .94); }

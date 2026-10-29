@@ -24,7 +24,13 @@
  *   after a fail, her phone out while you pause, a wagging finger at an empty library, worried at a song far above
  *   anything you've passed — fishing when a pause goes on (click her and the fish flops), a headpat, a huff too when
  *   clicked over and over.
- * Finding some unlocks secret medals (Medals' "Neru" group). */
+ * Finding some unlocks secret medals (Medals' "Neru" group).
+ * Performance mode stills the menus, not her: she keeps her hops, poses and the rest — only what follows the music or
+ * never stops (her bob on the beat, her lean towards the pointer, her breathing, the sky and what drifts around her) is
+ * left out there. */
+
+/** Whether Neru moves: the animation speed as the player set it (Performance mode turns the menus' off, not hers). */
+const neruAnim = () => { const v = Settings.values['ui.animSpeed']; return (v == null ? 1 : +v) > 0; };
 
 const NeruMascot = {
   FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
@@ -128,7 +134,7 @@ const NeruMascot = {
       // (where her head is now, for what floats over it — the cross mark, the steam)
       if (this.el) this.el.style.setProperty('--nm-top', `${((1 - f.scale) * 100).toFixed(1)}%`);
     }, () => this.img === img && img.dataset.pose === (name || ''));
-    if (pop && this.img === img && Settings.get('ui.animSpeed')) img.animate([{ filter: 'brightness(1.35) drop-shadow(0 10px 24px rgba(0, 0, 0, .5))' }, { filter: 'drop-shadow(0 10px 24px rgba(0, 0, 0, .5))' }], { duration: 320, easing: 'ease-out' });
+    if (pop && this.img === img && neruAnim()) img.animate([{ filter: 'brightness(1.35) drop-shadow(0 10px 24px rgba(0, 0, 0, .5))' }, { filter: 'drop-shadow(0 10px 24px rgba(0, 0, 0, .5))' }], { duration: 320, easing: 'ease-out' });
   },
   /** Per frame: the lean towards the pointer (eased) and the beat's bob decaying, written as one transform. */
   start() {
@@ -209,7 +215,7 @@ const NeruMascot = {
   },
   /** A handful of sparkles that burst out around her and fade. */
   sparkle() {
-    if (!this.el || !Settings.get('ui.animSpeed')) return;
+    if (!this.el || !neruAnim()) return;
     const colors = ['#ffd54a', '#ff8cc0', '#ffffff', '#8fd3ff'];
     for (let i = 0; i < 7; i++) {
       const sp = h('span.neru-spark');
@@ -357,7 +363,7 @@ const NeruCameo = {
       if (!el.isConnected && !el.parentNode) return;
       el.append(h('span.nc-body', img));
       el.hidden = false;
-      const anim = !!Settings.get('ui.animSpeed');
+      const anim = !!neruAnim();
       if (anim) el.classList.add('in');
       setTimeout(() => { if (el.isConnected && pleased) this.burst(el); }, anim ? delay : 0);
       // (her sunglasses on — an SS — catch the light now and then)
@@ -434,7 +440,7 @@ const NeruCameo = {
     // (a picture that couldn't be loaded — offline — never replaces the one she has)
     if (!still() || !pre.naturalWidth) return;
     if (img._flopEnd) img._flopEnd(); // (a fish flopping on her line: over, the picture's changing)
-    const box = img.parentElement, anim = Settings.get('ui.animSpeed') && !document.documentElement.classList.contains('slow');
+    const box = img.parentElement, anim = neruAnim() && !document.documentElement.classList.contains('slow');
     if (anim && box && img.isConnected && img.complete && img.naturalWidth && img.getAttribute('src') !== src) {
       // (the old picture, where it was — held to the bottom, as she stands — fading away over the new one)
       const ghost = img.cloneNode(); ghost.classList.add('neru-ghost'); ghost.removeAttribute('data-pose');
@@ -449,7 +455,7 @@ const NeruCameo = {
   },
   /** A few sparkles that burst out around her head and fade — when she's pleased (not that she'd say so). */
   burst(el) {
-    if (!Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
+    if (!neruAnim() || document.documentElement.classList.contains('slow')) return;
     const colors = ['#ffd54a', '#ff8cc0', '#ffffff', '#8fd3ff'];
     for (let i = 0; i < 6; i++) {
       const sp = h('span.neru-spark');
@@ -576,7 +582,7 @@ const NeruEggs = {
    *  (the main menu's or a screen's); `pose(name)` puts her in a pose — whether it's there — and back (null). */
   clickedOver(who, box, img, pose) {
     if (!box || !img || box._fanBusy) return;
-    const photo = who && (this.PHOTOS[who] || []).length && !box.classList.contains('behind') && Settings.get('ui.animSpeed');
+    const photo = who && (this.PHOTOS[who] || []).length && !box.classList.contains('behind') && neruAnim();
     const kind = !who ? 'angry' : photo && Math.random() < 0.5 ? 'photo' : 'thought';
     box._fanBusy = true;
     let held = null; // (the photo or the thought bubble, waited out)
@@ -648,7 +654,7 @@ const NeruEggs = {
   /** The anger mark — the cross of four curved strokes over her head, pulsing — and a few puffs of steam: a huff,
    *  wherever she is (`el`: her element; what's over her head is placed by --nm-top). */
   fume(el) {
-    if (!Settings.get('ui.animSpeed')) return;
+    if (!neruAnim()) return;
     const light = document.documentElement.classList.contains('slow'); // (lighter: the mark alone, no steam)
     const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), g = document.createElementNS(NS, 'g');
     svg.setAttribute('viewBox', '0 0 40 40');
@@ -811,7 +817,7 @@ const NeruEggs = {
       el.remove();
       if (box === M.el && M._afterPhoto !== undefined) { const n = M._afterPhoto; M._afterPhoto = undefined; M.show(n, { pop: false }); }
     };
-    if (!Settings.get('ui.animSpeed')) { setTimeout(away, ms); return el; }
+    if (!neruAnim()) { setTimeout(away, ms); return el; }
     // (flicked up into place with a little overshoot, and dropped away again)
     el.animate([{ transform: 'translateY(46px) scale(.55)', rotate: `${tilt * 3}deg`, opacity: 0 }, { transform: 'translateY(-6px) scale(1.04)', rotate: `${tilt * 0.5}deg`, opacity: 1, offset: 0.62 }, { transform: 'none', rotate: `${tilt}deg`, opacity: 1 }],
       { duration: 560, easing: 'cubic-bezier(.22, 1, .36, 1)' });
@@ -884,7 +890,7 @@ const NeruEggs = {
     el.append(svg);
     // (the first one this session is drawn as you look — one made again while that's under way picks it up where it
     // is — with a snicker; after that, it's just there)
-    if (!Settings.get('ui.animSpeed')) return;
+    if (!neruAnim()) return;
     const now = performance.now();
     if (this._doodleAt == null) {
       this._doodleAt = now;
@@ -959,7 +965,7 @@ const NeruEggs = {
       el.remove();
       if (box === M.el && M._afterPhoto !== undefined && !box.querySelector(':scope > .neru-photo')) { const n = M._afterPhoto; M._afterPhoto = undefined; M.show(n, { pop: false }); }
     };
-    const anim = !!Settings.get('ui.animSpeed');
+    const anim = !!neruAnim();
     if (!anim) { setTimeout(away, 2600); return el; }
     el.animate([{ transform: `translate(${tx}, -50%) scale(.2)`, opacity: 0 }, { transform: `translate(${tx}, -50%) scale(1.08)`, opacity: 1, offset: 0.6 }, { transform: `translate(${tx}, -50%) scale(1)`, opacity: 1 }],
       { duration: 380, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' });
@@ -1060,7 +1066,7 @@ const NeruEggs = {
   /** A small Neru peeking up from the bottom edge of the screen for a moment, in `mood`'s pose — clicks go through her
    *  to whatever she's in front of (song select's Back button, say). `found`: her name searched for (a medal). */
   peek(mood = 'list', { found = true, side = null, then = null } = {}) {
-    if (!Settings.get('ui.animSpeed') || document.querySelector('.nc-peek') || this.onScreen()) return null;
+    if (!neruAnim() || document.querySelector('.nc-peek') || this.onScreen()) return null;
     const el = NeruCameo.make(mood, 'nc-peek');
     if (!el) return null;
     if (side === 'right') el.classList.add('right');
@@ -1405,7 +1411,7 @@ const NeruEggs = {
   twinkle(el) {
     if (!el) return;
     const html = document.documentElement, still = matchMedia('(prefers-reduced-motion: reduce)');
-    const quiet = () => !Settings.get('ui.animSpeed') || still.matches || html.classList.contains('slow') || html.classList.contains('perf');
+    const quiet = () => !neruAnim() || still.matches || html.classList.contains('slow') || html.classList.contains('perf');
     if (quiet()) return;
     const sky = h('span.neru-sky', { 'aria-hidden': 'true' });
     el.prepend(sky);
@@ -1450,7 +1456,7 @@ const NeruEggs = {
     const K = kind === 'snow' && this.christmas() ? { ...this.DRIFT.snow, every: [150, 360], most: 34 } : this.DRIFT[kind];
     if (!K || !el) return;
     const html = document.documentElement, still = matchMedia('(prefers-reduced-motion: reduce)');
-    const quiet = () => !Settings.get('ui.animSpeed') || still.matches || html.classList.contains('slow') || html.classList.contains('perf');
+    const quiet = () => !neruAnim() || still.matches || html.classList.contains('slow') || html.classList.contains('perf');
     if (quiet()) return;
     const back = h(`span.neru-drift.nd-${kind}`, { 'aria-hidden': 'true' }), front = h(`span.neru-drift.nd-${kind}.nd-front`, { 'aria-hidden': 'true' });
     // (and the ground at her feet, where what falls can settle)
@@ -1539,7 +1545,7 @@ const NeruEggs = {
   /** One glint across the sunglasses of her "cool" picture `img` (inside `box`): a streak of light over the lenses and
    *  a twinkle at their corner. */
   glint(box, img) {
-    if (!box || !img || !img.isConnected || !Settings.get('ui.animSpeed') || !img.offsetWidth) return;
+    if (!box || !img || !img.isConnected || !neruAnim() || !img.offsetWidth) return;
     const w = img.offsetWidth, hh = img.offsetHeight, x0 = img.offsetLeft, y0 = img.offsetTop;
     // (where the lenses are in that picture, as fractions of it)
     const g = h('span.neru-glint', h('i'));
@@ -1568,7 +1574,7 @@ const NeruEggs = {
   flopFish(box, img) {
     this.found('fish');
     UISounds.play('check-on');
-    if (!box || !img || img._flopEnd || !Settings.get('ui.animSpeed') || !img.offsetWidth) return;
+    if (!box || !img || img._flopEnd || !neruAnim() || !img.offsetWidth) return;
     if (!(CSS.supports('mask-composite', 'exclude') || CSS.supports('-webkit-mask-composite', 'xor'))) return;
     const F = this.FISH, w = img.offsetWidth, hh = img.offsetHeight, cs = getComputedStyle(img);
     const L = w * F.l, T = hh * F.t, W = w * (F.r - F.l), H = hh * (F.b - F.t), mx = w * F.mx, my = hh * F.my;
@@ -1693,7 +1699,7 @@ const NeruEggs = {
     if (!on) {
       const d = this._dim; this._dim = null;
       if (M.el) M.el.classList.remove('lit');
-      if (d) { if (Settings.get('ui.animSpeed')) d.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, easing: 'ease-out' }).onfinish = () => d.remove(); else d.remove(); }
+      if (d) { if (neruAnim()) d.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, easing: 'ease-out' }).onfinish = () => d.remove(); else d.remove(); }
       return;
     }
     if (!home || this._dim) return;
@@ -1703,7 +1709,7 @@ const NeruEggs = {
     d.style.background = `radial-gradient(circle at ${x.toFixed(0)}px ${y.toFixed(0)}px, rgba(4, 2, 12, 0) ${(rad * 0.38).toFixed(0)}px, rgba(4, 2, 12, .66) ${(rad * 0.85).toFixed(0)}px)`;
     home.append(d);
     M.el.classList.add('lit');
-    if (Settings.get('ui.animSpeed')) d.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+    if (neruAnim()) d.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
   },
 
   // ── picked up: press and drag her and she hangs from your pointer, swinging as it moves and wagging a finger at you;
@@ -1795,7 +1801,7 @@ const NeruEggs = {
     if (k >= 1) {
       // (landed: a squash, a little dust, and she's put out about it)
       M._drop = null; M.body.style.transformOrigin = ''; M._bob = 1;
-      if (Settings.get('ui.animSpeed')) for (const side of [-1, 1]) {
+      if (neruAnim()) for (const side of [-1, 1]) {
         const p = h('span.neru-dust'); M.el.append(p);
         p.animate([{ transform: 'translate(-50%, 0) scale(.4)', opacity: 0.8 }, { transform: `translate(calc(-50% + ${side * 46}px), -10px) scale(1.4)`, opacity: 0 }], { duration: 520, easing: 'cubic-bezier(.22, 1, .36, 1)' }).onfinish = () => p.remove();
       }
@@ -1844,7 +1850,7 @@ const NeruEggs = {
   /** Little stars going round her head, cartoon-dizzy, for `ms`. */
   daze(ms = 2300) {
     const M = NeruMascot;
-    if (!M.el || !M.img || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
+    if (!M.el || !M.img || !neruAnim() || document.documentElement.classList.contains('slow')) return;
     const er = M.el.getBoundingClientRect(), ir = M.img.getBoundingClientRect(), k = M.el.offsetWidth ? er.width / M.el.offsetWidth : 1;
     const cx = (ir.left - er.left + ir.width * 0.5) / k, cy = (ir.top - er.top + ir.height * 0.08) / k, rx = ir.width * 0.26 / k, ry = rx * 0.32;
     for (let i = 0; i < 3; i++) {
@@ -1917,7 +1923,7 @@ const NeruEggs = {
       el.append(c);
     }
     body.append(el);
-    const anim = Settings.get('ui.animSpeed');
+    const anim = neruAnim();
     if (anim) el.animate([{ opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1 }], { duration: 320, easing: 'cubic-bezier(.22, 1, .36, 1)' });
     const t0 = performance.now(), away = () => { clearInterval(watch); if (!el.isConnected) return; if (!anim) { el.remove(); return; } el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, easing: 'ease-in', fill: 'forwards' }).onfinish = () => el.remove(); };
     // (her picture changed — a click, another pose: gone with it, at once)
@@ -1926,7 +1932,7 @@ const NeruEggs = {
   /** A little heart floating up beside her face (and fading): the main menu's Neru, or `box` with her picture `img` —
    *  a small Neru on another screen. */
   heart(box = NeruMascot.el, img = NeruMascot.img) {
-    if (!box || !img || !box.isConnected || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
+    if (!box || !img || !box.isConnected || !neruAnim() || document.documentElement.classList.contains('slow')) return;
     const er = box.getBoundingClientRect(), ir = img.getBoundingClientRect(), k = box.offsetWidth ? er.width / box.offsetWidth : 1;
     // (from beside her face, not the top of her head: on the main menu that's under its bar of buttons)
     const side = Math.random() < 0.5 ? -1 : 1, x = (ir.left - er.left + ir.width * (0.5 + side * (0.2 + Math.random() * 0.22))) / k, y = (ir.top - er.top + ir.height * (0.2 + Math.random() * 0.12)) / k;
@@ -1944,7 +1950,7 @@ const NeruEggs = {
 
   /** A little cloud of gloom over her head: wavy lines, as a manga draws a sulk. */
   gloom(el) {
-    if (!el || !Settings.get('ui.animSpeed')) return;
+    if (!el || !neruAnim()) return;
     const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), g = document.createElementNS(NS, 'g');
     svg.setAttribute('viewBox', '0 0 40 30');
     for (const [k, v] of [['fill', 'none'], ['stroke', '#6f5a9e'], ['stroke-width', '2.6'], ['stroke-linecap', 'round']]) g.setAttribute(k, v);
@@ -1968,7 +1974,7 @@ const NeruEggs = {
   },
   /** A bead of sweat running down beside her face. */
   sweat(el) {
-    if (!el || !Settings.get('ui.animSpeed')) return;
+    if (!el || !neruAnim()) return;
     const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), pa = document.createElementNS(NS, 'path');
     svg.setAttribute('viewBox', '0 0 20 28');
     pa.setAttribute('d', 'M10 2C10 2 3 12 3 18a7 7 0 0 0 14 0C17 12 10 2 10 2z');

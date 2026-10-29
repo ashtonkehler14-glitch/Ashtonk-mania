@@ -241,13 +241,13 @@ const HomeScreen = {
   },
   /** lazer's MenuSideFlashes: the screen's edges light up with the music — both on each bar's first beat, or
    *  left and right in turn on every beat during kiai — as bright as the track is loud, fading over a beat. */
-  sideFlash(beat, tp, kiai, amp) {
+  sideFlash(beat, beatLength, meter = 4, kiai, amp) {
     if (!this.flashL || !Settings.get('ui.animSpeed')) return;
-    const meter = tp.meter || 4;
+    meter = meter || 4;
     // kept soft: a glow that breathes with the music rather than a flash (capped well below full strength)
     const alpha = clamp((amp - 0.3) / 1.6, 0, kiai ? 0.36 : 0.28);
     if (alpha < 0.04) return;
-    const rise = 140, dur = rise + tp.beatLength * 1.4;
+    const rise = 140, dur = rise + beatLength * 1.4;
     // (from wherever the last glow has faded to, so beats close together never pop)
     const flash = el => { const from = +getComputedStyle(el).opacity || 0; el.getAnimations().forEach(a => a.cancel()); el.animate([{ opacity: from, easing: 'cubic-bezier(.3, 0, .2, 1)' }, { opacity: alpha, offset: rise / dur, easing: 'cubic-bezier(.25, .6, .3, 1)' }, { opacity: 0 }], { duration: dur }); };
     if (kiai ? beat % 2 === 0 : beat % meter === 0) flash(this.flashL);
@@ -436,7 +436,8 @@ const HomeScreen = {
       }
       // ── the cookie's triangles (TrianglesV2: 14 outlines, 300 wide, drifting up at 50px/s × velocity)
       vel = playing ? vel + ((this._kiai ? 2 : 1) - vel) * (1 - Math.pow(0.995, dt)) : vel + (0.5 - vel) * (1 - Math.pow(0.9, dt));
-      if (this._kick) { vel += this._kick; this._kick = 0; }
+      // (pushed on each beat — never past a steady drift, however fast the song)
+      if (this._kick) { vel = Math.min(vel + this._kick, this._kiai ? 7 : 5); this._kick = 0; }
       const tc = this.tris, TS = this._triS || (lite ? 192 : 384);
       if (tc.width !== TS) { tc.width = tc.height = TS; this._triGrad = null; }
       const tx = tc.getContext('2d');
@@ -462,9 +463,9 @@ const HomeScreen = {
       // ── beat (60ms early, as lazer's logo), from the playing track's red lines
       const tm = Music.meta && Music.meta.timing;
       if (tm && Music.playing) {
-        const t = Music.time + 60, i = Math.max(0, bsearchLE(tm, t, 'time')), tp = tm[i];
-        const beat = Math.floor((t - tp.time) / tp.beatLength), key = i * 100000 + beat;
-        this._nextBeatIn = tp.time + (beat + 1) * tp.beatLength - 60 - Music.time;
+        const t = Music.time + 60, i = Math.max(0, bsearchLE(tm, t, 'time')), tp = tm[i], L = menuBeatLength(tp.beatLength);
+        const beat = Math.floor((t - tp.time) / L), key = i * 100000 + beat;
+        this._nextBeatIn = tp.time + (beat + 1) * L - 60 - Music.time;
         if (key !== lastBeat && t >= tp.time && beat >= 0) {
           lastBeat = key;
           const kp = tm.kiai && tm.kiai.length ? tm.kiai[Math.max(0, bsearchLE(tm.kiai, t, 'time'))] : null;
@@ -473,10 +474,10 @@ const HomeScreen = {
           if (kiai && !this._kiai && Math.abs(t - kp.time) < 500 && !lite) this.shootFountains();
           this._kiai = kiai;
           const adj = Math.min(1, 0.4 + (this._peak || 0));
-          this.logoBeat(tp.beatLength, adj, kiai);
-          setTimeout(() => this.onBeat(tp.beatLength), 60);
+          this.logoBeat(L, adj, kiai);
+          setTimeout(() => this.onBeat(L), 60);
           let a = 0; for (let j = 0; j < 8; j++) a = Math.max(a, freq[j] * 4);
-          this.sideFlash(beat, tp, kiai, a);
+          this.sideFlash(beat, L, tp.meter, kiai, a);
         }
       } else { this._kiai = false; this._nextBeatIn = 300; if (now - (this._idleBeat || 0) > 600) { this._idleBeat = now; this.onBeat(600); } }
       this.drawFountains(now);

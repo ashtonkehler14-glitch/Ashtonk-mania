@@ -120,6 +120,8 @@ const Spectate = {
       for (const x of m.ev || []) c.feed.push(x);
       c.at = Math.max(c.at, m.at || 0);
       if (m.last) c.ready = true;
+      // (what they did — a skip, a pause, their pause menu, a fail: it happens here as playback gets there)
+      if (m.act && typeof m.act === 'object') c.acts.push(m.act);
       return;
     }
     if (m.t !== 'specEnd') return;
@@ -151,18 +153,32 @@ const Spectate = {
     const t = this.target;
     if (Screens.currentName === 'gameplay' && !this.watchingNow()) return; // (never takes over your own play)
     t.lost = false;
-    this.cur = { id: m.id, name: m.name, head: m.head, feed: (m.ev || []).slice(), at: m.at || 0, ready: !!m.hist, ended: false, quit: false, started: false };
+    this.cur = { id: m.id, name: m.name, head: m.head, feed: (m.ev || []).slice(), at: m.at || 0, ready: !!m.hist, ended: false, quit: false, started: false, acts: [] };
     if (t.room) {
       if (!this.findMap(m.head)) { this.stop({ quiet: true }); Toast.err(`Can't spectate ${m.name}`, 'You haven\'t got this beatmap yet.'); return; }
       this.tryStart();
       return;
     }
     // (lazer: a new play of theirs takes you from the one you were watching, or its results, back to the screen — which
-    // starts it)
-    if (this.watchingNow() || this.onResults()) { this.toScreen(); return; }
+    // starts it; their fail, still to come here or only just shown, first gets a moment to be seen)
+    if (this.watchingNow() || this.onResults()) {
+      const hold = this.failHold(), cur = this.cur;
+      clearTimeout(this._holdT);
+      if (hold > 0) this._holdT = setTimeout(() => { if (this.cur === cur) this.toScreen(); }, hold);
+      else this.toScreen();
+      return;
+    }
     SpectatorScreen.paint();
     this.autoDownload();
     this.tryStart();
+  },
+  /** How long their fail, on the play you're watching, still needs to be seen: on its way (played here a moment behind
+   *  theirs), or only just shown. */
+  failHold() {
+    const s = GameplayScreen.s, c = s && s.spectate;
+    if (!this.watchingNow() || !c) return 0;
+    if (c.acts && c.acts.some(a => a.k === 'fail')) return SPEC_DELAY + 2600;
+    return s.failClock ? Math.max(0, 2400 - (performance.now() - s.failClock.real)) : 0;
   },
   findMap(head) { return BeatmapManager.mapByHash(head.mapHash) || (head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === head.onlineId) : null); },
   /** Can Start Watching start their play? They're mid-song, and it's in your library. */
@@ -175,7 +191,7 @@ const Spectate = {
     if (Screens.currentName !== (t.room ? 'multiplayer' : 'spectator') || Screens.busy) return;
     const map = this.findMap(c.head);
     c.started = true;
-    Object.assign(c, { synced: false, buffering: false, lag: 0, msg: null }); // (a fresh run of the same play)
+    Object.assign(c, { synced: false, buffering: false, lag: 0, msg: null, paused: false }); // (a fresh run of the same play)
     this._launching = true;
     Game.launch({ mapId: map.id, mode: 'replay', replay: { ...c.head, events: c.feed, player: c.name, mapId: map.id, summary: null }, spectate: c, back: t.room ? null : { name: 'spectator' } });
   },
@@ -213,12 +229,14 @@ const Spectate = {
    *  whenever playback catches up with it. */
   tick(screen, s, now) {
     const c = s.spectate;
-    if (!c || s.finished || c.quit) return;
+    if (!c) return;
+    if (c.synced && c.acts && c.acts.length) this.acts(screen, s, c, now);
+    if (s.finished || c.quit || c.paused) return;
     if (!c.synced) {
       if (!c.ready) { if (s.running) this.buffer(screen, s, true); return; }
       c.synced = true;
       const target = c.at - SPEC_DELAY * s.rate;
-      if (target > now + 1000) screen.replaySeek(target);
+      if (target > now + 1000) { screen.replaySeek(target); c.acts = c.acts.filter(a => (+a.t || 0) >= target); } // (what they did before here is long done)
       if (c.buffering) this.buffer(screen, s, false);
       return;
     }
@@ -228,10 +246,37 @@ const Spectate = {
     if (s.running && now > c.at - 150 * s.rate) { c.lag = Math.min(3000, (c.lag || 0) + 400); this.buffer(screen, s, true); }
     else if (c.buffering && c.at - now > (SPEC_DELAY * 0.6 + (c.lag || 0)) * s.rate) this.buffer(screen, s, false);
   },
+  /** What they did, played here as playback reaches the moment they did it (`t`, song time): their skip (the intro, or
+   *  a storyboard's outro); their pause — their pause menu, the button they're on lit up as they go (`sel`) — and
+   *  carrying on; their fail (the fail menu, the same). A pause or fail also stops playback that's caught up with them
+   *  — it's waiting right there. */
+  acts(screen, s, c, now) {
+    while (c.acts.length) {
+      const a = c.acts[0], k = a.k;
+      const due = k === 'sel' || k === 'resume' || now >= (+a.t || 0) - 30 * s.rate || (c.buffering && (k === 'pause' || k === 'fail'));
+      if (!due) return;
+      c.acts.shift();
+      if (k === 'skip' || k === 'outro') screen.specSkip(s, k === 'outro');
+      else if (k === 'pause' && !s.finished && !c.paused) {
+        if (c.buffering) this.buffer(screen, s, false);
+        s.running = false; Music.pause(); c.paused = true; c.sel = null;
+        screen.showPause('Paused');
+      } else if (k === 'resume' && c.paused) {
+        c.paused = false; screen.closePause();
+        if (!s.finished) { s.running = true; Music.play(Music.pausedPos); }
+      } else if (k === 'fail' && !s.finished) {
+        if (c.buffering) this.buffer(screen, s, false);
+        c.paused = false; c.sel = null; screen.closePause(); screen.fail(screen.gameTime());
+      } else if (k === 'sel') {
+        c.sel = String(a.sel || '');
+        if (screen.pauseEl) for (const b of screen.pauseEl.querySelectorAll('.pm-btn.theirs')) b.classList.toggle('spec-sel', b.dataset.k === c.sel);
+      }
+    }
+  },
   /** Back in the tab after a while: straight back to the live play (a couple of seconds behind it). */
   catchUp(screen, s) {
     const c = s.spectate;
-    if (!c || !c.synced || c.ended || s.finished || screen.pauseEl) return;
+    if (!c || !c.synced || c.ended || s.finished || screen.pauseEl || c.paused) return;
     if (AudioManager.ctx && AudioManager.ctx.state !== 'running') AudioManager.resume();
     const target = c.at - SPEC_DELAY * s.rate, now = screen.gameTime();
     if (target - now > 1500 * s.rate || now > c.at) screen.replaySeek(Math.max(0, target));
@@ -298,6 +343,17 @@ const Spectate = {
     const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100);
     H.sent = s.events.length;
     Presence.send({ t: 'frames', ev, at: now });
+  },
+  /** What you just did (`k`: skip, outro, pause, resume, fail, or sel — the pause menu button you're on), at `t` in the
+   *  song, for anyone watching: it happens in their play too, as it gets there. Played so far goes first. */
+  hostAct(s, k, t, extra = {}) {
+    const H = this.host;
+    if (H.s !== s || !H.watchers || !Presence.ws) return;
+    if (k === 'sel') { if (H.sel === extra.sel) return; H.sel = extra.sel; } else H.sel = null;
+    const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100), at = t == null ? this.songTime(s) : t;
+    H.sent = s.events.length; H.lastSend = performance.now();
+    // (a pause or fail: what's to be played reaches a little past it, so playback there gets right up to it)
+    Presence.send({ t: 'frames', ev, at: k === 'pause' || k === 'fail' ? at + 400 : at, act: { k, t: Math.round(at), ...extra } });
   },
   hostEnd(s, quit) {
     const H = this.host;

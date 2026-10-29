@@ -505,6 +505,40 @@ test('Ranked Play fairness: the deck leans to the lower star choice, and the ope
   assert.ok(Math.abs(sum(ha) - sum(hb)) <= gaps + 1e-9, `matched hands (${sum(ha).toFixed(2)} vs ${sum(hb).toFixed(2)})`);
 });
 
+test('Ranked Play: each player gets their own difficulty of the card\'s song, near the star rating they chose, of the same length', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('RD', () => clock.t, () => 0.25);
+  r.join('a', 'Alice', true, { mode: 'rp', keys: 4 }); r.join('b', 'Bob', false, {});
+  r.message('a', { t: 'rpStars', stars: 5 });
+  const ask = msgs(r.message('b', { t: 'rpStars', stars: 2 }), 'rpDeck')[0];
+  assert.deepEqual(ask.msg.prefs, { a: 5, b: 2 }, 'the dealer is told each player\'s star rating');
+  const card = (i, lenB = 120000) => ({ ...MAP, hash: 'p' + i, title: 'Pair ' + i, version: 'Easy', stars: 3.5, onlineSetId: 700 + i, onlineId: 7000 + i,
+    per: { a: { version: 'Insane', stars: 5.02, onlineId: 7100 + i, length: 120000 }, b: { version: 'Easy', stars: 2.01, onlineId: 7000 + i, length: lenB } } });
+  // (one card whose two difficulties are different songs' lengths — a pack — is left out)
+  r.message('a', { t: 'pool', maps: [card(0, 60000), ...Array.from({ length: 30 }, (_, i) => card(i + 1))] });
+  assert.equal(r.rp.pool.length, 30);
+  assert.ok(r.rp.pool.every(m => m.per.a.stars === 5.02 && m.per.b.stars === 2.01));
+  assert.ok(!r.rp.pool.some(m => m.title === 'Pair 0'), 'the card with a short and a full version is gone');
+  assert.ok(Math.abs(r.rp.stars - 3.5) < 0.01);
+  // the card played: each has their own difficulty of it, and can't change it
+  tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
+  tickTo(r, clock); tickTo(r, clock);
+  assert.equal(r.rp.stage, 'pick');
+  const c = r.rp.user(r.rp.active).hand[0];
+  r.message(r.rp.active, { t: 'play', card: c });
+  assert.deepEqual([r.get('a').diff.version, r.get('b').diff.version], ['Insane', 'Easy']);
+  r.message('a', { t: 'diff', diff: { version: 'Easy', stars: 2, keys: 4 } });
+  assert.equal(r.get('a').diff.version, 'Insane', 'no picking another difficulty in Ranked Play');
+  // their own difficulty is their play; the other player's isn't
+  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
+  r.message('a', { t: 'rpready', ready: true }); r.message('b', { t: 'rpready', ready: true });
+  tickTo(r, clock);
+  assert.equal(r.state, 'playing');
+  const m = r.map, play = { score: 800000, accuracy: 0.95, maxCombo: 300, counts: [200, 50, 5, 0, 0, 1], grade: 'A', failed: false, pp: 50, mods: [], beatmapSetId: m.onlineSetId };
+  assert.equal(r.verify('a', r.get('a').token, { ...play, beatmapId: m.per.b.onlineId }, {}).error, 'Not this room\'s beatmap.', 'Bob\'s easier difficulty');
+  assert.equal(r.verify('b', r.get('b').token, { ...play, beatmapId: m.per.b.onlineId }, {}).ok, true);
+});
+
 test('Ranked Play rating: OpenSkill Plackett–Luce on the final life (μ 1500, σ 150, τ 15)', () => {
   const [w, l] = rateMatch([{ mu: 1500, sigma: 150, score: 600000 }, { mu: 1500, sigma: 150, score: 0 }]);
   assert.ok(Math.abs(w.mu - 1553.3) < 0.5 && Math.abs(l.mu - 1446.7) < 0.5, `±53 between equals (${w.mu}, ${l.mu})`);
@@ -988,6 +1022,20 @@ test('each lounge joins only its own kind of room: a duel from the Ranked Play l
   assert.ok(room.join('c', 'Cat', false, {}).ok, 'an invite link joins whatever the room is');
 });
 
+test('an admin\'s wipe stays: plays from before it aren\'t taken back from the player\'s game catching up — only ones made since', () => {
+  const clock = { t: 1000 };
+  const p = new PresenceLogic(() => clock.t);
+  const kept = []; p.persistTomb = (pid, t) => kept.push([pid, JSON.parse(JSON.stringify(t))]);
+  assert.equal(p.removedAt('alicepid1', 'k1'), 0);
+  clock.t = 5000; p.adminRemoveScore('alicepid1', 'k1');
+  assert.equal(p.removedAt('alicepid1', 'k1'), 5000, 'that beatmap\'s score');
+  assert.equal(p.removedAt('alicepid1', 'k2'), 0, 'not the others');
+  clock.t = 9000; p.adminWipe('alicepid1');
+  assert.equal(p.removedAt('alicepid1', 'k2'), 9000, 'every score of theirs');
+  assert.equal(p.removedAt('bobpid22', 'k2'), 0, 'no one else\'s');
+  assert.deepEqual(kept.at(-1), ['alicepid1', { all: 9000, keys: {} }], 'kept, to outlast the server restarting');
+});
+
 test('presence: public ids and songs on the list; spectating streams a play only while someone watches', () => {
   const clock = { t: 0 };
   const p = new PresenceLogic(() => clock.t);
@@ -1011,6 +1059,12 @@ test('presence: public ids and songs on the list; spectating streams a play only
   assert.deepEqual(f1[0], { to: 'b', msg: { t: 'specFrames', id: 'a', ev: [100, 0, 1], at: 300, reset: true, last: false } });
   p.message('a', { t: 'frames', ev: [150, 0, 0], at: 400, last: true });
   p.message('a', { t: 'frames', ev: [500, 1, 1], at: 600 });
+  // what she does — a skip, her pause menu (the button she's on), a fail — goes along at its time in the song; nothing
+  // else does
+  assert.deepEqual(p.message('a', { t: 'frames', ev: [], at: 600, act: { k: 'skip', t: 600, x: 'junk' } })[0].msg.act, { k: 'skip', t: 600 });
+  assert.deepEqual(p.message('a', { t: 'frames', ev: [], at: 600, act: { k: 'sel', t: 600, sel: 'retry' } })[0].msg.act, { k: 'sel', t: 600, sel: 'retry' });
+  assert.deepEqual(p.message('a', { t: 'frames', ev: [], at: 600, act: { k: 'sel', t: 600, sel: '<b>' } })[0].msg.act, { k: 'sel', t: 600 });
+  assert.equal(p.message('a', { t: 'frames', ev: [], at: 600, act: { k: 'explode', t: 600 } })[0].msg.act, undefined);
   // a second watcher joining later gets all of it at once, with nothing more asked of Alice
   p.join('c', { name: 'Cat', pid: 'catpid9', key: 'key-catpid9-0123456789' });
   p.message('c', { t: 'friendReq', to: 'a' }); p.message('a', { t: 'friendAnswer', pid: 'catpid9', yes: true });

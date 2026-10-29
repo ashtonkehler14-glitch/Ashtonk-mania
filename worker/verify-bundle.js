@@ -57,6 +57,11 @@ function cssSheet(name, on) { const el = document.getElementById('css-' + name),
 function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+/** A beat in the menus, as lazer's BeatSyncedContainer (its MinimumBeatLength): a fast song's beat doubled till it's at
+ *  least MENU_BEAT long — the logo, the triangles, the edges' glow and Neru pulsing to every beat of a 250 BPM song
+ *  was a jitter, not a pulse. */
+const MENU_BEAT = 320;
+function menuBeatLength(len) { let l = +len || 0; if (!(l > 0)) return 1000; while (l < MENU_BEAT) l *= 2; return l; }
 /** A signal that gives up on a request after `ms`: a connection that's open but answers nothing otherwise leaves the
  *  request waiting for minutes (a spinner that never stops). */
 function timeoutSignal(ms) {
@@ -408,7 +413,8 @@ const ImageWorker = {
 if (typeof Element !== 'undefined' && Element.prototype.animate) {
   const animate = Element.prototype.animate;
   Element.prototype.animate = function (keyframes, opts) {
-    if (!document.documentElement.classList.contains('perf')) return animate.call(this, keyframes, opts);
+    // (Neru's own aside: Performance mode leaves her her animations)
+    if (!document.documentElement.classList.contains('perf') || (this.closest && this.closest('.neru, .neru-cameo, .neru-dim'))) return animate.call(this, keyframes, opts);
     const o = typeof opts === 'number' ? { duration: opts } : { ...(opts || {}) };
     if (o.iterations === Infinity) o.iterations = 1;
     o.duration = Math.min(+o.duration || 0, 1); o.delay = 0; o.endDelay = 0;

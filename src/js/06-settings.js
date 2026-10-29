@@ -69,7 +69,8 @@ function womSkinOn() { return customSkinOn(); }
 
 const SETTINGS_SCHEMA = [
   // ── Gameplay
-  { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollSpeed', l: 'Scroll speed', t: 'range', d: 22, min: 1, max: 40, step: 1,
+  // (x: set before each song — on the player loader — and with F3 / F4 while playing; no longer in the settings)
+  { x: 1, s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollSpeed', l: 'Scroll speed', t: 'range', d: 22, min: 1, max: 40, step: 1,
     fmt: v => `${v} (${Math.round(11485 / v)}ms)`, hint: 'How long notes are visible before reaching the receptors.' },
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollDirection', l: 'Scrolling direction', t: 'select', d: 'down', o: [['down', 'Down'], ['up', 'Up']] },
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollMode', l: 'Scroll speed changes', t: 'select', d: 'sv', o: [['sv', 'SV + BPM'], ['svonly', 'SV only'], ['constant', 'Constant']], hint: 'SV + BPM is how osu!mania scrolls.' },
@@ -334,7 +335,10 @@ const Settings = {
     r.style.setProperty('--anim', sp <= 0 ? 0 : (1 / sp));
     r.dataset.theme = 'kori';
     r.classList.toggle('no-effects', !this.get('graphics.effects'));
-    r.classList.toggle('no-anim', sp <= 0); cssSheet('no-anim', sp <= 0);
+    // (animations turned off by the player: everything still. Performance mode's own sheet stills the menus, and leaves
+    // Neru hers)
+    const own = 'ui.animSpeed' in this.values ? +this.values['ui.animSpeed'] : 1;
+    r.classList.toggle('no-anim', sp <= 0); cssSheet('no-anim', own <= 0);
     // Performance mode: the lightest of everything, menus too — no animation, blur, glass, glow or moving backgrounds
     // (without it the menus still lighten by themselves on a device that can't keep up — see .slow)
     r.classList.toggle('perf', !!this.get('graphics.performanceMode')); cssSheet('perf', !!this.get('graphics.performanceMode'));

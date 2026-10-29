@@ -17,6 +17,33 @@ function roleBadge(role) {
   return h(`span.role-badge${role.owner ? '.owner' : ''}`, { style: { '--rc': c }, title: role.owner ? 'The server\'s owner' : `${role.name} (an admin)` }, role.owner ? icon('crown') : null, String(role.name).slice(0, 24));
 }
 
+/** What a player's role dresses them in, in Neru's colours: 'neru' for a role named Neru — her gold all round their
+ *  picture, sparkles twinkling on it, their name shimmering gold and pink —, 'admin' for any other admin, the owner too
+ *  (the same, quieter, in the role's own colour); null for everyone else. */
+function roleFx(role) { return !role || !role.name ? null : /neru/i.test(String(role.name)) ? 'neru' : 'admin'; }
+/** A player's role as the game last heard it: yours, else theirs from the online list. */
+function roleOfPid(pid) {
+  if (!pid || typeof Presence === 'undefined') return null;
+  if (pid === Presence.pid()) return Presence.role || null;
+  const p = (Presence.players || []).find(x => x.pid === pid);
+  return (p && p.role) || null;
+}
+/** An avatar `el` in its owner's role effects (roleFx): the picture in a frame of gold, glowing, a sparkle or three on
+ *  it. Returns what to put on the page (`el` itself for a player without any). */
+function fxAvatar(el, role) {
+  const fx = roleFx(role);
+  if (!fx || !el) return el;
+  const w = h(`span.fx-av.fx-${fx}`, { style: { '--rc': /^#[0-9a-f]{6}$/i.test(role.colour || '') ? role.colour : '#ffcc22' } }, el);
+  for (let i = fx === 'neru' ? 3 : 1; i > 0; i--) w.append(h('i.fx-spark'));
+  return w;
+}
+/** A name `el` in its owner's role effects (roleFx). */
+function fxName(el, role) {
+  const fx = roleFx(role);
+  if (fx && el) { el.classList.add('fx-name', `fx-${fx}`); el.style.setProperty('--rc', /^#[0-9a-f]{6}$/i.test(role.colour || '') ? role.colour : '#ffcc22'); }
+  return el;
+}
+
 // (every icon is one of lazer's: 12-icons.js)
 const ICONS = {};
 function icon(name, cls = '') {
@@ -1043,6 +1070,50 @@ function backButton(onClick) {
   b.addEventListener('pointerenter', () => UISounds.hover());
   return b;
 }
+
+/** The menus' lists scroll as lazer's do, smoothly — and never faster than the screen can draw what comes into view: the
+ *  wheel's scrolling eased in, at most MAX px a frame (less on a device that's struggling: .slow, Performance mode).
+ *  Flung through hundreds of rows at once, a list built every one of them in a frame or two — the stutter on a slow
+ *  computer. Sideways scrolling, a list scrolled some other way (its bar dragged, the keys, a touch screen) and one
+ *  that handles the wheel itself are left as they are. */
+const MenuScroll = {
+  MAX: 70, // px per 60Hz frame (4200px a second)
+  el: null, target: 0, raf: 0, last: 0,
+  bind() { window.addEventListener('wheel', e => this.wheel(e), { passive: false }); },
+  /** The nearest list under the pointer that can still scroll that way. */
+  scroller(t, dy) {
+    for (let el = t; el && el.nodeType === 1 && el !== document.body; el = el.parentElement) {
+      if (el.scrollHeight <= el.clientHeight + 2) continue;
+      const o = getComputedStyle(el).overflowY;
+      if ((o === 'auto' || o === 'scroll') && (dy < 0 ? el.scrollTop > 0 : el.scrollTop + el.clientHeight < el.scrollHeight - 1)) return el;
+    }
+    return null;
+  },
+  wheel(e) {
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.shiftKey || !e.deltaY || Math.abs(e.deltaX) > Math.abs(e.deltaY) || Screens.currentName === 'gameplay') return;
+    const dy = e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? innerHeight : 1), el = this.scroller(e.target, dy);
+    if (!el) return;
+    e.preventDefault();
+    // (a new list, or this one at rest — maybe scrolled some other way since: from where it is now)
+    if (el !== this.el || !this.raf) { this.el = el; this.target = el.scrollTop; }
+    this.target = clamp(this.target + dy, 0, el.scrollHeight - el.clientHeight);
+    if (!this.raf) { this.last = performance.now(); this.raf = requestAnimationFrame(t => this.step(t)); }
+  },
+  step(now) {
+    this.raf = 0;
+    const el = this.el;
+    if (!el || !el.isConnected) { this.el = null; return; }
+    const dt = clamp(now - this.last, 1, 50), cur = el.scrollTop, d = this.target - cur;
+    this.last = now;
+    if (Math.abs(d) < 0.5) return;
+    const root = document.documentElement, cap = this.MAX * dt / 16.7 * (root.classList.contains('perf') || root.classList.contains('slow') ? 0.6 : 1);
+    let mv = clamp(d * (1 - Math.exp(-dt / 65)), -cap, cap);
+    if (Math.abs(mv) < 1) mv = Math.sign(d) * Math.min(1, Math.abs(d));
+    el.scrollTop = cur + mv;
+    if (Math.abs(el.scrollTop - cur) < 0.01) { this.target = el.scrollTop; return; } // (at an end)
+    this.raf = requestAnimationFrame(t => this.step(t));
+  },
+};
 
 /** osu!lazer's VolumeOverlay: the mouse wheel changes the volume on the main menu and in game (anywhere with Alt),
  *  shown at the left edge as three rings — effects, master (the big one) and music. Hover a ring to choose which

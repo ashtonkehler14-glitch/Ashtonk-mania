@@ -71,6 +71,23 @@ function cleanMap(m) {
     onlineSetId: Math.round(num(m.onlineSetId, -1, 1e9, -1)), onlineId: Math.round(num(m.onlineId, -1, 1e10, -1)),
   };
 }
+/** A Ranked Play card: a beatmap, and — `per` — the difficulty of its set each player (`ids`) plays, each near the
+ *  star rating they chose. Their difficulties must be the same length (one song, not a pack of several of different
+ *  lengths): a card whose aren't is left out. A card without `per` is one difficulty for both. */
+function cleanRankedCard(m, ids) {
+  const map = cleanSuggestion(m);
+  if (!map || !m.per || typeof m.per !== 'object') return map;
+  const per = {};
+  for (const id of ids) {
+    const d = m.per[id];
+    if (!d || typeof d !== 'object') return map;
+    per[id] = { version: str(d.version, 200), stars: num(d.stars, 0, 100), onlineId: Math.round(num(d.onlineId, -1, 1e10, -1)), length: num(d.length, 0, 3600000) };
+  }
+  const lens = Object.values(per).map(d => d.length);
+  if (lens.some(x => !(x > 0)) || Math.max(...lens) - Math.min(...lens) > Math.max(3000, Math.max(...lens) * 0.03)) return null;
+  map.per = per;
+  return map;
+}
 /** Suggestions may point at a beatmap the suggester only found online (no local hash yet). */
 function cleanSuggestion(m) {
   if (!m || typeof m !== 'object') return null;
@@ -354,7 +371,7 @@ export class RoomLogic {
         p.team = m.team ? 1 : 0; this.remember(p);
         return [this.roomMsg()];
       case 'pool': {
-        if (this.rp) return Array.isArray(m.maps) ? this.rp.setDeck(id, m.maps.slice(0, RP.DECK).map(cleanSuggestion).filter(Boolean)) : [];
+        if (this.rp) return Array.isArray(m.maps) ? this.rp.setDeck(id, m.maps.slice(0, RP.DECK).map(x => cleanRankedCard(x, Object.keys(this.rp.users))).filter(Boolean)) : [];
         const q = this.qp;
         if (!q || !host || q.phase !== 'pool' || !Array.isArray(m.maps)) return [];
         const maps = m.maps.slice(0, 6).map(cleanSuggestion).filter(Boolean);
@@ -420,8 +437,8 @@ export class RoomLogic {
         return [...this.settleVote(), this.roomMsg()];
       }
       case 'diff': {
-        // each player may play any difficulty of the room's beatmap set
-        if (this.state !== 'lobby' || !this.map) return [];
+        // each player may play any difficulty of the room's beatmap set (in Ranked Play: the one dealt to them)
+        if (this.rp || this.state !== 'lobby' || !this.map) return [];
         const d = m.diff && typeof m.diff === 'object' ? m.diff : null;
         p.diff = d ? { version: str(d.version, 200), stars: num(d.stars, 0, 100), keys: Math.round(num(d.keys, 1, 18, 4)) } : null;
         return [this.roomMsg()];
@@ -653,7 +670,10 @@ export class RoomLogic {
     if (!p || !token || p.token !== token) return { error: 'Not a player in this room.' };
     if (this.state !== 'playing' || !p.playing || p.finished) return { error: 'No play to judge.', out: [] };
     const map = this.map || {};
-    const sameMap = !this.map || (map.hash && hash === map.hash) || (map.onlineSetId > 0 && r.beatmapSetId === map.onlineSetId) ||
+    // (Ranked Play: their own difficulty of the card's set — the one near the star rating they chose — and no other)
+    const own = this.rp && map.per && map.per[id];
+    const sameMap = own ? (own.onlineId > 0 ? r.beatmapId === own.onlineId : r.version === own.version) && (!(map.onlineSetId > 0) || r.beatmapSetId === map.onlineSetId)
+      : !this.map || (map.hash && hash === map.hash) || (map.onlineSetId > 0 && r.beatmapSetId === map.onlineSetId) ||
       (!!map.title && r.title === map.title && r.artist === map.artist);
     // (a play the judge turned down has no mods to compare: it counts for nothing — reading them threw, the judging
     // failed, and the player's own unchecked result stood instead)
@@ -876,10 +896,10 @@ export class MatchRoom {
 
 /** Who's online, invites, and spectating. Presence protocol (client → server): hello {name, status, avatar, cid, pid},
  *  status {status, name?, avatar?, song?}, invite {to, code}, list, ping; spectating: play {head} (a play started:
- *  the replay header), frames {ev, at, reset?, last?} (its inputs, streamed only while someone watches), playEnd {quit?},
+ *  the replay header), frames {ev, at, reset?, last?, act?} (its inputs, streamed only while someone watches; act: a skip, pause, fail…), playEnd {quit?},
  *  watch {to}, unwatch {to}. Server → client: welcome {you}, online {players}, invite {from, code}, invited {to},
  *  error {msg}; to a player: spectators {n, full?} (full: send everything so far); to a watcher: specStart {id, name,
- *  head, ev, at, hist}, specFrames {id, ev, at, reset?, last?}, specEnd {id, quit?, gone?}, specWait {id, name}.
+ *  head, ev, at, hist}, specFrames {id, ev, at, reset?, last?, act? {k, t, sel?}}, specEnd {id, quit?, gone?}, specWait {id, name}.
  *  Plain JS so it can be unit-tested. */
 export class PresenceLogic {
   constructor(now = () => Date.now()) {
@@ -905,6 +925,10 @@ export class PresenceLogic {
     this.boardIds = new Map(); this.persistBoardId = null;
     // lazer's "First place ranks": the beatmaps each player is #1 on (f1:<pid>), kept as the boards change
     this.firsts = new Map(); this.persistFirsts = null;
+    // scores an admin took off — pid → { all: when every score of theirs went, keys: { beatmap: when that one went } }:
+    // a play from before then isn't taken again when the player's own game catches up on its best plays (each
+    // device still has them) — only a play made since. `persistTomb` keeps them
+    this.tombs = new Map(); this.persistTomb = null;
     // when each player was last online (for friends' "Last seen …"): set as they go offline; `persistSeen` keeps it
     this.seen = new Map(); this.persistSeen = null;
     // whose a play on a profile is (its beatmap, score and the moment it was set — only a copied backup repeats all three):
@@ -1064,6 +1088,7 @@ export class PresenceLogic {
   }
   /** One score off a beatmap's board, and out of the player's best plays (their total worked out again). */
   adminRemoveScore(pid, key) {
+    this.tomb(pid, key);
     const list = this.boards.get(key);
     if (list && list.some(x => x.pid === pid)) {
       const next = list.filter(x => x.pid !== pid); this.boards.set(key, next); if (this.persistBoard) this.persistBoard(key, next);
@@ -1076,9 +1101,18 @@ export class PresenceLogic {
       PresenceLogic.revalue(r); if (this.persistRank) this.persistRank(pid, r);
     }
   }
+  /** Remember that an admin took a player's score on `key` off (null: all of them), as of now. */
+  tomb(pid, key) {
+    const t = this.tombs.get(pid) || { all: 0, keys: {} }, now = this.now();
+    if (key) t.keys[key] = now; else { t.all = now; t.keys = {}; }
+    this.tombs.set(pid, t); if (this.persistTomb) this.persistTomb(pid, t);
+  }
+  /** When an admin last took this player's score on `key` off (0: never) — a play from before then stays off. */
+  removedAt(pid, key) { const t = this.tombs.get(pid); return t ? Math.max(t.all || 0, (t.keys && t.keys[key]) || 0) : 0; }
   /** Every score of theirs gone: off every board (the ones read in — Matchmaker reads in all of theirs first), their
    *  ranking, their daily challenge scores and record, and their first places. */
   adminWipe(pid) {
+    this.tomb(pid, null);
     for (const [key, list] of this.boards) if (list.some(x => x.pid === pid)) {
       const next = list.filter(x => x.pid !== pid); this.boards.set(key, next); if (this.persistBoard) this.persistBoard(key, next);
     }
@@ -1697,7 +1731,8 @@ export class PresenceLogic {
   static STALE = 35000; // clients ping every 10 s and go offline after 30 s in the background; silent this long = gone (a dropped connection may never say so)
   static MAX_EV = 240000; // a play's inputs kept for late watchers (t, col, down — ~80,000 key events)
   // (lazer's user status: "Appear offline" keeps a player off the list — and out of reach for spectating and invites)
-  list() { return [...this.users.entries()].filter(([, u]) => u.vis !== 'offline').map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size, dnd: u.vis === 'dnd' || undefined })); }
+  // (`role`: an admin's, the owner's — their name and picture in Neru's colours wherever they show)
+  list() { return [...this.users.entries()].filter(([, u]) => u.vis !== 'offline').map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size, dnd: u.vis === 'dnd' || undefined, role: (u.pid && this.roleOf(u.pid)) || undefined })); }
   join(id, msg) {
     // the same browser tab reconnecting replaces its old entry straight away (no ghost of yourself)
     const cid = str(msg && msg.cid, 40), gone = [], out = [];
@@ -1961,7 +1996,10 @@ export class PresenceLogic {
       if (u.ev.length + ev.length <= PresenceLogic.MAX_EV) for (const x of ev) u.ev.push(x);
       u.t = Math.max(u.t, t);
       if (msg.last) u.hist = true;
-      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specFrames', id, ev, at: u.t, reset: !!msg.reset, last: !!msg.last } }));
+      // (what they did — a skip, a pause, the pause menu button they're on, carrying on, a fail — at a time in the song)
+      const a = msg.act && typeof msg.act === 'object' && ['skip', 'outro', 'pause', 'resume', 'fail', 'sel'].includes(msg.act.k) ? msg.act : null;
+      const act = a ? { k: a.k, t: num(a.t, -1e4, 1e8), ...(a.k === 'sel' && ['continue', 'retry', 'quit'].includes(a.sel) ? { sel: a.sel } : {}) } : null;
+      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specFrames', id, ev, at: u.t, reset: !!msg.reset, last: !!msg.last, ...(act ? { act } : {}) } }));
     }
     if (msg.t === 'playEnd') {
       if (!u.play) return [];
@@ -2438,6 +2476,9 @@ export class Matchmaker {
     const key = String(body.hash || ''), r = body.r;
     if (!/^[a-f0-9]{64}$/.test(key)) return json({ error: 'Bad beatmap file.' }, 400);
     if (r.error) return json({ error: r.error }, 422);
+    // (a play sent again from before an admin took it off — the game catching up, one at a time — stays off)
+    const gone = this.presence.removedAt(pid, key);
+    if (gone && body.date != null && !(Number(body.date) > gone)) return json({ error: 'Taken off by an admin.', removed: true }, 422);
     if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []); }
     const daily = body.daily && typeof body.daily === 'object' ? { day: String(body.daily.day || '') } : null;
     const playlist = body.playlist && typeof body.playlist === 'object' ? { id: String(body.playlist.id || '').slice(0, 12) } : null;
@@ -2463,6 +2504,9 @@ export class Matchmaker {
     for (const it of body.items.slice(0, 25)) {
       const key = String((it && it.hash) || ''), r = it && it.r;
       if (!r || typeof r !== 'object' || r.error || !/^[a-f0-9]{64}$/.test(key)) { results.push({ key, error: (r && r.error) || 'Bad beatmap file.' }); continue; }
+      // (taken off by an admin: not back from the player's own game — a play made since is another matter)
+      const gone = this.presence.removedAt(pid, key);
+      if (gone && !(Number(it.date) > gone)) { results.push({ key, error: 'Taken off by an admin.', removed: true }); continue; }
       if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []); }
       const got = this.presence.recordVerified(pid, key, r, {});
       out.push(...got.out);
@@ -2491,6 +2535,7 @@ export class Matchmaker {
         this.presence.loadDailyStats(ds);
         const f1 = {}; for (const [k, v] of await st.list({ prefix: 'f1:' })) f1[k.slice(3)] = v;
         this.presence.loadFirsts(f1);
+        for (const [k, v] of await st.list({ prefix: 'tomb:' })) if (v && typeof v === 'object') this.presence.tombs.set(k.slice(5), v);
         const pl = {}, plOld = [];
         for (const [k, v] of await st.list({ prefix: 'pl:' })) { if (v && Date.now() - (v.ends || 0) >= PresenceLogic.PL_KEEP) plOld.push(k); else pl[k.slice(3)] = v; }
         if (plOld.length) st.delete(plOld.slice(0, 128)).catch(() => {}); // (long-closed playlists go for good)
@@ -2564,6 +2609,7 @@ export class Matchmaker {
       };
       setTimeout(() => backfill().catch(() => {}), 5000);
       this.presence.persistTags = (key, v) => { (Object.keys(v).length ? st.put(`tg:${key}`, v) : st.delete(`tg:${key}`)).catch(() => {}); };
+      this.presence.persistTomb = (pid, t) => { st.put(`tomb:${pid}`, t).catch(() => {}); };
       this.presence.persistFirsts = (pid, m) => { (Object.keys(m).length ? st.put(`f1:${pid}`, m) : st.delete(`f1:${pid}`)).catch(() => {}); };
       this.presence.persistPlaylist = p => { st.put(`pl:${p.id}`, p).catch(() => {}); };
       this.presence.persistBoardId = (bid, key) => { this._bidMiss && this._bidMiss.delete(bid); st.put(`lbid:${bid}`, key).catch(() => {}); };
@@ -2932,7 +2978,9 @@ export async function handleMultiplayer(request, env, url) {
       try { const b = await officialGet(`beatmaps/lookup?checksum=${j.md5}`, env, fetch, 7 * 86400000); if (b && b.id > 0) j.r = { ...j.r, beatmapId: b.id }; } catch { /* not found */ }
     }
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
-    return stub.fetch(new Request(new URL('/judged-score', url), { method: 'POST', body: JSON.stringify({ pid: j.body.pid, key: j.body.key, daily: j.body.daily, playlist: j.body.playlist, hash: j.hash, r: j.r }), headers: { 'content-type': 'application/json' } }));
+    // (`date`: when a play sent again — as its result — was played)
+    const date = j.body.result && typeof j.body.result === 'object' && Number.isFinite(+j.body.result.date) ? +j.body.result.date : undefined;
+    return stub.fetch(new Request(new URL('/judged-score', url), { method: 'POST', body: JSON.stringify({ pid: j.body.pid, key: j.body.key, daily: j.body.daily, playlist: j.body.playlist, hash: j.hash, r: j.r, date }), headers: { 'content-type': 'application/json' } }));
   }
   // (several plays at once — your best plays the server doesn't have yet, from the game catching up: { pid, key, plays:
   // [{ osu, result }] }, up to 25 — each taken as score() takes one)
@@ -2942,7 +2990,7 @@ export async function handleMultiplayer(request, env, url) {
     if (!body || typeof body !== 'object' || !Array.isArray(body.plays)) return json({ error: 'Bad request.' }, 400);
     const items = await Promise.all(body.plays.slice(0, 25).map(async p => {
       const j = p && typeof p === 'object' && p.result && typeof p.result === 'object' ? await judgeFile(p.osu, { result: p.result }) : null;
-      return j ? { hash: j.hash, r: await rankedOnly(j.r, j.md5, env) } : { hash: '', r: { error: 'Bad beatmap file.' } };
+      return j ? { hash: j.hash, r: await rankedOnly(j.r, j.md5, env), date: Number(p.result.date) || 0 } : { hash: '', r: { error: 'Bad beatmap file.' } };
     }));
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL('/judged-scores', url), { method: 'POST', body: JSON.stringify({ pid: body.pid, key: body.key, items }), headers: { 'content-type': 'application/json' } }));

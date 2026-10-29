@@ -562,10 +562,13 @@ await shot('01-home-empty');
       await P.setAvatar('preset:neru'); await wait(400);
       const c = document.querySelector('.pf-avatar .neru-doodle');
       out.hers = !!c && c.querySelectorAll('.nd-ink path').length === 3 && c.querySelectorAll('.nd-ink .nd-gold').length === 3;
+      // (drawn on the picture itself — not across the profile's header, as when the rule placing it was lost)
+      const rc = c && c.getBoundingClientRect(), ra = c && c.parentElement.getBoundingClientRect();
+      out.onIt = !!c && Math.abs(rc.left - ra.left) < 2 && Math.abs(rc.top - ra.top) < 2 && Math.abs(rc.width - ra.width) < 2 && Math.abs(rc.height - ra.height) < 2;
     } finally { await P.setAvatar(av); A.Medals.egg = egg; document.querySelectorAll('.nc-peek').forEach(x => x.remove()); A.Screens.go('home'); await wait(600); }
     return out;
   });
-  check('…and their picture as yours: Neru draws glasses and a moustache on it (your profile); on her own, a crown', doodle.drawn && doodle.inked && doodle.tiny && doodle.hers, JSON.stringify(doodle));
+  check('…and their picture as yours: Neru draws glasses and a moustache on it (your profile); on her own, a crown', doodle.drawn && doodle.inked && doodle.tiny && doodle.hers && doodle.onIt, JSON.stringify(doodle));
   // Teto looked up anywhere (here the settings' search) by a Miku fan: up she peeks — on the right, clear of the settings —
   // laughing at Teto, the one looked up; and turned off before, a Teto name brings her back on, saying so
   const fans = await page.evaluate(async () => {

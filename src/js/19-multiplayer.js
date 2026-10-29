@@ -291,10 +291,16 @@ const Multiplayer = {
     if (map.onlineId > 0) for (const m of BeatmapManager.maps.values()) if (m.onlineId === map.onlineId && !m.problems.length) return m;
     return null;
   },
-  /** The difficulty this player will play: their own pick from the room's set, else the host's. */
+  /** The difficulty this player will play: their own pick from the room's set, else the host's — in Ranked Play, the
+   *  one of the set dealt to them (near the star rating they chose). */
   myMap() {
     const local = this.localMap();
     if (!local) return null;
+    const own = this.isRP() && this.room.map && this.room.map.per && this.room.map.per[this.me];
+    if (own) {
+      for (const m of BeatmapManager.maps.values()) if (m.setId === local.setId && !m.problems.length && (own.onlineId > 0 ? m.onlineId === own.onlineId : m.version === own.version)) return m;
+      return null;
+    }
     const d = this.myDiffId && BeatmapManager.maps.get(this.myDiffId);
     return d && d.setId === local.setId && !d.problems.length ? d : local;
   },
@@ -347,7 +353,7 @@ const Multiplayer = {
   syncHasMap() {
     const me = this.self();
     if (!me || !this.room.map) return;
-    const has = !!this.localMap();
+    const has = !!(this.isRP() ? this.myMap() : this.localMap());
     if (has !== me.hasMap) this.send({ t: 'hasMap', has });
   },
   /** This player's own mods; a speed mod (DT, HT…) in the list is the room's instead (the host's: set; anyone else's:
