@@ -30,12 +30,16 @@ const Multiplayer = {
 
   async api(path, body) {
     let r;
+    // (each failure with its code — NetErr — on the end of what it says)
     try { r = await fetch(Host.api(path), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}), signal: timeoutSignal(20000) }); }
-    catch (e) { throw (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) ? new Error('The game\'s server didn\'t answer. Check your connection and try again.') : e; }
+    catch (e) {
+      const n = NetErr.fetchFail('N', e);
+      throw new Error(`${(e && (e.name === 'TimeoutError' || e.name === 'AbortError')) ? 'The game\'s server didn\'t answer. Check your connection and try again.' : friendlyError(e)} (${n.code})`);
+    }
     const j = /json/i.test(r.headers.get('content-type') || '') ? await r.json().catch(() => null) : null;
-    if (isNoServer(r, j)) throw new Error(NO_SERVER);
+    if (isNoServer(r, j)) throw new Error(`${NO_SERVER} (${NetErr.httpFail('N', r, j).code})`);
     const d = j || {};
-    if (!r.ok) throw new Error(d.error || `Server error (${r.status})`);
+    if (!r.ok) throw new Error(`${d.error || `Server error (${r.status})`} (${NetErr.httpFail('N', r, j).code})`);
     return d;
   },
   /** Open a room: regular (osu!-style head to head, up to 16) or a Ranked Play duel (1v1, unrated), public or private. */
@@ -53,18 +57,18 @@ const Multiplayer = {
       // the loser would read that as the room being opened in another tab)
       if (rejoin && this.ws) { const old = this.ws; this.ws = null; old.onclose = old.onmessage = old.onerror = null; try { old.close(1000, 'retry'); } catch { /* closed */ } }
       let ws;
-      try { ws = new WebSocket(u); } catch (e) { reject(e); return; }
+      try { ws = new WebSocket(u); } catch (e) { reject(new Error(`Couldn't open the connection (${NetErr.note('R0', `the browser wouldn't open it (${e.message})`).code})`)); return; }
       this.ws = ws; this.code = code; this.quick = quick; this.opts = opts;
       if (!rejoin) this.opps = new Map(); // (a reconnect keeps the other players' last scores on screen)
       if (!rejoin) { this.chat = []; this.lastResults = null; }
-      let settled = false;
+      let settled = false, opened = false;
       const fail = msg => { if (!settled) { settled = true; clearTimeout(slow); reject(new Error(msg)); if (!rejoin && !this.room) Bus.emit('mp:changed'); } };
       // a connection that neither opens nor fails (a half-dead network) would leave a reconnect waiting forever:
       // no welcome in 10 s, give up on it (and try again)
-      const slow = setTimeout(() => { if (settled) return; fail('Couldn\'t reach the multiplayer server.'); try { ws.close(4005, 'slow'); } catch { /* closed */ } }, 10000);
+      const slow = setTimeout(() => { if (settled) return; fail(`Couldn't reach the multiplayer server (${NetErr.note('RT', ws.readyState === 1 ? 'the room\'s connection opened but the room never answered (10 s)' : 'the room\'s connection didn\'t open in 10 s').code}).`); try { ws.close(4005, 'slow'); } catch { /* closed */ } }, 10000);
       // cid (this browser) on every join, not just rooms you made: a dropped connection then comes back as the same
       // player — still in the match, scores syncing — instead of as a newcomer the match doesn't count
-      ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), cid: clientId(), ...opts })); this.ping(); };
+      ws.onopen = () => { opened = true; ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), cid: clientId(), ...opts })); this.ping(); };
       ws.onmessage = ev => {
         if (this.ws === ws) this._lastMsg = performance.now();
         let m; try { m = JSON.parse(ev.data); } catch { return; }
@@ -77,15 +81,20 @@ const Multiplayer = {
           for (const c of missed) Bus.emit('mp:chat', c); // (into a chat already open)
           Bus.emit('mp:changed'); return;
         }
-        if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
+        if (m.t === 'error' && m.fatal) { ws._serverMsg = m.msg; fail(m.msg); return; }
         this.onMessage(m);
       };
-      // (a connection that never opened: the server is asked why — it may be turning everyone away for the day)
+      // (a connection that never opened: the server is asked why — it may be turning everyone away for the day; and
+      // either way, why it closed as a code — NetErr)
       let asked = false;
-      const unreachable = () => { if (settled || asked) return; asked = true; this.whyNot(code).then(why => fail(why || 'Couldn\'t reach the multiplayer server.')); };
-      ws.onerror = unreachable;
+      const unreachable = ev => {
+        if (settled || asked) return; asked = true;
+        const n = NetErr.closeFail('R', ev, opened);
+        this.whyNot(code).then(why => fail(why ? `${why} (${NetErr.note('RS', `the server said: ${why}`).code})` : `Couldn't reach the multiplayer server (${n.code}).`));
+      };
       ws.onclose = ev => {
-        if (!this.room && !(ev && ev.code >= 4000)) unreachable(); else fail('Connection closed.');
+        if (!this.room && !(ev && ev.code >= 4000)) unreachable(ev);
+        else if (!settled) fail(`Connection closed (${ws._serverMsg ? NetErr.note('RS', `the server said: ${ws._serverMsg}`).code : NetErr.closeFail('R', ev, opened).code}).`);
         if (this.ws !== ws) return; // left on purpose
         const wasIn = !!this.room;
         this.ws = null; this.stopKeepAlive();
@@ -477,17 +486,76 @@ const Multiplayer = {
 /** A site that only serves the game's files (no server behind it): its /api answers with a web page — "not found",
  *  or the game itself — where the server's JSON should be. (The server's own "not found"s are JSON.) */
 function isNoServer(r, d) { return !!r && !d && (r.status === 404 || r.status === 405 || r.ok); }
+/** What went wrong reaching the game's server, as a short code to quote — and the details behind it — so a report says
+ *  exactly why. The first letter is what failed: H the check that the server's there (api/health), W the online
+ *  connection, N opening a new room, R a room's connection. Then:
+ *    0 this device is offline · 1 no answer from the network (blocked by a firewall, filter or extension; DNS; the site
+ *    down) · 2 no answer in time · J an answer that isn't the game's server (a filter's or login page, a site with
+ *    only the game's files) · M the server's up with multiplayer turned off · S the server said why (its words follow)
+ *    · T a connection that never opened · a number: the HTTP status it answered with (H, N) or how the connection
+ *    closed (W, R — 1006: cut off by the network, or a proxy or firewall that doesn't let WebSockets through). */
+const NetErr = {
+  last: null, log: [],
+  note(code, detail) {
+    const e = { code: `MP-${code}`, detail, at: Date.now() }, prev = this.log[this.log.length - 1];
+    // (the same failure again — each retry — counted on the one line rather than filling the log)
+    if (prev && prev.code === e.code && prev.detail === detail) { prev.n = (prev.n || 1) + 1; prev.at = e.at; this.last = prev; Bus.emit('presence:changed'); return prev; }
+    this.last = e; this.log.push(e); if (this.log.length > 20) this.log.shift();
+    console.warn(`[multiplayer] ${e.code}: ${detail}`);
+    Bus.emit('presence:changed');
+    return e;
+  },
+  /** The connection works again: nothing to show (the log keeps what happened). */
+  clear() { this.last = null; },
+  /** "MP-W1006" with what it means, for a message. */
+  tag(e = this.last) { return e ? `${e.code}: ${e.detail}` : ''; },
+  /** A failed fetch as a code: offline, timed out or no answer at all. */
+  fetchFail(kind, e) {
+    if (navigator.onLine === false) return this.note(`${kind}0`, 'this device is offline');
+    if (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) return this.note(`${kind}2`, 'the server didn\'t answer in time');
+    return this.note(`${kind}1`, `no answer from the network (${(e && e.message) || 'failed'}) — blocked by a firewall, filter or browser extension, or the server is down`);
+  },
+  /** An answer that wasn't a good one, as a code: its HTTP status, or not the game's server. */
+  httpFail(kind, r, d) {
+    const type = (r.headers.get('content-type') || 'nothing').split(';')[0];
+    if (r.ok && !d) return this.note(`${kind}J`, `the site answered with ${type}, not the game's server — a filter or login page, or a site with only the game's files`);
+    if (!d && (r.status === 404 || r.status === 405)) return this.note(`${kind}${r.status}`, `this site has no game server (its /api answered ${r.status})`);
+    return this.note(`${kind}${r.status}`, `the server answered ${r.status}${r.statusText ? ` ${r.statusText}` : ''}${d && d.error ? ` — ${d.error}` : ''}`);
+  },
+  /** A WebSocket that closed, as a code. `opened`: it had been connected (a drop) or never got that far. */
+  closeFail(kind, ev, opened) {
+    const c = (ev && ev.code) || 1006, why = ev && ev.reason ? ` "${ev.reason}"` : '';
+    if (opened) return this.note(`${kind}${c}`, `the connection dropped (${c}${why})`);
+    return this.note(`${kind}${c}`, c === 1006 ? 'the connection was refused or cut off before it opened — a proxy, firewall or filter that blocks WebSockets, or the server is down'
+      : `closed before it opened (${c}${why})`);
+  },
+  /** Everything to send to whoever looks into it: the codes in order, where the server is, and this browser. */
+  report() {
+    const t = ms => new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
+    return [`${APP_NAME} ${APP_VERSION} · ${CHANGELOG[0].id}`, `server: ${new URL(Host.api('api/'), location.href).href}`, `page: ${location.origin}${Host.standalone ? ' (downloaded file)' : ''}`,
+      `online: ${navigator.onLine} · ${navigator.userAgent}`, ...(this.log.length ? this.log.map(e => `${t(e.at)} ${e.code}${e.n > 1 ? ` (×${e.n})` : ''}: ${e.detail}`) : ['no errors'])].join('\n');
+  },
+  async copy() {
+    try { await navigator.clipboard.writeText(this.report()); UISounds.click(); Toast.ok('Connection details copied', 'Paste them to whoever is looking into it.'); }
+    catch { Dialog.popup('Connection details', this.report(), [{ label: 'OK', colour: '#66ccff', cls: 'cancel', cancel: true }]); }
+  },
+};
 const NO_SERVER = 'This copy of the game has no multiplayer server. Open Ashtonk!mania from the website its server is on — everyone in a room has to use that same website.';
 
 function offlineState(what, { compact = false } = {}) {
   const cls = `div.off-state${compact ? '.compact' : ''}`;
   if (Presence.connecting()) return h(`${cls}.connecting`, h('span.spinner'), h('div.off-sub', 'Connecting…'));
   const local = !Multiplayer.available(), none = !local && Presence.noServer;
-  return stateCard('globe', local ? 'Offline' : none ? 'No game server here' : 'Can\'t reach the server',
+  const card = stateCard('globe', local ? 'Offline' : none ? 'No game server here' : 'Can\'t reach the server',
     local ? `${what} needs the game's server — open Ashtonk!mania from its website.`
       : none ? `${what} needs the game's server, and this copy of the game doesn't have one. Open Ashtonk!mania from the website its server is on — everyone you play with has to use that same website.`
       : `${what} will show up as soon as it's back.`,
     { slash: true, cls: compact ? '.compact' : '', action: local || none ? null : h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Presence.tryNow(); } }, icon('sync'), 'Try again') });
+  // (why, exactly: the error code and what it means — NetErr — and everything behind it to copy for a report)
+  const e = !local && NetErr.last;
+  if (e) card.insertBefore(h('div.off-code', h('span', h('b', e.code), compact ? null : ` — ${e.detail}`), h('button.btn.sm.ghost.off-copy', { title: 'Copy the connection details for a report', onclick: () => NetErr.copy() }, icon('copy'), 'Copy details')), card.querySelector('.off-retry'));
+  if (e && compact) card.querySelector('.off-code b').title = e.detail;
+  return card;
 }
 
 const Presence = {
@@ -527,7 +595,12 @@ const Presence = {
     if (this._pid) return this._pid;
     if (typeof Account !== 'undefined' && Account.signedOut()) { this._pid = ''; return ''; } // ('': known to be no one — see mine)
     let p = null; try { p = localStorage.getItem('am.pid'); } catch { /* private mode */ }
-    if (!p || !/^[a-z0-9]{6,24}$/.test(p)) { p = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/g, '').slice(0, 16); try { localStorage.setItem('am.pid', p); } catch { /* private mode */ } }
+    if (!p || !/^[a-z0-9]{6,24}$/.test(p)) {
+      p = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/g, '').slice(0, 16);
+      try { localStorage.setItem('am.pid', p); } catch { /* private mode */ }
+      // (a new id: notes kept under the old one go — Sync.tidy — once this id is in place)
+      if (typeof Sync !== 'undefined') setTimeout(() => Sync.tidy(), 0);
+    }
     return (this._pid = p);
   },
   /** Another copy of the game in this browser — a second tab, or the installed app beside the website, sharing its
@@ -566,12 +639,14 @@ const Presence = {
   connect() {
     const u = Host.ws('api/mp/presence');
     let ws;
-    try { ws = new WebSocket(u); } catch { this.later(); return; }
+    try { ws = new WebSocket(u); } catch (e) { NetErr.note('W0', `the browser wouldn't open the online connection (${e.message})`); this.later(); return; }
     this.ws = ws;
     // (one that hasn't opened in 10 s won't: closing it tries again)
-    setTimeout(() => { if (this.ws === ws && ws.readyState === 0) { try { ws.close(); } catch { /* closed */ } } }, 10000);
+    // (ws._why: why it's being closed from here — noted as an error code already, or 'ours' when it isn't one)
+    setTimeout(() => { if (this.ws === ws && ws.readyState === 0) { ws._why = NetErr.note('WT', 'the online connection didn\'t open in 10 s'); try { ws.close(); } catch { /* closed */ } } }, 10000);
     ws.onopen = () => {
-      if (this.otherTab()) { try { ws.close(); } catch { /* closed */ } return; } // (another copy here changed who this is)
+      ws._open = true;
+      if (this.otherTab()) { ws._why = 'ours'; try { ws.close(); } catch { /* closed */ } return; } // (another copy here changed who this is)
       this.retry = 0; this._openAt = Date.now();
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
       // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
@@ -588,14 +663,14 @@ const Presence = {
       this._heard = Date.now();
       clearInterval(this._ping); this._ping = setInterval(() => {
         if (this.ws !== ws) return;
-        if (!document.hidden && Date.now() - this._heard > 25000) { this.dropDead(ws); return; }
+        if (!document.hidden && Date.now() - this._heard > 25000) { ws._why = NetErr.note('WD', 'the online connection went silent for 25 s (a network change, or the server stopped answering)'); this.dropDead(ws); return; }
         this.send({ t: this.watching() ? 'list' : 'ping' });
       }, 10000);
     };
     ws.onmessage = ev => {
       this._heard = Date.now();
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); setTimeout(() => Verified.catchUp(), 3000); /* (plays the server doesn't have yet: up they go) */ if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
+      if (m.t === 'welcome') { NetErr.clear(); this.me = m.you; setTimeout(() => Rankings.report(), 1500); setTimeout(() => Verified.catchUp(), 3000); /* (plays the server doesn't have yet: up they go) */ if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
@@ -640,10 +715,10 @@ const Presence = {
       // (playing as yourself through a code: this device's key doesn't work any more — signed out, not quietly made new)
       // (but first: a copy left behind on an id another copy here has moved on from — it follows that one, rather than
       // signing the device out or starting over as a new player)
-      else if (m.t === 'repid') { if (this.otherTab()) return; if (typeof Account !== 'undefined' && (Account.linked() || m.account)) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
+      else if (m.t === 'repid') { if (this.otherTab()) return; if (typeof Account !== 'undefined' && (Account.linked() || m.account)) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws._why = 'ours'; ws.close(); } }
       // (your code was just used on another device)
       else if (m.t === 'codeUsed') Toast.show('A new device is playing as you', 'Someone typed your code on another device. Not you? Your code → New code, then Sign out other devices.', { type: 'err', timeout: 20000, hold: true });
-      else if (m.t === 'error') Toast.err(m.msg);
+      else if (m.t === 'error') { ws._serverMsg = m.msg; Toast.err(m.msg); }
       // (from the server's owner: the admin panel)
       else if (m.t === 'banned') this.onBanned(m);
       else if (m.t === 'renamed') { if (m.name && m.name !== ProfileManager.profile.name) ProfileManager.setName(m.name); }
@@ -651,8 +726,10 @@ const Presence = {
       else if (m.t === 'announce') Toast.show('Announcement', String(m.text || ''), { hold: true, timeout: 20000 });
       else if (m.t === 'admin') { this.isAdmin = !m.off; this.role = m.off ? null : m.role || null; Bus.emit('presence:admin'); }
     };
-    ws.onclose = () => {
+    ws.onclose = ev => {
       if (this.ws !== ws) return;
+      // (why, as a code — unless it was closed from here on purpose, or for a reason already noted)
+      if (!ws._why && !this.banned) { if (ws._serverMsg) NetErr.note('WS', `the server said: ${ws._serverMsg}`); else NetErr.closeFail('W', ev, ws._open); }
       this.isAdmin = false;
       { const now = Date.now(), seen = this._seen || (this._seen = new Map()); for (const x of this.players) if (x.pid) seen.set(x.pid, now); }
       this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping); // (asks still queued go out on the next connection)
@@ -690,8 +767,10 @@ const Presence = {
     fetch(Host.api('api/health'), { cache: 'no-store', signal: timeoutSignal(15000) }).then(async r => {
       const d = /json/i.test(r.headers.get('content-type') || '') ? await r.json().catch(() => null) : null;
       if (r.ok && d && d.multiplayer) { this.health = 'ok'; this.noServer = false; this.connect(); return; }
+      // (why, as a code: NetErr)
+      if (r.ok && d) NetErr.note('HM', 'the server is up, but its multiplayer is turned off'); else NetErr.httpFail('H', r, d);
       none(isNoServer(r, d));
-    }).catch(() => none(false));
+    }).catch(e => { NetErr.fetchFail('H', e); none(false); });
   },
   /** Still finding out whether the server is there (the first look, or the first connection attempt). */
   connecting() { return Multiplayer.available() && (!this.started || this.health === 'checking' || (this.health === 'ok' && !this.retry && !(this.ws && this.ws.readyState === 1))); },
@@ -701,6 +780,7 @@ const Presence = {
   /** A connection that went silent: close it and connect again now (as if it had closed). */
   dropDead(ws) {
     if (this.ws !== ws) return;
+    ws._why = ws._why || 'ours';
     const close = ws.onclose;
     ws.onmessage = ws.onerror = null;
     try { ws.close(4004, 'dead'); } catch { /* closed */ }
@@ -893,14 +973,15 @@ const MultiplayerScreen = {
     // (why the last try to open or join a room didn't work stays up for a while: a room that fails to open redraws
     // the lounge, which took the message with it — so "Create room" looked like it did nothing)
     const err = this._lobbyErr && Date.now() - this._lobbyErr.at < 20000 ? this._lobbyErr.text : '';
-    const status = this.statusEl = h('div.mp-status', err ? h('span.mp-err', err) : null);
+    const copy = () => /\(MP-/.test(this._lobbyErr ? this._lobbyErr.text : '') ? h('button.btn.sm.ghost.off-copy', { onclick: () => NetErr.copy() }, icon('copy'), 'Copy details') : null;
+    const status = this.statusEl = h('div.mp-status', err ? h('span.mp-err', err) : null, err ? copy() : null);
     const busy = async (label, fn) => {
       this._lobbyErr = null;
       clearEl(this.statusEl).append(h('span.spinner'), label);
       $$('button', this.body).forEach(b => b.disabled = true);
       try { await fn(); } catch (e) {
         this._lobbyErr = { text: friendlyError(e), at: Date.now() };
-        clearEl(this.statusEl).append(h('span.mp-err', this._lobbyErr.text));
+        clearEl(this.statusEl).append(h('span.mp-err', this._lobbyErr.text), copy() || '');
         $$('button', this.body).forEach(b => b.disabled = false);
         if (Multiplayer.available() && !this.statusEl.isConnected) Toast.err(/^Join/.test(label) ? 'Couldn\'t join the room' : 'Couldn\'t open the room', this._lobbyErr.text);
       }

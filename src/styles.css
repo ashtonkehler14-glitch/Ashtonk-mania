@@ -4823,6 +4823,13 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .off-sub { font-size: .88rem; line-height: 1.45; color: hsl(var(--o-h, 255) 10% 70%); }
 .off-retry { margin-top: 8px; gap: 6px; }
 .off-retry .i { width: 14px; height: 14px; }
+/* why the server can't be reached, as a code to quote (NetErr), and a button copying the details for a report */
+.off-code { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 4px; font-size: .78rem; line-height: 1.4; color: hsl(var(--o-h, 255) 10% 62%); user-select: text; }
+.off-code b { color: #ff8a8a; font-weight: 700; letter-spacing: .02em; }
+.off-copy { gap: 6px; font-size: .75rem; }
+.off-copy .i { width: 13px; height: 13px; }
+.off-state.compact .off-code { flex-direction: row; gap: 10px; }
+.mp-status .off-copy { margin-left: 10px; }
 .off-state.compact { margin: 18px 22px; padding: 18px 20px; max-width: none; gap: 6px; background: rgba(0, 0, 0, .28); }
 .off-state.compact .off-ico { width: 40px; height: 40px; margin: 0; } .off-state.compact .off-ico .i { width: 20px; height: 20px; } .off-state.compact .off-ico i { height: 30px; }
 .off-state.compact .off-t { font-size: .98rem; } .off-state.compact .off-sub { font-size: .8rem; }

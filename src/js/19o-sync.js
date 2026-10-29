@@ -28,12 +28,22 @@ const Sync = {
 
   /** Notes left under another id than this device's player's now — it was another player before (a code typed here,
    *  a new id): gone. None was ever taken for this player's (each is checked against the player), but they lingered. */
+  /** (Run first thing at startup — before anything connects — and again whenever this device's id changes.) */
   tidy() {
     const pid = Account.me().pid || '';
     for (const k of ['am.scPulled', 'am.skinSent', 'am.skinBig', 'am.syncAt', 'am.setRev']) { const v = this.marked(k); if (v && v.split('|')[0] !== pid) this.mark(k, null); }
     const d = this.marked('am.setDirty'); if (d && d !== pid) this.mark('am.setDirty', null);
     let c = null; try { c = JSON.parse(this.marked('am.setChanges') || 'null'); } catch { /* none */ }
     if (c && c.pid !== pid) this.mark('am.setChanges', null);
+    // (and any other note of the game's kept under a player's id — "<id>|…" — that isn't this one's)
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith('am.') || /^am\.(pid|key|code)$/.test(k)) continue;
+        const m = /^([a-z0-9]{6,24})\|/.exec(localStorage.getItem(k) || '');
+        if (m && m[1] !== pid) localStorage.removeItem(k);
+      }
+    } catch { /* private mode */ }
   },
   init() {
     this.tidy();

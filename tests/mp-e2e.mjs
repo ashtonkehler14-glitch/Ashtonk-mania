@@ -101,10 +101,11 @@ await shot(alice, 'mp-lobby');
   await alice.evaluate(() => { const W = window.WebSocket; window._W = W; window.WebSocket = function (u, p) { if (!/api\/mp\/room\//.test(String(u))) return new W(u, p); const f = { readyState: 0, close() {}, send() {} }; setTimeout(() => { f.readyState = 3; f.onerror && f.onerror({}); f.onclose && f.onclose({ code: 1006 }); }, 50); return f; }; });
   await alice.click('.mp-create'); await alice.waitForSelector('.mp-cr');
   await alice.click('.dialog .actions .btn.primary');
-  await alice.waitForFunction(w => (document.querySelector('.mp-status') || {}).textContent === w, why, { timeout: 8000 }).catch(() => {});
+  await alice.waitForFunction(w => (document.querySelector('.mp-status .mp-err') || {}).textContent === `${w} (MP-RS)`, why, { timeout: 8000 }).catch(() => {});
   await alice.waitForTimeout(600);
-  const r = await alice.evaluate(() => ({ status: (document.querySelector('.mp-status') || {}).textContent, enabled: !document.querySelector('.mp-create').disabled, inRoom: AshtonkMania.Multiplayer.inRoom() }));
-  check('a room the server can\'t open says why in the lounge (and Create room works again)', r.status === why && r.enabled && !r.inRoom, JSON.stringify(r));
+  const r = await alice.evaluate(() => ({ status: (document.querySelector('.mp-status .mp-err') || {}).textContent, copy: !!document.querySelector('.mp-status .off-copy'), enabled: !document.querySelector('.mp-create').disabled, inRoom: AshtonkMania.Multiplayer.inRoom() }));
+  // (with its error code — the server said why: MP-RS — and the details to copy)
+  check('a room the server can\'t open says why in the lounge, with its error code (and Create room works again)', r.status === `${why} (MP-RS)` && r.copy && r.enabled && !r.inRoom, JSON.stringify(r));
   await alice.evaluate(() => { window.WebSocket = window._W; });
   await alice.unroute(/api\/mp\/room\/[A-Z0-9]+\/status/);
 }

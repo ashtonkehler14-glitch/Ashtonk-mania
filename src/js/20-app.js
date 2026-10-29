@@ -9,6 +9,9 @@ const APP_BUILD = '__BUILD__';
 const App = {
   lastReport: null,
   async boot() {
+    // (first of all, before anything reads them or connects: notes kept under a player's id that isn't this device's
+    // now are cleared — Sync.tidy)
+    try { Sync.tidy(); } catch (e) { console.warn('tidy', e); }
     this.dropPreview();
     const status = $('.load-status');
     const say = (msg) => { status.textContent = msg; };

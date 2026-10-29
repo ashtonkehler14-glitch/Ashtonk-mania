@@ -158,9 +158,22 @@ await shot('01-home-empty');
     for (let i = 0; i < 80 && (!Presence.started || Presence.health === 'checking'); i++) await new Promise(res => setTimeout(res, 100));
     const card = offlineState('Multiplayer');
     let err = ''; try { await Multiplayer.api('api/mp/new'); } catch (e) { err = e.message; }
-    return { health: Presence.health, none: !!Presence.noServer, text: card.textContent, retry: !!card.querySelector('.off-retry'), err };
+    return { health: Presence.health, none: !!Presence.noServer, text: card.textContent, retry: !!card.querySelector('.off-retry'), err, code: (card.querySelector('.off-code b') || {}).textContent, copy: !!card.querySelector('.off-copy'), report: NetErr.report() };
   });
   check('a copy of the game with no server behind it says so (no "Try again"), and making a room explains why', r.none && /No game server here/.test(r.text) && !r.retry && /no multiplayer server/i.test(r.err), JSON.stringify(r));
+  // (and why exactly, as an error code to quote — the check for the server answered 404 — with the details to copy)
+  check('…with an error code saying exactly why (MP-H404), its details to copy, and the room\'s error carrying its own code', r.code === 'MP-H404' && r.copy && /\(MP-N404\)/.test(r.err) && /MP-H404: this site has no game server/.test(r.report) && /server: http/.test(r.report), JSON.stringify({ code: r.code, err: r.err, report: r.report.split('\n').slice(-2) }));
+  // notes kept under an old id of this device's (am.pid made anew: a player reported every note still under the old one,
+  // and couldn't connect) are cleared — at startup, before anything connects, and whenever the id changes
+  const st = await page.evaluate(() => {
+    const pid = AshtonkMania.Presence.pid(), old = 'oa4g91vgkbcq4tcx';
+    for (const [k, v] of [['am.scPulled', `${old}|1`], ['am.skinSent', `${old}|a`], ['am.syncAt', `${old}|1`], ['am.setRev', `${old}|3`], ['am.setDirty', old], ['am.setChanges', JSON.stringify({ pid: old, keys: [] })], ['am.someNote', `${old}|x`], ['am.mine', `${pid}|y`]]) localStorage.setItem(k, v);
+    AshtonkMania.Sync.tidy();
+    const left = ['am.scPulled', 'am.skinSent', 'am.syncAt', 'am.setRev', 'am.setDirty', 'am.setChanges', 'am.someNote'].filter(k => localStorage.getItem(k) !== null);
+    const mine = localStorage.getItem('am.mine'); localStorage.removeItem('am.mine');
+    return { left, mine: mine === `${pid}|y`, pid: localStorage.getItem('am.pid') === pid };
+  });
+  check('notes kept under an old player id (am.scPulled, am.skinSent, am.syncAt, am.setRev, am.setChanges…) are cleared; this id\'s stay', !st.left.length && st.mine && st.pid, JSON.stringify(st));
 }
 // her frame loop sleeps once she's settled and wakes for a bounce — one loop, never two (a bounce set in the middle of
 // a frame used to start a second one, doubling every frame until the page stopped answering)
