@@ -57,7 +57,8 @@ const Multiplayer = {
       // the loser would read that as the room being opened in another tab)
       if (rejoin && this.ws) { const old = this.ws; this.ws = null; old.onclose = old.onmessage = old.onerror = null; try { old.close(1000, 'retry'); } catch { /* closed */ } }
       let ws;
-      try { ws = new WebSocket(u); } catch (e) { reject(new Error(`Couldn't open the connection (${NetErr.note('R0', `the browser wouldn't open it (${e.message})`).code})`)); return; }
+      try { ws = MpNet.http() ? new HttpSocket(Host.api(`api/mp/room/${encodeURIComponent(code)}/http`)) : new WebSocket(u); }
+      catch (e) { reject(new Error(`Couldn't open the connection (${NetErr.note('R0', `the browser wouldn't open it (${e.message})`).code})`)); return; }
       this.ws = ws; this.code = code; this.quick = quick; this.opts = opts;
       if (!rejoin) this.opps = new Map(); // (a reconnect keeps the other players' last scores on screen)
       if (!rejoin) { this.chat = []; this.lastResults = null; }
@@ -65,7 +66,20 @@ const Multiplayer = {
       const fail = msg => { if (!settled) { settled = true; clearTimeout(slow); reject(new Error(msg)); if (!rejoin && !this.room) Bus.emit('mp:changed'); } };
       // a connection that neither opens nor fails (a half-dead network) would leave a reconnect waiting forever:
       // no welcome in 10 s, give up on it (and try again)
-      const slow = setTimeout(() => { if (settled) return; fail(`Couldn't reach the multiplayer server (${NetErr.note('RT', ws.readyState === 1 ? 'the room\'s connection opened but the room never answered (10 s)' : 'the room\'s connection didn\'t open in 10 s').code}).`); try { ws.close(4005, 'slow'); } catch { /* closed */ } }, 10000);
+      // (a WebSocket that never opens — a school's web filter or proxy holding it: the same again by plain requests)
+      const viaHttp = () => {
+        if (settled || ws.http || !Multiplayer.available()) return false;
+        MpNet.useHttp(); settled = true; clearTimeout(slow);
+        ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null; try { ws.close(); } catch { /* closed */ }
+        if (this.ws === ws) this.ws = null;
+        this.connect(code, create, quick, true, opts).then(resolve, reject);
+        return true;
+      };
+      const slow = setTimeout(() => {
+        if (settled) return;
+        if (!opened && viaHttp()) { NetErr.note('RT', 'the room\'s connection didn\'t open in 10 s — trying plain requests'); return; }
+        fail(`Couldn't reach the multiplayer server (${NetErr.note(ws.http ? 'RPT' : 'RT', ws.readyState === 1 ? 'the room\'s connection opened but the room never answered (10 s)' : 'the room\'s connection didn\'t open in 10 s').code}).`); try { ws.close(4005, 'slow'); } catch { /* closed */ }
+      }, 10000);
       // cid (this browser) on every join, not just rooms you made: a dropped connection then comes back as the same
       // player — still in the match, scores syncing — instead of as a newcomer the match doesn't count
       // (the hello kept under what a room takes — 16 KB on servers before this fix: over it, it went unanswered — so the
@@ -96,13 +110,16 @@ const Multiplayer = {
       // either way, why it closed as a code — NetErr)
       let asked = false;
       const unreachable = ev => {
-        if (settled || asked) return; asked = true;
-        const n = NetErr.closeFail('R', ev, opened);
+        if (settled || asked) return;
+        // (cut off before it opened while the web works: blocked — by plain requests instead)
+        if (!opened && !(ev && ev.code >= 4000) && viaHttp()) { NetErr.closeFail('R', ev, false); return; }
+        asked = true;
+        const n = NetErr.closeFail(ws.http ? 'RP' : 'R', ev, opened);
         this.whyNot(code).then(why => fail(why ? `${why} (${NetErr.note('RS', `the server said: ${why}`).code})` : `Couldn't reach the multiplayer server (${n.code}).`));
       };
       ws.onclose = ev => {
         if (!this.room && !(ev && ev.code >= 4000)) unreachable(ev);
-        else if (!settled) fail(`Connection closed (${ws._serverMsg ? NetErr.note('RS', `the server said: ${ws._serverMsg}`).code : NetErr.closeFail('R', ev, opened).code}).`);
+        else if (!settled) fail(`Connection closed (${ws._serverMsg ? NetErr.note('RS', `the server said: ${ws._serverMsg}`).code : NetErr.closeFail(ws.http ? 'RP' : 'R', ev, opened).code}).`);
         if (this.ws !== ws) return; // left on purpose
         const wasIn = !!this.room;
         this.ws = null; this.stopKeepAlive();
@@ -232,6 +249,8 @@ const Multiplayer = {
     this._lastMsg = performance.now();
     this._keep = setInterval(() => {
       const ws = this.ws, t = performance.now();
+      // (by plain requests: every request is a sign of life to the room, and one that fails closes it — no pings)
+      if (ws && ws.http) { if (this.quick && this.room && this.room.players.length < 2) this.api('api/mp/quick/keep', { code: this.code }).catch(() => {}); return; }
       if (ws && this._pingAt && this._lastMsg < this._pingAt && t - this._pingAt > 12000 && !document.hidden) { this.dropDead(ws); return; }
       if (this._pingAt && this._lastMsg < this._pingAt && t - this._pingAt < 12000) return; // (still waiting on the last one)
       this.ping();
@@ -500,6 +519,70 @@ const Multiplayer = {
 /** A site that only serves the game's files (no server behind it): its /api answers with a web page — "not found",
  *  or the game itself — where the server's JSON should be. (The server's own "not found"s are JSON.) */
 function isNoServer(r, d) { return !!r && !d && (r.status === 404 || r.status === 405 || r.ok); }
+/** A connection to the game's server by plain requests, for a network that won't let a WebSocket through — a school's
+ *  web filter or proxy: the web works (the beatmap listing, downloads), but a WebSocket never opens, so rooms and the
+ *  online list didn't (MP-RT, MP-W1006). The same messages both ways: what the game sends goes up as POSTs, and what the
+ *  server has for it comes back on a request it holds open until there's something (long polling — the server's
+ *  httpSession). It behaves as a WebSocket does, so the rest of the game uses it the same. `http`: it's one of these. */
+class HttpSocket {
+  constructor(url) {
+    this.url = String(url); this.http = true; this.readyState = 0; this.sid = null; this._out = []; this._st = 0;
+    this.onopen = this.onmessage = this.onclose = this.onerror = null;
+    setTimeout(() => { if (this.readyState !== 0) return; this.readyState = 1; if (this.onopen) this.onopen(); this._poll(); }, 0);
+  }
+  send(data) {
+    if (this.readyState !== 1) return;
+    this._out.push(String(data));
+    if (this.sid && !this._st) this._st = setTimeout(() => this._flush(), 20); // (what's sent together goes in one request)
+  }
+  async _post(body, ms) {
+    const r = await fetch(this.url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store', signal: timeoutSignal(ms) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+  async _flush() {
+    this._st = 0;
+    if (this.readyState !== 1 || !this._out.length) return;
+    const msgs = this._out.splice(0);
+    try { this._take(await this._post({ sid: this.sid, msgs }, 15000)); } catch (e) { this._fail(e); }
+  }
+  async _poll() {
+    while (this.readyState === 1) {
+      let d;
+      // (the first carries the hello and opens the connection; each after waits for what the server has)
+      try { d = await this._post(this.sid ? { sid: this.sid, poll: true } : { msgs: this._out.splice(0), poll: true }, 25000); }
+      catch (e) { this._fail(e); return; }
+      if (!this.sid && d && d.sid) { this.sid = d.sid; if (this._out.length) this._flush(); }
+      this._take(d);
+    }
+  }
+  _take(d) {
+    for (const m of (d && d.msgs) || []) { if (this.readyState !== 1) return; if (this.onmessage) this.onmessage({ data: m }); }
+    if (d && d.closed) this._end(d.closed.code || 1006, d.closed.reason || '');
+  }
+  _fail(e) { if (this.readyState > 1) return; if (this.onerror) this.onerror(e); this._end(1006, (e && e.message) || 'failed'); }
+  _end(code, reason) {
+    if (this.readyState === 3) return;
+    this.readyState = 3; clearTimeout(this._st);
+    if (this.onclose) this.onclose({ code, reason });
+  }
+  close(code = 1000, reason = '') {
+    if (this.readyState >= 2) return;
+    this.readyState = 2; clearTimeout(this._st);
+    if (this.sid) this._post({ sid: this.sid, close: true }, 5000).catch(() => {});
+    setTimeout(() => this._end(code, reason), 0); // (closed a moment later, as a WebSocket's close is)
+  }
+}
+/** How the game talks to its server: WebSockets — or, on a network where one never opens, plain requests (HttpSocket).
+ *  Found out once and kept for six hours (a school's network today is the same one tomorrow); after that WebSockets are
+ *  tried again. */
+const MpNet = {
+  KEY: 'am.mpHttp', HOLD: 6 * 3600e3,
+  http() { if (this._http) return true; try { return Date.now() - (+localStorage.getItem(this.KEY) || 0) < this.HOLD; } catch { return false; } },
+  useHttp() { this._http = true; try { localStorage.setItem(this.KEY, String(Date.now())); } catch { /* private mode */ } },
+  /** A connection to `path` (api/mp/…), whichever way this network allows. */
+  open(path) { return this.http() ? new HttpSocket(Host.api(`${path}/http`)) : new WebSocket(Host.ws(path)); },
+};
 /** What went wrong reaching the game's server, as a short code to quote — and the details behind it — so a report says
  *  exactly why. The first letter is what failed: H the check that the server's there (api/health), W the online
  *  connection, N opening a new room, R a room's connection. Then:
@@ -653,13 +736,19 @@ const Presence = {
   connect() {
     const u = Host.ws('api/mp/presence');
     let ws;
-    try { ws = new WebSocket(u); } catch (e) { NetErr.note('W0', `the browser wouldn't open the online connection (${e.message})`); this.later(); return; }
+    try { ws = MpNet.http() ? new HttpSocket(Host.api('api/mp/presence/http')) : new WebSocket(u); }
+    catch (e) { NetErr.note('W0', `the browser wouldn't open the online connection (${e.message})`); this.later(); return; }
     this.ws = ws;
     // (one that hasn't opened in 10 s won't: closing it tries again)
     // (ws._why: why it's being closed from here — noted as an error code already, or 'ours' when it isn't one)
-    setTimeout(() => { if (this.ws === ws && ws.readyState === 0) { ws._why = NetErr.note('WT', 'the online connection didn\'t open in 10 s'); try { ws.close(); } catch { /* closed */ } } }, 10000);
+    setTimeout(() => {
+      if (this.ws !== ws || ws.readyState !== 0) return;
+      // (a WebSocket that never opens while the web works — a school's web filter or proxy: plain requests from now on)
+      if (!ws.http) { MpNet.useHttp(); this.retry = 0; }
+      ws._why = NetErr.note('WT', `the online connection didn't open in 10 s${ws.http ? '' : ' — trying plain requests'}`); try { ws.close(); } catch { /* closed */ }
+    }, 10000);
     ws.onopen = () => {
-      ws._open = true;
+      ws._open = true; this._wsFails = 0;
       if (this.otherTab()) { ws._why = 'ours'; try { ws.close(); } catch { /* closed */ } return; } // (another copy here changed who this is)
       this.retry = 0; this._openAt = Date.now();
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
@@ -677,6 +766,9 @@ const Presence = {
       this._heard = Date.now();
       clearInterval(this._ping); this._ping = setInterval(() => {
         if (this.ws !== ws) return;
+        // (by plain requests: every request is a sign of life to the server, and one that fails closes it — the list
+        // asked for while it's looked at, and no pings)
+        if (ws.http) { if (this.watching()) this.send({ t: 'list' }); return; }
         if (!document.hidden && Date.now() - this._heard > 25000) { ws._why = NetErr.note('WD', 'the online connection went silent for 25 s (a network change, or the server stopped answering)'); this.dropDead(ws); return; }
         this.send({ t: this.watching() ? 'list' : 'ping' });
       }, 10000);
@@ -743,7 +835,10 @@ const Presence = {
     ws.onclose = ev => {
       if (this.ws !== ws) return;
       // (why, as a code — unless it was closed from here on purpose, or for a reason already noted)
-      if (!ws._why && !this.banned) { if (ws._serverMsg) NetErr.note('WS', `the server said: ${ws._serverMsg}`); else NetErr.closeFail('W', ev, ws._open); }
+      if (!ws._why && !this.banned) { if (ws._serverMsg) NetErr.note('WS', `the server said: ${ws._serverMsg}`); else NetErr.closeFail(ws.http ? 'WP' : 'W', ev, ws._open); }
+      // (cut off before it ever opened, while the server's check answered: blocked — plain requests from now on)
+      // (twice in a row: once can be the server restarting)
+      if (!ws._open && !ws.http && this.health === 'ok' && (!ev || ev.code === 1006) && (this._wsFails = (this._wsFails || 0) + 1) >= 2) { MpNet.useHttp(); this.retry = 0; }
       this.isAdmin = false;
       { const now = Date.now(), seen = this._seen || (this._seen = new Map()); for (const x of this.players) if (x.pid) seen.set(x.pid, now); }
       this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping); // (asks still queued go out on the next connection)

@@ -1269,7 +1269,8 @@ const GameplayScreen = {
     const t = performance.now(), s = this.s, room = Multiplayer.room;
     // (Ranked Play compares lazer's standardised score: it decides the damage)
     const sc = e.score.scoreStd;
-    if (t - this._mpSent > 250 && s.running) {
+    // (on a connection by plain requests — HttpSocket — once a second: each is a request of its own)
+    if (t - this._mpSent > (Multiplayer.ws && Multiplayer.ws.http ? 1000 : 250) && s.running) {
       this._mpSent = t;
       this._myPp = s.mpFailed ? 0 : this.livePp(e);
       Multiplayer.send({ t: 'score', score: sc, acc: e.score.accuracy, combo: e.score.combo, maxCombo: e.score.maxCombo, hp: e.health.value, pp: this._myPp });

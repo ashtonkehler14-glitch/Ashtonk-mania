@@ -744,6 +744,62 @@ function rateOf(mods, cfg) {
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 
+/** A connection by plain requests, for a network that won't let a WebSocket through — a school's web filter or proxy:
+ *  the web works, but a WebSocket never opens (the game said MP-RT / MP-W1006). It stands in for one: send() queues
+ *  what's going to the player, close() ends it, and the player's requests (httpSession) bring their messages and take
+ *  what's queued. */
+export class HttpSock {
+  constructor(sid, now = Date.now) { this.sid = sid; this.now = now; this.q = []; this.waiter = null; this.closed = null; this.seen = now(); this.onclose = null; }
+  send(data) {
+    if (this.closed) return;
+    this.q.push(String(data));
+    // (what comes close together goes back together: a waiting poll is answered a moment later — fewer requests)
+    if (this.waiter && !this._wt) this._wt = setTimeout(() => { this._wt = 0; this.wake(); }, 80);
+  }
+  close(code = 1000, reason = '') {
+    if (this.closed) return;
+    this.closed = { code, reason: String(reason || '') }; this.wake();
+    const f = this.onclose; this.onclose = null; if (f) f();
+  }
+  wake() { const w = this.waiter; this.waiter = null; if (w) w(); }
+  /** What's queued for the player — waiting up to `ms` for something (a request held open: long polling). */
+  async take(ms) {
+    if (!this.q.length && !this.closed && ms > 0) {
+      await new Promise(res => {
+        if (this.waiter) this.waiter(); // (an earlier poll still waiting: it answers empty, this one waits)
+        const t = setTimeout(() => { if (this.waiter === done) { this.waiter = null; res(); } }, ms);
+        const done = () => { clearTimeout(t); res(); };
+        this.waiter = done;
+      });
+    }
+    return { msgs: this.q.splice(0), closed: this.closed };
+  }
+}
+/** A player's request on a plain-request connection: { sid?, msgs: [text…], poll?, close? }. The first (no sid) opens
+ *  one — `attach(sock)` hooks it up as the WebSocket code does, returning { message(text), touch() } — and carries its
+ *  hello; msgs go in in order; poll waits up to 15 s for what's going to the player and takes it; close ends it. A connection
+ *  that hasn't been heard from in 45 s is closed (the player's gone). Answers { sid, msgs, closed? }. */
+export async function httpSession(map, body, attach, now = Date.now) {
+  const t = now();
+  for (const [k, s] of map) if (t - s.seen > 45000 || (s.closed && t - s.seen > 5000)) { s.close(4002, 'timeout'); map.delete(k); }
+  let s = body.sid ? map.get(String(body.sid)) : null;
+  if (body.sid && !s) return { msgs: [], closed: { code: 4001, reason: 'gone' } };
+  if (!s) {
+    if (map.size > 2000) return { msgs: [], closed: { code: 1013, reason: 'busy' } };
+    s = new HttpSock(randomHex(12), now); map.set(s.sid, s);
+    s.handlers = attach(s);
+  }
+  s.seen = t;
+  // (each request is the player still being there — no pings needed to keep them on: see the handlers' touch)
+  if (s.handlers.touch) s.handlers.touch();
+  for (const m of Array.isArray(body.msgs) ? body.msgs.slice(0, 100) : []) if (typeof m === 'string') s.handlers.message(m);
+  if (body.close) { s.close(1000, 'bye'); map.delete(s.sid); return { sid: s.sid, msgs: [], closed: s.closed }; }
+  if (!body.poll) return { sid: s.sid, msgs: [] };
+  const r = await s.take(Math.max(0, Math.min(15000, Number(body.wait) || 15000)));
+  s.seen = now(); if (s.handlers.touch) s.handlers.touch();
+  return { sid: s.sid, ...r };
+}
+
 // ── player codes: 16 characters from Crockford's base32 (no I, L, O or U — nothing to misread), 80 random bits, made
 // here with the platform's secure random numbers. Only each code's SHA-256 is kept: with 2^80 possible codes, neither
 // guessing one nor working one back from a stolen fingerprint is possible in practice.
@@ -809,18 +865,32 @@ export class MatchRoom {
       this.dispatch(v.out || []); this.schedule();
       return json(v.ok ? { ok: true } : { error: v.error }, v.ok ? 200 : 422);
     }
+    // (a network that won't let a WebSocket through: the same connection by plain requests — HttpSock)
+    if (url.pathname.endsWith('/http') && request.method === 'POST') {
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== 'object') return json({ error: 'Bad request.' }, 400);
+      return json(await httpSession(this.http || (this.http = new Map()), body, sock => this.attach(sock)));
+    }
     if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'Expected a WebSocket upgrade' }, 426);
     const { 0: client, 1: server } = new WebSocketPair();
     server.accept();
+    const c = this.attach(server);
+    server.addEventListener('message', ev => c.message(ev.data));
+    server.addEventListener('close', c.gone);
+    server.addEventListener('error', c.gone);
+    return new Response(null, { status: 101, webSocket: client });
+  }
+  /** A player's connection — a WebSocket, or the plain-request stand-in for one (HttpSock) — joined to the room:
+   *  { message(text), gone() }. */
+  attach(server) {
     let id = crypto.randomUUID().slice(0, 8);
     let joined = false;
-    server.addEventListener('message', ev => { try { onMessage(ev); } catch (e) { console.error('room message', e); } });
     // (one message that goes wrong is dropped — an error escaping here could reset the room for everyone in it)
-    const onMessage = ev => {
+    const onMessage = data => {
       // (as much as the online connection takes: a hello with a player's own picture went over 16 KB and was dropped
       // without an answer — their game waited, then gave up with MP-RT)
-      if (typeof ev.data !== 'string' || ev.data.length > 65536) return;
-      let msg; try { msg = JSON.parse(ev.data); } catch { return; }
+      if (typeof data !== 'string' || data.length > 65536) return;
+      let msg; try { msg = JSON.parse(data); } catch { return; }
       if (!joined) {
         if (msg.t !== 'hello') return;
         const r = this.logic.join(id, msg.name, !!msg.create, msg);
@@ -850,9 +920,8 @@ export class MatchRoom {
       this.announce(); // (the last one out leaves nothing to dispatch, but the room must leave the list)
       this.schedule();
     };
-    server.addEventListener('close', gone);
-    server.addEventListener('error', gone);
-    return new Response(null, { status: 101, webSocket: client });
+    if (server instanceof HttpSock) server.onclose = gone;
+    return { message: data => { try { onMessage(data); } catch (e) { console.error('room message', e); } }, gone, touch: () => { if (joined) this.seen.set(id, Date.now()); } };
   }
   saveSoon() {
     clearTimeout(this._saveT);
@@ -2049,9 +2118,17 @@ export class Matchmaker {
   presenceSocket() {
     const { 0: client, 1: server } = new WebSocketPair();
     server.accept();
+    const c = this.presenceAttach(server);
+    server.addEventListener('message', ev => c.message(ev.data));
+    server.addEventListener('close', c.gone);
+    server.addEventListener('error', c.gone);
+    return new Response(null, { status: 101, webSocket: client });
+  }
+  /** Someone's online connection — a WebSocket, or the plain-request stand-in for one (HttpSock) — hooked up:
+   *  { message(text), gone() }. */
+  presenceAttach(server) {
     const id = crypto.randomUUID().slice(0, 8);
     let joined = false;
-    server.addEventListener('message', ev => { try { onMessage(ev); } catch (e) { console.error('presence message', e); } });
     // (one message that goes wrong is dropped — an error escaping here could reset the object, and with it everyone online)
     const onMessage = ev => {
       if (typeof ev.data !== 'string' || ev.data.length > 65536) return; // (a play's inputs go up in chunks of up to ~60 KB)
@@ -2150,9 +2227,9 @@ export class Matchmaker {
       this.send(this.presence.message(id, msg));
     };
     const gone = () => { if (!joined) return; joined = false; this.socks.delete(id); this.send(this.presence.leave(id)); };
-    server.addEventListener('close', gone);
-    server.addEventListener('error', gone);
-    return new Response(null, { status: 101, webSocket: client });
+    if (server instanceof HttpSock) server.onclose = gone;
+    return { message: data => { try { onMessage({ data }); } catch (e) { console.error('presence message', e); } }, gone,
+      touch: () => { const u = joined && this.presence.users.get(id); if (u) u.seen = this.presence.now(); } };
   }
   /** Today's daily challenge beatmap, picked here — never by a player's game, which could pick any beatmap and say
    *  anything about it: a ranked 4K beatmap of 3.5–5.5 stars from osu!'s listing (in a random order, so it isn't always
@@ -2802,6 +2879,13 @@ export class Matchmaker {
       try { const d = await officialGet(url.searchParams.get('path') || '', this.env, fetch, Number(url.searchParams.get('ttl')) || undefined); save(); return json(d); }
       catch (e) { save(); return json({ error: e.message }, e.status || 500); }
     }
+    // (a network that won't let a WebSocket through: the online connection by plain requests — HttpSock)
+    if (url.pathname.endsWith('/presence/http') && request.method === 'POST') {
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== 'object') return json({ error: 'Bad request.' }, 400);
+      await this.loadFriends();
+      return json(await httpSession(this.http || (this.http = new Map()), body, sock => this.presenceAttach(sock)));
+    }
     if (url.pathname.endsWith('/presence')) {
       if (request.headers.get('Upgrade') !== 'websocket') return json({ online: this.presence.list().length });
       await this.loadFriends();
@@ -2977,7 +3061,7 @@ export async function handleMultiplayer(request, env, url) {
   if (!env.ROOMS || !env.MATCHMAKER) return json({ error: 'Multiplayer is not enabled on this server.' }, 503);
   const path = url.pathname;
   if (path === '/api/mp/new' && request.method === 'POST') return json({ code: makeCode() });
-  if (path === '/api/mp/presence') {
+  if (path === '/api/mp/presence' || (path === '/api/mp/presence/http' && request.method === 'POST')) {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL(path, url), request));
   }
@@ -3017,7 +3101,7 @@ export async function handleMultiplayer(request, env, url) {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL(path, url), { method: 'POST', body: await request.text(), headers: { 'content-type': 'application/json' } }));
   }
-  const m = /^\/api\/mp\/room\/([A-Za-z0-9]{4,8})(\/status|\/verify)?$/.exec(path);
+  const m = /^\/api\/mp\/room\/([A-Za-z0-9]{4,8})(\/status|\/verify|\/http)?$/.exec(path);
   if (m) {
     const code = m[1].toUpperCase();
     const stub = env.ROOMS.get(env.ROOMS.idFromName(code));

@@ -46,8 +46,9 @@ const check = (name, ok, extra = '') => { results.push({ name, ok }); console.lo
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const errors = [];
 
-async function player(name) {
+async function player(name, init = null) {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 800 }, permissions: ['clipboard-read', 'clipboard-write'] });
+  if (init) await ctx.addInitScript(init);
   // Element.append(null) writes the word "null" on screen: any such call is reported as a page error
   await ctx.addInitScript(() => { for (const P of [Element.prototype, DocumentFragment.prototype]) { const o = P.append; P.append = function (...a) { if (a.some(x => x === null || x === undefined)) console.error('a null child was appended (it shows up as the text "null") to ' + (this.className || this.tagName)); return o.apply(this, a); }; } });
   const page = await ctx.newPage();
@@ -98,6 +99,8 @@ await shot(alice, 'mp-lobby');
 {
   const why = 'The game\'s server has used up today\'s free allowance on Cloudflare, so rooms can\'t open — they will again after midnight UTC.';
   await alice.route(/api\/mp\/room\/[A-Z0-9]+\/status/, r => r.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: why }) }));
+  // (the plain-request way in too: the room really can't be opened, whichever way the game tries — MpNet)
+  await alice.route(/api\/mp\/room\/[A-Z0-9]+\/http/, r => r.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: why }) }));
   await alice.evaluate(() => { const W = window.WebSocket; window._W = W; window.WebSocket = function (u, p) { if (!/api\/mp\/room\//.test(String(u))) return new W(u, p); const f = { readyState: 0, close() {}, send() {} }; setTimeout(() => { f.readyState = 3; f.onerror && f.onerror({}); f.onclose && f.onclose({ code: 1006 }); }, 50); return f; }; });
   await alice.click('.mp-create'); await alice.waitForSelector('.mp-cr');
   await alice.click('.dialog .actions .btn.primary');
@@ -106,8 +109,9 @@ await shot(alice, 'mp-lobby');
   const r = await alice.evaluate(() => ({ status: (document.querySelector('.mp-status .mp-err') || {}).textContent, copy: !!document.querySelector('.mp-status .off-copy'), enabled: !document.querySelector('.mp-create').disabled, inRoom: AshtonkMania.Multiplayer.inRoom() }));
   // (with its error code — the server said why: MP-RS — and the details to copy)
   check('a room the server can\'t open says why in the lounge, with its error code (and Create room works again)', r.status === `${why} (MP-RS)` && r.copy && r.enabled && !r.inRoom, JSON.stringify(r));
-  await alice.evaluate(() => { window.WebSocket = window._W; });
+  await alice.evaluate(() => { window.WebSocket = window._W; localStorage.removeItem('am.mpHttp'); MpNet._http = false; });
   await alice.unroute(/api\/mp\/room\/[A-Z0-9]+\/status/);
+  await alice.unroute(/api\/mp\/room\/[A-Z0-9]+\/http/);
 }
 // a player with their own picture: a room's first message carries it, and over 16 KB the room dropped it without a word
 // — the game waited, then gave up (MP-RT), so they could never get into a room. The room takes it now; and the game
@@ -132,6 +136,41 @@ await shot(alice, 'mp-lobby');
     return { raw, joined, sent };
   });
   check('a player with a big picture of their own gets into a room (the server answers a 20 KB hello; the game keeps its own under 16 KB)', r.raw === 'welcome' && r.joined === true && r.sent > 0 && r.sent < 16000, JSON.stringify(r));
+}
+// a network that won't let a WebSocket through (a school Chromebook's web filter or proxy: the web works, the multiplayer
+// connection never opens — MP-RT): the game goes over plain requests instead, and plays with everyone else as before
+{
+  const carol = await player('Carol', () => {
+    const W = window.WebSocket;
+    window.WebSocket = function (u, p) {
+      if (!/\/api\/mp\//.test(String(u))) return new W(u, p);
+      const f = { readyState: 0, url: String(u), send() {}, close() {} };
+      setTimeout(() => { f.readyState = 3; if (f.onerror) f.onerror(new Event('error')); if (f.onclose) f.onclose({ code: 1006, reason: '' }); }, 30);
+      return f;
+    };
+  });
+  await carol.waitForFunction(() => { const P = AshtonkMania.Presence; return P.ws && P.ws.http && P.ws.readyState === 1 && P.me; }, null, { timeout: 20000 }).catch(() => {});
+  const on = await carol.evaluate(() => ({ http: !!(AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.http), me: !!AshtonkMania.Presence.me, kept: !!localStorage.getItem('am.mpHttp') }));
+  await alice.waitForFunction(() => AshtonkMania.Presence.players.some(p => p.name === 'Carol'), null, { timeout: 15000 }).catch(() => {});
+  const seen = await alice.evaluate(() => AshtonkMania.Presence.players.some(p => p.name === 'Carol'));
+  const code = await carol.evaluate(async () => { await AshtonkMania.Multiplayer.create({ isPublic: false }); return AshtonkMania.Multiplayer.inRoom() && AshtonkMania.Multiplayer.ws.http ? AshtonkMania.Multiplayer.code : null; });
+  await alice.evaluate(c => AshtonkMania.Multiplayer.join(c), code);
+  await carol.waitForFunction(() => AshtonkMania.Multiplayer.room && AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 10000 }).catch(() => {});
+  await alice.evaluate(() => AshtonkMania.Multiplayer.send({ t: 'chat', text: 'hello carol' }));
+  await carol.waitForFunction(() => AshtonkMania.Multiplayer.chat.some(c => c.text === 'hello carol'), null, { timeout: 8000 }).catch(() => {});
+  await carol.evaluate(() => AshtonkMania.Multiplayer.send({ t: 'chat', text: 'hi alice' }));
+  await alice.waitForFunction(() => AshtonkMania.Multiplayer.chat.some(c => c.text === 'hi alice'), null, { timeout: 8000 }).catch(() => {});
+  const r = {
+    on, seen, code,
+    two: await carol.evaluate(() => (AshtonkMania.Multiplayer.room || { players: [] }).players.length),
+    carolGot: await carol.evaluate(() => AshtonkMania.Multiplayer.chat.some(c => c.text === 'hello carol')),
+    aliceGot: await alice.evaluate(() => AshtonkMania.Multiplayer.chat.some(c => c.text === 'hi alice')),
+  };
+  check('a network that blocks WebSockets (a school Chromebook): online and in a room by plain requests, chatting with a player on WebSockets', on.http && on.me && on.kept && seen && !!code && r.two === 2 && r.carolGot && r.aliceGot, JSON.stringify(r));
+  await alice.evaluate(() => AshtonkMania.Multiplayer.leave());
+  await carol.evaluate(() => AshtonkMania.Multiplayer.leave());
+  await carol.waitForTimeout(500);
+  await carol.context().close();
 }
 // the lounge's room list isn't asked for while the game is in the background (a lounge left open in another tab asked
 // every 3 s all day)
