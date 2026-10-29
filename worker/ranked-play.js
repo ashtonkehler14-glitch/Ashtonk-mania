@@ -43,15 +43,14 @@ export const starsForRating = r => Math.max(0.5, Math.log(Math.max(1e-6, (r - 80
 /** A new player's rating, estimated from their pp (MatchmakingQueueBackgroundService). */
 export const initialRating = pp => -4000 + 600 * Math.log(Math.max(0, pp) + 4000);
 
-/** The deck around the star ratings both players asked for: `n` targets, at least 0.5★ (Box–Muller), centred a third
- *  of the way from the lower choice to the higher — so neither player can drag the other far out of their depth — and
- *  spread wider the further apart the two choices are, so both get cards near their own level. */
+/** The deck around the star ratings the players asked for: `n` targets, at least 0.5★ (Box–Muller), taking turns
+ *  around each player's own choice — never somewhere in between. (Each card has a difficulty for each player near
+ *  their own; these say how many cards, and are the deck for a dealer that can't find songs like that.) */
 export function deckTargetsForStars(prefs, n = RP.DECK, rnd = Math.random) {
-  const lo = prefs.length ? Math.min(...prefs) : 3, hi = prefs.length ? Math.max(...prefs) : 3;
-  const want = lo + (hi - lo) / 3, sd = Math.min(0.8, 0.35 + (hi - lo) * 0.15), out = [];
+  const want = prefs.length ? prefs : [3], sd = 0.35, out = [];
   while (out.length < n) {
     const theta = 2 * Math.PI * rnd(), r = Math.sqrt(-2 * Math.log(Math.max(1e-12, rnd())));
-    out.push(want + sd * r * Math.cos(theta), want + sd * r * Math.sin(theta));
+    for (const z of [r * Math.cos(theta), r * Math.sin(theta)]) out.push(want[out.length % want.length] + sd * z);
   }
   return out.slice(0, n).map(x => Math.round(Math.max(0.5, x) * 100) / 100);
 }
@@ -141,7 +140,12 @@ export class RankedPlay {
     }
     return { keys: this.keys, rated: this.rated, stage: this.stage, round: this.round, left: this.deadline ? Math.max(0, this.deadline - this.now()) : 0, len: this.stageLen,
       mult: this.mult, users, order: [...this.order], active: this.active, deck: this.deck.length, cards, played: this.played, countdown: this.countdown,
-      results: this.results, history: this.history, winner: this.winner, stars: this.stars, id: this.id, rematch: Object.keys(this.rematch) };
+      results: this.results, history: this.history, winner: this.winner, stars: this.starsFor(viewer), id: this.id, rematch: Object.keys(this.rematch) };
+  }
+  /** The star rating the deck came out at, as one player sees it: their own difficulties' (a card has one for each). */
+  starsFor(id) {
+    const own = this.pool.map(m => m.per && m.per[id]).filter(d => d && Number.isFinite(d.stars));
+    return own.length ? Math.round(own.reduce((a, d) => a + d.stars, 0) / own.length * 100) / 100 : this.stars;
   }
 
   // ── stages
@@ -256,7 +260,9 @@ export class RankedPlay {
         const [hard, easy] = [opening[2 * k], opening[2 * k + 1]], first = ids[k % 2];
         this.user(first).hand.push(hard); this.user(ids.find(x => x !== first)).hand.push(easy);
       }
-      for (const x of ids) this.user(x).hand.sort((a, b) => sr(a) - sr(b)); // (easiest first, as they're laid out)
+      // (easiest first, as they're laid out — by their own difficulty of each)
+      const own = (x, i) => { const d = this.pool[i].per && this.pool[i].per[x]; return d ? d.stars : sr(i); };
+      for (const x of ids) this.user(x).hand.sort((a, b) => own(x, a) - own(x, b));
     } else for (const x of this.order) this.draw(x, RP.HAND);
     return this.enter('warmup');
   }

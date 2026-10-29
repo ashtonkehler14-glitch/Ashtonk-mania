@@ -12,8 +12,39 @@ const LowEnd = {
     const mem = navigator.deviceMemory || 8, cores = navigator.hardwareConcurrency || 8;
     return mem <= 2 || (/\bCrOS\b/.test(navigator.userAgent) && cores <= 4 && mem <= 4);
   },
+  /** Found slow: the lighter menus from now on (and for the next two weeks). */
+  mark() {
+    if (document.documentElement.classList.contains('slow')) return;
+    document.documentElement.classList.add('slow');
+    try { localStorage.setItem('am.slowMenus', String(Date.now())); } catch { /* private mode */ }
+  },
+  /** A list scrolling at under ~33fps for two seconds of scrolling (or with a quarter of its frames late) is a slow
+   *  device too — found wherever it scrolls (the beatmap listing first of all), not only on the main menu. Frames
+   *  are only looked at while something is scrolling: a list at rest costs nothing. */
+  watchScroll() {
+    let raf = 0, until = 0, last = 0, ms = 0, n = 0, late = 0, period = 16.7;
+    const tick = now => {
+      raf = 0;
+      const dt = last ? now - last : 0; last = now;
+      if (document.documentElement.classList.contains('slow')) return;
+      // (a hitch — a page of results arriving — counts as one late frame, not as the whole of its length; a hidden tab
+      // doesn't count at all, nor does the first frame, with no frame before it to time)
+      if (dt > 0 && !document.hidden) {
+        if (dt < period) period = Math.max(5, dt); else period += (Math.min(dt, 100) - period) * 0.002;
+        ms += Math.min(dt, 100); n++; if (dt > period * 1.6) late++;
+      }
+      if (ms >= 2000) { if (ms / n > period * 1.8 || late / n > 0.25) this.mark(); ms = n = late = 0; }
+      if (now < until) raf = requestAnimationFrame(tick);
+    };
+    document.addEventListener('scroll', () => {
+      if (Screens.currentName === 'gameplay' || document.documentElement.classList.contains('slow')) return;
+      until = performance.now() + 200;
+      if (!raf) { last = 0; raf = requestAnimationFrame(tick); }
+    }, { capture: true, passive: true });
+  },
 };
 if (LowEnd.known()) document.documentElement.classList.add('slow');
+LowEnd.watchScroll();
 
 const HomeScreen = {
   tab: 'home',
@@ -369,10 +400,12 @@ const HomeScreen = {
       // Performance mode, by itself — the visualiser at half resolution, both canvases at ~30fps, lighter menus (.slow)
       if (this._slow === undefined) this._slow = document.documentElement.classList.contains('slow') || undefined;
       if (!this._slow && now - t0 > 1500) {
-        if (document.hidden || dt >= 100) { winMs = winN = winLate = 0; } // (a hidden tab or a hitch isn't the device)
-        else if ((winMs += dt, ++winN, dt > 25 && winLate++, winMs >= 2000)) {
+        // (a hidden tab isn't the device; a hitch counts as one late frame, not its whole length — every frame of a
+        // device too slow for 10fps is one of those, and leaving them out it was never found slow at all)
+        if (document.hidden) { winMs = winN = winLate = 0; }
+        else if ((winMs += Math.min(dt, 100), ++winN, dt > 25 && winLate++, winMs >= 2000)) {
           // (or stuttering: more than 5% of frames late keeps the average up but looks like a slow device)
-          if (winMs / winN > 18.2 || winLate / winN > 0.05) { this._slow = true; document.documentElement.classList.add('slow'); try { localStorage.setItem('am.slowMenus', String(Date.now())); } catch { /* private mode */ } }
+          if (winMs / winN > 18.2 || winLate / winN > 0.05) { this._slow = true; LowEnd.mark(); }
           winMs = winN = winLate = 0;
         }
       }

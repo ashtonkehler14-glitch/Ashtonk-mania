@@ -420,8 +420,10 @@ const ProfileManager = {
     const el = h('div.avatar', { style: { width: size + 'px', height: size + 'px' } });
     if (p.avatar !== 'default' && this.avatarURL) {
       el.style.backgroundImage = `url("${this.avatarURL}")`;
-      // (Teto's or Miku's picture, big enough to see: Neru's drawn on it)
-      if (size >= 48 && typeof NeruEggs !== 'undefined') NeruEggs.doodle(el, p.avatar);
+      // (Teto's or Miku's picture, big enough to see: Neru's drawn on it — but not on Teto's for a player with the Teto
+      // role, whose picture is shown at its best: see roleFx)
+      const tetoRole = /^preset:teto/.test(p.avatar) && typeof Presence !== 'undefined' && roleFx(Presence.role) === 'teto';
+      if (size >= 48 && typeof NeruEggs !== 'undefined' && !tetoRole) NeruEggs.doodle(el, p.avatar);
     } else { el.classList.add('avatar-mono'); el.textContent = (p.name || 'A').slice(0, 1).toUpperCase(); el.style.fontSize = size * 0.45 + 'px'; }
     return el;
   },

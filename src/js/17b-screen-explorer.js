@@ -275,13 +275,14 @@ const OnlineBeatmaps = {
     // a cover that has loaded before goes straight in, so rebuilt cards don't fade in again
     const known = this._covers.get(urls.join('|'));
     if (known) { el.style.transition = 'none'; el.style.backgroundImage = `url("${known}")`; done && done(null); return; }
+    PicWait.add(el); // (a list scrolled with the wheel waits for it — see PicWait)
     const next = i => {
-      if (i >= urls.length) { failed && failed(); return; }
+      if (i >= urls.length) { PicWait.done(el); failed && failed(); return; }
       const img = new Image();
       // (decoded off the main thread before it's shown, so a card scrolling in doesn't stall a frame decoding it)
       // (`queue`: the picture goes on in the page's next frame along with everything else, not the moment it's decoded —
       // a change between frames made the next scroll wait while the browser worked the page out again)
-      img.onload = () => { const put = () => { el.style.backgroundImage = `url("${img.src}")`; done && done(img); }; const show = () => { this._covers.set(urls.join('|'), img.src); if (queue) queue(put); else put(); }; (img.decode ? img.decode() : Promise.resolve()).then(show, show); };
+      img.onload = () => { const put = () => { el.style.backgroundImage = `url("${img.src}")`; PicWait.done(el); done && done(img); }; const show = () => { this._covers.set(urls.join('|'), img.src); if (queue) queue(put); else put(); }; (img.decode ? img.decode() : Promise.resolve()).then(show, show); };
       img.onerror = () => next(i + 1);
       img.src = urls[i];
     };
@@ -532,8 +533,10 @@ const ExplorerScreen = {
     for (const f of q) f();
     if (this._wantWin) { this._wantWin = false; this.renderWindow(); }
     if (this._wantRing) { this._wantRing = false; this._paintRing && this._paintRing(); this.topBtn.classList.toggle('show', (this._st || 0) > 600); }
-    if (this._scrolling) this.shield.classList.add('on');
-    if (this._shieldOff) { this._shieldOff = false; if (!this._scrolling) this.shield.classList.remove('on'); }
+    // (and the card that was under the pointer drops its hover at once rather than sliding its buttons away: that
+    // slide was repainted every frame, the page's cards all sorted out again with it, as the scroll began)
+    if (this._scrolling && !this.shield.classList.contains('on')) { this.shield.classList.add('on'); this.grid && this.grid.classList.add('moving'); }
+    if (this._shieldOff) { this._shieldOff = false; if (!this._scrolling) { this.shield.classList.remove('on'); this.grid && this.grid.classList.remove('moving'); } }
   },
   /** A change to make in the next frame (see frame()). */
   later(f) { (this._q || (this._q = [])).push(f); this.schedule(); },
@@ -716,14 +719,14 @@ const ExplorerScreen = {
         dl && dl.state === 'downloading' ? h('div.ex-thumbprog', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }) : null),
       h('div.ex-cb',
         h('div.ex-cb-top',
-          h('div.ex-titles', h('div.ex-t', { title }, h('span.ex-tt', title), set.video ? h('span.ex-vid', { title: 'Has video' }, icon('film')) : null), h('div.ex-a', { title: artist }, artist)),
-          h('div.ex-counts', h('span', { title: 'Favourites' }, icon('heart'), fmtCompact(set.favourites)), h('span', { title: 'Play count' }, icon('play'), fmtCompact(set.playCount)))),
+          h('div.ex-titles', h('div.ex-t', { title }, h('span.ex-tt', title), set.video ? h('span.ex-vid', { title: 'Has video' }, flatIcon('film', 0.7)) : null), h('div.ex-a', { title: artist }, artist)),
+          h('div.ex-counts', h('span', { title: 'Favourites' }, flatIcon('heart', 0.68), fmtCompact(set.favourites)), h('span', { title: 'Play count' }, flatIcon('play', 0.68), fmtCompact(set.playCount)))),
         h('div.ex-m', 'mapped by ', h('b', set.creator)),
         h('div.ex-foot', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()), spectrum,
           h('span.ex-keys', keys.length > 3 ? `${keys[0]}–${keys[keys.length - 1]}K` : keys.map(k => k + 'K').join(' ')),
           h('span.grow'),
-          owned ? h('span.ex-owned', { title: 'In your library' }, icon('check')) : null,
-          h('span.ex-length', icon('clock'), fmtTime(len * 1000)))),
+          owned ? h('span.ex-owned', { title: 'In your library' }, flatIcon('check')) : null,
+          h('span.ex-length', flatIcon('clock', 0.6), fmtTime(len * 1000)))),
       h('div.ex-side', likeBtn, sideAct));
     card.addEventListener('pointerenter', () => UISounds.hover());
     card._loadCovers = loadCovers;
@@ -855,7 +858,7 @@ const ExplorerScreen = {
         h('div.bso-inner',
           h('div.bso-left',
             h('div.bso-diffline', diffs, hover),
-            h('div.bso-title', title, set.video ? h('span.ex-vid', { title: 'Has video' }, icon('film')) : null),
+            h('div.bso-title', title, set.video ? h('span.ex-vid', { title: 'Has video' }, flatIcon('film', 0.7)) : null),
             h('div.bso-artist', artist),
             h('div.bso-meta', ...[h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()),
               h('span', 'mapped by ', h('b', set.creator)),

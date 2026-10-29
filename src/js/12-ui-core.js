@@ -17,10 +17,10 @@ function roleBadge(role) {
   return h(`span.role-badge${role.owner ? '.owner' : ''}`, { style: { '--rc': c }, title: role.owner ? 'The server\'s owner' : `${role.name} (an admin)` }, role.owner ? icon('crown') : null, String(role.name).slice(0, 24));
 }
 
-/** What a player's role dresses them in, in Neru's colours: 'neru' for a role named Neru — her gold all round their
- *  picture, sparkles twinkling on it, their name shimmering gold and pink —, 'admin' for any other admin, the owner too
- *  (the same, quieter, in the role's own colour); null for everyone else. */
-function roleFx(role) { return !role || !role.name ? null : /neru/i.test(String(role.name)) ? 'neru' : 'admin'; }
+/** What a player's role dresses them in: 'neru' for a role named Neru — her gold all round their picture, sparkles
+ *  twinkling on it, their name shimmering gold and pink —, 'teto' for one named Teto — the same in Teto's red, with
+ *  her bread —, 'admin' for any other admin, the owner too (quieter, in the role's own colour); null for everyone else. */
+function roleFx(role) { const n = role && role.name ? String(role.name) : ''; return !n ? null : /teto/i.test(n) ? 'teto' : /neru/i.test(n) ? 'neru' : 'admin'; }
 /** A player's role as the game last heard it: yours, else theirs from the online list. */
 function roleOfPid(pid) {
   if (!pid || typeof Presence === 'undefined') return null;
@@ -34,7 +34,8 @@ function fxAvatar(el, role) {
   const fx = roleFx(role);
   if (!fx || !el) return el;
   const w = h(`span.fx-av.fx-${fx}`, { style: { '--rc': /^#[0-9a-f]{6}$/i.test(role.colour || '') ? role.colour : '#ffcc22' } }, el);
-  for (let i = fx === 'neru' ? 3 : 1; i > 0; i--) w.append(h('i.fx-spark'));
+  for (let i = fx === 'admin' ? 1 : 3; i > 0; i--) w.append(h('i.fx-spark'));
+  if (fx === 'teto') w.append(h('i.fx-bread'));
   return w;
 }
 /** A name `el` in its owner's role effects (roleFx). */
@@ -82,6 +83,26 @@ icon.img = n => {
   }
   return n.replace(/[^a-zA-Z0-9-]/g, '_');
 };
+
+/** A small icon in white (at the given strength) drawn as a picture rather than as an SVG of its own — for the cards
+ *  of the long lists. An inline SVG brings its own scale, clip and colour mask, and each of those split every card into
+ *  more pieces for the browser to sort out again in every frame of a scroll; a picture is one piece of the card. */
+function flatIcon(name, alpha = 1) {
+  const key = name + '|' + alpha;
+  let cls = flatIcon.cls.get(key);
+  if (!cls) {
+    const src = ICON_SRC[name];
+    const svg = !src ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="color:#fff" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="${alpha}">${(ICONS[name] || '').replace(/class="fillme"/g, 'fill="currentColor" stroke="none"')}</svg>`
+      : src[0] === 'L' ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><image href="${ICON_IMG[src[1]]}" width="24" height="24" opacity="${alpha}"/></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${src[1]} ${src[2]}"><path fill="#fff" fill-opacity="${alpha}" d="${src[3]}"/></svg>`;
+    cls = 'fi' + flatIcon.cls.size;
+    flatIcon.cls.set(key, cls);
+    if (!flatIcon.sheet) { flatIcon.sheet = document.createElement('style'); document.head.appendChild(flatIcon.sheet); }
+    flatIcon.sheet.append(`.${cls} { background-image: url("data:image/svg+xml,${encodeURIComponent(svg)}"); }\n`);
+  }
+  return h(`i.fi.${cls}`, { 'aria-hidden': 'true' });
+}
+flatIcon.cls = new Map();
 
 /** Star rating colour ramp. */
 function starColour(sr) {
@@ -1075,12 +1096,59 @@ function backButton(onClick) {
  *  only while it can't: frames being dropped (the list building what comes into view) ease the top speed off until
  *  they aren't, and it picks up again as they come back on time. Sideways scrolling, a list scrolled some other way
  *  (its bar dragged, the keys, a touch screen) and one that handles the wheel itself are left as they are. */
+/** Pictures still on their way (covers, song panels, avatars): a list scrolled with the wheel slows as it nears one
+ *  and crawls while one is on screen, rather than racing ahead into empty cards — see MenuScroll. Each is let go once
+ *  it's showing, once it fails, or after PATIENCE (a slow connection doesn't hold the list up for long). */
+const PicWait = {
+  // (a list nearing one goes slowly enough to take LEAD ms to reach it, and stops at its edge until it's in — for
+  // PATIENCE ms at most, counted from when it first holds the list up, as covers start loading screens ahead)
+  PATIENCE: 2500, LEAD: 250, HOLD: 150,
+  map: new Map(), // element → [when it started loading, when it first held a list up (0: not yet)]
+  add(el) { if (el) this.map.set(el, [performance.now(), 0]); },
+  done(el) { this.map.delete(el); },
+  /** A picture put straight on as a CSS background: watched until it's in. */
+  css(el, url) {
+    el.style.backgroundImage = `url("${url}")`;
+    if (/^(data|blob):/.test(url)) return el;
+    const img = new Image(), off = () => this.done(el);
+    this.add(el); img.onload = img.onerror = off; img.src = url;
+    return el;
+  },
+  /** <img>s in a list still loading (avatars and the like) are watched too. */
+  imgs(sc) {
+    for (const img of sc.getElementsByTagName('img')) {
+      if (img.complete || this.map.has(img)) continue;
+      this.add(img);
+      const off = () => this.done(img);
+      img.addEventListener('load', off, { once: true }); img.addEventListener('error', off, { once: true });
+    }
+  },
+  /** The fastest list `sc` may move towards `dir` (px a millisecond) for the pictures ahead of it to be in. */
+  cap(sc, dir) {
+    if (!this.map.size) return Infinity;
+    const now = performance.now(), r = sc.getBoundingClientRect();
+    let near = Infinity;
+    for (const [p, w] of this.map) {
+      if (w[1] ? now - w[1] > this.PATIENCE : now - w[0] > 60000) { if (now - w[0] > 60000) this.map.delete(p); continue; } // (given up on)
+      if (!p.isConnected || !sc.contains(p)) continue; // (a card not in the page yet: it counts once it is)
+      const b = p.getBoundingClientRect();
+      const ahead = dir > 0 ? b.top - r.bottom : r.top - b.bottom; // (how far beyond the list's edge it starts)
+      if (!b.height || ahead < -2) continue; // (not shown, or on screen already: the list is past waiting for it)
+      if (ahead < this.HOLD) w[1] = w[1] || now; // (close: it's holding the list up from now)
+      near = Math.min(near, ahead);
+    }
+    return near === Infinity ? Infinity : Math.max(0, near) / this.LEAD;
+  },
+};
+
 const MenuScroll = {
-  // how far a list may move in one frame: as far as the wheel asks while frames come on time; while they're late, less
-  // each frame — it's what comes into view in a frame that costs, so a late frame moving further made the next one later
-  // still — down to MIN, and up again as they come back on time
-  MIN: 28, MAX: 600,
-  cap: 600, period: 16.7, // the most it moves in a frame now, and how often frames come when on time (the shortest lately)
+  // how fast a list may move (px a millisecond): as fast as the wheel asks while frames come on time; while they're
+  // late, slower each frame — it's what comes into view in a frame that costs, so a late frame moving further made the
+  // next one later still — down to MIN, and up again as they come back on time. (Per millisecond, not per frame: a
+  // device that can't reach the screen's rate at all still moves a list at a sensible pace — at a floor counted in
+  // pixels a frame, its every frame late, it crawled)
+  MIN: 1.5, MAX: 36,
+  speed: 36, period: 16.7, // the fastest it moves now, and how often frames come when on time (the shortest lately)
   el: null, target: 0, raf: 0, last: 0,
   bind() { window.addEventListener('wheel', e => this.wheel(e), { passive: false }); },
   /** The nearest list under the pointer that can still scroll that way. */
@@ -1098,23 +1166,33 @@ const MenuScroll = {
     if (!el) return;
     e.preventDefault();
     // (a new list, or this one at rest — maybe scrolled some other way since: from where it is now)
-    if (el !== this.el || !this.raf) { this.el = el; this.target = el.scrollTop; }
+    if (el !== this.el || !this.raf) { this.el = el; this.target = el.scrollTop; this.imgAt = 0; }
     this.target = clamp(this.target + dy, 0, el.scrollHeight - el.clientHeight);
-    if (!this.raf) { this.last = performance.now(); this.raf = requestAnimationFrame(t => this.step(t)); }
+    if (!this.raf) { this.last = 0; this.raf = requestAnimationFrame(t => this.step(t)); }
   },
   step(now) {
     this.raf = 0;
     const el = this.el;
     if (!el || !el.isConnected) { this.el = null; return; }
-    const dt = clamp(now - this.last, 1, 100), cur = el.scrollTop, d = this.target - cur;
+    // (the first frame of a scroll has no frame before it to time: taken as on time — timed from the wheel event
+    // instead, it came out a fraction of a frame, read as the screen's rate, and every frame after looked late)
+    const first = !this.last, dt = first ? this.period : clamp(now - this.last, 1, 100), cur = el.scrollTop, d = this.target - cur;
     this.last = now;
     if (Math.abs(d) < 0.5) return;
     // (on time, or a frame dropped? — the shortest frame lately is the screen's own rate; it creeps back up slowly
     // in case the screen itself got slower)
-    if (dt < this.period) this.period = Math.max(4, dt); else this.period += (dt - this.period) * 0.002;
-    this.cap = dt > this.period * 1.6 ? Math.max(this.MIN, this.cap * 0.75) : Math.min(this.MAX, this.cap * 1.08);
-    const lim = this.cap;
+    if (!first) {
+      if (dt < this.period) this.period = Math.max(5, dt); else this.period += (dt - this.period) * 0.002;
+      this.speed = dt > this.period * 1.6 ? Math.max(this.MIN, this.speed * 0.75) : Math.min(this.MAX, this.speed * 1.08);
+    }
+    // (and no faster than the pictures ahead come in — see PicWait; the list's <img>s looked over a few times a second)
+    if (now - (this.imgAt || 0) > 300) { this.imgAt = now; PicWait.imgs(el); }
+    const wait = PicWait.cap(el, Math.sign(d)), lim = Math.min(this.speed, wait) * dt;
+    // (waiting, the wheel turned on meanwhile doesn't pile up into a dash the moment the pictures are in)
+    if (wait < Infinity && Math.abs(d) > el.clientHeight) this.target = cur + Math.sign(d) * el.clientHeight;
     let mv = clamp(d * (1 - Math.exp(-dt / 55)), -lim, lim);
+    // (at the edge of a picture still loading: the list waits there, looking again each frame, until it's in)
+    if (lim < 1 && Math.abs(mv) < 1) { this.raf = requestAnimationFrame(t => this.step(t)); return; }
     if (Math.abs(mv) < 1) mv = Math.sign(d) * Math.min(1, Math.abs(d));
     // (instant: a list styled to scroll smoothly turned each frame's step into an animation of its own — and barely moved)
     el.scrollTo({ top: cur + mv, behavior: 'instant' });

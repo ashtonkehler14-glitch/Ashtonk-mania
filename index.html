@@ -84,6 +84,7 @@ a { color: var(--accent); }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+i.fi { display: inline-block; flex: none; width: 1.15em; height: 1.15em; vertical-align: -0.2em; background-position: center; background-size: contain; background-repeat: no-repeat; }
 svg.i { width: 1.15em; height: 1.15em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.2em; }
 svg.i.fill { fill: currentColor; stroke: none; }
 /* lazer's own icons (12-icons.js): its white icon pictures as masks, in the text colour */
@@ -2574,7 +2575,8 @@ body.f-modsel #toasts { opacity: 0; pointer-events: none; }
 .ex-spec-more i { width: 7px; height: 14px; border-radius: 4px; background: var(--sc); }
 .ex-card .ex-keys { font-size: .7rem; font-weight: 700; color: rgba(255, 255, 255, .7); }
 .ex-card .ex-length { position: static; display: inline-flex; align-items: center; gap: 4px; padding: 0; background: none; font-size: .72rem; color: rgba(255, 255, 255, .75); }
-.ex-card .ex-length .i { width: 12px; height: 12px; }
+.ex-card .ex-length .i, .ex-card .ex-length .fi, .ex-card .ex-counts .fi, .ex-owned .fi { width: 12px; height: 12px; }
+.ex-vid .fi { width: 14px; height: 14px; }
 .ex-owned { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #88b300; color: #fff; }
 .ex-owned .i { width: 12px; height: 12px; }
 
@@ -2761,7 +2763,10 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 /* (each card drawn in as few pieces as can be: what's hidden isn't drawn at all until it's hovered, corners rounded on
    the pictures themselves rather than clipped, and no stacking context of its own — every piece of every card on the
    page was sorted out again in every frame of a scroll) */
-.ex-card { isolation: auto; }
+.ex-card { isolation: auto; overflow: visible; } /* (its corners rounded on each piece that reaches one rather than clipped: a
+   rounded clip round every card was a piece of its own in each, and the slowest thing in it to draw) */
+.ex-card .ex-t { overflow: visible; } /* (the title in it is what's cut short with "…": the row never overflows) */
+.ex-side { border-radius: 0 10px 10px 0; overflow: hidden; }
 .ex-cardbg, .ex-cardshade { z-index: auto; border-radius: inherit; }
 .ex-thumbwrap { overflow: visible; }
 .ex-thumb { border-radius: inherit; }
@@ -2772,6 +2777,7 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .ex-side { visibility: hidden; transition: clip-path 220ms var(--ease-out), visibility 0s 220ms; }
 .ex-card:hover .ex-side, .ex-card:focus-visible .ex-side, .ex-card:focus-within:not(:focus) .ex-side { visibility: visible; transition: clip-path 220ms var(--ease-out), visibility 0s; }
 .ex-card .ex-counts { transition: opacity 150ms; }
+.ex-grid.moving .ex-side, .ex-grid.moving .ex-counts { transition: none; }
 
 /* multiplayer lounge: create / join along the top, the open rooms below */
 .mp-lounge-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
@@ -3029,8 +3035,6 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .rkc-t { font-size: .95rem; font-weight: 700; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .rkc-a { font-size: .76rem; color: rgba(255, 255, 255, .75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rkc-v { margin-top: 3px; font-size: .74rem; font-weight: 700; color: var(--sc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; filter: brightness(1.35); }
-.rkc-vs { font-size: .66rem; color: rgba(255, 255, 255, .5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rkc-vs b { font-weight: 700; }
 .rkc-meta { display: flex; gap: 8px; margin-top: 4px; font-size: .68rem; color: rgba(255, 255, 255, .55); white-space: nowrap; overflow: hidden; }
 .rkc-meta span { display: inline-flex; align-items: center; gap: 3px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .rkc-meta .i { width: 11px; height: 11px; flex: none; }
@@ -3234,7 +3238,7 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .role-badge .i { width: 11px; height: 11px; }
 /* a role's effects (roleFx), in Neru's colours: her gold round the picture, glowing, sparkles twinkling on it, and the
    name shimmering gold and pink — an admin's (the owner's too) the same, quieter, in the role's own colour */
-.fx-neru { --fxc: #ffd23f; } .fx-admin { --fxc: #f5c842; }
+.fx-neru { --fxc: #ffd23f; } .fx-admin { --fxc: #f5c842; } .fx-teto { --fxc: #ff3d5a; }
 .fx-av { position: relative; display: inline-grid; flex: none; isolation: isolate; }
 .fx-av > .avatar, .fx-av > img { box-shadow: 0 0 0 2px #1d1527, 0 0 0 4px var(--fxc), 0 0 18px 2px color-mix(in srgb, var(--fxc) 50%, transparent) !important; }
 .fx-admin > .avatar, .fx-admin > img { box-shadow: 0 0 0 2px var(--rc, #1d1527), 0 0 0 4px var(--fxc), 0 0 14px 1px color-mix(in srgb, var(--fxc) 40%, transparent) !important; }
@@ -3246,14 +3250,22 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
   animation: fxTwinkle 2.6s ease-in-out infinite both; }
 .fx-spark:nth-of-type(2) { top: auto; right: auto; bottom: -2%; left: -8%; width: 16%; animation-delay: .9s; }
 .fx-spark:nth-of-type(3) { right: auto; top: 14%; left: -14%; width: 12%; animation-delay: 1.7s; }
+/* (Teto: her red, sparkles pink-white rather than gold, and her French bread tucked under the picture) */
+.fx-teto .fx-spark { background: radial-gradient(circle, #fff 18%, #ffc7d0 40%, var(--fxc) 72%); }
+.fx-bread { position: absolute; right: -16%; bottom: -4%; width: 46%; min-width: 16px; max-width: 46px; aspect-ratio: 64 / 24; z-index: 1; pointer-events: none; rotate: -32deg; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .45));
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 24'%3E%3Crect x='2' y='4' width='60' height='16' rx='8' fill='%23dc9a4f' stroke='%238a4f1d' stroke-width='2'/%3E%3Cpath d='M15 8l6 8M27 8l6 8M39 8l6 8M51 8l5 7' stroke='%23f7d7a3' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  animation: fxBread 3.4s ease-in-out infinite; }
+@keyframes fxBread { 0%, 100% { translate: 0 0; rotate: -32deg; } 50% { translate: 0 -8%; rotate: -24deg; } }
 @keyframes fxTwinkle { 0%, 100% { opacity: 0; scale: .3; rotate: 0deg; } 30% { opacity: 1; scale: 1; } 60% { opacity: .9; scale: .8; rotate: 45deg; } 85% { opacity: 0; scale: .3; rotate: 90deg; } }
-.fx-name.fx-neru, .fx-name.fx-admin { background: linear-gradient(100deg, #ffe680, #ffc53d 30%, #ff9fd0 50%, #ffc53d 70%, #ffe680) 0 0 / 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; text-shadow: none; }
+.fx-name.fx-neru, .fx-name.fx-admin, .fx-name.fx-teto { background: linear-gradient(100deg, #ffe680, #ffc53d 30%, #ff9fd0 50%, #ffc53d 70%, #ffe680) 0 0 / 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; text-shadow: none; }
 .fx-name.fx-admin { background-image: linear-gradient(100deg, #ffe680, #f5c842 35%, #fff6d0 50%, #f5c842 65%, #ffe680); }
+.fx-name.fx-teto { background-image: linear-gradient(100deg, #ff9aa9, #ff3d5a 30%, #fff0f2 50%, #ff3d5a 70%, #ff9aa9); }
 /* (shimmering where it's big: the profile, Ranked Play's introductions) */
 .pf-name .fx-name, .rki-name.fx-name, .rkm-duel-p .fx-name { animation: fxShimmer 6s linear infinite; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .55)); }
 @keyframes fxShimmer { to { background-position: -200% 0; } }
 /* the profile's header: a line of her gold along its foot */
-.pf-top.fx-neru::after, .pf-top.fx-admin::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 1; background: linear-gradient(90deg, transparent, var(--fxc) 18%, #ff9fd0 50%, var(--fxc) 82%, transparent); opacity: .9; pointer-events: none; }
+.pf-top.fx-neru::after, .pf-top.fx-admin::after, .pf-top.fx-teto::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 1; background: linear-gradient(90deg, transparent, var(--fxc) 18%, #ff9fd0 50%, var(--fxc) 82%, transparent); opacity: .9; pointer-events: none; }
+.pf-top.fx-teto::after { background: linear-gradient(90deg, transparent, var(--fxc) 18%, #ffd3da 50%, var(--fxc) 82%, transparent); }
 /* (in Ranked Play's round frames, sized as the picture would be there — and not cut off at the frame's edge) */
 .rkm-av.fx-in, .rki-av.fx-in { overflow: visible; }
 .rkm-av > .fx-av > .avatar, .rkm-av > .fx-av > img { width: 72px !important; height: 72px !important; border-radius: 50%; object-fit: cover; }
@@ -4741,9 +4753,9 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 /* (each written out: in one :is() the rule was tried against every element restyled, whatever its class) */
 :root.perf .screen-body, :root.perf .bso-scroll, :root.perf .res-body, :root.perf .mp-body, :root.perf .cl-body, :root.perf .ab-grid, :root.perf .setup-body, :root.perf .mc-list, :root.perf .nf-list, :root.perf .np-list, :root.perf .ch-lines,
 :root.slow .screen-body, :root.slow .bso-scroll, :root.slow .res-body, :root.slow .mp-body, :root.slow .cl-body, :root.slow .ab-grid { will-change: scroll-position; }
-/* (not the beatmap listing's or the library's cards: scrolled on the compositor, each card's pieces became layers of
-   their own — 150 to 200 of them — and sorting those out again took longer each step than painting the cards) */
-:root.perf .ex-body, :root.slow .ex-body, :root.perf .lib-body, :root.slow .lib-body { will-change: auto; }
+/* (the beatmap listing and the library too, in every mode: now that their cards are drawn in a few pieces rather than
+   as layers of their own, scrolled on the compositor they take half the work a frame they did repainted) */
+.ex-body, .lib-body { will-change: scroll-position; }
 :root.perf #bg-a, :root.perf #bg-b { will-change: auto; }
 /* (song select's list cut off under the filters rather than fading out there: the fade, a mask over a scrolling list,
    was a good part of every step of a scroll) */
@@ -12614,8 +12626,10 @@ const ProfileManager = {
     const el = h('div.avatar', { style: { width: size + 'px', height: size + 'px' } });
     if (p.avatar !== 'default' && this.avatarURL) {
       el.style.backgroundImage = `url("${this.avatarURL}")`;
-      // (Teto's or Miku's picture, big enough to see: Neru's drawn on it)
-      if (size >= 48 && typeof NeruEggs !== 'undefined') NeruEggs.doodle(el, p.avatar);
+      // (Teto's or Miku's picture, big enough to see: Neru's drawn on it — but not on Teto's for a player with the Teto
+      // role, whose picture is shown at its best: see roleFx)
+      const tetoRole = /^preset:teto/.test(p.avatar) && typeof Presence !== 'undefined' && roleFx(Presence.role) === 'teto';
+      if (size >= 48 && typeof NeruEggs !== 'undefined' && !tetoRole) NeruEggs.doodle(el, p.avatar);
     } else { el.classList.add('avatar-mono'); el.textContent = (p.name || 'A').slice(0, 1).toUpperCase(); el.style.fontSize = size * 0.45 + 'px'; }
     return el;
   },
@@ -13157,10 +13171,10 @@ function roleBadge(role) {
   return h(`span.role-badge${role.owner ? '.owner' : ''}`, { style: { '--rc': c }, title: role.owner ? 'The server\'s owner' : `${role.name} (an admin)` }, role.owner ? icon('crown') : null, String(role.name).slice(0, 24));
 }
 
-/** What a player's role dresses them in, in Neru's colours: 'neru' for a role named Neru — her gold all round their
- *  picture, sparkles twinkling on it, their name shimmering gold and pink —, 'admin' for any other admin, the owner too
- *  (the same, quieter, in the role's own colour); null for everyone else. */
-function roleFx(role) { return !role || !role.name ? null : /neru/i.test(String(role.name)) ? 'neru' : 'admin'; }
+/** What a player's role dresses them in: 'neru' for a role named Neru — her gold all round their picture, sparkles
+ *  twinkling on it, their name shimmering gold and pink —, 'teto' for one named Teto — the same in Teto's red, with
+ *  her bread —, 'admin' for any other admin, the owner too (quieter, in the role's own colour); null for everyone else. */
+function roleFx(role) { const n = role && role.name ? String(role.name) : ''; return !n ? null : /teto/i.test(n) ? 'teto' : /neru/i.test(n) ? 'neru' : 'admin'; }
 /** A player's role as the game last heard it: yours, else theirs from the online list. */
 function roleOfPid(pid) {
   if (!pid || typeof Presence === 'undefined') return null;
@@ -13174,7 +13188,8 @@ function fxAvatar(el, role) {
   const fx = roleFx(role);
   if (!fx || !el) return el;
   const w = h(`span.fx-av.fx-${fx}`, { style: { '--rc': /^#[0-9a-f]{6}$/i.test(role.colour || '') ? role.colour : '#ffcc22' } }, el);
-  for (let i = fx === 'neru' ? 3 : 1; i > 0; i--) w.append(h('i.fx-spark'));
+  for (let i = fx === 'admin' ? 1 : 3; i > 0; i--) w.append(h('i.fx-spark'));
+  if (fx === 'teto') w.append(h('i.fx-bread'));
   return w;
 }
 /** A name `el` in its owner's role effects (roleFx). */
@@ -13222,6 +13237,26 @@ icon.img = n => {
   }
   return n.replace(/[^a-zA-Z0-9-]/g, '_');
 };
+
+/** A small icon in white (at the given strength) drawn as a picture rather than as an SVG of its own — for the cards
+ *  of the long lists. An inline SVG brings its own scale, clip and colour mask, and each of those split every card into
+ *  more pieces for the browser to sort out again in every frame of a scroll; a picture is one piece of the card. */
+function flatIcon(name, alpha = 1) {
+  const key = name + '|' + alpha;
+  let cls = flatIcon.cls.get(key);
+  if (!cls) {
+    const src = ICON_SRC[name];
+    const svg = !src ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="color:#fff" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="${alpha}">${(ICONS[name] || '').replace(/class="fillme"/g, 'fill="currentColor" stroke="none"')}</svg>`
+      : src[0] === 'L' ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><image href="${ICON_IMG[src[1]]}" width="24" height="24" opacity="${alpha}"/></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${src[1]} ${src[2]}"><path fill="#fff" fill-opacity="${alpha}" d="${src[3]}"/></svg>`;
+    cls = 'fi' + flatIcon.cls.size;
+    flatIcon.cls.set(key, cls);
+    if (!flatIcon.sheet) { flatIcon.sheet = document.createElement('style'); document.head.appendChild(flatIcon.sheet); }
+    flatIcon.sheet.append(`.${cls} { background-image: url("data:image/svg+xml,${encodeURIComponent(svg)}"); }\n`);
+  }
+  return h(`i.fi.${cls}`, { 'aria-hidden': 'true' });
+}
+flatIcon.cls = new Map();
 
 /** Star rating colour ramp. */
 function starColour(sr) {
@@ -14215,12 +14250,59 @@ function backButton(onClick) {
  *  only while it can't: frames being dropped (the list building what comes into view) ease the top speed off until
  *  they aren't, and it picks up again as they come back on time. Sideways scrolling, a list scrolled some other way
  *  (its bar dragged, the keys, a touch screen) and one that handles the wheel itself are left as they are. */
+/** Pictures still on their way (covers, song panels, avatars): a list scrolled with the wheel slows as it nears one
+ *  and crawls while one is on screen, rather than racing ahead into empty cards — see MenuScroll. Each is let go once
+ *  it's showing, once it fails, or after PATIENCE (a slow connection doesn't hold the list up for long). */
+const PicWait = {
+  // (a list nearing one goes slowly enough to take LEAD ms to reach it, and stops at its edge until it's in — for
+  // PATIENCE ms at most, counted from when it first holds the list up, as covers start loading screens ahead)
+  PATIENCE: 2500, LEAD: 250, HOLD: 150,
+  map: new Map(), // element → [when it started loading, when it first held a list up (0: not yet)]
+  add(el) { if (el) this.map.set(el, [performance.now(), 0]); },
+  done(el) { this.map.delete(el); },
+  /** A picture put straight on as a CSS background: watched until it's in. */
+  css(el, url) {
+    el.style.backgroundImage = `url("${url}")`;
+    if (/^(data|blob):/.test(url)) return el;
+    const img = new Image(), off = () => this.done(el);
+    this.add(el); img.onload = img.onerror = off; img.src = url;
+    return el;
+  },
+  /** <img>s in a list still loading (avatars and the like) are watched too. */
+  imgs(sc) {
+    for (const img of sc.getElementsByTagName('img')) {
+      if (img.complete || this.map.has(img)) continue;
+      this.add(img);
+      const off = () => this.done(img);
+      img.addEventListener('load', off, { once: true }); img.addEventListener('error', off, { once: true });
+    }
+  },
+  /** The fastest list `sc` may move towards `dir` (px a millisecond) for the pictures ahead of it to be in. */
+  cap(sc, dir) {
+    if (!this.map.size) return Infinity;
+    const now = performance.now(), r = sc.getBoundingClientRect();
+    let near = Infinity;
+    for (const [p, w] of this.map) {
+      if (w[1] ? now - w[1] > this.PATIENCE : now - w[0] > 60000) { if (now - w[0] > 60000) this.map.delete(p); continue; } // (given up on)
+      if (!p.isConnected || !sc.contains(p)) continue; // (a card not in the page yet: it counts once it is)
+      const b = p.getBoundingClientRect();
+      const ahead = dir > 0 ? b.top - r.bottom : r.top - b.bottom; // (how far beyond the list's edge it starts)
+      if (!b.height || ahead < -2) continue; // (not shown, or on screen already: the list is past waiting for it)
+      if (ahead < this.HOLD) w[1] = w[1] || now; // (close: it's holding the list up from now)
+      near = Math.min(near, ahead);
+    }
+    return near === Infinity ? Infinity : Math.max(0, near) / this.LEAD;
+  },
+};
+
 const MenuScroll = {
-  // how far a list may move in one frame: as far as the wheel asks while frames come on time; while they're late, less
-  // each frame — it's what comes into view in a frame that costs, so a late frame moving further made the next one later
-  // still — down to MIN, and up again as they come back on time
-  MIN: 28, MAX: 600,
-  cap: 600, period: 16.7, // the most it moves in a frame now, and how often frames come when on time (the shortest lately)
+  // how fast a list may move (px a millisecond): as fast as the wheel asks while frames come on time; while they're
+  // late, slower each frame — it's what comes into view in a frame that costs, so a late frame moving further made the
+  // next one later still — down to MIN, and up again as they come back on time. (Per millisecond, not per frame: a
+  // device that can't reach the screen's rate at all still moves a list at a sensible pace — at a floor counted in
+  // pixels a frame, its every frame late, it crawled)
+  MIN: 1.5, MAX: 36,
+  speed: 36, period: 16.7, // the fastest it moves now, and how often frames come when on time (the shortest lately)
   el: null, target: 0, raf: 0, last: 0,
   bind() { window.addEventListener('wheel', e => this.wheel(e), { passive: false }); },
   /** The nearest list under the pointer that can still scroll that way. */
@@ -14238,23 +14320,33 @@ const MenuScroll = {
     if (!el) return;
     e.preventDefault();
     // (a new list, or this one at rest — maybe scrolled some other way since: from where it is now)
-    if (el !== this.el || !this.raf) { this.el = el; this.target = el.scrollTop; }
+    if (el !== this.el || !this.raf) { this.el = el; this.target = el.scrollTop; this.imgAt = 0; }
     this.target = clamp(this.target + dy, 0, el.scrollHeight - el.clientHeight);
-    if (!this.raf) { this.last = performance.now(); this.raf = requestAnimationFrame(t => this.step(t)); }
+    if (!this.raf) { this.last = 0; this.raf = requestAnimationFrame(t => this.step(t)); }
   },
   step(now) {
     this.raf = 0;
     const el = this.el;
     if (!el || !el.isConnected) { this.el = null; return; }
-    const dt = clamp(now - this.last, 1, 100), cur = el.scrollTop, d = this.target - cur;
+    // (the first frame of a scroll has no frame before it to time: taken as on time — timed from the wheel event
+    // instead, it came out a fraction of a frame, read as the screen's rate, and every frame after looked late)
+    const first = !this.last, dt = first ? this.period : clamp(now - this.last, 1, 100), cur = el.scrollTop, d = this.target - cur;
     this.last = now;
     if (Math.abs(d) < 0.5) return;
     // (on time, or a frame dropped? — the shortest frame lately is the screen's own rate; it creeps back up slowly
     // in case the screen itself got slower)
-    if (dt < this.period) this.period = Math.max(4, dt); else this.period += (dt - this.period) * 0.002;
-    this.cap = dt > this.period * 1.6 ? Math.max(this.MIN, this.cap * 0.75) : Math.min(this.MAX, this.cap * 1.08);
-    const lim = this.cap;
+    if (!first) {
+      if (dt < this.period) this.period = Math.max(5, dt); else this.period += (dt - this.period) * 0.002;
+      this.speed = dt > this.period * 1.6 ? Math.max(this.MIN, this.speed * 0.75) : Math.min(this.MAX, this.speed * 1.08);
+    }
+    // (and no faster than the pictures ahead come in — see PicWait; the list's <img>s looked over a few times a second)
+    if (now - (this.imgAt || 0) > 300) { this.imgAt = now; PicWait.imgs(el); }
+    const wait = PicWait.cap(el, Math.sign(d)), lim = Math.min(this.speed, wait) * dt;
+    // (waiting, the wheel turned on meanwhile doesn't pile up into a dash the moment the pictures are in)
+    if (wait < Infinity && Math.abs(d) > el.clientHeight) this.target = cur + Math.sign(d) * el.clientHeight;
     let mv = clamp(d * (1 - Math.exp(-dt / 55)), -lim, lim);
+    // (at the edge of a picture still loading: the list waits there, looking again each frame, until it's in)
+    if (lim < 1 && Math.abs(mv) < 1) { this.raf = requestAnimationFrame(t => this.step(t)); return; }
     if (Math.abs(mv) < 1) mv = Math.sign(d) * Math.min(1, Math.abs(d));
     // (instant: a list styled to scroll smoothly turned each frame's step into an animation of its own — and barely moved)
     el.scrollTo({ top: cur + mv, behavior: 'instant' });
@@ -14724,8 +14816,39 @@ const LowEnd = {
     const mem = navigator.deviceMemory || 8, cores = navigator.hardwareConcurrency || 8;
     return mem <= 2 || (/\bCrOS\b/.test(navigator.userAgent) && cores <= 4 && mem <= 4);
   },
+  /** Found slow: the lighter menus from now on (and for the next two weeks). */
+  mark() {
+    if (document.documentElement.classList.contains('slow')) return;
+    document.documentElement.classList.add('slow');
+    try { localStorage.setItem('am.slowMenus', String(Date.now())); } catch { /* private mode */ }
+  },
+  /** A list scrolling at under ~33fps for two seconds of scrolling (or with a quarter of its frames late) is a slow
+   *  device too — found wherever it scrolls (the beatmap listing first of all), not only on the main menu. Frames
+   *  are only looked at while something is scrolling: a list at rest costs nothing. */
+  watchScroll() {
+    let raf = 0, until = 0, last = 0, ms = 0, n = 0, late = 0, period = 16.7;
+    const tick = now => {
+      raf = 0;
+      const dt = last ? now - last : 0; last = now;
+      if (document.documentElement.classList.contains('slow')) return;
+      // (a hitch — a page of results arriving — counts as one late frame, not as the whole of its length; a hidden tab
+      // doesn't count at all, nor does the first frame, with no frame before it to time)
+      if (dt > 0 && !document.hidden) {
+        if (dt < period) period = Math.max(5, dt); else period += (Math.min(dt, 100) - period) * 0.002;
+        ms += Math.min(dt, 100); n++; if (dt > period * 1.6) late++;
+      }
+      if (ms >= 2000) { if (ms / n > period * 1.8 || late / n > 0.25) this.mark(); ms = n = late = 0; }
+      if (now < until) raf = requestAnimationFrame(tick);
+    };
+    document.addEventListener('scroll', () => {
+      if (Screens.currentName === 'gameplay' || document.documentElement.classList.contains('slow')) return;
+      until = performance.now() + 200;
+      if (!raf) { last = 0; raf = requestAnimationFrame(tick); }
+    }, { capture: true, passive: true });
+  },
 };
 if (LowEnd.known()) document.documentElement.classList.add('slow');
+LowEnd.watchScroll();
 
 const HomeScreen = {
   tab: 'home',
@@ -15081,10 +15204,12 @@ const HomeScreen = {
       // Performance mode, by itself — the visualiser at half resolution, both canvases at ~30fps, lighter menus (.slow)
       if (this._slow === undefined) this._slow = document.documentElement.classList.contains('slow') || undefined;
       if (!this._slow && now - t0 > 1500) {
-        if (document.hidden || dt >= 100) { winMs = winN = winLate = 0; } // (a hidden tab or a hitch isn't the device)
-        else if ((winMs += dt, ++winN, dt > 25 && winLate++, winMs >= 2000)) {
+        // (a hidden tab isn't the device; a hitch counts as one late frame, not its whole length — every frame of a
+        // device too slow for 10fps is one of those, and leaving them out it was never found slow at all)
+        if (document.hidden) { winMs = winN = winLate = 0; }
+        else if ((winMs += Math.min(dt, 100), ++winN, dt > 25 && winLate++, winMs >= 2000)) {
           // (or stuttering: more than 5% of frames late keeps the average up but looks like a slow device)
-          if (winMs / winN > 18.2 || winLate / winN > 0.05) { this._slow = true; document.documentElement.classList.add('slow'); try { localStorage.setItem('am.slowMenus', String(Date.now())); } catch { /* private mode */ } }
+          if (winMs / winN > 18.2 || winLate / winN > 0.05) { this._slow = true; LowEnd.mark(); }
           winMs = winN = winLate = 0;
         }
       }
@@ -16209,15 +16334,17 @@ const NeruEggs = {
     const f = this.fanOf();
     this.clickedOver(f && f.who, el, M.img, pose);
   },
-  /** Clicked over and over: she gets angry (hand on hip, a shake, the cross mark and steam) — or a Teto or Miku fan
-   *  (`who`) gets their thing in a thought bubble, crossed out (no baguette, no leek), or, as often, a photo of their
-   *  character held up. (A spin is for one of her own, in Neru mode — huff.) Nothing — a click, a touch — has her do
+  /** Clicked over and over: she gets angry (hand on hip, a shake, the cross mark and steam) — and a Teto or Miku fan
+   *  (`who`) half the time gets that too, a quarter of the time their thing in a thought bubble, crossed out (no
+   *  baguette, no leek), and a quarter a photo of their character held up (where there's no room for the photo, the
+   *  thought instead). (A spin is for one of her own, in Neru mode — huff.) Nothing — a click, a touch — has her do
    *  anything else till it's over, and a photo or a thought is gone before she changes pose. `box`/`img`: which Neru
    *  (the main menu's or a screen's); `pose(name)` puts her in a pose — whether it's there — and back (null). */
   clickedOver(who, box, img, pose) {
     if (!box || !img || box._fanBusy) return;
     const photo = who && (this.PHOTOS[who] || []).length && !box.classList.contains('behind') && neruAnim();
-    const kind = !who ? 'angry' : photo && Math.random() < 0.5 ? 'photo' : 'thought';
+    const r = Math.random(), kind = !who || r < 0.5 ? 'angry' : r < 0.75 || !photo ? 'thought' : 'photo';
+    this.lastKind = kind;
     box._fanBusy = true;
     let held = null; // (the photo or the thought bubble, waited out)
     const end = () => {
@@ -18396,7 +18523,8 @@ const SongSelect = {
   /** A song panel's picture: its card picture — in Performance mode, the smaller copy made for panels (see
    *  BeatmapManager.cardURL). */
   panelPicture(set, bg) {
-    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.cardURL(set) : BeatmapManager.thumbURL(set)).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
+    PicWait.add(bg); // (the wheel waits for it — see PicWait)
+    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.cardURL(set) : BeatmapManager.thumbURL(set)).then(u => { PicWait.done(bg); if (u) bg.style.backgroundImage = `url("${u}")`; }, () => PicWait.done(bg));
   },
   /** The sheet over the list (while it scrolls) taken away: the panels have the pointer again. */
   unshield() { clearTimeout(this._stillT); if (!this._still) return; this._still = false; this.shield.classList.remove('on'); },
@@ -22871,7 +22999,9 @@ const BeatmapsScreen = {
     let still = 0;
     const sc = this._scroller = el.querySelector('.screen-body');
     sc.classList.add('lib-body');
-    sc.addEventListener('scroll', () => { shield.classList.add('on'); clearTimeout(still); still = setTimeout(() => shield.classList.remove('on'), 160); this.schedule(); }, { passive: true });
+    // (as in the beatmap listing: cards stop reacting to the pointer while the list moves — see ExplorerScreen.frame)
+    const grid = this.list, moving = on => { shield.classList.toggle('on', on); grid.classList.toggle('moving', on); };
+    sc.addEventListener('scroll', () => { if (!still) moving(true); clearTimeout(still); still = setTimeout(() => { still = 0; moving(false); }, 160); this.schedule(); }, { passive: true });
     // (the list's columns, row height and where it starts are measured again only when something changes size: the
     // window, the import report above it — never while it scrolls)
     this._ro = new ResizeObserver(es => { const g = es.find(e => e.target === this.list); if (es.some(e => e.target !== this.list) || (g && g.contentRect.width !== this._gw)) { if (g) this._gw = g.contentRect.width; this._mDirty = true; this.schedule(); } });
@@ -23040,7 +23170,7 @@ const BeatmapsScreen = {
     (this._thumbs || (this._thumbs = [])).push([els, u]);
     if (!this._thumbT) this._thumbT = setTimeout(() => {
       this._thumbT = 0;
-      for (const [list, url] of this._thumbs.splice(0)) for (const el of list) { el.style.backgroundImage = `url("${url}")`; el.classList.add('loaded'); }
+      for (const [list, url] of this._thumbs.splice(0)) for (const el of list) { el.style.backgroundImage = `url("${url}")`; el.classList.add('loaded'); PicWait.done(el); }
     }, 100);
   },
   /** One beatmap set as lazer's beatmap card (as in the beatmap listing): the cover faded behind, its picture on the
@@ -23048,7 +23178,8 @@ const BeatmapsScreen = {
    *  right on hover. Clicking it opens its difficulties underneath, across the whole row. */
   row(set) {
     const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-    BeatmapManager.thumbURL(set).then(u => { if (u) this.showThumb([thumb, bg], u); else noPicture(thumb); });
+    PicWait.add(thumb); // (the wheel waits for it — see PicWait)
+    BeatmapManager.thumbURL(set).then(u => { if (u) this.showThumb([thumb, bg], u); else { PicWait.done(thumb); noPicture(thumb); } }, () => PicWait.done(thumb));
     const maps = [...set.maps].sort((a, b) => a.keys - b.keys || a.stars - b.stars);
     const broken = maps.filter(m => m.problems.length);
     const keys = [...new Set(maps.map(m => m.keys))].sort((a, b) => a - b);
@@ -23074,7 +23205,7 @@ const BeatmapsScreen = {
           spectrum,
           h('span.ex-keys', keys.length > 3 ? `${keys[0]}–${keys[keys.length - 1]}K` : keys.map(k => k + 'K').join(' ')),
           h('span.grow'),
-          h('span.ex-length', icon('clock'), fmtTime(len)))),
+          h('span.ex-length', flatIcon('clock', 0.6), fmtTime(len)))),
       h('div.ex-side',
         side('.play', 'play', 'Play', () => Screens.go('songselect', { mapId: playable.id })),
         side('', 'download', 'Extract (.osz)', () => BeatmapManager.exportOsz(set.id)),
@@ -23122,7 +23253,7 @@ const CollectionsScreen = {
       const m = BeatmapManager.mapByHash(hash), set = m && BeatmapManager.setById.get(m.setId);
       const best = ScoreManager.best(hash);
       const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-      if (set) BeatmapManager.thumbURL(set).then(u => { if (!u) return noPicture(thumb); for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+      if (set) { PicWait.add(thumb); BeatmapManager.thumbURL(set).then(u => { PicWait.done(thumb); if (!u) return noPicture(thumb); for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } }, () => PicWait.done(thumb)); }
       else noPicture(thumb);
       const side = (cls, ic, label, fn) => h(`button.ex-side-btn${cls}`, { title: label, 'aria-label': label, onclick: e => { e.stopPropagation(); fn(); } }, icon(ic));
       const open = () => m && Screens.go('songselect', { mapId: m.id });
@@ -23132,7 +23263,7 @@ const CollectionsScreen = {
           h('div.ex-cb-top', h('div.ex-titles', h('div.ex-t', h('span.ex-tt', m ? m.title : 'Missing beatmap')), h('div.ex-a', m ? m.artist : `not in your library (${hash.slice(0, 10)}…)`)),
             best ? rankPill(best.grade) : null),
           m ? h('div.ex-m', h('b', m.version), ' mapped by ', h('b', m.creator)) : null,
-          m ? h('div.ex-foot', starBadge(m.stars), h('span.ex-keys', m.keys + 'K'), h('span.grow'), h('span.ex-length', icon('clock'), fmtTime(m.length))) : null),
+          m ? h('div.ex-foot', starBadge(m.stars), h('span.ex-keys', m.keys + 'K'), h('span.grow'), h('span.ex-length', flatIcon('clock', 0.6), fmtTime(m.length))) : null),
         h('div.ex-side',
           m ? side('.play', 'play', 'Play', open) : null,
           side('.del', 'x', 'Remove from collection', () => Collections.toggle(c.id, hash)))));
@@ -23694,10 +23825,10 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.29b', title: 'Ranked Play, spectating and Neru', sections: [
-    { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length'] },
+    { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length', 'Your cards show only your own star rating'] },
     { icon: 'film', title: 'Spectating', items: ['Skips happen only when the player you\'re watching skips', 'Their pause and fail menus show, with what they\'re choosing'] },
-    { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Admins and the Neru role get a gold, Neru-style profile and Ranked look'] },
-    { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly, as fast as your computer can keep up with', 'The beatmap listing and the menus run much more smoothly on slow computers', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
+    { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Admins and the Neru role get a gold, Neru-style profile and Ranked look', 'The Teto role gets a red, Teto-style one', 'Clicked over and over by a Teto or Miku fan, she gets angry half the time — otherwise a thought or a photo'] },
+    { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly and at a good speed, even on slow computers', 'Scrolling waits for pictures to load instead of racing past them', 'The beatmap listing and the menus run much more smoothly on slow computers', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
   ] },
   { id: '2026.10.29', title: 'Neru', sections: [
     { icon: 'heart', title: 'Neru', items: ['A few more Neru secrets to find on the main menu'] },
@@ -24147,13 +24278,14 @@ const OnlineBeatmaps = {
     // a cover that has loaded before goes straight in, so rebuilt cards don't fade in again
     const known = this._covers.get(urls.join('|'));
     if (known) { el.style.transition = 'none'; el.style.backgroundImage = `url("${known}")`; done && done(null); return; }
+    PicWait.add(el); // (a list scrolled with the wheel waits for it — see PicWait)
     const next = i => {
-      if (i >= urls.length) { failed && failed(); return; }
+      if (i >= urls.length) { PicWait.done(el); failed && failed(); return; }
       const img = new Image();
       // (decoded off the main thread before it's shown, so a card scrolling in doesn't stall a frame decoding it)
       // (`queue`: the picture goes on in the page's next frame along with everything else, not the moment it's decoded —
       // a change between frames made the next scroll wait while the browser worked the page out again)
-      img.onload = () => { const put = () => { el.style.backgroundImage = `url("${img.src}")`; done && done(img); }; const show = () => { this._covers.set(urls.join('|'), img.src); if (queue) queue(put); else put(); }; (img.decode ? img.decode() : Promise.resolve()).then(show, show); };
+      img.onload = () => { const put = () => { el.style.backgroundImage = `url("${img.src}")`; PicWait.done(el); done && done(img); }; const show = () => { this._covers.set(urls.join('|'), img.src); if (queue) queue(put); else put(); }; (img.decode ? img.decode() : Promise.resolve()).then(show, show); };
       img.onerror = () => next(i + 1);
       img.src = urls[i];
     };
@@ -24404,8 +24536,10 @@ const ExplorerScreen = {
     for (const f of q) f();
     if (this._wantWin) { this._wantWin = false; this.renderWindow(); }
     if (this._wantRing) { this._wantRing = false; this._paintRing && this._paintRing(); this.topBtn.classList.toggle('show', (this._st || 0) > 600); }
-    if (this._scrolling) this.shield.classList.add('on');
-    if (this._shieldOff) { this._shieldOff = false; if (!this._scrolling) this.shield.classList.remove('on'); }
+    // (and the card that was under the pointer drops its hover at once rather than sliding its buttons away: that
+    // slide was repainted every frame, the page's cards all sorted out again with it, as the scroll began)
+    if (this._scrolling && !this.shield.classList.contains('on')) { this.shield.classList.add('on'); this.grid && this.grid.classList.add('moving'); }
+    if (this._shieldOff) { this._shieldOff = false; if (!this._scrolling) { this.shield.classList.remove('on'); this.grid && this.grid.classList.remove('moving'); } }
   },
   /** A change to make in the next frame (see frame()). */
   later(f) { (this._q || (this._q = [])).push(f); this.schedule(); },
@@ -24588,14 +24722,14 @@ const ExplorerScreen = {
         dl && dl.state === 'downloading' ? h('div.ex-thumbprog', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }) : null),
       h('div.ex-cb',
         h('div.ex-cb-top',
-          h('div.ex-titles', h('div.ex-t', { title }, h('span.ex-tt', title), set.video ? h('span.ex-vid', { title: 'Has video' }, icon('film')) : null), h('div.ex-a', { title: artist }, artist)),
-          h('div.ex-counts', h('span', { title: 'Favourites' }, icon('heart'), fmtCompact(set.favourites)), h('span', { title: 'Play count' }, icon('play'), fmtCompact(set.playCount)))),
+          h('div.ex-titles', h('div.ex-t', { title }, h('span.ex-tt', title), set.video ? h('span.ex-vid', { title: 'Has video' }, flatIcon('film', 0.7)) : null), h('div.ex-a', { title: artist }, artist)),
+          h('div.ex-counts', h('span', { title: 'Favourites' }, flatIcon('heart', 0.68), fmtCompact(set.favourites)), h('span', { title: 'Play count' }, flatIcon('play', 0.68), fmtCompact(set.playCount)))),
         h('div.ex-m', 'mapped by ', h('b', set.creator)),
         h('div.ex-foot', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()), spectrum,
           h('span.ex-keys', keys.length > 3 ? `${keys[0]}–${keys[keys.length - 1]}K` : keys.map(k => k + 'K').join(' ')),
           h('span.grow'),
-          owned ? h('span.ex-owned', { title: 'In your library' }, icon('check')) : null,
-          h('span.ex-length', icon('clock'), fmtTime(len * 1000)))),
+          owned ? h('span.ex-owned', { title: 'In your library' }, flatIcon('check')) : null,
+          h('span.ex-length', flatIcon('clock', 0.6), fmtTime(len * 1000)))),
       h('div.ex-side', likeBtn, sideAct));
     card.addEventListener('pointerenter', () => UISounds.hover());
     card._loadCovers = loadCovers;
@@ -24727,7 +24861,7 @@ const ExplorerScreen = {
         h('div.bso-inner',
           h('div.bso-left',
             h('div.bso-diffline', diffs, hover),
-            h('div.bso-title', title, set.video ? h('span.ex-vid', { title: 'Has video' }, icon('film')) : null),
+            h('div.bso-title', title, set.video ? h('span.ex-vid', { title: 'Has video' }, flatIcon('film', 0.7)) : null),
             h('div.bso-artist', artist),
             h('div.bso-meta', ...[h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()),
               h('span', 'mapped by ', h('b', set.creator)),
@@ -27338,7 +27472,7 @@ const MultiplayerScreen = {
       const sig = sigOf(r), old = prevRows.get(r.code);
       if (old && old.sig === sig) { nextRows.set(r.code, old); old.row.disabled = r.players >= r.size || r.state === 'playing'; return old.row; }
       const bg = h('div.mp-rbg');
-      if (r.map && r.map.onlineSetId > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(r.map.onlineSetId, 'card')}")`;
+      if (r.map && r.map.onlineSetId > 0) PicWait.css(bg, OnlineBeatmaps.coverURL(r.map.onlineSetId, 'card'));
       const full = r.players >= r.size, playing = r.state === 'playing';
       const row = h(`button.mp-room-row${playing ? '.playing' : ''}`, { disabled: full || playing, onclick: async () => {
         UISounds.click(); row.disabled = true;
@@ -27717,7 +27851,7 @@ const MultiplayerScreen = {
   qpCard(m, i) {
     const local = Multiplayer.localMap(m);
     const bg = h('div.qp-card-bg');
-    if (m.onlineSetId > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(m.onlineSetId, 'cover')}")`;
+    if (m.onlineSetId > 0) PicWait.css(bg, OnlineBeatmaps.coverURL(m.onlineSetId, 'cover'));
     else if (local) BeatmapManager.bgURL(local).then(u => u && (bg.style.backgroundImage = `url("${u}")`));
     const len = m.length > 0 ? `${Math.floor(m.length / 60000)}:${String(Math.floor(m.length / 1000) % 60).padStart(2, '0')}` : '';
     return h('button.qp-card', { 'data-i': i, onclick: () => { const q = Multiplayer.room && Multiplayer.room.qp; if (q && q.phase === 'pick') { UISounds.click(); Multiplayer.pick(i); } } }, bg,
@@ -27942,10 +28076,13 @@ async function buildRankedDeck(m) {
   // (each player's star rating: songs with a difficulty near each, one for each player — enough of them, and that's
   // the deck)
   const prefs = m.prefs && typeof m.prefs === 'object' ? Object.entries(m.prefs).map(([id, v]) => [id, Number(v)]).filter(([, v]) => Number.isFinite(v) && v > 0) : [];
+  // (never a deck somewhere in between the two: a card is a song with each player's own difficulty of it)
   if (prefs.length === 2) {
     const pairs = await rankedPairDeck(keys, prefs, targets.length);
     const g = Multiplayer.room && Multiplayer.room.rp;
-    if (pairs.length >= 12) { if (g && g.stage === 'deal') Multiplayer.send({ t: 'pool', maps: pairs }); return; }
+    // (very few such songs about — a tiny library, offline: the same ones more than once, so there are still cards)
+    for (let i = 0, n = pairs.length; n && pairs.length < Math.min(12, targets.length); i++) pairs.push(pairs[i % n]);
+    if (pairs.length) { if (g && g.stage === 'deal') Multiplayer.send({ t: 'pool', maps: pairs }); return; }
   }
   const sorted = [...targets].sort((a, b) => a - b), lo = Math.max(0, sorted[0] - 0.35), hi = sorted[sorted.length - 1] + 0.35;
   const cand = [], seen = new Set();
@@ -28015,7 +28152,8 @@ async function rankedPairDeck(keys, prefs, want) {
   }
   sets.push(...local.values());
   const cards = [];
-  for (const tol of [0.5, 0.9]) {
+  // (as close to each player's star rating as there are songs for: wider only while there aren't enough)
+  for (const tol of [0.5, 0.9, 1.5, Infinity]) {
     cards.length = 0;
     for (const s of sets) {
       const ds = s.diffs.filter(x => x.length >= 45000 && x.length <= 360000);
@@ -28389,7 +28527,7 @@ const RankedMatch = {
     const side = (id, cls, sc) => h(`div.rki-side.${cls}`, { style: { '--p': sc.primary, '--pd': sc.darker } },
       this.avBox('rki-av', id, 132), id ? fxName(h('div.rki-name', this.name(id)), this.role(id)) : h('div.rki-name', '…'),
       h('div.rki-rt', id && g.users[id] && g.users[id].pref != null ? `Chose ${g.users[id].pref.toFixed(2)}★` : ''));
-    const star = h('div.rki-stars', '~0.00'), title = h('div.rki-st', 'Refining star difficulty range...'), sub = h('div.rki-sub', 'Drawn around the star ratings you both chose.');
+    const star = h('div.rki-stars', '~0.00'), title = h('div.rki-st', 'Refining star difficulty range...'), sub = h('div.rki-sub', 'Each of you plays your own difficulty, near the star rating you chose.');
     const after = h('div.rki-after', 'There\'s always a chance that you get maps outside this range');
     const rki = h('div.rki',
       h('div.rki-vs', side(me, 'l', RP_BLUE), h('div.rki-x', 'VS'), side(opp, 'r', RP_RED)),
@@ -28427,8 +28565,8 @@ const RankedMatch = {
   card(m, i, { back = false } = {}) {
     const el = h(`div.rkc${back ? '.back' : ''}`, { dataset: { i: String(i) } });
     if (back || !m) { el.append(h('div.rkc-in', h('div.rkc-backside', h('div.rkc-logo', h('span', 'ashtonk!'), h('small', 'ranked play'))))); return el; }
-    // (a card with a difficulty for each player: yours on it — the other player's star rating under it)
-    const own = m.per && m.per[Multiplayer.me], theirs = m.per && Object.entries(m.per).find(([id]) => id !== Multiplayer.me);
+    // (a card with a difficulty for each player: yours on it — your own star rating, chart and length)
+    const own = m.per && m.per[Multiplayer.me];
     if (own) m = { ...m, version: own.version, stars: own.stars, length: own.length || m.length };
     const sc = starColour(m.stars || 0), local = Multiplayer.localMap(m);
     el.style.setProperty('--sc', sc);
@@ -28442,7 +28580,6 @@ const RankedMatch = {
         h('div.rkc-top', starBadge(m.stars || 0), h('span.rkc-keys', `${m.keys}K`)),
         h('div.rkc-body',
           h('div.rkc-t', { title: m.title }, m.title), h('div.rkc-a', m.artist), h('div.rkc-v', m.version),
-          theirs && own ? h('div.rkc-vs', { title: `${this.name(theirs[0])} plays ${theirs[1].version}` }, 'vs ', h('b', { style: { color: starColour(theirs[1].stars) } }, `${theirs[1].stars.toFixed(2)}★`)) : null,
           h('div.rkc-meta', len ? h('span', icon('clock'), len) : null, m.creator ? h('span', icon('user'), m.creator) : null))),
       h('div.rkc-backside', h('div.rkc-logo', h('span', 'ashtonk!'), h('small', 'ranked play')))));
     return el;
@@ -29436,7 +29573,8 @@ const UserPanels = {
   cover(u) {
     const a = typeof u.avatar === 'string' ? u.avatar : '';
     const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? Host.asset('avatars/' + encodeURIComponent(a.slice(5))) : a.startsWith('data:image/') ? a : null;
-    return h('div.up-cover', url ? { style: { backgroundImage: `url("${url}")` } } : {});
+    const el = h('div.up-cover');
+    return url ? PicWait.css(el, url) : el;
   },
   canSpectate(u) { return !!(u.online && u.id && u.id !== Presence.me); }, // (anyone online, in a song or in the menus)
   canInvite(u) { return u.online && u.id && u.id !== Presence.me && Friends.has(u.pid) && Multiplayer.inRoom() && u.status === 'menu'; },
@@ -31973,7 +32111,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '432734aa4242';
+const APP_BUILD = 'ad6301fd8c4b';
 
 const App = {
   lastReport: null,
@@ -32027,7 +32165,7 @@ const App = {
     LazerCursor.init();
     MediaKeys.init();
     KeyNames.load(); // (the keyboard's own key names, for the key bindings and the keys under the stage)
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, CodePanel, Sync, NeruCameo };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, CodePanel, Sync, NeruCameo, MenuScroll, LowEnd, PicWait, NeruEggs };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

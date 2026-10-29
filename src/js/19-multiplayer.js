@@ -956,7 +956,7 @@ const MultiplayerScreen = {
       const sig = sigOf(r), old = prevRows.get(r.code);
       if (old && old.sig === sig) { nextRows.set(r.code, old); old.row.disabled = r.players >= r.size || r.state === 'playing'; return old.row; }
       const bg = h('div.mp-rbg');
-      if (r.map && r.map.onlineSetId > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(r.map.onlineSetId, 'card')}")`;
+      if (r.map && r.map.onlineSetId > 0) PicWait.css(bg, OnlineBeatmaps.coverURL(r.map.onlineSetId, 'card'));
       const full = r.players >= r.size, playing = r.state === 'playing';
       const row = h(`button.mp-room-row${playing ? '.playing' : ''}`, { disabled: full || playing, onclick: async () => {
         UISounds.click(); row.disabled = true;
@@ -1335,7 +1335,7 @@ const MultiplayerScreen = {
   qpCard(m, i) {
     const local = Multiplayer.localMap(m);
     const bg = h('div.qp-card-bg');
-    if (m.onlineSetId > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(m.onlineSetId, 'cover')}")`;
+    if (m.onlineSetId > 0) PicWait.css(bg, OnlineBeatmaps.coverURL(m.onlineSetId, 'cover'));
     else if (local) BeatmapManager.bgURL(local).then(u => u && (bg.style.backgroundImage = `url("${u}")`));
     const len = m.length > 0 ? `${Math.floor(m.length / 60000)}:${String(Math.floor(m.length / 1000) % 60).padStart(2, '0')}` : '';
     return h('button.qp-card', { 'data-i': i, onclick: () => { const q = Multiplayer.room && Multiplayer.room.qp; if (q && q.phase === 'pick') { UISounds.click(); Multiplayer.pick(i); } } }, bg,

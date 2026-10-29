@@ -482,12 +482,11 @@ test('Ranked Play maths: beatmap ratings from stars, a new player\'s rating from
   assert.ok(Math.abs(median - starsForRating(1400)) < 0.35, `centred on the lower rating (${median}★ vs ${starsForRating(1400).toFixed(2)}★)`);
 });
 
-test('Ranked Play fairness: the deck leans to the lower star choice, and the opening hands are matched pairs', () => {
+test('Ranked Play fairness: the deck is drawn around each player\'s own choice (never in between), and the opening hands are matched pairs', () => {
   let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  const t = deckTargetsForStars([2, 6], 400, rnd), mean = t.reduce((a, b) => a + b, 0) / t.length;
-  assert.ok(Math.abs(mean - (2 + 4 / 3)) < 0.15, `a third of the way up from the lower choice (${mean.toFixed(2)}★)`);
-  const same = deckTargetsForStars([4, 4], 400, rnd), sd = x => Math.sqrt(x.reduce((a, b) => a + (b - 4) ** 2, 0) / x.length);
-  assert.ok(sd(same) < sd(t), 'wider when the two choices are far apart');
+  const t = deckTargetsForStars([2, 6], 400, rnd), near = v => t.filter(x => Math.abs(x - v) < 1).length;
+  assert.ok(near(2) > 180 && near(6) > 180, `half around each choice (${near(2)} near 2★, ${near(6)} near 6★)`);
+  assert.ok(t.filter(x => Math.abs(x - 4) < 0.8).length < 8, 'next to none in between');
   // the opening hands: ten cards paired off by difficulty, one of each pair each — the same difficulty both sides
   const clock = { t: 0 };
   const r = new RoomLogic('RF', () => clock.t, () => 0.25);
@@ -520,6 +519,8 @@ test('Ranked Play: each player gets their own difficulty of the card\'s song, ne
   assert.ok(r.rp.pool.every(m => m.per.a.stars === 5.02 && m.per.b.stars === 2.01));
   assert.ok(!r.rp.pool.some(m => m.title === 'Pair 0'), 'the card with a short and a full version is gone');
   assert.ok(Math.abs(r.rp.stars - 3.5) < 0.01);
+  // each sees the star rating of their own difficulties, not one in between
+  assert.deepEqual([r.rp.view('a').stars, r.rp.view('b').stars], [5.02, 2.01]);
   // the card played: each has their own difficulty of it, and can't change it
   tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
   tickTo(r, clock); tickTo(r, clock);

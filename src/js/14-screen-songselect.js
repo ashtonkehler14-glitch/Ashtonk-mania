@@ -765,7 +765,8 @@ const SongSelect = {
   /** A song panel's picture: its card picture — in Performance mode, the smaller copy made for panels (see
    *  BeatmapManager.cardURL). */
   panelPicture(set, bg) {
-    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.cardURL(set) : BeatmapManager.thumbURL(set)).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
+    PicWait.add(bg); // (the wheel waits for it — see PicWait)
+    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.cardURL(set) : BeatmapManager.thumbURL(set)).then(u => { PicWait.done(bg); if (u) bg.style.backgroundImage = `url("${u}")`; }, () => PicWait.done(bg));
   },
   /** The sheet over the list (while it scrolls) taken away: the panels have the pointer again. */
   unshield() { clearTimeout(this._stillT); if (!this._still) return; this._still = false; this.shield.classList.remove('on'); },

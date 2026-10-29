@@ -136,10 +136,13 @@ async function buildRankedDeck(m) {
   // (each player's star rating: songs with a difficulty near each, one for each player — enough of them, and that's
   // the deck)
   const prefs = m.prefs && typeof m.prefs === 'object' ? Object.entries(m.prefs).map(([id, v]) => [id, Number(v)]).filter(([, v]) => Number.isFinite(v) && v > 0) : [];
+  // (never a deck somewhere in between the two: a card is a song with each player's own difficulty of it)
   if (prefs.length === 2) {
     const pairs = await rankedPairDeck(keys, prefs, targets.length);
     const g = Multiplayer.room && Multiplayer.room.rp;
-    if (pairs.length >= 12) { if (g && g.stage === 'deal') Multiplayer.send({ t: 'pool', maps: pairs }); return; }
+    // (very few such songs about — a tiny library, offline: the same ones more than once, so there are still cards)
+    for (let i = 0, n = pairs.length; n && pairs.length < Math.min(12, targets.length); i++) pairs.push(pairs[i % n]);
+    if (pairs.length) { if (g && g.stage === 'deal') Multiplayer.send({ t: 'pool', maps: pairs }); return; }
   }
   const sorted = [...targets].sort((a, b) => a - b), lo = Math.max(0, sorted[0] - 0.35), hi = sorted[sorted.length - 1] + 0.35;
   const cand = [], seen = new Set();
@@ -209,7 +212,8 @@ async function rankedPairDeck(keys, prefs, want) {
   }
   sets.push(...local.values());
   const cards = [];
-  for (const tol of [0.5, 0.9]) {
+  // (as close to each player's star rating as there are songs for: wider only while there aren't enough)
+  for (const tol of [0.5, 0.9, 1.5, Infinity]) {
     cards.length = 0;
     for (const s of sets) {
       const ds = s.diffs.filter(x => x.length >= 45000 && x.length <= 360000);
@@ -583,7 +587,7 @@ const RankedMatch = {
     const side = (id, cls, sc) => h(`div.rki-side.${cls}`, { style: { '--p': sc.primary, '--pd': sc.darker } },
       this.avBox('rki-av', id, 132), id ? fxName(h('div.rki-name', this.name(id)), this.role(id)) : h('div.rki-name', '…'),
       h('div.rki-rt', id && g.users[id] && g.users[id].pref != null ? `Chose ${g.users[id].pref.toFixed(2)}★` : ''));
-    const star = h('div.rki-stars', '~0.00'), title = h('div.rki-st', 'Refining star difficulty range...'), sub = h('div.rki-sub', 'Drawn around the star ratings you both chose.');
+    const star = h('div.rki-stars', '~0.00'), title = h('div.rki-st', 'Refining star difficulty range...'), sub = h('div.rki-sub', 'Each of you plays your own difficulty, near the star rating you chose.');
     const after = h('div.rki-after', 'There\'s always a chance that you get maps outside this range');
     const rki = h('div.rki',
       h('div.rki-vs', side(me, 'l', RP_BLUE), h('div.rki-x', 'VS'), side(opp, 'r', RP_RED)),
@@ -621,8 +625,8 @@ const RankedMatch = {
   card(m, i, { back = false } = {}) {
     const el = h(`div.rkc${back ? '.back' : ''}`, { dataset: { i: String(i) } });
     if (back || !m) { el.append(h('div.rkc-in', h('div.rkc-backside', h('div.rkc-logo', h('span', 'ashtonk!'), h('small', 'ranked play'))))); return el; }
-    // (a card with a difficulty for each player: yours on it — the other player's star rating under it)
-    const own = m.per && m.per[Multiplayer.me], theirs = m.per && Object.entries(m.per).find(([id]) => id !== Multiplayer.me);
+    // (a card with a difficulty for each player: yours on it — your own star rating, chart and length)
+    const own = m.per && m.per[Multiplayer.me];
     if (own) m = { ...m, version: own.version, stars: own.stars, length: own.length || m.length };
     const sc = starColour(m.stars || 0), local = Multiplayer.localMap(m);
     el.style.setProperty('--sc', sc);
@@ -636,7 +640,6 @@ const RankedMatch = {
         h('div.rkc-top', starBadge(m.stars || 0), h('span.rkc-keys', `${m.keys}K`)),
         h('div.rkc-body',
           h('div.rkc-t', { title: m.title }, m.title), h('div.rkc-a', m.artist), h('div.rkc-v', m.version),
-          theirs && own ? h('div.rkc-vs', { title: `${this.name(theirs[0])} plays ${theirs[1].version}` }, 'vs ', h('b', { style: { color: starColour(theirs[1].stars) } }, `${theirs[1].stars.toFixed(2)}★`)) : null,
           h('div.rkc-meta', len ? h('span', icon('clock'), len) : null, m.creator ? h('span', icon('user'), m.creator) : null))),
       h('div.rkc-backside', h('div.rkc-logo', h('span', 'ashtonk!'), h('small', 'ranked play')))));
     return el;

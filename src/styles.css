@@ -67,6 +67,7 @@ a { color: var(--accent); }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+i.fi { display: inline-block; flex: none; width: 1.15em; height: 1.15em; vertical-align: -0.2em; background-position: center; background-size: contain; background-repeat: no-repeat; }
 svg.i { width: 1.15em; height: 1.15em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.2em; }
 svg.i.fill { fill: currentColor; stroke: none; }
 /* lazer's own icons (12-icons.js): its white icon pictures as masks, in the text colour */
@@ -2559,7 +2560,8 @@ body.f-modsel #toasts { opacity: 0; pointer-events: none; }
 .ex-spec-more i { width: 7px; height: 14px; border-radius: 4px; background: var(--sc); }
 .ex-card .ex-keys { font-size: .7rem; font-weight: 700; color: rgba(255, 255, 255, .7); }
 .ex-card .ex-length { position: static; display: inline-flex; align-items: center; gap: 4px; padding: 0; background: none; font-size: .72rem; color: rgba(255, 255, 255, .75); }
-.ex-card .ex-length .i { width: 12px; height: 12px; }
+.ex-card .ex-length .i, .ex-card .ex-length .fi, .ex-card .ex-counts .fi, .ex-owned .fi { width: 12px; height: 12px; }
+.ex-vid .fi { width: 14px; height: 14px; }
 .ex-owned { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #88b300; color: #fff; }
 .ex-owned .i { width: 12px; height: 12px; }
 
@@ -2746,7 +2748,10 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 /* (each card drawn in as few pieces as can be: what's hidden isn't drawn at all until it's hovered, corners rounded on
    the pictures themselves rather than clipped, and no stacking context of its own — every piece of every card on the
    page was sorted out again in every frame of a scroll) */
-.ex-card { isolation: auto; }
+.ex-card { isolation: auto; overflow: visible; } /* (its corners rounded on each piece that reaches one rather than clipped: a
+   rounded clip round every card was a piece of its own in each, and the slowest thing in it to draw) */
+.ex-card .ex-t { overflow: visible; } /* (the title in it is what's cut short with "…": the row never overflows) */
+.ex-side { border-radius: 0 10px 10px 0; overflow: hidden; }
 .ex-cardbg, .ex-cardshade { z-index: auto; border-radius: inherit; }
 .ex-thumbwrap { overflow: visible; }
 .ex-thumb { border-radius: inherit; }
@@ -2757,6 +2762,7 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .ex-side { visibility: hidden; transition: clip-path 220ms var(--ease-out), visibility 0s 220ms; }
 .ex-card:hover .ex-side, .ex-card:focus-visible .ex-side, .ex-card:focus-within:not(:focus) .ex-side { visibility: visible; transition: clip-path 220ms var(--ease-out), visibility 0s; }
 .ex-card .ex-counts { transition: opacity 150ms; }
+.ex-grid.moving .ex-side, .ex-grid.moving .ex-counts { transition: none; }
 
 /* multiplayer lounge: create / join along the top, the open rooms below */
 .mp-lounge-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
@@ -3014,8 +3020,6 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .rkc-t { font-size: .95rem; font-weight: 700; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .rkc-a { font-size: .76rem; color: rgba(255, 255, 255, .75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rkc-v { margin-top: 3px; font-size: .74rem; font-weight: 700; color: var(--sc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; filter: brightness(1.35); }
-.rkc-vs { font-size: .66rem; color: rgba(255, 255, 255, .5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rkc-vs b { font-weight: 700; }
 .rkc-meta { display: flex; gap: 8px; margin-top: 4px; font-size: .68rem; color: rgba(255, 255, 255, .55); white-space: nowrap; overflow: hidden; }
 .rkc-meta span { display: inline-flex; align-items: center; gap: 3px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .rkc-meta .i { width: 11px; height: 11px; flex: none; }
@@ -3219,7 +3223,7 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .role-badge .i { width: 11px; height: 11px; }
 /* a role's effects (roleFx), in Neru's colours: her gold round the picture, glowing, sparkles twinkling on it, and the
    name shimmering gold and pink — an admin's (the owner's too) the same, quieter, in the role's own colour */
-.fx-neru { --fxc: #ffd23f; } .fx-admin { --fxc: #f5c842; }
+.fx-neru { --fxc: #ffd23f; } .fx-admin { --fxc: #f5c842; } .fx-teto { --fxc: #ff3d5a; }
 .fx-av { position: relative; display: inline-grid; flex: none; isolation: isolate; }
 .fx-av > .avatar, .fx-av > img { box-shadow: 0 0 0 2px #1d1527, 0 0 0 4px var(--fxc), 0 0 18px 2px color-mix(in srgb, var(--fxc) 50%, transparent) !important; }
 .fx-admin > .avatar, .fx-admin > img { box-shadow: 0 0 0 2px var(--rc, #1d1527), 0 0 0 4px var(--fxc), 0 0 14px 1px color-mix(in srgb, var(--fxc) 40%, transparent) !important; }
@@ -3231,14 +3235,22 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
   animation: fxTwinkle 2.6s ease-in-out infinite both; }
 .fx-spark:nth-of-type(2) { top: auto; right: auto; bottom: -2%; left: -8%; width: 16%; animation-delay: .9s; }
 .fx-spark:nth-of-type(3) { right: auto; top: 14%; left: -14%; width: 12%; animation-delay: 1.7s; }
+/* (Teto: her red, sparkles pink-white rather than gold, and her French bread tucked under the picture) */
+.fx-teto .fx-spark { background: radial-gradient(circle, #fff 18%, #ffc7d0 40%, var(--fxc) 72%); }
+.fx-bread { position: absolute; right: -16%; bottom: -4%; width: 46%; min-width: 16px; max-width: 46px; aspect-ratio: 64 / 24; z-index: 1; pointer-events: none; rotate: -32deg; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .45));
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 24'%3E%3Crect x='2' y='4' width='60' height='16' rx='8' fill='%23dc9a4f' stroke='%238a4f1d' stroke-width='2'/%3E%3Cpath d='M15 8l6 8M27 8l6 8M39 8l6 8M51 8l5 7' stroke='%23f7d7a3' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  animation: fxBread 3.4s ease-in-out infinite; }
+@keyframes fxBread { 0%, 100% { translate: 0 0; rotate: -32deg; } 50% { translate: 0 -8%; rotate: -24deg; } }
 @keyframes fxTwinkle { 0%, 100% { opacity: 0; scale: .3; rotate: 0deg; } 30% { opacity: 1; scale: 1; } 60% { opacity: .9; scale: .8; rotate: 45deg; } 85% { opacity: 0; scale: .3; rotate: 90deg; } }
-.fx-name.fx-neru, .fx-name.fx-admin { background: linear-gradient(100deg, #ffe680, #ffc53d 30%, #ff9fd0 50%, #ffc53d 70%, #ffe680) 0 0 / 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; text-shadow: none; }
+.fx-name.fx-neru, .fx-name.fx-admin, .fx-name.fx-teto { background: linear-gradient(100deg, #ffe680, #ffc53d 30%, #ff9fd0 50%, #ffc53d 70%, #ffe680) 0 0 / 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; text-shadow: none; }
 .fx-name.fx-admin { background-image: linear-gradient(100deg, #ffe680, #f5c842 35%, #fff6d0 50%, #f5c842 65%, #ffe680); }
+.fx-name.fx-teto { background-image: linear-gradient(100deg, #ff9aa9, #ff3d5a 30%, #fff0f2 50%, #ff3d5a 70%, #ff9aa9); }
 /* (shimmering where it's big: the profile, Ranked Play's introductions) */
 .pf-name .fx-name, .rki-name.fx-name, .rkm-duel-p .fx-name { animation: fxShimmer 6s linear infinite; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .55)); }
 @keyframes fxShimmer { to { background-position: -200% 0; } }
 /* the profile's header: a line of her gold along its foot */
-.pf-top.fx-neru::after, .pf-top.fx-admin::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 1; background: linear-gradient(90deg, transparent, var(--fxc) 18%, #ff9fd0 50%, var(--fxc) 82%, transparent); opacity: .9; pointer-events: none; }
+.pf-top.fx-neru::after, .pf-top.fx-admin::after, .pf-top.fx-teto::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 1; background: linear-gradient(90deg, transparent, var(--fxc) 18%, #ff9fd0 50%, var(--fxc) 82%, transparent); opacity: .9; pointer-events: none; }
+.pf-top.fx-teto::after { background: linear-gradient(90deg, transparent, var(--fxc) 18%, #ffd3da 50%, var(--fxc) 82%, transparent); }
 /* (in Ranked Play's round frames, sized as the picture would be there — and not cut off at the frame's edge) */
 .rkm-av.fx-in, .rki-av.fx-in { overflow: visible; }
 .rkm-av > .fx-av > .avatar, .rkm-av > .fx-av > img { width: 72px !important; height: 72px !important; border-radius: 50%; object-fit: cover; }
@@ -4728,9 +4740,9 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 /* (each written out: in one :is() the rule was tried against every element restyled, whatever its class) */
 :root.perf .screen-body, :root.perf .bso-scroll, :root.perf .res-body, :root.perf .mp-body, :root.perf .cl-body, :root.perf .ab-grid, :root.perf .setup-body, :root.perf .mc-list, :root.perf .nf-list, :root.perf .np-list, :root.perf .ch-lines,
 :root.slow .screen-body, :root.slow .bso-scroll, :root.slow .res-body, :root.slow .mp-body, :root.slow .cl-body, :root.slow .ab-grid { will-change: scroll-position; }
-/* (not the beatmap listing's or the library's cards: scrolled on the compositor, each card's pieces became layers of
-   their own — 150 to 200 of them — and sorting those out again took longer each step than painting the cards) */
-:root.perf .ex-body, :root.slow .ex-body, :root.perf .lib-body, :root.slow .lib-body { will-change: auto; }
+/* (the beatmap listing and the library too, in every mode: now that their cards are drawn in a few pieces rather than
+   as layers of their own, scrolled on the compositor they take half the work a frame they did repainted) */
+.ex-body, .lib-body { will-change: scroll-position; }
 :root.perf #bg-a, :root.perf #bg-b { will-change: auto; }
 /* (song select's list cut off under the filters rather than fading out there: the fade, a mask over a scrolling list,
    was a good part of every step of a scroll) */

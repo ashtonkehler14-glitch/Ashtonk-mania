@@ -575,15 +575,17 @@ const NeruEggs = {
     const f = this.fanOf();
     this.clickedOver(f && f.who, el, M.img, pose);
   },
-  /** Clicked over and over: she gets angry (hand on hip, a shake, the cross mark and steam) — or a Teto or Miku fan
-   *  (`who`) gets their thing in a thought bubble, crossed out (no baguette, no leek), or, as often, a photo of their
-   *  character held up. (A spin is for one of her own, in Neru mode — huff.) Nothing — a click, a touch — has her do
+  /** Clicked over and over: she gets angry (hand on hip, a shake, the cross mark and steam) — and a Teto or Miku fan
+   *  (`who`) half the time gets that too, a quarter of the time their thing in a thought bubble, crossed out (no
+   *  baguette, no leek), and a quarter a photo of their character held up (where there's no room for the photo, the
+   *  thought instead). (A spin is for one of her own, in Neru mode — huff.) Nothing — a click, a touch — has her do
    *  anything else till it's over, and a photo or a thought is gone before she changes pose. `box`/`img`: which Neru
    *  (the main menu's or a screen's); `pose(name)` puts her in a pose — whether it's there — and back (null). */
   clickedOver(who, box, img, pose) {
     if (!box || !img || box._fanBusy) return;
     const photo = who && (this.PHOTOS[who] || []).length && !box.classList.contains('behind') && neruAnim();
-    const kind = !who ? 'angry' : photo && Math.random() < 0.5 ? 'photo' : 'thought';
+    const r = Math.random(), kind = !who || r < 0.5 ? 'angry' : r < 0.75 || !photo ? 'thought' : 'photo';
+    this.lastKind = kind;
     box._fanBusy = true;
     let held = null; // (the photo or the thought bubble, waited out)
     const end = () => {

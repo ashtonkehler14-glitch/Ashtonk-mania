@@ -345,8 +345,9 @@ await shot('01-home-empty');
   // double-clicked: a hop each time; clicked over and over — the eighth click in a row, however slowly (each within a
   // little over a second of the last), never by chance — angry; one of her own (the Neru gang, Neru mode) always a
   // spin, that a click mid-spin doesn't cut short (nobody else gets one); by a Teto or Miku fan, nothing before the
-  // eighth click, then a photo of their character held up or their thing crossed out in a thought bubble, half and
-  // half — which clicking again doesn't cut short, and the photo or the thought is gone before her pose changes back;
+  // eighth click, then — half the time — angry like anyone, a quarter their thing crossed out in a thought bubble and a
+  // quarter a photo of their character held up — which clicking again doesn't cut short, and the photo or the thought
+  // is gone before her pose changes back;
   // the hundredth click this visit, even mid-huff: her happy face and hearts — she gives up
   {
     const tw = await page.evaluate(async () => {
@@ -393,9 +394,9 @@ await shot('01-home-empty');
         out.gang = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
         out.gangSpam = await spam();
         M.el.classList.remove('hop'); M.el.click(); await wait(30); out.midTwirl = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
-        // (a fan: under a half a photo, else the thought)
-        P.profile.name = 'TetoFan'; out.teto = [await fanSpam(0.2), await fanSpam(0.7)];
-        P.profile.name = 'MikuFan'; out.miku = [await fanSpam(0.2), await fanSpam(0.7)];
+        // (a fan: under a half angry, then a quarter the thought, the last quarter a photo)
+        P.profile.name = 'TetoFan'; out.teto = [await fanSpam(0.2), await fanSpam(0.6), await fanSpam(0.9)];
+        P.profile.name = 'MikuFan'; out.miku = [await fanSpam(0.2), await fanSpam(0.6), await fanSpam(0.9)];
       } finally { P.profile.name = name; }
       out.plain = await spam(0.1); out.plainSpin = await spam(0.9);
       await calm(); E._clicked = 98; M.el.click(); await wait(300); out.n99 = M.img.dataset.pose;
@@ -406,9 +407,9 @@ await shot('01-home-empty');
       E._seen = performance.now(); await wait(3200); out.after = M.img.dataset.pose || 'usual';
       return out;
     });
-    check('Neru: double-clicked, a hop; the eighth click in a row, however slowly, always gets her going — angry, never a spin; the Neru gang always a spin (not cut short by another click); a Teto or Miku fan nothing before the eighth, then a photo or their thing crossed out, half and half, that clicking again doesn\'t cut short, the photo or thought gone before her pose changes; the hundredth click in a visit (not one mid-huff: nothing counts then) gets her happy face and a shower of hearts',
+    check('Neru: double-clicked, a hop; the eighth click in a row, however slowly, always gets her going — angry, never a spin; the Neru gang always a spin (not cut short by another click); a Teto or Miku fan nothing before the eighth, then angry half the time, their thing crossed out a quarter and a photo a quarter, that clicking again doesn\'t cut short, the photo or thought gone before her pose changes; the hundredth click in a visit (not one mid-huff: nothing counts then) gets her happy face and a shower of hearts',
       tw.once === 'true|false' && tw.twice === 'true|false' && tw.slow7 === false && tw.slow8 === true && tw.gang === 'true|false' && tw.midTwirl === 'false|true' && tw.gangSpam === 'false|-|false|true' && tw.plain === 'true|-|false|false' && tw.plainSpin === 'true|-|false|false'
-      && tw.teto.join() === 'false|photo|teto|true|true|mock|usual,false|thought|teto|true|true|sassy|usual' && tw.miku.join() === 'false|photo|miku|true|true|mock|usual,false|thought|miku|true|true|sassy|usual'
+      && tw.teto.join() === 'false|angry||true|true|-|usual,false|thought|teto|true|true|sassy|usual,false|photo|teto|true|true|mock|usual' && tw.miku.join() === 'false|angry||true|true|-|usual,false|thought|miku|true|true|sassy|usual,false|photo|miku|true|true|mock|usual'
       && tw.n99 === 'happy' && tw.busy === 99 && tw.n100 === 'happy|true' && tw.after === 'usual', JSON.stringify(tw));
   }
   // dizzy: the pointer circled round her head three times — a blank look, a wobble, stars going round her head; flung,

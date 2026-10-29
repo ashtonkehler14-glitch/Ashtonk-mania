@@ -533,7 +533,8 @@ const UserPanels = {
   cover(u) {
     const a = typeof u.avatar === 'string' ? u.avatar : '';
     const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? Host.asset('avatars/' + encodeURIComponent(a.slice(5))) : a.startsWith('data:image/') ? a : null;
-    return h('div.up-cover', url ? { style: { backgroundImage: `url("${url}")` } } : {});
+    const el = h('div.up-cover');
+    return url ? PicWait.css(el, url) : el;
   },
   canSpectate(u) { return !!(u.online && u.id && u.id !== Presence.me); }, // (anyone online, in a song or in the menus)
   canInvite(u) { return u.online && u.id && u.id !== Presence.me && Friends.has(u.pid) && Multiplayer.inRoom() && u.status === 'menu'; },

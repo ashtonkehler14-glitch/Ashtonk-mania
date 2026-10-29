@@ -99,7 +99,9 @@ const BeatmapsScreen = {
     let still = 0;
     const sc = this._scroller = el.querySelector('.screen-body');
     sc.classList.add('lib-body');
-    sc.addEventListener('scroll', () => { shield.classList.add('on'); clearTimeout(still); still = setTimeout(() => shield.classList.remove('on'), 160); this.schedule(); }, { passive: true });
+    // (as in the beatmap listing: cards stop reacting to the pointer while the list moves — see ExplorerScreen.frame)
+    const grid = this.list, moving = on => { shield.classList.toggle('on', on); grid.classList.toggle('moving', on); };
+    sc.addEventListener('scroll', () => { if (!still) moving(true); clearTimeout(still); still = setTimeout(() => { still = 0; moving(false); }, 160); this.schedule(); }, { passive: true });
     // (the list's columns, row height and where it starts are measured again only when something changes size: the
     // window, the import report above it — never while it scrolls)
     this._ro = new ResizeObserver(es => { const g = es.find(e => e.target === this.list); if (es.some(e => e.target !== this.list) || (g && g.contentRect.width !== this._gw)) { if (g) this._gw = g.contentRect.width; this._mDirty = true; this.schedule(); } });
@@ -268,7 +270,7 @@ const BeatmapsScreen = {
     (this._thumbs || (this._thumbs = [])).push([els, u]);
     if (!this._thumbT) this._thumbT = setTimeout(() => {
       this._thumbT = 0;
-      for (const [list, url] of this._thumbs.splice(0)) for (const el of list) { el.style.backgroundImage = `url("${url}")`; el.classList.add('loaded'); }
+      for (const [list, url] of this._thumbs.splice(0)) for (const el of list) { el.style.backgroundImage = `url("${url}")`; el.classList.add('loaded'); PicWait.done(el); }
     }, 100);
   },
   /** One beatmap set as lazer's beatmap card (as in the beatmap listing): the cover faded behind, its picture on the
@@ -276,7 +278,8 @@ const BeatmapsScreen = {
    *  right on hover. Clicking it opens its difficulties underneath, across the whole row. */
   row(set) {
     const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-    BeatmapManager.thumbURL(set).then(u => { if (u) this.showThumb([thumb, bg], u); else noPicture(thumb); });
+    PicWait.add(thumb); // (the wheel waits for it — see PicWait)
+    BeatmapManager.thumbURL(set).then(u => { if (u) this.showThumb([thumb, bg], u); else { PicWait.done(thumb); noPicture(thumb); } }, () => PicWait.done(thumb));
     const maps = [...set.maps].sort((a, b) => a.keys - b.keys || a.stars - b.stars);
     const broken = maps.filter(m => m.problems.length);
     const keys = [...new Set(maps.map(m => m.keys))].sort((a, b) => a - b);
@@ -302,7 +305,7 @@ const BeatmapsScreen = {
           spectrum,
           h('span.ex-keys', keys.length > 3 ? `${keys[0]}–${keys[keys.length - 1]}K` : keys.map(k => k + 'K').join(' ')),
           h('span.grow'),
-          h('span.ex-length', icon('clock'), fmtTime(len)))),
+          h('span.ex-length', flatIcon('clock', 0.6), fmtTime(len)))),
       h('div.ex-side',
         side('.play', 'play', 'Play', () => Screens.go('songselect', { mapId: playable.id })),
         side('', 'download', 'Extract (.osz)', () => BeatmapManager.exportOsz(set.id)),
@@ -350,7 +353,7 @@ const CollectionsScreen = {
       const m = BeatmapManager.mapByHash(hash), set = m && BeatmapManager.setById.get(m.setId);
       const best = ScoreManager.best(hash);
       const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-      if (set) BeatmapManager.thumbURL(set).then(u => { if (!u) return noPicture(thumb); for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+      if (set) { PicWait.add(thumb); BeatmapManager.thumbURL(set).then(u => { PicWait.done(thumb); if (!u) return noPicture(thumb); for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } }, () => PicWait.done(thumb)); }
       else noPicture(thumb);
       const side = (cls, ic, label, fn) => h(`button.ex-side-btn${cls}`, { title: label, 'aria-label': label, onclick: e => { e.stopPropagation(); fn(); } }, icon(ic));
       const open = () => m && Screens.go('songselect', { mapId: m.id });
@@ -360,7 +363,7 @@ const CollectionsScreen = {
           h('div.ex-cb-top', h('div.ex-titles', h('div.ex-t', h('span.ex-tt', m ? m.title : 'Missing beatmap')), h('div.ex-a', m ? m.artist : `not in your library (${hash.slice(0, 10)}…)`)),
             best ? rankPill(best.grade) : null),
           m ? h('div.ex-m', h('b', m.version), ' mapped by ', h('b', m.creator)) : null,
-          m ? h('div.ex-foot', starBadge(m.stars), h('span.ex-keys', m.keys + 'K'), h('span.grow'), h('span.ex-length', icon('clock'), fmtTime(m.length))) : null),
+          m ? h('div.ex-foot', starBadge(m.stars), h('span.ex-keys', m.keys + 'K'), h('span.grow'), h('span.ex-length', flatIcon('clock', 0.6), fmtTime(m.length))) : null),
         h('div.ex-side',
           m ? side('.play', 'play', 'Play', open) : null,
           side('.del', 'x', 'Remove from collection', () => Collections.toggle(c.id, hash)))));
@@ -922,10 +925,10 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.29b', title: 'Ranked Play, spectating and Neru', sections: [
-    { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length'] },
+    { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length', 'Your cards show only your own star rating'] },
     { icon: 'film', title: 'Spectating', items: ['Skips happen only when the player you\'re watching skips', 'Their pause and fail menus show, with what they\'re choosing'] },
-    { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Admins and the Neru role get a gold, Neru-style profile and Ranked look'] },
-    { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly, as fast as your computer can keep up with', 'The beatmap listing and the menus run much more smoothly on slow computers', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
+    { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Admins and the Neru role get a gold, Neru-style profile and Ranked look', 'The Teto role gets a red, Teto-style one', 'Clicked over and over by a Teto or Miku fan, she gets angry half the time — otherwise a thought or a photo'] },
+    { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly and at a good speed, even on slow computers', 'Scrolling waits for pictures to load instead of racing past them', 'The beatmap listing and the menus run much more smoothly on slow computers', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
   ] },
   { id: '2026.10.29', title: 'Neru', sections: [
     { icon: 'heart', title: 'Neru', items: ['A few more Neru secrets to find on the main menu'] },
