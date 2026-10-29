@@ -323,6 +323,37 @@ const NeruCameo = {
     });
     ro.observe(el); ro.observe(host);
   },
+  /** Neru at the screen's left edge with `row`'s panels beside her (the results' cards, the other scores' too): kept
+   *  clear of the nearest — shrunk into the room left of it, and with too little to look like herself not there at all
+   *  (a phone held sideways, where the other scores' cards fill the screen). Looked at again as the window, the row's
+   *  scroll and its cards change, until she's gone. (In the screen's own pixels: the cards are zoomed to fit.) */
+  clearOf(el, row) {
+    if (!el || !row) return;
+    let fit = parseFloat(el.style.getPropertyValue('--nc-fit')) || 1, t = 0; // (watched again after another score was picked: as she is)
+    const check = () => {
+      if (!el.isConnected || !row.isConnected) { stop(); return; }
+      if (!el.offsetWidth || el.getAnimations().some(a => a.playState === 'running')) return; // (still coming in)
+      const me = el.getBoundingClientRect(), rr = row.getBoundingClientRect();
+      // (her full height, not as shrunk: shrinking her mustn't take her out from beside the cards and back)
+      const top = me.bottom - me.height / fit;
+      let left = Infinity;
+      for (const c of row.querySelectorAll('.res-grid > .rs, .res-mp-side > *')) {
+        const r = c.getBoundingClientRect();
+        if (!r.width || r.right <= rr.left || r.left >= rr.right || r.bottom <= top || r.top >= me.bottom) continue;
+        left = Math.min(left, Math.max(r.left, rr.left));
+      }
+      const f = clamp((left - me.left - 12) / (me.width / fit), 0, 1);
+      if (Math.abs(f - fit) < 0.01) return;
+      fit = f;
+      el.style.setProperty('--nc-fit', f.toFixed(3));
+      el.classList.toggle('nc-cramped', f < 0.6);
+    };
+    const ro = new ResizeObserver(check), stop = () => { ro.disconnect(); clearInterval(t); row.removeEventListener('scroll', check); };
+    ro.observe(el); ro.observe(row);
+    row.addEventListener('scroll', check, { passive: true });
+    // (and now and then: the cards slide about — the statistics opened and closed, another score picked)
+    t = setInterval(check, 700);
+  },
   /** A play's mood: from its grade (a new best too), or a fail. */
   moodOf(s) {
     if (!s || !s.passed) return 'failed';

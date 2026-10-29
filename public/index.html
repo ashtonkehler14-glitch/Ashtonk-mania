@@ -1715,7 +1715,7 @@ div.res-calib .i { color: var(--good); }
 @keyframes ncIn { 0% { opacity: 0; transform: translateY(45%) rotate(-5deg); } 55% { opacity: 1; transform: translateY(-4%) rotate(1.5deg); } 78% { transform: translateY(1%) rotate(-.5deg); } 100% { transform: none; } }
 /* where each screen has her: beside the results (stepping aside while the statistics are open), the pause and fail
    screens, the song's loader, an empty song select and the loading screen */
-.nc-results { left: clamp(8px, calc(4 * var(--vw)), 64px); bottom: 70px; height: calc(var(--nc-h) * var(--nc-s, 1)); transition: opacity 260ms ease, translate 420ms var(--ease-out); }
+.nc-results { left: clamp(8px, calc(4 * var(--vw)), 64px); bottom: 70px; height: calc(var(--nc-h) * var(--nc-s, 1) * var(--nc-fit, 1)); transition: opacity 260ms ease, translate 420ms var(--ease-out); }
 .results.stats-open .nc-results { opacity: 0; translate: -60px 0; pointer-events: none; }
 .nc-pause { left: clamp(8px, calc(4 * var(--vw)), 64px); bottom: 8px; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 .pause-menu.has-foot .nc-pause { bottom: 58px; }
@@ -16112,6 +16112,37 @@ const NeruCameo = {
     });
     ro.observe(el); ro.observe(host);
   },
+  /** Neru at the screen's left edge with `row`'s panels beside her (the results' cards, the other scores' too): kept
+   *  clear of the nearest — shrunk into the room left of it, and with too little to look like herself not there at all
+   *  (a phone held sideways, where the other scores' cards fill the screen). Looked at again as the window, the row's
+   *  scroll and its cards change, until she's gone. (In the screen's own pixels: the cards are zoomed to fit.) */
+  clearOf(el, row) {
+    if (!el || !row) return;
+    let fit = parseFloat(el.style.getPropertyValue('--nc-fit')) || 1, t = 0; // (watched again after another score was picked: as she is)
+    const check = () => {
+      if (!el.isConnected || !row.isConnected) { stop(); return; }
+      if (!el.offsetWidth || el.getAnimations().some(a => a.playState === 'running')) return; // (still coming in)
+      const me = el.getBoundingClientRect(), rr = row.getBoundingClientRect();
+      // (her full height, not as shrunk: shrinking her mustn't take her out from beside the cards and back)
+      const top = me.bottom - me.height / fit;
+      let left = Infinity;
+      for (const c of row.querySelectorAll('.res-grid > .rs, .res-mp-side > *')) {
+        const r = c.getBoundingClientRect();
+        if (!r.width || r.right <= rr.left || r.left >= rr.right || r.bottom <= top || r.top >= me.bottom) continue;
+        left = Math.min(left, Math.max(r.left, rr.left));
+      }
+      const f = clamp((left - me.left - 12) / (me.width / fit), 0, 1);
+      if (Math.abs(f - fit) < 0.01) return;
+      fit = f;
+      el.style.setProperty('--nc-fit', f.toFixed(3));
+      el.classList.toggle('nc-cramped', f < 0.6);
+    };
+    const ro = new ResizeObserver(check), stop = () => { ro.disconnect(); clearInterval(t); row.removeEventListener('scroll', check); };
+    ro.observe(el); ro.observe(row);
+    row.addEventListener('scroll', check, { passive: true });
+    // (and now and then: the cards slide about — the statistics opened and closed, another score picked)
+    t = setInterval(check, 700);
+  },
   /** A play's mood: from its grade (a new best too), or a fail. */
   moodOf(s) {
     if (!s || !s.passed) return 'failed';
@@ -22178,7 +22209,7 @@ const ResultsScreen = {
       const mood = NeruCameo.moodOf(s), hers = NeruEggs.herSong(map), wysi = p.fresh && !p.mp && !p.watched && NeruEggs.wysi(s);
       if (wysi) NeruEggs.found('wysi');
       this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(wysi ? 'wysi' : hers && mood === 'failed' ? 'herSongFail' : hers && mood !== 'perfect' ? 'herSongPass' : mood, 'nc-results', { delay: 1500, poke: NeruEggs.resultsPoke(s) }) : null;
-      if (this._neru) el.append(this._neru);
+      if (this._neru) { el.append(this._neru); NeruCameo.clearOf(this._neru, row); }
       // (a Teto or Miku fan's fail or poor play: she laughs, their thing crossed out — they won't save you)
       const fan = this._neru && !wysi && !hers && (mood === 'failed' || mood === 'bad') && NeruEggs.fanOf();
       if (fan) NeruEggs.propOn(this._neru, fan.who, 2200);
@@ -22311,7 +22342,7 @@ const ResultsScreen = {
     let built;
     try { built = this.enter(back ? base : { ...this.p, score, fromList: true, fresh: false, replay: null, watched: score.online ? 'online' : this.p.watched === 'online' ? null : this.p.watched }); } finally { this._swapping = false; }
     old.replaceChildren(...built.childNodes);
-    if (this._neru) old.append(this._neru);
+    if (this._neru) { old.append(this._neru); NeruCameo.clearOf(this._neru, old.querySelector('.res-row')); }
     this._el = old;
     const fresh = old;
     // (laid out now, and the picked panel brought to the middle of the row — then it grows out of where it was)
@@ -23857,7 +23888,7 @@ const CHANGELOG = [
   { id: '2026.10.29b', title: 'Ranked Play, spectating and Neru', sections: [
     { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length', 'Your cards show only your own star rating', 'No song plays behind the Ranked Play lounge and matches'] },
     { icon: 'film', title: 'Spectating', items: ['Skips happen only when the player you\'re watching skips', 'Their pause and fail menus show, with what they\'re choosing'] },
-    { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Admins and the Neru role get a gold, Neru-style profile and Ranked look', 'The Teto role gets a red, Teto-style one', 'Clicked over and over by a Teto or Miku fan, she gets angry half the time — otherwise a thought or a photo'] },
+    { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Admins and the Neru role get a gold, Neru-style profile and Ranked look', 'The Teto role gets a red, Teto-style one', 'Clicked over and over by a Teto or Miku fan, she gets angry half the time — otherwise a thought or a photo', 'On a phone, she no longer stands over the other scores on the results screen'] },
     { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly and at a good speed, even on slow computers', 'Scrolling waits for pictures to load instead of racing past them', 'The beatmap listing and the menus run much more smoothly on slow computers', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
     { icon: 'sparkle', title: 'More like lazer', items: ['The toolbar\'s changelog button opens the whole changelog as a page, as in lazer'] },
     { icon: 'user', title: 'Fixes', items: ['A second tab (or the installed app) no longer leaves you a guest and yourself at once — which stopped some players joining multiplayer'] },
@@ -32225,7 +32256,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '06e0aa7e26da';
+const APP_BUILD = '002a6dfdcc21';
 
 const App = {
   lastReport: null,

@@ -40,7 +40,7 @@ const ResultsScreen = {
       const mood = NeruCameo.moodOf(s), hers = NeruEggs.herSong(map), wysi = p.fresh && !p.mp && !p.watched && NeruEggs.wysi(s);
       if (wysi) NeruEggs.found('wysi');
       this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(wysi ? 'wysi' : hers && mood === 'failed' ? 'herSongFail' : hers && mood !== 'perfect' ? 'herSongPass' : mood, 'nc-results', { delay: 1500, poke: NeruEggs.resultsPoke(s) }) : null;
-      if (this._neru) el.append(this._neru);
+      if (this._neru) { el.append(this._neru); NeruCameo.clearOf(this._neru, row); }
       // (a Teto or Miku fan's fail or poor play: she laughs, their thing crossed out — they won't save you)
       const fan = this._neru && !wysi && !hers && (mood === 'failed' || mood === 'bad') && NeruEggs.fanOf();
       if (fan) NeruEggs.propOn(this._neru, fan.who, 2200);
@@ -173,7 +173,7 @@ const ResultsScreen = {
     let built;
     try { built = this.enter(back ? base : { ...this.p, score, fromList: true, fresh: false, replay: null, watched: score.online ? 'online' : this.p.watched === 'online' ? null : this.p.watched }); } finally { this._swapping = false; }
     old.replaceChildren(...built.childNodes);
-    if (this._neru) old.append(this._neru);
+    if (this._neru) { old.append(this._neru); NeruCameo.clearOf(this._neru, old.querySelector('.res-row')); }
     this._el = old;
     const fresh = old;
     // (laid out now, and the picked panel brought to the middle of the row — then it grows out of where it was)

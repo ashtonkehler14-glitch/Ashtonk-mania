@@ -1698,7 +1698,7 @@ div.res-calib .i { color: var(--good); }
 @keyframes ncIn { 0% { opacity: 0; transform: translateY(45%) rotate(-5deg); } 55% { opacity: 1; transform: translateY(-4%) rotate(1.5deg); } 78% { transform: translateY(1%) rotate(-.5deg); } 100% { transform: none; } }
 /* where each screen has her: beside the results (stepping aside while the statistics are open), the pause and fail
    screens, the song's loader, an empty song select and the loading screen */
-.nc-results { left: clamp(8px, calc(4 * var(--vw)), 64px); bottom: 70px; height: calc(var(--nc-h) * var(--nc-s, 1)); transition: opacity 260ms ease, translate 420ms var(--ease-out); }
+.nc-results { left: clamp(8px, calc(4 * var(--vw)), 64px); bottom: 70px; height: calc(var(--nc-h) * var(--nc-s, 1) * var(--nc-fit, 1)); transition: opacity 260ms ease, translate 420ms var(--ease-out); }
 .results.stats-open .nc-results { opacity: 0; translate: -60px 0; pointer-events: none; }
 .nc-pause { left: clamp(8px, calc(4 * var(--vw)), 64px); bottom: 8px; height: calc(var(--nc-h) * var(--nc-s, 1)); }
 .pause-menu.has-foot .nc-pause { bottom: 58px; }
