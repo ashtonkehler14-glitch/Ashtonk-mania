@@ -495,6 +495,7 @@ const Presence = {
   start() {
     if (this.started || !Multiplayer.available()) return;
     this.started = true;
+    this.followOtherTabs();
     // only where the Worker serves multiplayer (a plain static copy has no /api): 'checking' until we know
     this.health = 'checking';
     this.checkHealth();
@@ -524,10 +525,43 @@ const Presence = {
    *  signed in (Account). None after signing out: a new guest would put the same scores on the rankings again. */
   pid() {
     if (this._pid) return this._pid;
-    if (typeof Account !== 'undefined' && Account.signedOut()) return '';
+    if (typeof Account !== 'undefined' && Account.signedOut()) { this._pid = ''; return ''; } // ('': known to be no one — see mine)
     let p = null; try { p = localStorage.getItem('am.pid'); } catch { /* private mode */ }
     if (!p || !/^[a-z0-9]{6,24}$/.test(p)) { p = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/g, '').slice(0, 16); try { localStorage.setItem('am.pid', p); } catch { /* private mode */ } }
     return (this._pid = p);
+  },
+  /** Another copy of the game in this browser — a second tab, or the installed app beside the website, sharing its
+   *  storage — became another player (a code typed there, signed out, a new id): this one follows instead of going on
+   *  as the player it was. (Going on, it brought the old id back as a guest whenever it reconnected — the device that
+   *  player and a guest at once.) Reloaded, as everything of the old player's here has changed; after the song, if one
+   *  is playing. */
+  followOtherTabs() {
+    let t = 0;
+    addEventListener('storage', e => {
+      if (e.key !== null && !/^am\.(pid|key|signedOut|linked)$/.test(e.key)) return; // (null: storage cleared)
+      clearTimeout(t); t = setTimeout(() => this.otherTab(), 400); // (a code typed changes several at once)
+    });
+    // (one asleep meanwhile — in the background on a phone — hears nothing of it: it looks when it's back, and before
+    // it connects again, see connect)
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.otherTab(); });
+  },
+  /** The player this browser's storage says it is now ('' signed out), as `pid|key`. */
+  stored() {
+    try { return localStorage.getItem('am.signedOut') === '1' ? '|' : `${localStorage.getItem('am.pid') || ''}|${localStorage.getItem('am.key') || ''}`; } catch { return null; }
+  },
+  /** Who this copy is, as it last read it from the storage — null when it's about to read it again (it changed who it
+   *  is itself: a code typed here, signed out here). */
+  mine() { return this._pid == null ? null : this._pid ? `${this._pid}|${this.key()}` : '|'; },
+  /** Is this copy still the player the storage says? If not (changed in another copy): follow it. */
+  otherTab() {
+    const now = this.stored(), mine = this.mine();
+    if (now == null || mine == null || now === mine) return false;
+    if (this._following) return true;
+    this._following = true;
+    const go = () => location.reload();
+    if (typeof Screens !== 'undefined' && Screens.currentName === 'gameplay') { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); go(); } }); }
+    else go();
+    return true;
   },
   connect() {
     const u = Host.ws('api/mp/presence');
@@ -537,11 +571,13 @@ const Presence = {
     // (one that hasn't opened in 10 s won't: closing it tries again)
     setTimeout(() => { if (this.ws === ws && ws.readyState === 0) { try { ws.close(); } catch { /* closed */ } } }, 10000);
     ws.onopen = () => {
+      if (this.otherTab()) { try { ws.close(); } catch { /* closed */ } return; } // (another copy here changed who this is)
       this.retry = 0; this._openAt = Date.now();
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
       // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
-      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid(), key: this.key(), vis: Settings.get('online.status') || 'online' }));
+      const pid = this.pid(), key = this.key();
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid, key, vis: Settings.get('online.status') || 'online' }));
       this._song = null; this.pushStatus();
       { const q = this._q; this._q = null; if (q) for (const m of q) this.send(m); }
       Rankings.report(); // (your totals for the rankings)
@@ -602,7 +638,9 @@ const Presence = {
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       // this browser's id is taken (by another key: copied browser data, a cleared key): start a new one and reconnect
       // (playing as yourself through a code: this device's key doesn't work any more — signed out, not quietly made new)
-      else if (m.t === 'repid') { if (typeof Account !== 'undefined' && Account.linked()) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
+      // (but first: a copy left behind on an id another copy here has moved on from — it follows that one, rather than
+      // signing the device out or starting over as a new player)
+      else if (m.t === 'repid') { if (this.otherTab()) return; if (typeof Account !== 'undefined' && (Account.linked() || m.account)) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
       // (your code was just used on another device)
       else if (m.t === 'codeUsed') Toast.show('A new device is playing as you', 'Someone typed your code on another device. Not you? Your code → New code, then Sign out other devices.', { type: 'err', timeout: 20000, hold: true });
       else if (m.t === 'error') Toast.err(m.msg);
@@ -819,7 +857,11 @@ const MultiplayerScreen = {
     this.render();
     return this.el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; RankedMatch.unmount(); if (this._chatIO) { this._chatIO.disconnect(); this._chatIO = null; } },
+  leave() {
+    (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; RankedMatch.unmount(); if (this._chatIO) { this._chatIO.disconnect(); this._chatIO = null; }
+    // (out of Ranked Play: the menu's song again — not on the way into a round's song, which plays its own)
+    const off = Bus.on('screen:changed', () => { off(); if (Screens.currentName !== 'multiplayer') MenuMusic.hush(false, !/^(gameplay|results|spectator)$/.test(Screens.currentName)); });
+  },
   onBack() {
     if (Multiplayer.inRoom() && Multiplayer.isRP()) { RankedMatch.confirmLeave(); return true; }
     if (Multiplayer.inRoom()) {
@@ -835,8 +877,10 @@ const MultiplayerScreen = {
     if (!this.body) return;
     // a Ranked Play match takes the whole screen (lazer's RankedPlayScreen)
     // (a room's kind decides which lounge you return to when you leave it)
-    if (Multiplayer.inRoom() && Multiplayer.isRP()) { this.mode = 'ranked'; RankedMatch.mount(this); return; }
+    // (Ranked Play, its lounge and its matches: no song playing behind them — MenuMusic.hush)
+    if (Multiplayer.inRoom() && Multiplayer.isRP()) { this.mode = 'ranked'; MenuMusic.hush(true); RankedMatch.mount(this); return; }
     RankedMatch.unmount();
+    MenuMusic.hush(!Multiplayer.inRoom() && this.mode === 'ranked');
     if (Multiplayer.inRoom()) { this.mode = 'lounge'; this.renderRoom(); return; }
     this.roomEl = null;
     clearEl(this.body);

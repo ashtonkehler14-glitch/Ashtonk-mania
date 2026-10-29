@@ -413,6 +413,40 @@ try {
     } finally { window.fetch = f; [V.RETRY_MS, V.ONE_MS] = ms; }
   });
   check('a lot of plays the server can\'t take goes up one at a time instead; one that can\'t get there at all says so, and goes again in a minute (not straight away, again and again)', one.lot >= 2 && one.one >= 2 && /couldn't reach the server/.test(one.said || '') && one.again && one.quiet && one.has && one.counted && one.still === null, JSON.stringify(one));
+  // three copies of the game sharing one browser's storage (tabs, or the installed app beside the website), the same
+  // player in all of them: another code typed in one, the others follow it — by themselves, or (one that missed the
+  // change: a tab asleep) when it next connects — never left online as the player it was, the device two at once
+  {
+    // (from an address of its own: the codes tried above count against the one they came from)
+    const tctx = await browser.newContext({ viewport: { width: 1400, height: 800 }, extraHTTPHeaders: { 'cf-connecting-ip': '10.9.8.7' } });
+    const tab = async (label, first) => {
+      const pg = await tctx.newPage(); pg.on('pageerror', e => errors.push(`${label} pageerror: ${e.message}`));
+      // (a tab asleep hears nothing of what other tabs change: `__asleep`, before the game listens)
+      await pg.addInitScript(() => addEventListener('storage', e => { if (window.__asleep) e.stopImmediatePropagation(); }, true));
+      await pg.goto(url); await pg.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
+      if (first && await pg.$('.onboarding')) { await setupName(pg, 'Twin'); await pg.waitForSelector('.setup-step-wom, .setup-step-mobile'); await pg.evaluate(() => AshtonkMania.Onboarding.finish()); }
+      await pg.waitForFunction(() => AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1 && AshtonkMania.Presence.me, null, { timeout: 15000 });
+      return pg;
+    };
+    const t1 = await tab('tab1', true), t2 = await tab('tab2'), t3 = await tab('tab3');
+    const guest = await t1.evaluate(() => AshtonkMania.Presence.pid());
+    const same = (await t2.evaluate(() => AshtonkMania.Presence.pid())) === guest && (await t3.evaluate(() => AshtonkMania.Presence.pid())) === guest;
+    // (tab 2 asleep: it never hears of the change)
+    await t2.evaluate(() => { window.__asleep = true; });
+    const codeNow = await a.evaluate(() => AshtonkMania.Account.code());
+    const reload3 = t3.waitForEvent('load', { timeout: 15000 });
+    await t1.evaluate(c => AshtonkMania.Account.link(c), codeNow);
+    await reload3; await t3.waitForFunction(() => window.AshtonkMania && AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1 && AshtonkMania.Presence.me, null, { timeout: 15000 });
+    const reload2 = t2.waitForEvent('load', { timeout: 15000 });
+    await t2.evaluate(() => AshtonkMania.Presence.reconnect()); // (it wakes up, and connects again)
+    await reload2; await t2.waitForFunction(() => window.AshtonkMania && AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1 && AshtonkMania.Presence.me, null, { timeout: 15000 });
+    const who = async pg => pg.evaluate(() => `${AshtonkMania.Presence.pid()}|${AshtonkMania.Account.linked()}|${AshtonkMania.Account.signedOut()}`);
+    const all = [await who(t1), await who(t2), await who(t3)];
+    const online = await a.evaluate(() => new Promise(r => setTimeout(() => r(AshtonkMania.Presence.players.map(p => p.pid)), 1500)));
+    check('a code typed in one tab (or the app): the others follow — by themselves, or when they next connect — never online as the player they were too',
+      same && all.every(x => x === `${pidA}|true|false`) && !online.includes(guest), JSON.stringify({ same, all, guestOnline: online.includes(guest) }));
+    await tctx.close();
+  }
 } catch (e) { check('ran to the end', false, e.stack); }
 
 check('no page errors', !errors.length, errors.join(' | '));

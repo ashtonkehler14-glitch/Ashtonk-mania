@@ -1758,6 +1758,25 @@ check('now-playing previous restarts the song', await page.evaluate(() => Ashton
 await page.mouse.move(700, 700);
 await page.waitForTimeout(600);
 
+// Ranked Play's lounge (and its matches): no song playing behind it — not even one asked for; out of it, the menu's
+// song goes on where it was
+{
+  const r = await page.evaluate(async () => {
+    const A = AshtonkMania, wait = ms => new Promise(res => setTimeout(res, ms)), back = A.Screens.currentName;
+    if (!A.Music.playing) { A.MenuMusic.toggle(); await wait(500); }
+    const before = A.Music.playing;
+    await A.Screens.go('multiplayer', { ranked: true }); await wait(800);
+    const quiet = !A.Music.playing;
+    A.MenuMusic.next(); A.MenuMusic.toggle(); await wait(600);
+    const still = !A.Music.playing;
+    await A.Screens.go('home'); await wait(900);
+    const again = A.Music.playing;
+    if (back !== 'home') { await A.Screens.go(back); await wait(600); }
+    return { before, quiet, still, again };
+  });
+  check('Ranked Play\'s lounge: no song behind it (not even the next one asked for), and back out the menu\'s song goes on', r.before && r.quiet && r.still && r.again, JSON.stringify(r));
+}
+
 // beatmap explorer (the game server's /api/getBeatmaps mocked with osu! API answers — osu! itself is external)
 const osuRaw = (id, title, extra = {}) => ({ id, title, title_unicode: title, artist: 'Mock', artist_unicode: 'Mock', creator: 'M', status: 'ranked', play_count: 1, favourite_count: 1, nsfw: false, ...extra,
   beatmaps: [{ beatmapset_id: id, id: id * 10, mode: 'mania', version: '4K', difficulty_rating: 2.1, cs: 4, accuracy: 8, drain: 7, bpm: 150, total_length: 60, count_circles: 100, count_sliders: 10 },

@@ -878,7 +878,20 @@ const MenuMusic = {
     } catch (e) { console.warn('menu music', e); }
   },
   setCurrent(map) { this.current = map; Toolbar.setNowPlaying(map); Bus.emit('music:changed', map); },
+  /** Ranked Play — its lounge and the match screen — has no song playing behind it, only the match's own (a card's
+   *  preview, the round's song): the menu's song fades out there and waits, and goes on where it was once you're out
+   *  (`resume`: not into a song of the match's, which plays its own). */
+  hush(on, resume = true) {
+    if (on === !!this._hushed) return;
+    this._hushed = on;
+    if (on) {
+      this._hushedPlaying = Music.playing;
+      if (Music.playing) { const pos = Music.time; Music.stop(300); Music.pausedPos = pos; }
+    } else if (resume && this._hushedPlaying && Music.loaded && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 400 });
+    Bus.emit('music:changed', this.current);
+  },
   toggle() {
+    if (this._hushed) return; // (Ranked Play: no music)
     // nothing loaded yet (preview audio off, or the first track never started): play starts one
     if (!Music.loaded && !Music.playing) {
       const sel = Screens.currentName === 'songselect' && BeatmapManager.maps.get(SongSelect.selectedId);
@@ -900,6 +913,7 @@ const MenuMusic = {
   /** Next track. With shuffle on (lazer's default) it's a shuffled run through every set, so a small library plays
    *  each song once before any repeats; with it off, the next set in the list. */
   async next() {
+    if (this._hushed) return; // (a match's song ended in Ranked Play: nothing after it)
     const sets = this.playable();
     if (!sets.length) return;
     this.dir = 1;

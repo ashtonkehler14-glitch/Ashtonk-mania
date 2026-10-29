@@ -82,6 +82,16 @@ test('codes: typing your code on a second device merges what it had — one play
   // device A is told a new device started playing as them (device B's own tab isn't)
   assert.ok(r.out.some(o => o.to === 'a' && o.msg.t === 'codeUsed'), JSON.stringify(r.out.map(o => [o.to, o.msg.t])));
   assert.ok(!r.out.some(o => o.to === 'b' && o.msg.t === 'codeUsed'));
+  // another copy of the game on device B (a second tab, the installed app) still on the old id: never a guest again —
+  // turned away as a player with a code, so it follows the storage (or asks for the code) instead of starting over
+  const stale = p.join('b2', { name: 'Kai', pid: 'devicebb', key: KEY_B });
+  assert.equal(p.users.get('b2').pid, '', 'the old id isn\'t brought back');
+  assert.ok(stale.some(o => o.to === 'b2' && o.msg.t === 'repid' && o.msg.account === true), JSON.stringify(stale.map(o => o.msg)));
+  assert.ok(!p.keyOk('devicebb', KEY_B) && !p.auth.has('devicebb'), 'nor claimed again');
+  // (kept: what a server restart reads back)
+  const q = new PresenceLogic(); q.loadMerged({ devicebb: 'deviceaa' });
+  q.join('c', { name: 'Kai', pid: 'devicebb', key: KEY_B });
+  assert.equal(q.users.get('c').pid, '');
 });
 
 test('codes: a device whose key isn\'t its own merges nothing; signing devices out', () => {

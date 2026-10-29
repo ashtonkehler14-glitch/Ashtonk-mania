@@ -15682,7 +15682,20 @@ const MenuMusic = {
     } catch (e) { console.warn('menu music', e); }
   },
   setCurrent(map) { this.current = map; Toolbar.setNowPlaying(map); Bus.emit('music:changed', map); },
+  /** Ranked Play — its lounge and the match screen — has no song playing behind it, only the match's own (a card's
+   *  preview, the round's song): the menu's song fades out there and waits, and goes on where it was once you're out
+   *  (`resume`: not into a song of the match's, which plays its own). */
+  hush(on, resume = true) {
+    if (on === !!this._hushed) return;
+    this._hushed = on;
+    if (on) {
+      this._hushedPlaying = Music.playing;
+      if (Music.playing) { const pos = Music.time; Music.stop(300); Music.pausedPos = pos; }
+    } else if (resume && this._hushedPlaying && Music.loaded && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 400 });
+    Bus.emit('music:changed', this.current);
+  },
   toggle() {
+    if (this._hushed) return; // (Ranked Play: no music)
     // nothing loaded yet (preview audio off, or the first track never started): play starts one
     if (!Music.loaded && !Music.playing) {
       const sel = Screens.currentName === 'songselect' && BeatmapManager.maps.get(SongSelect.selectedId);
@@ -15704,6 +15717,7 @@ const MenuMusic = {
   /** Next track. With shuffle on (lazer's default) it's a shuffled run through every set, so a small library plays
    *  each song once before any repeats; with it off, the next set in the list. */
   async next() {
+    if (this._hushed) return; // (a match's song ended in Ranked Play: nothing after it)
     const sets = this.playable();
     if (!sets.length) return;
     this.dir = 1;
@@ -23825,10 +23839,11 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.29b', title: 'Ranked Play, spectating and Neru', sections: [
-    { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length', 'Your cards show only your own star rating'] },
+    { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length', 'Your cards show only your own star rating', 'No song plays behind the Ranked Play lounge and matches'] },
     { icon: 'film', title: 'Spectating', items: ['Skips happen only when the player you\'re watching skips', 'Their pause and fail menus show, with what they\'re choosing'] },
     { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Admins and the Neru role get a gold, Neru-style profile and Ranked look', 'The Teto role gets a red, Teto-style one', 'Clicked over and over by a Teto or Miku fan, she gets angry half the time — otherwise a thought or a photo'] },
     { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly and at a good speed, even on slow computers', 'Scrolling waits for pictures to load instead of racing past them', 'The beatmap listing and the menus run much more smoothly on slow computers', 'Scroll speed is set on the screen before each song (and F3 / F4)', 'A score an admin removes stays removed'] },
+    { icon: 'user', title: 'Fixes', items: ['A second tab (or the installed app) no longer leaves you a guest and yourself at once — which stopped some players joining multiplayer'] },
   ] },
   { id: '2026.10.29', title: 'Neru', sections: [
     { icon: 'heart', title: 'Neru', items: ['A few more Neru secrets to find on the main menu'] },
@@ -27011,6 +27026,7 @@ const Presence = {
   start() {
     if (this.started || !Multiplayer.available()) return;
     this.started = true;
+    this.followOtherTabs();
     // only where the Worker serves multiplayer (a plain static copy has no /api): 'checking' until we know
     this.health = 'checking';
     this.checkHealth();
@@ -27040,10 +27056,43 @@ const Presence = {
    *  signed in (Account). None after signing out: a new guest would put the same scores on the rankings again. */
   pid() {
     if (this._pid) return this._pid;
-    if (typeof Account !== 'undefined' && Account.signedOut()) return '';
+    if (typeof Account !== 'undefined' && Account.signedOut()) { this._pid = ''; return ''; } // ('': known to be no one — see mine)
     let p = null; try { p = localStorage.getItem('am.pid'); } catch { /* private mode */ }
     if (!p || !/^[a-z0-9]{6,24}$/.test(p)) { p = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/g, '').slice(0, 16); try { localStorage.setItem('am.pid', p); } catch { /* private mode */ } }
     return (this._pid = p);
+  },
+  /** Another copy of the game in this browser — a second tab, or the installed app beside the website, sharing its
+   *  storage — became another player (a code typed there, signed out, a new id): this one follows instead of going on
+   *  as the player it was. (Going on, it brought the old id back as a guest whenever it reconnected — the device that
+   *  player and a guest at once.) Reloaded, as everything of the old player's here has changed; after the song, if one
+   *  is playing. */
+  followOtherTabs() {
+    let t = 0;
+    addEventListener('storage', e => {
+      if (e.key !== null && !/^am\.(pid|key|signedOut|linked)$/.test(e.key)) return; // (null: storage cleared)
+      clearTimeout(t); t = setTimeout(() => this.otherTab(), 400); // (a code typed changes several at once)
+    });
+    // (one asleep meanwhile — in the background on a phone — hears nothing of it: it looks when it's back, and before
+    // it connects again, see connect)
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.otherTab(); });
+  },
+  /** The player this browser's storage says it is now ('' signed out), as `pid|key`. */
+  stored() {
+    try { return localStorage.getItem('am.signedOut') === '1' ? '|' : `${localStorage.getItem('am.pid') || ''}|${localStorage.getItem('am.key') || ''}`; } catch { return null; }
+  },
+  /** Who this copy is, as it last read it from the storage — null when it's about to read it again (it changed who it
+   *  is itself: a code typed here, signed out here). */
+  mine() { return this._pid == null ? null : this._pid ? `${this._pid}|${this.key()}` : '|'; },
+  /** Is this copy still the player the storage says? If not (changed in another copy): follow it. */
+  otherTab() {
+    const now = this.stored(), mine = this.mine();
+    if (now == null || mine == null || now === mine) return false;
+    if (this._following) return true;
+    this._following = true;
+    const go = () => location.reload();
+    if (typeof Screens !== 'undefined' && Screens.currentName === 'gameplay') { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); go(); } }); }
+    else go();
+    return true;
   },
   connect() {
     const u = Host.ws('api/mp/presence');
@@ -27053,11 +27102,13 @@ const Presence = {
     // (one that hasn't opened in 10 s won't: closing it tries again)
     setTimeout(() => { if (this.ws === ws && ws.readyState === 0) { try { ws.close(); } catch { /* closed */ } } }, 10000);
     ws.onopen = () => {
+      if (this.otherTab()) { try { ws.close(); } catch { /* closed */ } return; } // (another copy here changed who this is)
       this.retry = 0; this._openAt = Date.now();
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
       // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
-      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid(), key: this.key(), vis: Settings.get('online.status') || 'online' }));
+      const pid = this.pid(), key = this.key();
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid, key, vis: Settings.get('online.status') || 'online' }));
       this._song = null; this.pushStatus();
       { const q = this._q; this._q = null; if (q) for (const m of q) this.send(m); }
       Rankings.report(); // (your totals for the rankings)
@@ -27118,7 +27169,9 @@ const Presence = {
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       // this browser's id is taken (by another key: copied browser data, a cleared key): start a new one and reconnect
       // (playing as yourself through a code: this device's key doesn't work any more — signed out, not quietly made new)
-      else if (m.t === 'repid') { if (typeof Account !== 'undefined' && Account.linked()) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
+      // (but first: a copy left behind on an id another copy here has moved on from — it follows that one, rather than
+      // signing the device out or starting over as a new player)
+      else if (m.t === 'repid') { if (this.otherTab()) return; if (typeof Account !== 'undefined' && (Account.linked() || m.account)) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
       // (your code was just used on another device)
       else if (m.t === 'codeUsed') Toast.show('A new device is playing as you', 'Someone typed your code on another device. Not you? Your code → New code, then Sign out other devices.', { type: 'err', timeout: 20000, hold: true });
       else if (m.t === 'error') Toast.err(m.msg);
@@ -27335,7 +27388,11 @@ const MultiplayerScreen = {
     this.render();
     return this.el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; RankedMatch.unmount(); if (this._chatIO) { this._chatIO.disconnect(); this._chatIO = null; } },
+  leave() {
+    (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; RankedMatch.unmount(); if (this._chatIO) { this._chatIO.disconnect(); this._chatIO = null; }
+    // (out of Ranked Play: the menu's song again — not on the way into a round's song, which plays its own)
+    const off = Bus.on('screen:changed', () => { off(); if (Screens.currentName !== 'multiplayer') MenuMusic.hush(false, !/^(gameplay|results|spectator)$/.test(Screens.currentName)); });
+  },
   onBack() {
     if (Multiplayer.inRoom() && Multiplayer.isRP()) { RankedMatch.confirmLeave(); return true; }
     if (Multiplayer.inRoom()) {
@@ -27351,8 +27408,10 @@ const MultiplayerScreen = {
     if (!this.body) return;
     // a Ranked Play match takes the whole screen (lazer's RankedPlayScreen)
     // (a room's kind decides which lounge you return to when you leave it)
-    if (Multiplayer.inRoom() && Multiplayer.isRP()) { this.mode = 'ranked'; RankedMatch.mount(this); return; }
+    // (Ranked Play, its lounge and its matches: no song playing behind them — MenuMusic.hush)
+    if (Multiplayer.inRoom() && Multiplayer.isRP()) { this.mode = 'ranked'; MenuMusic.hush(true); RankedMatch.mount(this); return; }
     RankedMatch.unmount();
+    MenuMusic.hush(!Multiplayer.inRoom() && this.mode === 'ranked');
     if (Multiplayer.inRoom()) { this.mode = 'lounge'; this.renderRoom(); return; }
     this.roomEl = null;
     clearEl(this.body);
@@ -31687,7 +31746,17 @@ const Sync = {
    *  yours). Kept across a reload, so a restore cut short is finished at the next start. */
   pending() { return this.marked('am.restore') === '1'; },
 
+  /** Notes left under another id than this device's player's now — it was another player before (a code typed here,
+   *  a new id): gone. None was ever taken for this player's (each is checked against the player), but they lingered. */
+  tidy() {
+    const pid = Account.me().pid || '';
+    for (const k of ['am.scPulled', 'am.skinSent', 'am.skinBig', 'am.syncAt', 'am.setRev']) { const v = this.marked(k); if (v && v.split('|')[0] !== pid) this.mark(k, null); }
+    const d = this.marked('am.setDirty'); if (d && d !== pid) this.mark('am.setDirty', null);
+    let c = null; try { c = JSON.parse(this.marked('am.setChanges') || 'null'); } catch { /* none */ }
+    if (c && c.pid !== pid) this.mark('am.setChanges', null);
+  },
   init() {
+    this.tidy();
     DB.kvGet('sync.sets', []).then(l => { if (Array.isArray(l) && !this.accountSets.length) { this.accountSets = l; Bus.emit('accountsets:changed'); } }).catch(() => {});
     // (each change noted, to be sent: a medal too — though alone it waits for the next change)
     Bus.on('settings:changed', k => { if (k !== '*' && this.local(k)) return; this.touch(k === '*' ? 'full' : k); this.later(); });
@@ -31697,7 +31766,7 @@ const Sync = {
     const prof = () => { const p = ProfileManager.profile || {}; return `${p.name}|${p.avatar}|${p.avatarSig || ''}`; };
     this._prof = prof();
     Bus.on('profile:changed', () => { const s = prof(); if (s === this._prof) return; this._prof = s; this.touch('profile'); this.later(2000); });
-    Bus.on('account:changed', () => this.later());
+    Bus.on('account:changed', () => { this.tidy(); this.later(); });
     Bus.on('scores:changed', () => this.later());
     // (back to the game after a while — a phone put down, another tab: what your other devices played since)
     document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - (this._pulledAt || 0) > this.PULL_EVERY) this.later(2000); });
@@ -32111,7 +32180,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'ad6301fd8c4b';
+const APP_BUILD = 'cbe80287de4e';
 
 const App = {
   lastReport: null,

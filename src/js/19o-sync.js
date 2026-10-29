@@ -26,7 +26,17 @@ const Sync = {
    *  yours). Kept across a reload, so a restore cut short is finished at the next start. */
   pending() { return this.marked('am.restore') === '1'; },
 
+  /** Notes left under another id than this device's player's now — it was another player before (a code typed here,
+   *  a new id): gone. None was ever taken for this player's (each is checked against the player), but they lingered. */
+  tidy() {
+    const pid = Account.me().pid || '';
+    for (const k of ['am.scPulled', 'am.skinSent', 'am.skinBig', 'am.syncAt', 'am.setRev']) { const v = this.marked(k); if (v && v.split('|')[0] !== pid) this.mark(k, null); }
+    const d = this.marked('am.setDirty'); if (d && d !== pid) this.mark('am.setDirty', null);
+    let c = null; try { c = JSON.parse(this.marked('am.setChanges') || 'null'); } catch { /* none */ }
+    if (c && c.pid !== pid) this.mark('am.setChanges', null);
+  },
   init() {
+    this.tidy();
     DB.kvGet('sync.sets', []).then(l => { if (Array.isArray(l) && !this.accountSets.length) { this.accountSets = l; Bus.emit('accountsets:changed'); } }).catch(() => {});
     // (each change noted, to be sent: a medal too — though alone it waits for the next change)
     Bus.on('settings:changed', k => { if (k !== '*' && this.local(k)) return; this.touch(k === '*' ? 'full' : k); this.later(); });
@@ -36,7 +46,7 @@ const Sync = {
     const prof = () => { const p = ProfileManager.profile || {}; return `${p.name}|${p.avatar}|${p.avatarSig || ''}`; };
     this._prof = prof();
     Bus.on('profile:changed', () => { const s = prof(); if (s === this._prof) return; this._prof = s; this.touch('profile'); this.later(2000); });
-    Bus.on('account:changed', () => this.later());
+    Bus.on('account:changed', () => { this.tidy(); this.later(); });
     Bus.on('scores:changed', () => this.later());
     // (back to the game after a while — a phone put down, another tab: what your other devices played since)
     document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - (this._pulledAt || 0) > this.PULL_EVERY) this.later(2000); });

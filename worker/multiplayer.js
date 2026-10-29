@@ -937,6 +937,10 @@ export class PresenceLogic {
     // players' keys, by public id (only each key's SHA-256 is kept): pid → hash, or a list of them for an account (a key
     // for each device signed in to it)
     this.auth = new Map(); this.persistAuth = null;
+    // players merged into another (a device's own id, when its code was typed there): old id → the player it is now. Never
+    // claimed again — a second tab or the installed app still on the old id would otherwise bring the guest back to life,
+    // the device that player and a guest at once (mg:<pid>)
+    this.merged = new Map(); this.persistMerged = null;
     // player codes (one per player, for playing as them on another device): code fingerprint → pid, and pid → fingerprint
     this.codes = new Map(); this.codeOf = new Map(); this.persistCode = null;
     // each player's profile as their game last shared it (lazer's user profile, opened by other players): pid → data
@@ -1176,7 +1180,7 @@ export class PresenceLogic {
   /** Does this key own this public id? The first key used with an id claims it. */
   claim(pid, key) {
     const k = String(key || '');
-    if (k.length < 16 || k.length > 100) return false;
+    if (k.length < 16 || k.length > 100 || this.merged.has(pid)) return false;
     const hash = sha256hex(k), have = this.keyHashes(pid);
     if (have.length) return have.includes(hash);
     if (this.codeOf.has(pid)) return false; // (a player with a code whose every device signed out isn't up for grabs)
@@ -1184,6 +1188,7 @@ export class PresenceLogic {
     if (this.persistAuth) this.persistAuth(pid, hash);
     return true;
   }
+  loadMerged(all) { for (const [pid, to] of Object.entries(all || {})) if (/^[a-z0-9]{6,24}$/.test(String(to || ''))) this.merged.set(pid, String(to)); }
   loadAuth(all) { for (const [pid, h] of Object.entries(all || {})) if (typeof h === 'string' || (Array.isArray(h) && h.length)) this.auth.set(pid, h); }
   keyHashes(pid) { const h = this.auth.get(pid); return Array.isArray(h) ? h : h ? [h] : []; }
   /** Is this one of the keys for this public id? */
@@ -1214,7 +1219,7 @@ export class PresenceLogic {
     this.auth.set(pid, [h]);
     if (this.persistAuth) this.persistAuth(pid, [h]);
     const out = [], gone = [];
-    for (const [id, u] of this.users) if (u.pid === pid && u.kh !== h) { out.push({ to: id, msg: { t: 'repid' } }); gone.push(id); }
+    for (const [id, u] of this.users) if (u.pid === pid && u.kh !== h) { out.push({ to: id, msg: { t: 'repid', account: true } }); gone.push(id); }
     return { n: Math.max(0, before - 1), out, gone };
   }
   /** A new code for this player (the old one stops working): its fingerprint is all that's kept. */
@@ -1351,6 +1356,7 @@ export class PresenceLogic {
     if (this.dropPlayer) this.dropPlayer(from, 'profile');
     this.seen.delete(from); this.auth.delete(from);
     if (this.dropPlayer) { this.dropPlayer(from, 'seen'); this.dropPlayer(from, 'auth'); }
+    this.merged.set(from, to); if (this.persistMerged) this.persistMerged(from, to);
     // (any tab still online as the guest is the account now)
     for (const u of this.users.values()) if (u.pid === from) { u.pid = to; u.name = name; }
     return [...this.friendsOut(...touched)];
@@ -1739,7 +1745,9 @@ export class PresenceLogic {
     if (cid) for (const [oid, u] of this.users) if (u.cid === cid) { out.push(...this.forget(oid)); gone.push(oid); }
     // a public id belongs to whoever first used it with their secret key: anyone else using it stays anonymous
     let pid = /^[a-z0-9]{6,24}$/.test(String(msg && msg.pid || '')) ? String(msg.pid) : '';
-    if (pid && !this.claim(pid, msg && msg.key)) { pid = ''; out.push({ to: id, msg: { t: 'repid' } }); } // (the client quietly takes a new id of its own)
+    // (the client quietly takes a new id of its own — unless the id is a player with a code, or one merged into such a
+    // player (`account`): then it's signed out, and asked for the code, rather than quietly made a new guest)
+    if (pid && !this.claim(pid, msg && msg.key)) { const acct = this.codeOf.has(pid) || this.merged.has(pid); pid = ''; out.push({ to: id, msg: { t: 'repid', ...(acct ? { account: true } : {}) } }); }
     // (banned by the server's owner: not let in at all — told why, and the connection closes)
     this.dropped = gone;
     if (pid && this.isBanned(pid)) return [...out, { to: id, msg: this.bannedMsg(pid) }];
@@ -2526,6 +2534,8 @@ export class Matchmaker {
         const rk = {}; for (const [k, v] of await st.list({ prefix: 'rk:' })) rk[k.slice(3)] = v;
         const au = {}; for (const [k, v] of await st.list({ prefix: 'au:' })) au[k.slice(3)] = v;
         this.presence.loadAuth(au);
+        const mg = {}; for (const [k, v] of await st.list({ prefix: 'mg:' })) mg[k.slice(3)] = v;
+        this.presence.loadMerged(mg);
         const cd = {}; for (const [k, v] of await st.list({ prefix: 'cd:' })) cd[k.slice(3)] = v;
         this.presence.loadCodes(cd);
         const po = {}; for (const [k, v] of await st.list({ prefix: 'po:' })) po[k.slice(3)] = v;
@@ -2570,6 +2580,7 @@ export class Matchmaker {
       const rew = [...this.presence.ranks].filter(([, r]) => r.rew).map(([pid]) => pid);
       const revalue = async () => { for (const pid of rew.splice(0, 10)) { const r = this.presence.ranks.get(pid); if (!r) continue; await this.ensureBests(pid); delete r.rew; PresenceLogic.revalue(r); this.presence.persistRank(pid, r); } if (rew.length) setTimeout(() => revalue().catch(() => {}), 500); };
       if (rew.length) setTimeout(() => revalue().catch(() => {}), 2000);
+      this.presence.persistMerged = (pid, to) => { st.put(`mg:${pid}`, to).catch(() => {}); };
       this.presence.persistAuth = (pid, h) => { (Array.isArray(h) && !h.length ? st.delete(`au:${pid}`) : st.put(`au:${pid}`, h)).catch(() => {}); };
       this.presence.persistPlayOwner = (fp, pid) => { st.put(`po:${fp}`, pid).catch(() => {}); };
       this.presence.persistCode = (hash, pid, old) => { if (hash) st.put(`cd:${hash}`, { pid, at: Date.now() }).catch(() => {}); if (old) st.delete(`cd:${old}`).catch(() => {}); };
