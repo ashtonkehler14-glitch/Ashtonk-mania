@@ -246,7 +246,9 @@ const SongSelect = {
       if (!tm || !Music.playing || !this.logoBeat || !Settings.get('ui.animSpeed')) { this._beatT = setTimeout(() => { this._beatRaf = requestAnimationFrame(tick); }, 300); return; }
       const t = Music.time + 60, i = Math.max(0, bsearchLE(tm, t, 'time')), tp = tm[i];
       const L = menuBeatLength(tp.beatLength), beat = Math.floor((t - tp.time) / L), key = i * 100000 + beat;
-      if (key !== last && t >= tp.time && beat >= 0) {
+      // (not under a panel — mod select, settings…: what pulses under it made the browser put the panel's own insides on
+      // layers of their own, every beat)
+      if (key !== last && t >= tp.time && beat >= 0 && !Overlays.stack.length && !SettingsPanel.o) {
         last = key;
         this.panelPulse(beat, tp);
         this.logoBeat.getAnimations().forEach(a => a.cancel());

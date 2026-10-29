@@ -422,6 +422,29 @@ if (typeof Element !== 'undefined' && Element.prototype.animate) {
   };
 }
 
+/** An animation that ends by holding its last frame (fill forwards / both — most of the menus' entrances) is still
+ *  "running" as far as the browser is concerned: what it moved stays a layer of its own, and everything drawn after it
+ *  can become one too (the browser can't tell where it might go next) — the mod select panel, a screen that slid in,
+ *  the toolbar's badge, long after they'd settled. One that ends where its element is anyway lets go at its end; one
+ *  that ends somewhere else (a panel sliding out) keeps holding it. */
+if (typeof document !== 'undefined') document.addEventListener('animationend', e => {
+  const el = e.target;
+  if (e.pseudoElement || !el || !el.getAnimations || !el.isConnected) return;
+  for (const a of el.getAnimations()) {
+    if (a.animationName !== e.animationName || a.playState !== 'finished') continue;
+    const fill = a.effect.getTiming().fill;
+    if (fill !== 'both' && fill !== 'forwards') continue;
+    const kf = a.effect.getKeyframes(), last = kf[kf.length - 1] || {};
+    const props = Object.keys(last).filter(k => !['offset', 'computedOffset', 'easing', 'composite'].includes(k));
+    if (!props.length) continue;
+    // (no movement reads differently held — an identity matrix, 0px, 1, 0deg — than on an element that never moved: none)
+    const v = k => { const x = cs[k]; return /^(matrix\(1, 0, 0, 1, 0, 0\)|matrix3d\(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1\)|0px( 0px){0,2}|1( 1){0,2}|0deg)$/.test(x) && k !== 'opacity' ? 'none' : x; };
+    const cs = getComputedStyle(el), held = props.map(v);
+    a.effect.updateTiming({ fill: 'none' });
+    if (props.some((k, i) => v(k) !== held[i])) a.effect.updateTiming({ fill }); // (not where it ended: held as it was)
+  }
+}, true);
+
 /** An animation that runs forever (a falling leaf's flutter, a scrolling title): let go of once its element has left
  *  the page. One still running on an element no longer shown kept the browser working through every frame, on every
  *  screen, for the rest of the session. */

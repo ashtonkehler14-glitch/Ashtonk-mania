@@ -1071,13 +1071,13 @@ function backButton(onClick) {
   return b;
 }
 
-/** The menus' lists scroll as lazer's do, smoothly — and never faster than the screen can draw what comes into view: the
- *  wheel's scrolling eased in, at most MAX px a frame (less on a device that's struggling: .slow, Performance mode).
- *  Flung through hundreds of rows at once, a list built every one of them in a frame or two — the stutter on a slow
- *  computer. Sideways scrolling, a list scrolled some other way (its bar dragged, the keys, a touch screen) and one
- *  that handles the wheel itself are left as they are. */
+/** The menus' lists scroll as lazer's do, smoothly — as fast as the wheel asks while the device keeps up, and slower
+ *  only while it can't: frames being dropped (the list building what comes into view) ease the top speed off until
+ *  they aren't, and it picks up again as they come back on time. Sideways scrolling, a list scrolled some other way
+ *  (its bar dragged, the keys, a touch screen) and one that handles the wheel itself are left as they are. */
 const MenuScroll = {
-  MAX: 70, // px per 60Hz frame (4200px a second)
+  MIN: 3000, MAX: 40000, // px a second: never slower than this, nor (while frames come on time) held back below that
+  cap: 40000, period: 16.7, // the top speed now, and how often frames come when on time (the shortest lately)
   el: null, target: 0, raf: 0, last: 0,
   bind() { window.addEventListener('wheel', e => this.wheel(e), { passive: false }); },
   /** The nearest list under the pointer that can still scroll that way. */
@@ -1103,13 +1103,18 @@ const MenuScroll = {
     this.raf = 0;
     const el = this.el;
     if (!el || !el.isConnected) { this.el = null; return; }
-    const dt = clamp(now - this.last, 1, 50), cur = el.scrollTop, d = this.target - cur;
+    const dt = clamp(now - this.last, 1, 100), cur = el.scrollTop, d = this.target - cur;
     this.last = now;
     if (Math.abs(d) < 0.5) return;
-    const root = document.documentElement, cap = this.MAX * dt / 16.7 * (root.classList.contains('perf') || root.classList.contains('slow') ? 0.6 : 1);
-    let mv = clamp(d * (1 - Math.exp(-dt / 65)), -cap, cap);
+    // (on time, or a frame dropped? — the shortest frame lately is the screen's own rate; it creeps back up slowly
+    // in case the screen itself got slower)
+    if (dt < this.period) this.period = Math.max(4, dt); else this.period += (dt - this.period) * 0.002;
+    this.cap = dt > this.period * 1.6 ? Math.max(this.MIN, this.cap * 0.8) : Math.min(this.MAX, this.cap * 1.06);
+    const lim = this.cap * dt / 1000;
+    let mv = clamp(d * (1 - Math.exp(-dt / 55)), -lim, lim);
     if (Math.abs(mv) < 1) mv = Math.sign(d) * Math.min(1, Math.abs(d));
-    el.scrollTop = cur + mv;
+    // (instant: a list styled to scroll smoothly turned each frame's step into an animation of its own — and barely moved)
+    el.scrollTo({ top: cur + mv, behavior: 'instant' });
     if (Math.abs(el.scrollTop - cur) < 0.01) { this.target = el.scrollTop; return; } // (at an end)
     this.raf = requestAnimationFrame(t => this.step(t));
   },

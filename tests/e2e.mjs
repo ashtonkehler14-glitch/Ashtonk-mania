@@ -1786,6 +1786,7 @@ await page.evaluate(() => {
   const b = window.__card.querySelector('.ex-play'); window.__ics = [];
   new MutationObserver(() => window.__ics.push(b.dataset.ic)).observe(b, { attributes: true, attributeFilter: ['data-ic'] });
 });
+await page.hover('.ex-card[data-id="777"]'); // (its preview button shows on hover, as lazer's)
 await page.click('.ex-card[data-id="777"] .ex-play');
 await page.waitForTimeout(800);
 {
@@ -2671,6 +2672,18 @@ const tbOn = await page.evaluate(async () => {
   return { w: r && Math.round(r.width), bw: btn && Math.round(btn.width), dot: op };
 });
 check('toolbar: the open overlay\'s button lights up, and a status dot shows on the avatar', tbOn.w >= tbOn.bw - 10 && tbOn.dot === 1, JSON.stringify(tbOn));
+// the wheel scrolls a list smoothly, as far as it asks (a list styled to scroll smoothly once barely moved at all)
+{
+  await page.evaluate(() => { const i = document.querySelector('.sp-search'); i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.waitForTimeout(300);
+  const box = await page.evaluate(() => { const r = document.querySelector('.sp-scroll').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, top: document.querySelector('.sp-scroll').scrollTop }; });
+  await page.mouse.move(box.x, box.y);
+  for (let i = 0; i < 3; i++) { await page.mouse.wheel(0, 200); await page.waitForTimeout(30); }
+  await page.waitForTimeout(800);
+  const moved = await page.evaluate(t => Math.round(document.querySelector('.sp-scroll').scrollTop - t), box.top);
+  check('menus: the mouse wheel scrolls a list as far as it asks, smoothly', moved >= 500 && moved <= 620, String(moved));
+  await page.evaluate(() => { const i = document.querySelector('.sp-search'); i.value = 'dim'; i.dispatchEvent(new Event('input', { bubbles: true })); }); // (as it was: two Escapes clear it and close)
+}
 await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.waitForTimeout(400);
 
 // the same toast again refreshes the one on screen instead of stacking copies

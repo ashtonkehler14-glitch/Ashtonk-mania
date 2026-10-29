@@ -125,6 +125,10 @@ svg.i.lzi { background: currentColor; -webkit-mask: var(--lzi) center / contain 
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='80'%3E%3Cpath d='M9 17.9L16.0 30H2.0Z' fill='%23282828'/%3E%3Cpath d='M29 55.3L34.0 64H24.0Z' fill='%23282828'/%3E%3Cpath d='M31 7.1L35.0 14H27.0Z' fill='%23282828'/%3E%3Cpath d='M19 39.6L25.0 50H13.0Z' fill='%23141414'/%3E%3Cpath d='M6 67.2L10.5 75H1.5Z' fill='%23141414'/%3E%3Cpath d='M35 33.9L38.5 40H31.5Z' fill='%23141414'/%3E%3C/svg%3E") 0 0 / 40px 80px repeat; }
 @keyframes tbTris { from { transform: translateY(0); } to { transform: translateY(-80px); } }
 #app.in-game .tb-ruleset::before { animation: none; }
+/* (the triangles never stop drifting, and the browser can't tell how far they'll go: everything in the toolbar after
+   them became a layer of its own — fifty-odd, sorted out again every frame on every screen. The right-hand group as one
+   layer instead) */
+.tb-right { will-change: transform; }
 .tb-rs { padding-bottom: 2px; }
 .tb-rs > .i { color: #00ffaa; }
 .tb-rs-line { position: absolute; left: 11px; bottom: 1px; width: 18px; height: 3px; border-radius: 2px; background: #fff; pointer-events: none; }
@@ -2726,6 +2730,29 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 .ex-side-btn.play { color: #b3d944; }
 .ex-side-btn.play:hover { background: #88b300; color: #16210a; }
 .ex-side-btn.busy { cursor: default; background: linear-gradient(0deg, rgba(102, 204, 255, .35) var(--p), transparent var(--p)); }
+/* (nothing in the listing moves as it animates — no lift, slide or scale: one card with something on the move in it
+   had the browser put every card after it on a layer of its own — a hundred and more — and sort them all out again
+   every frame of a scroll. A shadow, a fade and a wipe instead, which stay where they are) */
+.ex-card { transition: box-shadow 200ms var(--ease-out); }
+.ex-card:hover, .ex-card:focus-visible { transform: none; }
+.ex-card.ex-new { animation-name: exIn; }
+@keyframes exIn { from { opacity: 0; } }
+.ex-side { transform: none; clip-path: inset(0 0 0 100%); transition: clip-path 220ms var(--ease-out); }
+.ex-card:hover .ex-side, .ex-card:focus-visible .ex-side, .ex-card:focus-within:not(:focus) .ex-side { clip-path: inset(0); }
+.ex-thumbwrap .ex-play { transition: background 150ms; } /* (no fade: a hidden button that fades put every card after it on a layer of its own) */
+/* (each card drawn in as few pieces as can be: what's hidden isn't drawn at all until it's hovered, corners rounded on
+   the pictures themselves rather than clipped, and no stacking context of its own — every piece of every card on the
+   page was sorted out again in every frame of a scroll) */
+.ex-card { isolation: auto; }
+.ex-cardbg, .ex-cardshade { z-index: auto; border-radius: inherit; }
+.ex-thumbwrap { overflow: visible; }
+.ex-thumb { border-radius: inherit; }
+.ex-thumbprog { border-radius: 0 0 10px 10px; overflow: hidden; }
+.ex-thumbwrap .ex-play { opacity: 1; transform: none; visibility: hidden; }
+.ex-card:hover .ex-play, .ex-card:focus-visible .ex-play, .ex-card:focus-within:not(:focus) .ex-play, .ex-thumbwrap .ex-play[data-ic="pause"] { visibility: visible; }
+@media (hover: none) { .ex-thumbwrap .ex-play { visibility: visible; } }
+.ex-side { visibility: hidden; transition: clip-path 220ms var(--ease-out), visibility 0s 220ms; }
+.ex-card:hover .ex-side, .ex-card:focus-visible .ex-side, .ex-card:focus-within:not(:focus) .ex-side { visibility: visible; transition: clip-path 220ms var(--ease-out), visibility 0s; }
 .ex-card .ex-counts { transition: opacity 150ms; }
 
 /* multiplayer lounge: create / join along the top, the open rooms below */
@@ -5036,7 +5063,7 @@ html.lp-open #toasts { right: 380px; }
 .spm-arrow .i { width: 40px; height: 40px; transform: scaleX(-1); }
 .spm-map { flex: none; width: 430px; min-height: 100px; display: flex; align-items: center; }
 .spm-card { width: 100%; cursor: pointer; }
-.spm-card .ex-side { opacity: 1; transform: none; }
+.spm-card .ex-side { opacity: 1; transform: none; clip-path: none; visibility: visible; }
 .spm-v { font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, .85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .spm-miss { font-size: 11px; color: rgba(255, 255, 255, .6); }
 .spm-idle { display: flex; align-items: center; gap: 10px; width: 100%; height: 100px; padding: 0 20px; border-radius: 10px; background: hsl(270 10% 20%); color: hsl(270 20% 80%); font-size: 15px; }
