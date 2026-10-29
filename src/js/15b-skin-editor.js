@@ -37,7 +37,8 @@ const HudLayout = {
     return all.length > 1 ? all.filter(el => !all.some(o => o !== el && o.contains(el))) : all;
   },
   /** The combo counter's place, size and visibility ({ x, y, s, off }), for the stage renderer. */
-  combo() { return this.get().combo || null; },
+  // (read every frame by the stage renderer: the setting as it's kept, not a fresh copy of it each time)
+  combo() { const v = this.override || Settings.values['hud.layout']; return (v && typeof v === 'object' && v.combo) || null; },
   /** "x y" from a computed `translate` (the CSS one the element already has: the offset goes on top of it). */
   split(t) {
     if (!t || t === 'none') return ['0px', '0px'];

@@ -220,6 +220,14 @@ class Skin {
    *  section in without removing the old one), the one whose images are actually in the skin wins; with a tie,
    *  the last one (osu!lazer's rule). */
   maniaSection(keys) {
+    // (worked out once for each key count — and whether 4K skins stretch to others —: the skins page and the stage
+    // asked for every key count again and again, building a borrowed section each time)
+    const ext = typeof Settings === 'undefined' || !!Settings.get('skin.extend4K'), ck = keys + (ext ? '+' : '-');
+    const cache = this._msCache || (this._msCache = new Map());
+    if (!cache.has(ck)) cache.set(ck, this._maniaSection(keys));
+    return cache.get(ck);
+  }
+  _maniaSection(keys) {
     const own = this._nativeSection(keys);
     // a section whose notes all point at images the skin doesn't have (edits often leave broken 7K sections behind)
     // plays through the skin's own 4K art instead of falling back to generic notes
