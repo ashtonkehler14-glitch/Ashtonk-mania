@@ -633,7 +633,7 @@ await shot('01-home-empty');
     for (const x of M.el.querySelectorAll('.neru-sky')) x.remove();
     E.twinkle(M.el); await wait(1600);
     out.stars = M.el.querySelectorAll('.neru-sky .nd-star').length;
-    out.moon = !!M.el.querySelector('.neru-sky .nd-moon path');
+    out.moon = !!M.el.querySelector('.nd-moon');
     E.shoot(M.el.querySelector('.neru-sky')); await wait(300); out.shooting = M.el.querySelectorAll('.neru-sky .nd-shoot').length; await wait(1700); out.shot = M.el.querySelectorAll('.neru-sky .nd-shoot').length;
     for (const x of M.el.querySelectorAll('.neru-sky')) x.remove();
     const anim = S.get('ui.animSpeed'); S.set('ui.animSpeed', 0); E.twinkle(M.el); S.set('ui.animSpeed', anim);
@@ -668,7 +668,7 @@ await shot('01-home-empty');
     return out;
   });
   check('Neru: a cheer for five new songs or more (not two)', zz.two === 'usual' && zz.six === 'cheer', JSON.stringify(zz));
-  check('Neru at night: stars twinkle around her, a shooting star now and then (10pm till 5, from the evening at Tanabata; not with the animations off)', night.when === 'true,true,false,true,false' && night.moon && night.stars > 0 && night.shooting === 1 && night.shot === 0 && night.offNone, JSON.stringify(night));
+  check('Neru at night: stars twinkle around her (no moon), a shooting star now and then (10pm till 5, from the evening at Tanabata; not with the animations off)', night.when === 'true,true,false,true,false' && !night.moon && night.stars > 0 && night.shooting === 1 && night.shot === 0 && night.offNone, JSON.stringify(night));
   check('…and a small Neru on another screen takes a headpat too: happy, hearts, then a huff, blushing (no hop), and back to her picture',
     night.pat === 'neru-happy.png|true' && night.after === 'neru-sassy.png|false' && night.blush === 2 && night.back === night.before, JSON.stringify(night));
   // the time of year around her on the main menu: leaves in autumn, snow in winter, blossom in spring, fireflies on a
@@ -717,8 +717,6 @@ await shot('01-home-empty');
     for (const d of M.el.querySelectorAll('.neru-drift')) d.remove();
     const S = AshtonkMania.Settings, anim = S.get('ui.animSpeed'); S.set('ui.animSpeed', 0); E.drift(M.el, 'snow'); S.set('ui.animSpeed', anim);
     out.offNone = !M.el.querySelector('.neru-drift');
-    // (the moon as it is: full on 23 April 2024's night, new on the 8th, a first quarter on the 15th)
-    out.phases = [E.moonPhase(new Date(Date.UTC(2024, 3, 23, 23, 49))), E.moonPhase(new Date(Date.UTC(2024, 3, 8, 18, 21))), E.moonPhase(new Date(Date.UTC(2024, 3, 15, 19, 13)))].map(x => x.toFixed(2)).join();
     if (slow) document.documentElement.classList.add('slow');
     // after midnight: nothing (no sleepy Neru); New Year's Day: a cheer
     M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; await M.show(null);
@@ -768,7 +766,6 @@ await shot('01-home-empty');
     season.north === 'leaves,bats,snow,snow,petals,bubbles,fireflies,bubbles,dragonflies,snow,-' && season.south === 'petals,leaves,snow,fireflies,bats', JSON.stringify(season));
   check('…what falls settles at her feet (nine leaves at most), snow piles up, and a bubble behind her pops when clicked',
     season.lying === 9 && season.pile > 3 && season.poppable && season.popped, JSON.stringify(season));
-  check('…and the moon at night as it is in the sky (full, new, a first quarter)', /^(0\.5[0-2]|0\.49|0\.48),(0\.00|1\.00|0\.99|0\.01),(0\.2[2-8])$/.test(season.phases), season.phases);
   check('…each drifts around her a few at a time, behind and in front, never in the way of a click, and not with the animations off',
     Object.values(season.kinds).every(k => k.n > 0 && k.layers === 2 && k.shape && k.moving) && season.through && season.offNone, JSON.stringify(season.kinds));
   check('…a year on from your first play, a cheer (not the day after, nor in the first year)', season.anniv === '2,0,0' && season.annivGreet === 'cheer', JSON.stringify(season));
