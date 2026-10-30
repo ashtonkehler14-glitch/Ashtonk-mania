@@ -410,7 +410,9 @@ const ResultsScreen = {
     const replay = p.replay || null;
     const hasSaved = !!s.replayId || (replay && ReplayManager.list.some(r => r.id === replay.id));
     const bar = h('div.res-actions');
-    const watch = h('button.res-ab.wide.green', { onclick: () => this.watch(), title: 'watch replay', 'aria-label': 'Watch replay' }, icon('play'));
+    // (the two wide buttons say what they do beside their icons: lazer's show the icon alone, which left two long green
+    // bars that read as nothing in particular)
+    const watch = h('button.res-ab.wide.green.labelled', { onclick: () => this.watch(), title: 'watch replay', 'aria-label': 'Watch replay' }, icon('play'), h('span.res-abl', 'Watch replay'));
     const save = h('button.res-ab', { onclick: async () => {
       if (!replay || save.disabled) return;
       save.disabled = true;
@@ -431,9 +433,9 @@ const ResultsScreen = {
     bar.append(backButton(() => this.onBack()));
     if (replay || s.replayId) bar.append(watch);
     // (after a multiplayer song: back to the room instead of retrying, as lazer's multiplayer results)
-    if (p.mp) bar.append(h('button.res-ab.wide.green', { onclick: () => { UISounds.click(); this.onBack(); }, title: 'back to the room', 'aria-label': 'Back to the room' }, icon('multi')));
+    if (p.mp) bar.append(h('button.res-ab.wide.green.labelled', { onclick: () => { UISounds.click(); this.onBack(); }, title: 'back to the room', 'aria-label': 'Back to the room' }, icon('multi'), h('span.res-abl', 'Back to the room')));
     // (lazer's AllowRetry: only after a play of your own — not on a score opened from a leaderboard or a profile)
-    else if (!p.browse && !p.spectated) bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
+    else if (!p.browse && !p.spectated) bar.append(h('button.res-ab.wide.green.labelled', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry'), h('span.res-abl', 'Retry'), h('span.kbd.res-kbd', 'R')));
     // lazer's CollectionButton and FavouriteButton (the heart filled while the set is a favourite)
     if (map) {
       // (green while the beatmap is in a collection / the set is a favourite)

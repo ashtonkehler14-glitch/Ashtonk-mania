@@ -2040,13 +2040,14 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         onfocusin: e => bar.classList.toggle('kbd-focus', !!(e.target.matches && e.target.matches(':focus-visible'))), onfocusout: e => { if (!bar.contains(e.relatedTarget)) bar.classList.remove('kbd-focus'); } },
       tl,
       h('div.rp-controls',
-        this.rpPlay,
-        h('button.btn.sm', { onclick: () => this.replaySeek(this.gameTime() - 5000 * s.rate), title: 'Back 5 seconds (←)' }, '−5s'),
-        h('button.btn.sm', { onclick: () => this.replaySeek(this.gameTime() + 5000 * s.rate), title: 'Forward 5 seconds (→)' }, '+5s'),
+        // (joined buttons, as the practice tools: play and the skips in one, the speeds in another)
+        h('div.pr-seg', this.rpPlay,
+          h('button.btn.sm', { onclick: () => this.replaySeek(this.gameTime() - 5000 * s.rate), title: 'Back 5 seconds (←)' }, '−5s'),
+          h('button.btn.sm', { onclick: () => this.replaySeek(this.gameTime() + 5000 * s.rate), title: 'Forward 5 seconds (→)' }, '+5s')),
         this.rpTime,
         h('span.grow'),
         h('span.muted.rp-label', 'Speed'),
-        h('div.speed-group', ...this.rpSpeeds)));
+        h('div.speed-group.pr-seg', ...this.rpSpeeds)));
     this.replayBar = bar;
     this.hud.append(bar);
     // note density along the timeline
@@ -2170,19 +2171,23 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const speedBtns = PRACTICE_SPEEDS.map(sp => h(`button.chip${Math.abs(sp - s.rate) < 1e-3 ? '.on' : ''}`, { onclick: () => this.practiceSpeed(sp) }, `${Math.round(sp * 100)}%`));
     this.prOffset = h('span.muted');
     this.prInfo = h('span.muted');
+    // (the tools in groups — the loop, the speed, the offset — each a row of joined buttons, with its name over it when
+    // the panel stands beside the stage)
+    const grp = (name, ...kids) => h('div.pr-group', h('span.pr-gl', name), ...kids);
     const bar = h('div.practice-bar',
       tl,
       h('div.pr-controls',
-        h('span', { style: { fontWeight: 900, color: 'var(--gold)' } }, 'PRACTICE'),
-        h('button.btn.sm', { onclick: () => this.setLoop('A'), title: 'Set loop start ( [ )' }, 'Set A ', h('span.kbd', '[')),
-        h('button.btn.sm', { onclick: () => this.setLoop('B'), title: 'Set loop end ( ] )' }, 'Set B ', h('span.kbd', ']')),
-        h('button.btn.sm', { onclick: () => this.setLoop('clear'), title: 'Clear loop ( \\ )' }, 'Clear'),
-        h('button.btn.sm', { onclick: () => this.restartSection(), title: 'Restart section (Backspace)' }, icon('retry'), 'Restart ', h('span.kbd', '⌫')),
-        h('div.speed-group', ...speedBtns),
+        h('span.pr-title', 'PRACTICE'),
+        grp('Loop', h('div.pr-seg',
+          h('button.btn.sm', { onclick: () => this.setLoop('A'), title: 'Set loop start ( [ )' }, 'Set A ', h('span.kbd', '[')),
+          h('button.btn.sm', { onclick: () => this.setLoop('B'), title: 'Set loop end ( ] )' }, 'Set B ', h('span.kbd', ']')),
+          h('button.btn.sm', { onclick: () => this.setLoop('clear'), title: 'Clear loop ( \\ )' }, 'Clear')),
+          h('button.btn.sm.pr-restart', { onclick: () => this.restartSection(), title: 'Restart section (Backspace)' }, icon('retry'), 'Restart ', h('span.kbd', '⌫'))),
+        grp('Speed', h('div.speed-group.pr-seg', ...speedBtns)),
         // (the offset nudge stays together: − offset +)
-        h('span.pr-offset', h('button.btn.sm', { onclick: () => this.nudgeOffset(-5), title: 'Offset −5ms ( - )' }, '−'),
+        grp('Offset', h('span.pr-offset.pr-seg', h('button.btn.sm', { onclick: () => this.nudgeOffset(-5), title: 'Offset −5ms ( - )' }, '−'),
           this.prOffset,
-          h('button.btn.sm', { onclick: () => this.nudgeOffset(5), title: 'Offset +5ms ( = )' }, '+')),
+          h('button.btn.sm', { onclick: () => this.nudgeOffset(5), title: 'Offset +5ms ( = )' }, '+'))),
         h('span.grow'), this.prInfo));
     this.practiceBar = bar;
     this.hud.append(bar);
@@ -2212,18 +2217,22 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const bar = this.practiceBar, r = this.renderer;
     if (!bar || !bar.isConnected) { window.removeEventListener('resize', this._prResize); return; }
     r.resize();
-    const ratio = this.canvas.clientWidth / Math.max(1, r.W);
-    const left = r.stageX * ratio;
-    // beside the stage when it fits (a narrower panel just wraps into more rows); otherwise at the end of the screen
-    // away from the receptors (the top for downscroll), never over them
-    const docked = left >= 200;
+    // (the room beside the stage, measured on the screen and then in the panel's own units: the canvas's CSS width isn't
+    // the playfield's — it can be drawn at a lower resolution and scaled up — and the HUD is scaled with the interface,
+    // so working it out from the canvas alone left the panel less than half the room there was)
+    const cr = this.canvas.getBoundingClientRect(), hr = (bar.offsetParent || this.hud).getBoundingClientRect();
+    const scale = bar.offsetWidth > 0 ? bar.getBoundingClientRect().width / bar.offsetWidth : 1;
+    const left = (cr.left + r.stageX * cr.width / Math.max(1, r.W) - hr.left) / (scale || 1);
+    // beside the stage when it fits; otherwise at the end of the screen away from the receptors (the top for
+    // downscroll), never over them
+    const docked = left >= 236;
     bar.classList.toggle('docked', docked);
     bar.classList.toggle('top', !docked && Settings.get('gameplay.scrollDirection') !== 'up');
-    bar.style.width = docked ? Math.min(480, left - 24) + 'px' : '';
+    bar.style.width = docked ? Math.min(340, left - 32) + 'px' : '';
   },
   updatePracticeLabels() {
     if (!this.prOffset) return;
-    this.prOffset.textContent = `offset ${Settings.get('audio.offset')}ms`;
+    { const o = Settings.get('audio.offset'); this.prOffset.textContent = `${o > 0 ? '+' : ''}${o}ms`; } // (under its group's name, Offset)
     const s = this.s;
     if (!s) return;
     this.prInfo.textContent = s.loopA != null || s.loopB != null ? `loop ${fmtTime(s.loopA ?? 0)} → ${fmtTime(s.loopB ?? s.endTime)}` : kbHint('click the timeline to seek', 'pause, then tap the timeline to seek');

@@ -881,9 +881,32 @@ html.touch .practice-bar .kbd { display: none; }
 .pr-timeline canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .pr-loop { position: absolute; top: 0; bottom: 0; background: rgba(var(--accent-rgb), .22); border-left: 2px solid var(--accent); border-right: 2px solid var(--gold); pointer-events: none; }
 .pr-head { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #fff; box-shadow: 0 0 8px #fff; pointer-events: none; }
-.pr-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .82rem; }
-.pr-controls .speed-group { display: flex; gap: 3px; }
-.pr-controls .speed-group .chip { height: 28px; padding: 0 9px; }
+.pr-controls { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; font-size: .82rem; }
+.pr-title { font-weight: 900; letter-spacing: .08em; color: var(--gold); }
+/* the tools in groups (Loop, Speed, Offset): each a row of joined buttons — a segmented control — with the group's name
+   over it when the panel stands beside the stage */
+.pr-group { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pr-gl { display: none; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .5); }
+.pr-seg { display: inline-flex; align-items: stretch; gap: 0; padding: 2px; border-radius: 10px; background: rgba(255, 255, 255, .06); }
+:is(.practice-bar, .replay-bar) .pr-seg > .btn, :is(.practice-bar, .replay-bar) .pr-seg > .chip { height: 28px; min-height: 0; padding: 0 10px; border: 0; border-radius: 8px; background: none; box-shadow: none; color: rgba(255, 255, 255, .85); font-weight: 700; }
+:is(.practice-bar, .replay-bar) .pr-seg > .btn:hover, :is(.practice-bar, .replay-bar) .pr-seg > .chip:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+:is(.practice-bar, .replay-bar) .pr-seg > .chip.on { background: var(--accent); color: #fff; }
+:is(.practice-bar, .replay-bar) .pr-seg .kbd { margin-left: 4px; }
+.pr-controls .speed-group { display: inline-flex; gap: 0; }
+.rp-controls .speed-group.pr-seg { display: inline-flex; gap: 0; }
+.replay-bar .pr-seg > .rp-play { padding: 0 10px; }
+.pr-offset.pr-seg { align-items: center; gap: 0; }
+.pr-offset.pr-seg > span { min-width: 54px; padding: 0 4px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; color: #fff; }
+.pr-restart .i { width: 13px; height: 13px; margin-right: 4px; }
+/* beside the stage: one group under the other, each across the panel — the speeds in a grid of four */
+.practice-bar.docked .pr-controls { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 12px; }
+.practice-bar.docked .pr-group { flex-direction: column; align-items: stretch; gap: 6px; }
+.practice-bar.docked .pr-gl { display: block; }
+.practice-bar.docked .pr-seg { display: flex; }
+.practice-bar.docked .pr-seg > .btn, .practice-bar.docked .pr-seg > .chip { flex: 1 1 0; justify-content: center; padding: 0 6px; }
+.practice-bar.docked .speed-group.pr-seg { display: grid; grid-template-columns: repeat(4, 1fr); }
+.practice-bar.docked .pr-restart { justify-content: center; }
+.practice-bar.docked .pr-controls > .grow { display: none; }
 /* replay / Auto controls (osu!lazer's replay player): shown while the mouse moves, when paused or hovered */
 .replay-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, calc(calc(100 * var(--vw)) - 340px)); min-width: min(470px, calc(calc(100 * var(--vw)) - 32px)); padding: 10px 12px; border-radius: 14px; background: rgba(12, 8, 20, .84); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; cursor: default; opacity: 0; transition: opacity var(--t-med); }
 .gameplay.pm-open .replay-bar { opacity: 0 !important; pointer-events: none !important; } /* (the pause / fail menu covers it: it sat over their title) */
@@ -1312,6 +1335,8 @@ html.touch .practice-bar .kbd { display: none; }
 .mp-crown .i { width: 14px; height: 14px; fill: currentColor; }
 .mp-player { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 40px; padding-right: 10px; border-radius: 5px; overflow: hidden; background: linear-gradient(90deg, transparent 25%, rgba(255, 255, 255, .07)), #33413c; }
 .mp-player.empty { justify-content: center; padding: 0 10px; color: rgba(255, 255, 255, .6); font-size: 14px; }
+/* (a seat nobody's in: an outline of one, not a panel that looks like a player's) */
+.mp-player.empty { background: none; outline: 1px dashed rgba(255, 255, 255, .22); outline-offset: -1px; color: rgba(255, 255, 255, .45); font-size: 13px; letter-spacing: .02em; }
 .mp-pav { flex: none; width: 40px; height: 40px; }
 .mp-pav > * { width: 40px !important; height: 40px !important; border-radius: 0 !important; box-shadow: none !important; }
 .mp-pname { flex: none; max-width: 40%; font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -3521,6 +3546,13 @@ body.f-settings #app #toolbar { z-index: 61; }
 .res-ab.green { background: #88b300; }
 .res-ab .i { width: 13px; height: 13px; stroke-width: 3; }
 .res-ab.dl { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 700; } /* (Download: icon and word side by side) */
+/* (the wide ones — Watch replay, Retry, Back to the room — the same: the icon and what it does; just the icon when the
+   bar is too narrow for the words) */
+.res-ab.wide.labelled { display: flex; align-items: center; justify-content: center; gap: 8px; container-type: inline-size; }
+.res-abl { font-size: 13px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+.res-kbd { padding: 0 5px; border-radius: 4px; background: rgba(0, 0, 0, .25); font-size: 11px; font-weight: 700; line-height: 17px; }
+@container (max-width: 150px) { .res-abl, .res-kbd { display: none; } }
+html.touch .res-kbd { display: none; }
 .res-ab::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: 0; mix-blend-mode: plus-lighter; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1); }
 .res-ab:hover::after { opacity: .1; }
 .res-ab:active { transform: scale(.75); transition: transform 2000ms cubic-bezier(.22, 1, .36, 1); }
@@ -21508,13 +21540,14 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         onfocusin: e => bar.classList.toggle('kbd-focus', !!(e.target.matches && e.target.matches(':focus-visible'))), onfocusout: e => { if (!bar.contains(e.relatedTarget)) bar.classList.remove('kbd-focus'); } },
       tl,
       h('div.rp-controls',
-        this.rpPlay,
-        h('button.btn.sm', { onclick: () => this.replaySeek(this.gameTime() - 5000 * s.rate), title: 'Back 5 seconds (←)' }, '−5s'),
-        h('button.btn.sm', { onclick: () => this.replaySeek(this.gameTime() + 5000 * s.rate), title: 'Forward 5 seconds (→)' }, '+5s'),
+        // (joined buttons, as the practice tools: play and the skips in one, the speeds in another)
+        h('div.pr-seg', this.rpPlay,
+          h('button.btn.sm', { onclick: () => this.replaySeek(this.gameTime() - 5000 * s.rate), title: 'Back 5 seconds (←)' }, '−5s'),
+          h('button.btn.sm', { onclick: () => this.replaySeek(this.gameTime() + 5000 * s.rate), title: 'Forward 5 seconds (→)' }, '+5s')),
         this.rpTime,
         h('span.grow'),
         h('span.muted.rp-label', 'Speed'),
-        h('div.speed-group', ...this.rpSpeeds)));
+        h('div.speed-group.pr-seg', ...this.rpSpeeds)));
     this.replayBar = bar;
     this.hud.append(bar);
     // note density along the timeline
@@ -21638,19 +21671,23 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const speedBtns = PRACTICE_SPEEDS.map(sp => h(`button.chip${Math.abs(sp - s.rate) < 1e-3 ? '.on' : ''}`, { onclick: () => this.practiceSpeed(sp) }, `${Math.round(sp * 100)}%`));
     this.prOffset = h('span.muted');
     this.prInfo = h('span.muted');
+    // (the tools in groups — the loop, the speed, the offset — each a row of joined buttons, with its name over it when
+    // the panel stands beside the stage)
+    const grp = (name, ...kids) => h('div.pr-group', h('span.pr-gl', name), ...kids);
     const bar = h('div.practice-bar',
       tl,
       h('div.pr-controls',
-        h('span', { style: { fontWeight: 900, color: 'var(--gold)' } }, 'PRACTICE'),
-        h('button.btn.sm', { onclick: () => this.setLoop('A'), title: 'Set loop start ( [ )' }, 'Set A ', h('span.kbd', '[')),
-        h('button.btn.sm', { onclick: () => this.setLoop('B'), title: 'Set loop end ( ] )' }, 'Set B ', h('span.kbd', ']')),
-        h('button.btn.sm', { onclick: () => this.setLoop('clear'), title: 'Clear loop ( \\ )' }, 'Clear'),
-        h('button.btn.sm', { onclick: () => this.restartSection(), title: 'Restart section (Backspace)' }, icon('retry'), 'Restart ', h('span.kbd', '⌫')),
-        h('div.speed-group', ...speedBtns),
+        h('span.pr-title', 'PRACTICE'),
+        grp('Loop', h('div.pr-seg',
+          h('button.btn.sm', { onclick: () => this.setLoop('A'), title: 'Set loop start ( [ )' }, 'Set A ', h('span.kbd', '[')),
+          h('button.btn.sm', { onclick: () => this.setLoop('B'), title: 'Set loop end ( ] )' }, 'Set B ', h('span.kbd', ']')),
+          h('button.btn.sm', { onclick: () => this.setLoop('clear'), title: 'Clear loop ( \\ )' }, 'Clear')),
+          h('button.btn.sm.pr-restart', { onclick: () => this.restartSection(), title: 'Restart section (Backspace)' }, icon('retry'), 'Restart ', h('span.kbd', '⌫'))),
+        grp('Speed', h('div.speed-group.pr-seg', ...speedBtns)),
         // (the offset nudge stays together: − offset +)
-        h('span.pr-offset', h('button.btn.sm', { onclick: () => this.nudgeOffset(-5), title: 'Offset −5ms ( - )' }, '−'),
+        grp('Offset', h('span.pr-offset.pr-seg', h('button.btn.sm', { onclick: () => this.nudgeOffset(-5), title: 'Offset −5ms ( - )' }, '−'),
           this.prOffset,
-          h('button.btn.sm', { onclick: () => this.nudgeOffset(5), title: 'Offset +5ms ( = )' }, '+')),
+          h('button.btn.sm', { onclick: () => this.nudgeOffset(5), title: 'Offset +5ms ( = )' }, '+'))),
         h('span.grow'), this.prInfo));
     this.practiceBar = bar;
     this.hud.append(bar);
@@ -21680,18 +21717,22 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const bar = this.practiceBar, r = this.renderer;
     if (!bar || !bar.isConnected) { window.removeEventListener('resize', this._prResize); return; }
     r.resize();
-    const ratio = this.canvas.clientWidth / Math.max(1, r.W);
-    const left = r.stageX * ratio;
-    // beside the stage when it fits (a narrower panel just wraps into more rows); otherwise at the end of the screen
-    // away from the receptors (the top for downscroll), never over them
-    const docked = left >= 200;
+    // (the room beside the stage, measured on the screen and then in the panel's own units: the canvas's CSS width isn't
+    // the playfield's — it can be drawn at a lower resolution and scaled up — and the HUD is scaled with the interface,
+    // so working it out from the canvas alone left the panel less than half the room there was)
+    const cr = this.canvas.getBoundingClientRect(), hr = (bar.offsetParent || this.hud).getBoundingClientRect();
+    const scale = bar.offsetWidth > 0 ? bar.getBoundingClientRect().width / bar.offsetWidth : 1;
+    const left = (cr.left + r.stageX * cr.width / Math.max(1, r.W) - hr.left) / (scale || 1);
+    // beside the stage when it fits; otherwise at the end of the screen away from the receptors (the top for
+    // downscroll), never over them
+    const docked = left >= 236;
     bar.classList.toggle('docked', docked);
     bar.classList.toggle('top', !docked && Settings.get('gameplay.scrollDirection') !== 'up');
-    bar.style.width = docked ? Math.min(480, left - 24) + 'px' : '';
+    bar.style.width = docked ? Math.min(340, left - 32) + 'px' : '';
   },
   updatePracticeLabels() {
     if (!this.prOffset) return;
-    this.prOffset.textContent = `offset ${Settings.get('audio.offset')}ms`;
+    { const o = Settings.get('audio.offset'); this.prOffset.textContent = `${o > 0 ? '+' : ''}${o}ms`; } // (under its group's name, Offset)
     const s = this.s;
     if (!s) return;
     this.prInfo.textContent = s.loopA != null || s.loopB != null ? `loop ${fmtTime(s.loopA ?? 0)} → ${fmtTime(s.loopB ?? s.endTime)}` : kbHint('click the timeline to seek', 'pause, then tap the timeline to seek');
@@ -22737,7 +22778,9 @@ const ResultsScreen = {
     const replay = p.replay || null;
     const hasSaved = !!s.replayId || (replay && ReplayManager.list.some(r => r.id === replay.id));
     const bar = h('div.res-actions');
-    const watch = h('button.res-ab.wide.green', { onclick: () => this.watch(), title: 'watch replay', 'aria-label': 'Watch replay' }, icon('play'));
+    // (the two wide buttons say what they do beside their icons: lazer's show the icon alone, which left two long green
+    // bars that read as nothing in particular)
+    const watch = h('button.res-ab.wide.green.labelled', { onclick: () => this.watch(), title: 'watch replay', 'aria-label': 'Watch replay' }, icon('play'), h('span.res-abl', 'Watch replay'));
     const save = h('button.res-ab', { onclick: async () => {
       if (!replay || save.disabled) return;
       save.disabled = true;
@@ -22758,9 +22801,9 @@ const ResultsScreen = {
     bar.append(backButton(() => this.onBack()));
     if (replay || s.replayId) bar.append(watch);
     // (after a multiplayer song: back to the room instead of retrying, as lazer's multiplayer results)
-    if (p.mp) bar.append(h('button.res-ab.wide.green', { onclick: () => { UISounds.click(); this.onBack(); }, title: 'back to the room', 'aria-label': 'Back to the room' }, icon('multi')));
+    if (p.mp) bar.append(h('button.res-ab.wide.green.labelled', { onclick: () => { UISounds.click(); this.onBack(); }, title: 'back to the room', 'aria-label': 'Back to the room' }, icon('multi'), h('span.res-abl', 'Back to the room')));
     // (lazer's AllowRetry: only after a play of your own — not on a score opened from a leaderboard or a profile)
-    else if (!p.browse && !p.spectated) bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
+    else if (!p.browse && !p.spectated) bar.append(h('button.res-ab.wide.green.labelled', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry'), h('span.res-abl', 'Retry'), h('span.kbd.res-kbd', 'R')));
     // lazer's CollectionButton and FavouriteButton (the heart filled while the set is a favourite)
     if (map) {
       // (green while the beatmap is in a collection / the set is a favourite)
@@ -32843,7 +32886,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '8b61ec6b903c';
+const APP_BUILD = 'ce57c5e6c729';
 
 const App = {
   lastReport: null,

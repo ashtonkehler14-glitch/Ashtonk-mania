@@ -864,9 +864,32 @@ html.touch .practice-bar .kbd { display: none; }
 .pr-timeline canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .pr-loop { position: absolute; top: 0; bottom: 0; background: rgba(var(--accent-rgb), .22); border-left: 2px solid var(--accent); border-right: 2px solid var(--gold); pointer-events: none; }
 .pr-head { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #fff; box-shadow: 0 0 8px #fff; pointer-events: none; }
-.pr-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .82rem; }
-.pr-controls .speed-group { display: flex; gap: 3px; }
-.pr-controls .speed-group .chip { height: 28px; padding: 0 9px; }
+.pr-controls { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; font-size: .82rem; }
+.pr-title { font-weight: 900; letter-spacing: .08em; color: var(--gold); }
+/* the tools in groups (Loop, Speed, Offset): each a row of joined buttons — a segmented control — with the group's name
+   over it when the panel stands beside the stage */
+.pr-group { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pr-gl { display: none; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .5); }
+.pr-seg { display: inline-flex; align-items: stretch; gap: 0; padding: 2px; border-radius: 10px; background: rgba(255, 255, 255, .06); }
+:is(.practice-bar, .replay-bar) .pr-seg > .btn, :is(.practice-bar, .replay-bar) .pr-seg > .chip { height: 28px; min-height: 0; padding: 0 10px; border: 0; border-radius: 8px; background: none; box-shadow: none; color: rgba(255, 255, 255, .85); font-weight: 700; }
+:is(.practice-bar, .replay-bar) .pr-seg > .btn:hover, :is(.practice-bar, .replay-bar) .pr-seg > .chip:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+:is(.practice-bar, .replay-bar) .pr-seg > .chip.on { background: var(--accent); color: #fff; }
+:is(.practice-bar, .replay-bar) .pr-seg .kbd { margin-left: 4px; }
+.pr-controls .speed-group { display: inline-flex; gap: 0; }
+.rp-controls .speed-group.pr-seg { display: inline-flex; gap: 0; }
+.replay-bar .pr-seg > .rp-play { padding: 0 10px; }
+.pr-offset.pr-seg { align-items: center; gap: 0; }
+.pr-offset.pr-seg > span { min-width: 54px; padding: 0 4px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; color: #fff; }
+.pr-restart .i { width: 13px; height: 13px; margin-right: 4px; }
+/* beside the stage: one group under the other, each across the panel — the speeds in a grid of four */
+.practice-bar.docked .pr-controls { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 12px; }
+.practice-bar.docked .pr-group { flex-direction: column; align-items: stretch; gap: 6px; }
+.practice-bar.docked .pr-gl { display: block; }
+.practice-bar.docked .pr-seg { display: flex; }
+.practice-bar.docked .pr-seg > .btn, .practice-bar.docked .pr-seg > .chip { flex: 1 1 0; justify-content: center; padding: 0 6px; }
+.practice-bar.docked .speed-group.pr-seg { display: grid; grid-template-columns: repeat(4, 1fr); }
+.practice-bar.docked .pr-restart { justify-content: center; }
+.practice-bar.docked .pr-controls > .grow { display: none; }
 /* replay / Auto controls (osu!lazer's replay player): shown while the mouse moves, when paused or hovered */
 .replay-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, calc(calc(100 * var(--vw)) - 340px)); min-width: min(470px, calc(calc(100 * var(--vw)) - 32px)); padding: 10px 12px; border-radius: 14px; background: rgba(12, 8, 20, .84); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; cursor: default; opacity: 0; transition: opacity var(--t-med); }
 .gameplay.pm-open .replay-bar { opacity: 0 !important; pointer-events: none !important; } /* (the pause / fail menu covers it: it sat over their title) */
@@ -1295,6 +1318,8 @@ html.touch .practice-bar .kbd { display: none; }
 .mp-crown .i { width: 14px; height: 14px; fill: currentColor; }
 .mp-player { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 40px; padding-right: 10px; border-radius: 5px; overflow: hidden; background: linear-gradient(90deg, transparent 25%, rgba(255, 255, 255, .07)), #33413c; }
 .mp-player.empty { justify-content: center; padding: 0 10px; color: rgba(255, 255, 255, .6); font-size: 14px; }
+/* (a seat nobody's in: an outline of one, not a panel that looks like a player's) */
+.mp-player.empty { background: none; outline: 1px dashed rgba(255, 255, 255, .22); outline-offset: -1px; color: rgba(255, 255, 255, .45); font-size: 13px; letter-spacing: .02em; }
 .mp-pav { flex: none; width: 40px; height: 40px; }
 .mp-pav > * { width: 40px !important; height: 40px !important; border-radius: 0 !important; box-shadow: none !important; }
 .mp-pname { flex: none; max-width: 40%; font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -3506,6 +3531,13 @@ body.f-settings #app #toolbar { z-index: 61; }
 .res-ab.green { background: #88b300; }
 .res-ab .i { width: 13px; height: 13px; stroke-width: 3; }
 .res-ab.dl { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 700; } /* (Download: icon and word side by side) */
+/* (the wide ones — Watch replay, Retry, Back to the room — the same: the icon and what it does; just the icon when the
+   bar is too narrow for the words) */
+.res-ab.wide.labelled { display: flex; align-items: center; justify-content: center; gap: 8px; container-type: inline-size; }
+.res-abl { font-size: 13px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+.res-kbd { padding: 0 5px; border-radius: 4px; background: rgba(0, 0, 0, .25); font-size: 11px; font-weight: 700; line-height: 17px; }
+@container (max-width: 150px) { .res-abl, .res-kbd { display: none; } }
+html.touch .res-kbd { display: none; }
 .res-ab::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: 0; mix-blend-mode: plus-lighter; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1); }
 .res-ab:hover::after { opacity: .1; }
 .res-ab:active { transform: scale(.75); transition: transform 2000ms cubic-bezier(.22, 1, .36, 1); }
