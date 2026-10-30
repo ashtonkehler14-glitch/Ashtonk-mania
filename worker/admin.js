@@ -173,6 +173,7 @@ a { color: #d6b3ff; } a.big { font-weight: 700; font-size: 15px; }
 .report.closed { opacity: .7; }
 .chat.mini { margin-top: 10px; max-height: 180px; } .chat.mini .line { padding: 4px; }
 .find { width: 200px; } @media (max-width: 860px) { .find { flex: 1; width: auto; } }
+td.quick { white-space: nowrap; text-align: right; } td.quick button + button { margin-left: 4px; }
 .note { padding: 8px 0; border-bottom: 1px solid var(--line); } .note .x { margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
 `;
 
@@ -246,7 +247,7 @@ const badges = p => [p.owner || p.admin ? rolePill('Owner', '#ffcc22') : p.role 
 let ME = { owner: true };
 
 let lastQuery = '';
-const TABS = [['overview', 'Overview'], ['reports', 'Reports'], ['players', 'Players'], ['announce', 'Announcements'], ['chat', 'Chat'], ['playlists', 'Playlists'], ['daily', 'Daily challenge'], ['log', 'Log']];
+const TABS = [['overview', 'Overview'], ['reports', 'Reports'], ['players', 'Players'], ['announce', 'Announcements'], ['chat', 'Chat'], ['boards', 'Leaderboards'], ['playlists', 'Playlists'], ['daily', 'Daily challenge'], ['log', 'Log']];
 let OPEN = 0; // (reports waiting: shown on their tab)
 const tabBtns = () => tabsEl.replaceChildren(...tabs().map(([k, l]) => h('button' + (k === tab ? '.on' : ''), { onclick: () => go(k) }, l, k === 'reports' && OPEN ? h('span.pill.bad', String(OPEN)) : null)));
 const tabs = () => ME.owner ? TABS : TABS.filter(([k]) => k !== 'daily' && k !== 'log');
@@ -270,7 +271,7 @@ async function render() {
   shown = location.hash;
   tabBtns();
   main.replaceChildren(h('div.empty', 'Loading…'));
-  try { await ({ overview, reports, players, announce, chat, playlists, daily, log })[tab](); } catch (e) { main.replaceChildren(h('div.card', h('p.bad', e.message))); }
+  try { await ({ overview, reports, players, announce, chat, boards, playlists, daily, log })[tab](); } catch (e) { main.replaceChildren(h('div.card', h('p.bad', e.message))); }
 }
 
 async function overview() {
@@ -287,8 +288,12 @@ async function overview() {
     h('div.grid', [['Online now', d.online.length], ['Open reports', OPEN], ['Players', d.players], ['Ranked players', d.ranked], ['Players with a code', d.codes], ['Open rooms', d.rooms.length], ['Open playlists', d.playlists], ['Daily challenge scores', d.dailyScores], ['Banned', d.bans], ['Muted', d.mutes]].map(([l, v]) => h('div.tile', h('b', fmt(v)), h('span', l)))),
     d.owner ? null : h('div.card', h('p.warn', 'No player has the code in ADMIN_CODE yet: sign in to the game with it (Your code) so the game knows you\\'re the owner.')),
     h('div.cols',
-      h('div.card', h('h2', 'Online now'), d.online.length ? h('table', h('tr', h('th', 'Player'), h('th', 'Doing')), d.online.map(u => h('tr.click', { onclick: () => u.pid && openPlayer(u.pid) },
-        h('td', avatar(u.avatar, u.name), u.name, u.pid ? null : h('span.pill', 'guest')), h('td.muted', u.status === 'playing' && u.song ? 'Playing ' + u.song.artist + ' - ' + u.song.title + ' [' + u.song.version + ']' : u.status, u.vis === 'offline' ? ' (appearing offline)' : '')))) : h('div.empty', 'Nobody is online.')),
+      h('div.card', h('h2', 'Online now'), d.online.length ? h('table', h('tr', h('th', 'Player'), h('th', 'Doing'), h('th')), d.online.map(u => h('tr.click', { onclick: () => u.pid && openPlayer(u.pid) },
+        h('td', avatar(u.avatar, u.name), u.name, u.pid ? null : h('span.pill', 'guest')), h('td.muted', u.status === 'playing' && u.song ? 'Playing ' + u.song.artist + ' - ' + u.song.title + ' [' + u.song.version + ']' : u.status, u.vis === 'offline' ? ' (appearing offline)' : ''),
+        // (quick ones, right here: a message, ten minutes' mute — not for the owner or the admins)
+        h('td.quick', u.pid && u.pid !== d.owner && !(d.staff || []).some(x => x.pid === u.pid) ? [
+          h('button.small', { title: 'Send them a message', onclick: async e => { e.stopPropagation(); const t = prompt('A message for ' + u.name + ' (a notice they have to close):'); if (!t) return; await run(() => api('warn', { pid: u.pid, text: t }), 'Sent'); } }, 'Message'),
+          h('button.small', { title: 'Mute for 10 minutes', onclick: async e => { e.stopPropagation(); await run(() => api('mute', { pid: u.pid, minutes: 10, reason: '' }), u.name + ' muted for 10 minutes'); } }, 'Mute 10m')] : null)))) : h('div.empty', 'Nobody is online.')),
       h('div',
         h('div.card', h('h2', 'Daily challenge'), map ? h('div', h('b', map.artist + ' - ' + map.title), h('div.muted', '[' + map.version + '] · ' + map.stars + '★ · ' + map.keys + 'K · ' + d.daily.scores + ' scores')) : h('p.' + (d.daily.error ? 'bad' : 'muted'), d.daily.error || 'Not picked yet (picked when the first player opens it).'),
           h('div.row.mt', h('button.small', { onclick: () => go('daily') }, 'Change…'))),
@@ -520,6 +525,27 @@ async function log() {
   main.replaceChildren(h('div.card', h('h2', 'Admin log (' + d.log.length + ')'), f, box));
   f.focus();
 }
+// ── Leaderboards: a beatmap's board by its osu! beatmap id, to take a score off it (a cheated one, say)
+let boardId = '';
+async function boards() {
+  const id = h('input.grow', { placeholder: 'Beatmap id (the number after # in its osu! address)', inputmode: 'numeric', value: boardId });
+  const out = h('div');
+  const show = async () => {
+    boardId = id.value.trim();
+    if (!boardId) return;
+    const d = await run(() => api('board', /^[a-f0-9]{64}$/i.test(boardId) ? { key: boardId.toLowerCase() } : { id: boardId })).catch(() => null);
+    if (!d) { out.replaceChildren(); return; }
+    out.replaceChildren(h('h2.mt', d.info ? d.info.artist + ' - ' + d.info.title + ' [' + d.info.version + ']' : 'Beatmap ' + boardId),
+      d.scores.length ? h('table', h('tr', h('th', '#'), h('th', 'Player'), h('th', 'Score'), h('th', 'Accuracy'), h('th', 'Mods'), h('th', 'pp'), h('th', 'Set'), h('th')),
+        d.scores.map(x => h('tr', h('td', '#' + x.rank), h('td', h('a', { href: '#players/' + encodeURIComponent(x.pid) }, x.name || x.pid)), h('td', fmt(x.score)), h('td', pct(x.acc)), h('td.muted', (x.mods || []).join(' ') || '—'), h('td', fmt(x.pp)), h('td.muted', ago(x.date)),
+          h('td', h('button.small.danger', { onclick: async () => { if (!confirm('Take ' + (x.name || x.pid) + '\\'s score off this beatmap? It goes from their best plays too.')) return; await run(() => api('removeScore', { pid: x.pid, key: d.key }), 'Score removed'); show(); } }, 'Remove'))))) : h('div.empty', 'No scores.'));
+  };
+  id.addEventListener('keydown', e => { if (e.key === 'Enter') show(); });
+  main.replaceChildren(h('div.card', h('h2', 'Leaderboards'), h('p.muted.small', 'A beatmap\\'s board here, as players see it: take off a score that shouldn\\'t be there.'), h('div.row', id, h('button.primary', { onclick: show }, 'Show')), out));
+  id.focus();
+  if (boardId) show();
+}
+
 async function playlists() {
   const d = await api('playlists');
   main.replaceChildren(h('div.card', h('h2', 'Playlists (' + d.playlists.length + ')'), h('p.muted.small', 'The ones players have put up (ended ones are kept two weeks). Remove one with a name that isn\\'t OK.'),

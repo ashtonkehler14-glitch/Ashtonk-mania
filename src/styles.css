@@ -4475,6 +4475,8 @@ html.touch .pl-group input[type=range].slider { height: 40px; margin: -8px 0; }
 .st-opt { display: inline-flex; align-items: center; gap: 8px; }
 .st-opt i { width: 8px; height: 8px; border-radius: 50%; }
 .tb-av { position: relative; }
+.tb-rep { position: absolute; top: -3px; right: -3px; z-index: 1; width: 10px; height: 10px; border-radius: 50%; background: #ff4d6a; box-shadow: 0 0 0 2px var(--bg, #171717); animation: tbRep 1.6s ease-in-out infinite; }
+@keyframes tbRep { 50% { scale: 1.25; } }
 /* (the avatar's status dot — only there: a toolbar button's own .tb-st is its "on" highlight, which this made a dot) */
 .tb-av > .tb-st { position: absolute; inset: auto -3px -3px auto; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #1b1a20; opacity: 1; mix-blend-mode: normal; }
 .tb-av > .tb-st.dnd { background: #ff6666; }

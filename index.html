@@ -4490,6 +4490,8 @@ html.touch .pl-group input[type=range].slider { height: 40px; margin: -8px 0; }
 .st-opt { display: inline-flex; align-items: center; gap: 8px; }
 .st-opt i { width: 8px; height: 8px; border-radius: 50%; }
 .tb-av { position: relative; }
+.tb-rep { position: absolute; top: -3px; right: -3px; z-index: 1; width: 10px; height: 10px; border-radius: 50%; background: #ff4d6a; box-shadow: 0 0 0 2px var(--bg, #171717); animation: tbRep 1.6s ease-in-out infinite; }
+@keyframes tbRep { 50% { scale: 1.25; } }
 /* (the avatar's status dot — only there: a toolbar button's own .tb-st is its "on" highlight, which this made a dot) */
 .tb-av > .tb-st { position: absolute; inset: auto -3px -3px auto; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #1b1a20; opacity: 1; mix-blend-mode: normal; }
 .tb-av > .tb-st.dnd { background: #ff6666; }
@@ -14218,7 +14220,9 @@ const Toolbar = {
     const p = ProfileManager.profile;
     // lazer's ToolbarUserButton: the name, then a 32px picture with rounded corners (not a circle)
     const st = Settings.get('online.status') || 'online';
-    clearEl(this.profileBtn).append(h('span.lbl', p.name), h('span.tb-av', ProfileManager.avatarEl(32), st !== 'online' ? h(`i.tb-st.${st}`, { title: st === 'dnd' ? 'Do not disturb' : 'Appearing offline' }) : null));
+    // (an admin with reports waiting: a red dot on their picture)
+    const rep = typeof Staff !== 'undefined' && Staff.on() && Staff.open ? h('i.tb-rep', { title: `${Staff.open} report${Staff.open === 1 ? '' : 's'} waiting` }) : null;
+    clearEl(this.profileBtn).append(h('span.lbl', p.name), h('span.tb-av', rep, ProfileManager.avatarEl(32), st !== 'online' ? h(`i.tb-st.${st}`, { title: st === 'dnd' ? 'Do not disturb' : 'Appearing offline' }) : null));
   },
   userMenu() {
     const r = this.profileBtn.getBoundingClientRect();
@@ -14243,7 +14247,9 @@ const Toolbar = {
         : { label: 'Your code (play on another device)', icon: 'lock', onClick: () => CodePanel.open() }]),
       // (the server's owner: their admin panel, on the server)
       // (and — the owner or an admin they made — an announcement for everyone, from here)
-      ...(typeof Presence !== 'undefined' && Presence.isAdmin ? [{ label: 'Admin panel', icon: 'gear', onClick: () => Staff.openPanel() }, { label: 'Announce…', icon: 'bell', onClick: () => Staff.announce() }] : []),
+      ...(typeof Presence !== 'undefined' && Presence.isAdmin ? [{ label: 'Admin panel', icon: 'gear', onClick: () => Staff.openPanel() },
+        { label: Staff.open ? `Reports (${Staff.open} waiting)` : 'Reports', icon: 'flag', onClick: () => Staff.openPanel('reports') },
+        { label: 'Announce…', icon: 'bell', onClick: () => Staff.announce() }, { label: '#lobby rules…', icon: 'chat', onClick: () => Staff.chatRules() }] : []),
     ]);
     return m;
   },
@@ -33199,7 +33205,7 @@ const Staff = {
     else if (m.t === 'reported') { if (m.ok) Toast.ok('Report sent', 'Thanks — the admins will look into it.'); else Toast.err('Report not sent', m.error || ''); }
     // (to an admin: a player was just reported — and how many reports are waiting)
     else if (m.t === 'staffReport') {
-      this.open = m.open || 0; Bus.emit('staff:reports');
+      this.open = m.open || 0; Bus.emit('staff:reports'); if (typeof Toolbar !== 'undefined') Toolbar.updateProfile();
       if (m.report) Toast.show(`New report: ${m.report.name}`, `${m.report.reason}${m.report.text ? ` — “${m.report.text}”` : ''} (by ${m.report.by}). ${this.open} waiting in the admin panel.`, { timeout: 12000 });
     }
   },
@@ -33245,6 +33251,23 @@ const Staff = {
       { label: 'Ban', danger: true, onClick: () => this.run('ban', { pid: u.pid, days, reason: reason.value.trim() }, `${u.name || 'They'} ${days ? 'banned' : 'banned for good'}`) },
     ]);
   },
+  /** #lobby's rules from the game (toolbar menu → #lobby rules…): slow mode and the lock, as the admin panel has them
+   *  (the blocked words are the panel's). */
+  async chatRules() {
+    const r = await this.act('chatRules', {});
+    if (!r || !r.ok) { Toast.err('Couldn\'t read #lobby\'s rules', (r && r.error) || ''); return; }
+    const cur = r.rules || { slow: 0, locked: false };
+    let slow = cur.slow, locked = cur.locked;
+    const seg = (list, v0, set) => { const el = h('div.rep-opts.rep-days', ...list.map(([v, l]) => h(`button.rep-opt${v === v0 ? '.on' : ''}`, { type: 'button', onclick: e => { UISounds.click(); set(v); for (const b of el.children) b.classList.toggle('on', b === e.currentTarget); } }, h('b', l)))); return el; };
+    Dialog.custom('#lobby rules', h('div.rep',
+      h('p.rep-note', 'Slow mode: how long each player waits between messages (admins don\'t).'),
+      seg([[0, 'Off'], [5, '5s'], [15, '15s'], [30, '30s'], [60, '1 min'], [300, '5 min']], slow, v => { slow = v; }),
+      h('p.rep-note', 'Locked: only admins can talk in #lobby.'),
+      seg([[false, 'Open'], [true, 'Locked']], locked, v => { locked = v; })), [
+      { label: 'Cancel' },
+      { label: 'Save', primary: true, onClick: () => { if (slow !== cur.slow || locked !== cur.locked) this.run('chatRules', { set: { slow, locked } }, '#lobby rules saved'); } },
+    ]);
+  },
   /** An announcement from the game (toolbar menu → Announce…): its text, style and how long it stays up. */
   announce() {
     let kind = 'info', hours = 1;
@@ -33272,7 +33295,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '1cabb75784d2';
+const APP_BUILD = 'd19bb0eb2668';
 
 const App = {
   lastReport: null,

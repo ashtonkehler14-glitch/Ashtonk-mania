@@ -158,13 +158,14 @@ try {
   await owner.evaluate(() => AshtonkMania.Presence.send({ t: 'say', text: 'gg ez' }));
   await owner.waitForTimeout(400);
   await bob.evaluate(p => AshtonkMania.Presence.send({ t: 'report', pid: p, reason: 'chat', text: 'not nice' }), alicePid);
-  const heard = await owner.waitForFunction(() => AshtonkMania.Staff.open === 1 && [...document.querySelectorAll('#toasts .toast')].some(t => /New report/.test(t.textContent)), null, { timeout: 8000 }).then(() => true, () => false);
+  const heard = await owner.waitForFunction(() => AshtonkMania.Staff.open === 1 && [...document.querySelectorAll('#toasts .toast')].some(t => /New report/.test(t.textContent)) && !!document.querySelector('.tb-profile .tb-rep'), null, { timeout: 8000 }).then(() => true, () => false);
   check('Report: a player reports someone — the admins online hear of it in their game', heard && await bob.evaluate(() => [...document.querySelectorAll('#toasts .toast')].some(t => /Report sent/.test(t.textContent))));
   await panel.evaluate(() => { location.hash = 'reports'; });
   await panel.waitForSelector('main .report', { timeout: 8000 }).catch(() => {});
   const rep = await panel.evaluate(() => ({ text: document.querySelector('main .report')?.textContent || '', tab: document.querySelector('.tabs button.on .pill')?.textContent }));
   check('…the Reports tab has it: who, why, what they said, their last lines in #lobby', /Chat/.test(rep.text) && /not nice/.test(rep.text) && /gg ez/.test(rep.text) && rep.tab === '1', JSON.stringify(rep).slice(0, 300));
   await panel.click('main .report button:text-is("Dealt with")');
+  check('…and the admin\'s picture in the top bar loses its red dot', await owner.waitForFunction(() => !document.querySelector('.tb-profile .tb-rep'), null, { timeout: 8000 }).then(() => true, () => false));
   check('…dealt with: nothing waiting', await panel.waitForFunction(() => /Nothing waiting/.test(document.querySelector('main').textContent), null, { timeout: 8000 }).then(() => true, () => false) && (await api('reports')).open === 0);
   // moderating from the game: the owner mutes Bob from his ⋯ menu's admin items (the server checks it like the panel)
   const items = await owner.evaluate(p => AshtonkMania.Staff.menuItems({ pid: p, name: 'Bob' }).map(i => i.label || i.header).filter(Boolean), bobPid);
@@ -200,6 +201,28 @@ try {
   await panel.waitForFunction(() => /keep an eye on him/.test(document.querySelector('main .note')?.textContent || ''), null, { timeout: 8000 }).catch(() => {});
   const pg = await panel.evaluate(() => ({ note: document.querySelector('main .note')?.textContent || '', hist: [...document.querySelectorAll('main .card')].find(c => /^History/.test(c.querySelector('h2')?.textContent || ''))?.textContent || '' }));
   check('Player page: admins\' notes, and the history of what was done about them (the mute from the game)', /keep an eye on him/.test(pg.note) && /the owner/.test(pg.note) && /Muted/.test(pg.hist) && /Reported 0|Never reported/.test(pg.hist), JSON.stringify(pg).slice(0, 300));
+  // a beatmap's leaderboard (Leaderboards tab): Bob's judged play on it, taken off from there
+  await bob.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
+  await bob.waitForFunction(() => AshtonkMania.BeatmapManager.sets.length === 1, null, { timeout: 15000 });
+  const sub = await bob.evaluate(async () => { const m = [...AshtonkMania.BeatmapManager.maps.values()][0]; const { notes } = await AshtonkMania.BeatmapManager.load(m.id); return Verified.submit({ rec: m, mods: [], modConfig: {}, seed: 1, events: generateAutoInputs(prepareNotes(notes, m.keys, [], 1), m.keys).flat() }); });
+  await panel.evaluate(() => { location.hash = 'boards'; });
+  await panel.waitForSelector('main input[placeholder^="Beatmap id"]', { timeout: 8000 });
+  await panel.fill('main input[placeholder^="Beatmap id"]', (sub && sub.key) || 'none');
+  await panel.click('main button.primary:text-is("Show")');
+  await panel.waitForSelector('main table td', { timeout: 8000 }).catch(() => {});
+  const board = await panel.evaluate(() => [...document.querySelectorAll('main table tr')].slice(1).map(tr => tr.textContent));
+  check('Leaderboards: a beatmap\'s board, with each score on it', !!(sub && sub.ok) && board.length === 1 && /Bob/.test(board[0]), JSON.stringify({ ok: sub && sub.ok, board }));
+  panel.once('dialog', d => d.accept());
+  await panel.click('main table button.danger:text-is("Remove")');
+  await panel.waitForFunction(() => /No scores\./.test(document.querySelector('main').textContent), null, { timeout: 8000 }).catch(() => {});
+  check('…a score taken off from there goes from the board and their best plays', await panel.evaluate(() => /No scores\./.test(document.querySelector('main').textContent)) && !(await api('player', { pid: bobPid })).player.bests.length);
+  // the overview's "Online now": a message or a mute right there (not for the owner or the admins)
+  await panel.evaluate(() => { location.hash = 'overview'; }); await panel.waitForSelector('main td.quick', { timeout: 8000 });
+  const quick = await panel.evaluate(() => [...document.querySelectorAll('main tr')].filter(tr => tr.querySelector('td.quick')).map(tr => [tr.firstChild.textContent, tr.querySelectorAll('td.quick button').length]));
+  check('Overview: quick message and mute beside each player online — not the owner', quick.some(([n, k]) => /Bob/.test(n) && k === 2) && quick.some(([n, k]) => /Alice/.test(n) && k === 0), JSON.stringify(quick));
+  // in the game, an admin has #lobby's rules to hand (the server's own answer comes back)
+  const rr = await owner.evaluate(() => AshtonkMania.Staff.act('chatRules', {}));
+  check('In the game: #lobby\'s rules read from the game', rr.ok && rr.rules && rr.rules.slow === 0, JSON.stringify(rr));
   await panel.evaluate(p => { location.hash = 'players/' + p; }, bobPid); // (back on Bob's page for what follows)
 
   // a mute, then a ban

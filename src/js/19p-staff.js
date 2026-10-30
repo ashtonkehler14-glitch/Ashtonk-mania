@@ -108,7 +108,7 @@ const Staff = {
     else if (m.t === 'reported') { if (m.ok) Toast.ok('Report sent', 'Thanks — the admins will look into it.'); else Toast.err('Report not sent', m.error || ''); }
     // (to an admin: a player was just reported — and how many reports are waiting)
     else if (m.t === 'staffReport') {
-      this.open = m.open || 0; Bus.emit('staff:reports');
+      this.open = m.open || 0; Bus.emit('staff:reports'); if (typeof Toolbar !== 'undefined') Toolbar.updateProfile();
       if (m.report) Toast.show(`New report: ${m.report.name}`, `${m.report.reason}${m.report.text ? ` — “${m.report.text}”` : ''} (by ${m.report.by}). ${this.open} waiting in the admin panel.`, { timeout: 12000 });
     }
   },
@@ -152,6 +152,23 @@ const Staff = {
     Dialog.custom(`Ban ${u.name || 'this player'}`, h('div.rep', h('p.rep-note', 'Taken offline now and kept offline. For good: their account is removed, scores and all.'), opts, reason), [
       { label: 'Cancel' },
       { label: 'Ban', danger: true, onClick: () => this.run('ban', { pid: u.pid, days, reason: reason.value.trim() }, `${u.name || 'They'} ${days ? 'banned' : 'banned for good'}`) },
+    ]);
+  },
+  /** #lobby's rules from the game (toolbar menu → #lobby rules…): slow mode and the lock, as the admin panel has them
+   *  (the blocked words are the panel's). */
+  async chatRules() {
+    const r = await this.act('chatRules', {});
+    if (!r || !r.ok) { Toast.err('Couldn\'t read #lobby\'s rules', (r && r.error) || ''); return; }
+    const cur = r.rules || { slow: 0, locked: false };
+    let slow = cur.slow, locked = cur.locked;
+    const seg = (list, v0, set) => { const el = h('div.rep-opts.rep-days', ...list.map(([v, l]) => h(`button.rep-opt${v === v0 ? '.on' : ''}`, { type: 'button', onclick: e => { UISounds.click(); set(v); for (const b of el.children) b.classList.toggle('on', b === e.currentTarget); } }, h('b', l)))); return el; };
+    Dialog.custom('#lobby rules', h('div.rep',
+      h('p.rep-note', 'Slow mode: how long each player waits between messages (admins don\'t).'),
+      seg([[0, 'Off'], [5, '5s'], [15, '15s'], [30, '30s'], [60, '1 min'], [300, '5 min']], slow, v => { slow = v; }),
+      h('p.rep-note', 'Locked: only admins can talk in #lobby.'),
+      seg([[false, 'Open'], [true, 'Locked']], locked, v => { locked = v; })), [
+      { label: 'Cancel' },
+      { label: 'Save', primary: true, onClick: () => { if (slow !== cur.slow || locked !== cur.locked) this.run('chatRules', { set: { slow, locked } }, '#lobby rules saved'); } },
     ]);
   },
   /** An announcement from the game (toolbar menu → Announce…): its text, style and how long it stays up. */

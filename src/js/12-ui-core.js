@@ -897,7 +897,9 @@ const Toolbar = {
     const p = ProfileManager.profile;
     // lazer's ToolbarUserButton: the name, then a 32px picture with rounded corners (not a circle)
     const st = Settings.get('online.status') || 'online';
-    clearEl(this.profileBtn).append(h('span.lbl', p.name), h('span.tb-av', ProfileManager.avatarEl(32), st !== 'online' ? h(`i.tb-st.${st}`, { title: st === 'dnd' ? 'Do not disturb' : 'Appearing offline' }) : null));
+    // (an admin with reports waiting: a red dot on their picture)
+    const rep = typeof Staff !== 'undefined' && Staff.on() && Staff.open ? h('i.tb-rep', { title: `${Staff.open} report${Staff.open === 1 ? '' : 's'} waiting` }) : null;
+    clearEl(this.profileBtn).append(h('span.lbl', p.name), h('span.tb-av', rep, ProfileManager.avatarEl(32), st !== 'online' ? h(`i.tb-st.${st}`, { title: st === 'dnd' ? 'Do not disturb' : 'Appearing offline' }) : null));
   },
   userMenu() {
     const r = this.profileBtn.getBoundingClientRect();
@@ -922,7 +924,9 @@ const Toolbar = {
         : { label: 'Your code (play on another device)', icon: 'lock', onClick: () => CodePanel.open() }]),
       // (the server's owner: their admin panel, on the server)
       // (and — the owner or an admin they made — an announcement for everyone, from here)
-      ...(typeof Presence !== 'undefined' && Presence.isAdmin ? [{ label: 'Admin panel', icon: 'gear', onClick: () => Staff.openPanel() }, { label: 'Announce…', icon: 'bell', onClick: () => Staff.announce() }] : []),
+      ...(typeof Presence !== 'undefined' && Presence.isAdmin ? [{ label: 'Admin panel', icon: 'gear', onClick: () => Staff.openPanel() },
+        { label: Staff.open ? `Reports (${Staff.open} waiting)` : 'Reports', icon: 'flag', onClick: () => Staff.openPanel('reports') },
+        { label: 'Announce…', icon: 'bell', onClick: () => Staff.announce() }, { label: '#lobby rules…', icon: 'chat', onClick: () => Staff.chatRules() }] : []),
     ]);
     return m;
   },

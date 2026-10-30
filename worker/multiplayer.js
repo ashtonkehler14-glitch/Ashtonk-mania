@@ -2630,7 +2630,7 @@ export class Matchmaker {
   async staffFromGame(id, msg) {
     const P = this.presence, u = P.users.get(id);
     P.adminHash = adminCodeHash(this.env);
-    const reply = r => { if (P.users.has(id)) this.send([{ to: id, msg: { t: 'staffDone', req: Math.floor(Number(msg.req) || 0), ...r } }]); };
+    const reply = r => { if (P.users.has(id)) this.send([{ to: id, msg: { ...r, t: 'staffDone', req: Math.floor(Number(msg.req) || 0) } }]); };
     if (!u || !u.pid || !P.isStaff(u.pid)) return reply({ error: 'You\'re not an admin.' });
     const action = String(msg.action || '');
     if (!Matchmaker.GAME_STAFF.includes(action)) return reply({ error: 'That one is in the admin panel.' });
@@ -2638,7 +2638,7 @@ export class Matchmaker {
     const r = await this.admin(action, new Request(`https://matchmaker/internal/admin/${action}`, { method: 'POST', body: JSON.stringify(body),
       headers: { 'content-type': 'application/json', 'x-ip': 'in game', 'x-admin-who': P.isAdmin(u.pid) ? 'owner' : u.pid } }));
     const j = await r.json().catch(() => ({}));
-    reply(r.ok && !j.error ? { ok: true } : { error: j.error || 'That didn\'t work.' });
+    reply(r.ok && !j.error ? { ...j, ok: true } : { error: j.error || 'That didn\'t work.' });
   }
   static GAME_STAFF = ['mute', 'unmute', 'warn', 'ban', 'chatDelete', 'announce', 'annEnd', 'reportClose', 'chatRules'];
   async admin(action, request) {
@@ -2806,6 +2806,19 @@ export class Matchmaker {
         return json({ ok: true, anns: P.annList() });
       }
       case 'anns': return json({ anns: P.annList() });
+      // ── a beatmap's leaderboard, by its osu! beatmap id (or the board's key): to take scores off it
+      case 'board': {
+        const id = Math.floor(Number(b.id) || 0);
+        let key = id > 0 ? P.boardIds.get(id) : PresenceLogic.lbKey(b.key);
+        if (id > 0 && !key) { const k = await this.state.storage.get(`lbid:${id}`).catch(() => null); if (typeof k === 'string') { P.boardIds.set(id, k); key = k; } }
+        if (!key) return json({ error: 'Nobody has a score on that beatmap here yet.' }, 400);
+        if (!P.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!P.boards.has(key)) P.boards.set(key, rankedBoard(v)); }
+        const list = (P.boards.get(key) || []).filter(x => !P.isBanned(x.pid));
+        // (its name, from a best play of someone's on it)
+        let info = null;
+        for (const x of list) { const r = P.ranks.get(x.pid), bb = r && r.bests && r.bests[key]; if (bb && bb.title) { info = { title: str(bb.title, 120), artist: str(bb.artist, 120), version: str(bb.version, 120) }; break; } }
+        return json({ key, info, scores: list.slice(0, 100).map((x, i) => ({ ...P.current(x), rank: i + 1 })) });
+      }
       // ── an admin's notes on a player (only admins see them)
       case 'note': {
         if (!pid) return noPlayer();
