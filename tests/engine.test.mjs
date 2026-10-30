@@ -552,6 +552,10 @@ test('score verification: the server judges a play from its key presses — not 
   assert.ok(!partial.error, partial.error); assert.ok(partial.counts[5] >= 2 && partial.score < r.score);
   // cheats: Auto, impossible input, out-of-order input
   assert.equal(V.verifyPlay(text, { mods: ['AT'], seed: 1, events }).error, 'unranked mods');
+  // nor mods lazer doesn't rank (Difficulty Adjust and the like), nor Hidden or Flashlight at settings of your own
+  for (const mods of [['DA'], ['CS'], ['NLN'], ['IN'], ['RT']]) assert.equal(V.verifyPlay(text, { mods, seed: 1, events }).error, 'unranked mods', mods.join());
+  assert.equal(V.verifyPlay(text, { mods: ['HD'], modConfig: { cover: 0.8 }, seed: 1, events }).error, 'unranked mods');
+  assert.ok(!V.verifyPlay(text, { mods: ['HD'], modConfig: { cover: 0.5 }, seed: 1, events }).error, 'Hidden as it comes counts');
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000.5, 0, 0] }).error, 'impossible input');
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 900, 0, 0] }).error, 'input out of order');
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000, 0, 1] }).error, 'impossible input');

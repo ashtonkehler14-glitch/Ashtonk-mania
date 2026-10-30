@@ -1634,7 +1634,7 @@ export class PresenceLogic {
       // a new #1 (or the #1 beating their own score): their first place, taken from whoever had it
       if (next[0].pid === pid) {
         if (before && before !== pid) this.setFirst(before, key, null);
-        this.setFirst(pid, key, { score: entry.score, acc: entry.acc, grade: entry.grade, mods: entry.mods, combo: entry.combo, pp: entry.pp, date: t,
+        this.setFirst(pid, key, { score: entry.score, acc: entry.acc, grade: entry.grade, mods: entry.mods, combo: entry.combo, pp: entry.pp, date: t, counts: entry.counts,
           title: String(r.title || '').slice(0, 120), artist: String(r.artist || '').slice(0, 120), version: String(r.version || '').slice(0, 120), stars: entry.stars });
       }
     }
@@ -1646,7 +1646,9 @@ export class PresenceLogic {
     rec.name = name; rec.avatar = avatar; rec.plays++; rec.at = t;
     const b = rec.bests[key];
     // (with the song, so a profile can list it — read from the judged beatmap file itself)
+    // (its hit counts and star rating too: the score on their profile opens with them, not as a row of 0s)
     if (!b || b.pp < entry.pp) rec.bests[key] = { pp: entry.pp, acc: entry.acc, grade: entry.grade, score: entry.score, combo: entry.combo, mods: entry.mods, date: t,
+      ...(Array.isArray(entry.counts) && entry.counts.length === 6 ? { counts: entry.counts } : {}), ...(Number.isFinite(entry.stars) ? { stars: entry.stars } : {}),
       title: String(r.title || '').slice(0, 120), artist: String(r.artist || '').slice(0, 120), version: String(r.version || '').slice(0, 120),
       // (its beatmap set on osu!: a profile shows that set's cover behind it, on a device without the beatmap)
       ...(r.beatmapSetId > 0 ? { sid: r.beatmapSetId } : b && b.sid ? { sid: b.sid } : {}),
@@ -1698,16 +1700,19 @@ export class PresenceLogic {
     const data = this.profiles.get(pid) || null, r = this.ranks.get(pid);
     // their best plays the server judged (the ones with a known song, on ranked beatmaps), best first — for a profile their game hasn't sent
     // (with each one's beatmap — its file's hash — so their own game can tell which of its plays these are)
+    // (a play kept before its hit counts and star rating were: those of the same score on the beatmap's board, when it's there)
+    const fill = (key, b) => { if (b.counts && b.stars != null) return {}; const e = (this.boards.get(key) || []).find(x => x && x.pid === pid && x.score === b.score); return e ? { counts: b.counts || e.counts, stars: b.stars ?? e.stars } : {}; };
     const top = r && r.bests ? Object.entries(r.bests).filter(([, b]) => b && b.title && b.pp > 0).sort((a, b) => b[1].pp - a[1].pp).slice(0, 100)
-      .map(([key, b]) => ({ key, title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, passed: true, onlineSetId: b.sid || undefined })) : [];
+      .map(([key, b]) => ({ key, title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, passed: true, onlineSetId: b.sid || undefined,
+        counts: b.counts, stars: b.stars, ...fill(key, b) })) : [];
     const online = [...this.users.entries()].find(([, x]) => x.pid === pid && x.vis !== 'offline'); // (appearing offline: offline here too)
     const all = [...this.ranks.values()].filter(x => x.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc), at = all.findIndex(x => x.pid === pid);
     // (a first place stored without its song — the backfill couldn't find which beatmap it was — takes the name from their
     //  best plays if it can; one still without a name isn't listed: it showed as an empty row)
     const bests = r && r.bests ? r.bests : {};
-    const f1 = Object.entries(this.firsts.get(pid) || {}).map(([k, v]) => v && !v.title && bests[k] && bests[k].title ? { ...v, title: bests[k].title, artist: bests[k].artist, version: bests[k].version } : v)
+    const f1 = Object.entries(this.firsts.get(pid) || {}).map(([k, v]) => v && !v.title && bests[k] && bests[k].title ? { ...v, title: bests[k].title, artist: bests[k].artist, version: bests[k].version, key: k } : v && { ...v, key: k })
       .filter(v => v && v.title).sort((a, b) => b.date - a.date);
-    const firsts = f1.slice(0, 20).map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, stars: b.stars, passed: true }));
+    const firsts = f1.slice(0, 20).map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, stars: b.stars, counts: b.counts, passed: true, ...fill(b.key, b) }));
     // (the best plays their profile lists: only the ones checked to be on ranked beatmaps — and when their standing is
     //  the plays judged here, those instead — with the numbers the total is made of: the bonus pp and how many plays)
     let shown = data;
@@ -1854,6 +1859,7 @@ export class PresenceLogic {
       // (a record from the short while only judged plays counted — its profile's standing was dropped: it's checked again
       //  from their profile, in the background — restoreRanks — and the next time they're online)
       if (r.pol > PresenceLogic.RANK_POLICY) { r.pol = PresenceLogic.RANK_POLICY; r.reset = true; }
+      if (r.bests) PresenceLogic.dropUnranked(r);
       PresenceLogic.settleRank(r);
       this.ranks.set(pid, r);
     }
@@ -1887,6 +1893,15 @@ export class PresenceLogic {
   /** The ids of the plays found to be on ranked beatmaps. */
   static okIds(top, flags) { return top.filter((x, i) => flags[i] === true && x && x.pp > 0).map(PresenceLogic.playId).slice(0, 50); }
   /** A record's totals again from its best plays (after the way they're added up changed). */
+  /** Best plays set with mods that no longer count (Difficulty Adjust and the others lazer doesn't rank) are dropped, and
+   *  the totals worked out again without them. */
+  static dropUnranked(rec) {
+    const bad = Object.entries(rec.bests || {}).filter(([, x]) => !rankedMods(x)).map(([k]) => k);
+    if (!bad.length) return rec;
+    for (const k of bad) delete rec.bests[k];
+    if (rec.rk) rec.rk = rec.rk.filter(id => !bad.some(k => k.slice(0, 10) === id));
+    return PresenceLogic.revalue(rec);
+  }
   static revalue(rec) {
     const list = Object.values(rec.bests || {});
     if (!rec.rk) rec.rk = Object.entries(rec.bests || {}).filter(([, x]) => x && x.pp > 0).map(([k]) => k.slice(0, 10));
@@ -2248,7 +2263,10 @@ const cleanStatus = s => ['menu', 'room', 'ranked', 'playing', 'watching'].inclu
  *  The same (single) instance also runs presence — who's online — for invites. */
 import { officialGet, osuApi, osuLoginState, osuStatus, beatmapListing, beatmapInfo } from './index.js';
 import { sha256hex } from './sha256.js';
-import { verifyPlay, acceptPlay } from './verify-bundle.js';
+import { verifyPlay, acceptPlay, ModSystem } from './verify-bundle.js';
+/** A score kept from before its mods stopped counting (Difficulty Adjust and the others lazer doesn't rank): left out. */
+const rankedMods = x => !x || !Array.isArray(x.mods) || ModSystem.isRanked(x.mods.map(String));
+const rankedBoard = v => (Array.isArray(v) ? v.filter(rankedMods) : []);
 
 export class Matchmaker {
   constructor(state, env) { this.state = state; this.env = env; this.waiting = null; this.qp = {}; this.rooms = new Map(); this.presence = new PresenceLogic(); this.socks = new Map(); this.rq = new RankedQueue(Date.now, Math.random, () => makeCode()); }
@@ -2330,7 +2348,7 @@ export class Matchmaker {
             lazy ? this.ensureBests(tu.pid).catch(() => {}) : null,
           ]).then(([tg, lb]) => {
             if (tg && typeof tg === 'object' && !this.presence.tags.has(tkey)) this.presence.tags.set(tkey, tg);
-            if (!this.presence.boards.has(tkey)) this.presence.boards.set(tkey, Array.isArray(lb) ? lb : []);
+            if (!this.presence.boards.has(tkey)) this.presence.boards.set(tkey, rankedBoard(lb));
             if (this.presence.users.has(id)) this.send(this.presence.message(id, msg));
           });
           return;
@@ -2349,7 +2367,7 @@ export class Matchmaker {
       const key = (msg.t === 'lb' || msg.t === 'lbSubmit') && (bid > 0 ? this.presence.boardIds.get(bid) : PresenceLogic.lbKey(msg.key));
       if (key && !this.presence.boards.has(key)) {
         this.state.storage.get(`lb:${key}`).catch(() => null).then(v => {
-          if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []);
+          if (!this.presence.boards.has(key)) this.presence.boards.set(key, rankedBoard(v));
           if (this.presence.users.has(id)) this.send(this.presence.message(id, msg));
         });
         return;
@@ -2561,7 +2579,7 @@ export class Matchmaker {
       case 'removeScore': {
         const key = PresenceLogic.lbKey(b.key);
         if (!pid || !key) return noPlayer();
-        if (!P.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!P.boards.has(key)) P.boards.set(key, Array.isArray(v) ? v : []); }
+        if (!P.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!P.boards.has(key)) P.boards.set(key, rankedBoard(v)); }
         await this.ensureBests(pid);
         const best = P.ranks.get(pid) && P.ranks.get(pid).bests && P.ranks.get(pid).bests[key];
         P.adminRemoveScore(pid, key);
@@ -2759,7 +2777,7 @@ export class Matchmaker {
     // (a play sent again from before an admin took it off — the game catching up, one at a time — stays off)
     const gone = this.presence.removedAt(pid, key);
     if (gone && body.date != null && !(Number(body.date) > gone)) return json({ error: 'Taken off by an admin.', removed: true }, 422);
-    if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []); }
+    if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, rankedBoard(v)); }
     const daily = body.daily && typeof body.daily === 'object' ? { day: String(body.daily.day || '') } : null;
     const playlist = body.playlist && typeof body.playlist === 'object' ? { id: String(body.playlist.id || '').slice(0, 12) } : null;
     await this.ensureBests(pid);
@@ -2787,7 +2805,7 @@ export class Matchmaker {
       // (taken off by an admin: not back from the player's own game — a play made since is another matter)
       const gone = this.presence.removedAt(pid, key);
       if (gone && !(Number(it.date) > gone)) { results.push({ key, error: 'Taken off by an admin.', removed: true }); continue; }
-      if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []); }
+      if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, rankedBoard(v)); }
       const got = this.presence.recordVerified(pid, key, r, {});
       out.push(...got.out);
       results.push({ key, ok: true, pp: got.entry.pp });
@@ -2928,7 +2946,7 @@ export class Matchmaker {
     if (!r || !r._lazy || r.bests) return;
     let b;
     try { b = await this.state.storage.get(`rb:${pid}`); } catch (e) { throw new Error('Couldn\'t read the player\'s best plays just now.'); }
-    if (!r.bests) r.bests = b && typeof b === 'object' ? b : {};
+    if (!r.bests) { r.bests = b && typeof b === 'object' ? b : {}; PresenceLogic.dropUnranked(r); }
     delete r._lazy;
   }
   /** Players whose standing started over (or who never had one) and aren't online to re-report it: their standing

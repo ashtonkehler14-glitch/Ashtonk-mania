@@ -42,17 +42,17 @@ const MODS = [
     desc: 'Columns are mirrored left ↔ right.' },
   { id: 'RD', name: 'Random', group: 'conversion', key: 'KeyX', mult: 1.0, color: '#8c66ff', incompatible: ['MR'],
     desc: 'Columns are shuffled (seeded — replays stay reproducible).' },
-  { id: 'CS', name: 'Constant Speed', group: 'conversion', key: 'KeyC', mult: 0.9, color: '#8c66ff', incompatible: [],
+  { id: 'CS', name: 'Constant Speed', group: 'conversion', key: 'KeyC', mult: 0.9, color: '#8c66ff', incompatible: [], unranked: true,
     desc: 'No more tricky speed changes: ignores SV and BPM scroll changes.' },
-  { id: 'NLN', name: 'Hold Off', group: 'conversion', key: 'KeyV', mult: 0.9, color: '#8c66ff', incompatible: ['IN', 'NR'],
+  { id: 'NLN', name: 'Hold Off', group: 'conversion', key: 'KeyV', mult: 0.9, color: '#8c66ff', incompatible: ['IN', 'NR'], unranked: true,
     desc: 'Long notes become regular notes.' },
-  { id: 'IN', name: 'Invert', group: 'conversion', key: 'KeyI', mult: 1.0, color: '#8c66ff', incompatible: ['NLN', 'NR'],
+  { id: 'IN', name: 'Invert', group: 'conversion', key: 'KeyI', mult: 1.0, color: '#8c66ff', incompatible: ['NLN', 'NR'], unranked: true,
     desc: 'Hold the keys. To the beat. Every gap between notes becomes a long note.' },
-  { id: 'PC', name: 'Percy', group: 'conversion', key: 'KeyB', mult: 1.0, color: '#8c66ff', incompatible: ['NLN'], config: 'percy',
+  { id: 'PC', name: 'Percy', group: 'conversion', key: 'KeyB', mult: 1.0, color: '#8c66ff', incompatible: ['NLN'], unranked: true, config: 'percy',
     desc: 'Long note tails are drawn shorter (visual only).' },
-  { id: 'RT', name: 'Song Speed', group: 'conversion', key: 'KeyN', mult: 1.0, color: '#8c66ff', incompatible: ['HT', 'DC', 'DT', 'NC', 'WU', 'WD', 'AS'], config: 'rate',
+  { id: 'RT', name: 'Song Speed', group: 'conversion', key: 'KeyN', mult: 1.0, color: '#8c66ff', incompatible: ['HT', 'DC', 'DT', 'NC', 'WU', 'WD', 'AS'], unranked: true, config: 'rate',
     desc: 'Any playback rate from 0.5× to 2×.' },
-  { id: 'DA', name: 'Difficulty Adjust', group: 'conversion', key: 'KeyL', mult: 0.5, color: '#8c66ff', incompatible: ['EZ', 'HR'], config: 'da',
+  { id: 'DA', name: 'Difficulty Adjust', group: 'conversion', key: 'KeyL', mult: 0.5, color: '#8c66ff', incompatible: ['EZ', 'HR'], unranked: true, config: 'da',
     desc: 'Override the beatmap\'s OD and HP.' },
   // lazer's key mods: a converted osu! beatmap with that many columns (osu!mania beatmaps keep theirs)
   { id: '1K', name: 'One Key', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
@@ -173,7 +173,17 @@ const ModSystem = {
   label(list) { return list.length ? list.join('') : 'NM'; },
   /** The column count a key mod (1K–10K) asks for, or 0. */
   keyMod(list) { for (const id of list || []) { const m = /^(\d+)K$/.exec(id); if (m && MOD_BY_ID.has(id)) return +m[1]; } return 0; },
-  isRanked(list) { return !list.some(id => MOD_BY_ID.get(id)?.unranked); },
+  /** lazer's ranked mods: none it marks unranked (Difficulty Adjust and the other conversions that make a beatmap
+   *  something else, a speed of your own, Auto…), and — given the settings they were played with (`cfg`) — Hidden,
+   *  Fade In, Cover and Flashlight only as they come (lazer ranks those only at their default settings). */
+  isRanked(list, cfg) {
+    if (list.some(id => MOD_BY_ID.get(id)?.unranked)) return false;
+    if (!cfg || typeof cfg !== 'object') return true;
+    const off = k => cfg[k] != null && Number(cfg[k]) !== MOD_CONFIG_DEFAULTS[k];
+    if (list.some(id => id === 'HD' || id === 'FI' || id === 'CO') && (off('cover') || off('coDir'))) return false;
+    if (list.includes('FL') && off('flSize')) return false;
+    return true;
+  },
   /** Column permutation for Mirror / Random. */
   columnMap(list, keys, seed) {
     const map = Array.from({ length: keys }, (_, i) => i);

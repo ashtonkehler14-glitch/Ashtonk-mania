@@ -1372,6 +1372,27 @@ test('rankings: judged plays (best pp per beatmap) weighted as lazer weighs them
   assert.deepEqual(q2.message('t', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Two', 900]]);
 });
 
+test('someone else\'s scores on their profile come with their hit counts and star rating (and old ones are filled in from the board)', () => {
+  const p = new PresenceLogic(() => 1000);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' });
+  p.recordVerified('alicepid1', K1, judged({ title: 'Song', artist: 'Art', version: 'Hard', counts: [300, 50, 5, 1, 0, 2], stars: 4.25 }));
+  let m = p.profileMsg('alicepid1');
+  assert.deepEqual([m.top[0].counts, m.top[0].stars], [[300, 50, 5, 1, 0, 2], 4.25]);
+  assert.deepEqual([m.firsts[0].counts, m.firsts[0].stars], [[300, 50, 5, 1, 0, 2], 4.25], 'their first places too');
+  // a best play kept before they were: the same score on the beatmap's board has them
+  const b = p.ranks.get('alicepid1').bests[K1]; delete b.counts; delete b.stars;
+  m = p.profileMsg('alicepid1');
+  assert.deepEqual([m.top[0].counts, m.top[0].stars], [[300, 50, 5, 1, 0, 2], 4.25]);
+});
+
+test('best plays set with mods that no longer count (Difficulty Adjust…) are dropped, and the totals with them', () => {
+  const p = new PresenceLogic(() => 1000);
+  p.loadRanks({ alicepid1: { pid: 'alicepid1', name: 'Alice', pol: 3, plays: 2, bests: { [K1]: { pp: 300, acc: 0.99, grade: 'S', mods: ['DA'] }, [K2]: { pp: 100, acc: 0.95, grade: 'A', mods: ['HD'] } }, rk: [K1.slice(0, 10), K2.slice(0, 10)] } });
+  const r = p.ranks.get('alicepid1');
+  assert.deepEqual(Object.keys(r.bests), [K2]);
+  assert.ok(Math.abs(r.v.pp - (100 + 416.6667 * (1 - 0.995))) < 0.01, `only the Hidden play counts (${r.v.pp})`);
+});
+
 test('beatmap leaderboards hold only judged plays: each player\'s best per beatmap, global or friends only', () => {
   const p = new PresenceLogic(() => 5000), saved = [];
   p.persistBoard = (k, l) => saved.push([k, l.length]);

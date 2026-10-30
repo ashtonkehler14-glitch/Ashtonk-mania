@@ -66,7 +66,8 @@ const ScoreManager = {
   recent(n = 20) { return this.scores.slice(-n).reverse(); },
   /** pp of a score (osu!mania formula). Older scores without stored pp are computed on demand. */
   ppOf(s) {
-    if (!s || !s.passed || (s.mods || []).includes('AT')) return 0;
+    // (no pp for a play with mods lazer doesn't rank — Difficulty Adjust and the like — as its rankings give none)
+    if (!s || !s.passed || !ModSystem.isRanked(s.mods || [], s.modConfig)) return 0;
     if (typeof s.pp === 'number' && s.srVersion === SR_VERSION) return s.pp;
     const m = typeof BeatmapManager !== 'undefined' ? BeatmapManager.mapByHash(s.mapHash) : null;
     const stars = (s.rate || 1) === 1 && m && m.srVersion === SR_VERSION ? m.stars : (s.stars || 0);

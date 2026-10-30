@@ -30,10 +30,10 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   try { keys = BeatmapParser.keyCount(bm, keyMod); notes = BeatmapParser.toManiaNotes(bm, keyMod); } catch (e) { return fail('not a playable beatmap'); }
   if (!(keys >= 1 && keys <= 18)) return fail('not an osu!mania beatmap');
   if (!notes.length) return fail('the beatmap has no notes');
-  if (!ModSystem.isRanked(mods)) return fail('unranked mods');
   const cfg = play.modConfig && typeof play.modConfig === 'object' ? play.modConfig : {};
   const modConfig = {};
-  for (const k of ['rate', 'od', 'hp', 'acc', 'cover', 'percy']) if (Number.isFinite(Number(cfg[k]))) modConfig[k] = Number(cfg[k]);
+  for (const k of ['rate', 'od', 'hp', 'acc', 'cover', 'percy', 'flSize', 'coDir']) if (Number.isFinite(Number(cfg[k]))) modConfig[k] = Number(cfg[k]);
+  if (!ModSystem.isRanked(mods, modConfig)) return fail('unranked mods');
   const rate = ModSystem.rate(mods, modConfig);
   if (!(rate >= VERIFY.MIN_RATE && rate <= VERIFY.MAX_RATE)) return fail('speed out of range');
   const seed = Number.isFinite(Number(play.seed)) ? Number(play.seed) | 0 : 0;

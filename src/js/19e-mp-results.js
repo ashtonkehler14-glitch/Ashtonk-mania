@@ -55,7 +55,7 @@ const MpResults = {
     // (someone else's best from the server, as a score the results screen can open)
     const asScore = e => ({ id: 'o-' + e.pid, online: true, player: e.name, avatar: e.avatar, score: e.score, scoreStd: e.score, accuracy: e.acc, maxCombo: e.combo,
       grade: e.grade, mods: e.mods || [], counts: e.counts && e.counts.length === 6 ? e.counts : [0, 0, 0, 0, 0, 0], pp: e.pp, srVersion: SR_VERSION, passed: true, date: e.date, replayId: null,
-      mapHash: s.mapHash, title: map.title || s.title, artist: map.artist || s.artist, version: map.version || s.version, creator: map.creator || s.creator, keys: map.keys || s.keys, stars: map.stars || s.stars });
+      mapHash: s.mapHash, title: map.title || s.title, artist: map.artist || s.artist, version: map.version || s.version, creator: map.creator || s.creator, keys: map.keys || s.keys, stars: e.stars > 0 ? e.stars : map.stars || s.stars });
     const theirs = board ? board.scores.filter(e => e.pid !== me && 'o-' + e.pid !== s.id).map(asScore) : [];
     const all = [...mineHere, ...theirs, s].sort((a, b) => ScoreManager.value(b) - ScoreManager.value(a) || b.accuracy - a.accuracy);
     const row = (x, i) => ({ id: x.id, local: !x.online, name: x.player || ProfileManager.profile.name, avatar: x.avatar, score: ScoreManager.value(x), accuracy: x.accuracy, maxCombo: x.maxCombo,

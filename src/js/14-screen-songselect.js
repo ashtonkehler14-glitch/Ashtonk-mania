@@ -346,7 +346,7 @@ const SongSelect = {
     if (!this.modBtn) return;
     const mods = Settings.get('songselect.mods') || [], mult = ModSystem.multiplier(mods);
     this.modBtn.classList.toggle('has-mods', mods.length > 0);
-    this.modBtn.classList.toggle('unr', mods.length > 0 && !ModSystem.isRanked(mods));
+    this.modBtn.classList.toggle('unr', mods.length > 0 && !ModSystem.isRanked(mods, Settings.get('mods.config')));
     // (too many to fit: "N mods", as lazer's ModCountText)
     this.modIcons.replaceChildren(...(mods.length > 4 ? [h('span.fb-modcount', `${mods.length} mods`)] : mods.map(m => ModSystem.badge(m, true))));
     this.modIcons.title = mods.map(m => (MOD_BY_ID.get(m) || {}).name || m).join(', ');
@@ -1299,7 +1299,8 @@ const SongSelect = {
     const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();
     const me = Presence.pid(), who = ProfileManager.profile.name;
     const asScore = e => ({ id: 'o-' + e.pid, online: true, own: e.pid === me, player: e.pid === me ? who : e.name, avatar: e.avatar, score: e.score, scoreStd: e.score, accuracy: e.acc, maxCombo: e.combo,
-      grade: e.grade, mods: e.mods || [], counts: e.counts && e.counts.length === 6 ? e.counts : null, pp: e.pp, srVersion: SR_VERSION, passed: true, date: e.date, rank: e.rank });
+      grade: e.grade, mods: e.mods || [], counts: e.counts && e.counts.length === 6 ? e.counts : null, pp: e.pp, srVersion: SR_VERSION, passed: true, date: e.date, rank: e.rank,
+      ...(e.stars > 0 ? { stars: e.stars } : {}) }); // (the play's own star rating — with its mods — when the server judged it)
     const scores = d.scores.map(asScore).filter(x => !modsOn || [...x.mods].sort().join() === sel);
     if (!scores.length) list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), scope === 'friends' ? 'None of your friends have set a score on this map yet.' : 'No records yet!'));
     scores.forEach((s, i) => list.append(this.lbScore(s, i, who, m)));
