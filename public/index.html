@@ -5227,7 +5227,14 @@ html.lp-open #toasts { right: 380px; }
 @media (max-height: 560px) { .spm { padding-top: calc(var(--toolbar-h) + 6px); padding-bottom: 56px; } .spm-box { gap: 8px; padding: 12px 16px; } .spm-t { font-size: 22px; } .spm-row { gap: 10px; }
   .spm-user { width: 210px; } .spm-user .up-card { height: 108px; } .spm-arrow .i { width: 26px; height: 26px; } .spm-map { width: min(340px, calc(100 * var(--vw) - 300px)); } .spm-watch { height: 34px; } }
 /* lazer's SpectatorPlayer message: "Watching (them) play (song) live", top centre */
-.spec-live { position: absolute; top: 96px; left: 50%; translate: -50% 0; z-index: 6; max-width: min(720px, calc(100 * var(--vw) - 40px)); padding: 6px 16px; border-radius: 99px; background: rgba(0, 0, 0, .45); color: #fff; font-size: 14px; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: specLiveIn 600ms var(--ease-out) both; }
+.spec-live { position: absolute; top: 96px; left: 50%; translate: -50% 0; z-index: 6; display: flex; align-items: center; gap: 12px; max-width: min(720px, calc(100 * var(--vw) - 40px)); padding: 4px 4px 4px 16px; border-radius: 99px; background: rgba(0, 0, 0, .45); color: #fff; font-size: 14px; pointer-events: none; white-space: nowrap; animation: specLiveIn 600ms var(--ease-out) both; }
+.spec-live-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* (the chat while watching: a click away, with how many messages wait) */
+.spec-msg { position: relative; flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: 99px; background: rgba(255, 102, 170, .9); color: #fff; font: inherit; font-size: 13px; font-weight: 700; pointer-events: auto; cursor: pointer; transition: background 150ms; }
+.spec-msg:hover { background: #ff66aa; }
+.spec-msg .i { width: 14px; height: 14px; }
+.spec-msg-n { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #fff; color: #c23278; font-size: 11px; font-style: normal; line-height: 16px; text-align: center; }
+.spec-msg-n[hidden] { display: none; }
 .spec-live b { font-weight: 600; }
 .spec-live .spec-live-l { font-weight: 800; color: #ff6b7f; }
 /* (watching from a room: the others still playing, under it — a click switches to one) */
@@ -21105,6 +21112,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (this.gpChatIn && document.activeElement === this.gpChatIn) { if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); this.gpChatIn.blur(); } return; }
     if (this.gpChatIn && e.code === 'Enter' && !e.repeat && this.gpChatOpen()) { e.preventDefault(); e.stopPropagation(); this.gpChatIn.focus(); return; }
     if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); if (!e.repeat) this.onBack(); return; }
+    // watching someone: F8 opens the chat over their play (your own play keeps it closed, as lazer)
+    if (s && s.spectate && e.code === 'F8' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) Spectate.message(); return; }
     if (!s || !this.loaderGone) {
       if (!this.loaderGone && (e.code === 'Space' || e.code === 'Enter') && !(e.target.closest && e.target.closest('input, button'))) { e.preventDefault(); this.loaderSkip = true; }
       return;
@@ -30344,7 +30353,27 @@ const Spectate = {
   /** lazer's SpectatorPlayer message, top centre: "Watching (them) play (song) live". */
   liveEl(s) {
     const c = s.spectate, title = Settings.get('ui.unicodeMetadata') && s.rec.titleUnicode ? s.rec.titleUnicode : s.rec.title;
-    return h('div.spec-live', h('span.spec-live-t', 'Watching ', h('b', c.name), ' play ', h('b', title), h('b.spec-live-l', ' live')));
+    // (and the chat, a click — or F8 — away: a message to them if they're your friend, else #lobby; the play goes on
+    // behind it)
+    const friend = this.target && this.target.pid && Friends.has(this.target.pid);
+    this.msgDot = h('i.spec-msg-n');
+    const btn = h('button.spec-msg', { title: `${friend ? `Message ${c.name}` : 'Chat in #lobby'} (F8)`, 'aria-label': friend ? `Message ${c.name}` : 'Open the chat',
+      onclick: e => { e.stopPropagation(); this.message(); } }, icon('chat'), h('span', friend ? 'Message' : 'Chat'), this.msgDot);
+    this.paintMsgDot();
+    return h('div.spec-live', h('span.spec-live-t', 'Watching ', h('b', c.name), ' play ', h('b', title), h('b.spec-live-l', ' live')), btn);
+  },
+  /** The chat while watching: your conversation with them if they're a friend (only friends can be messaged), else
+   *  #lobby. */
+  message() {
+    const t = this.target;
+    if (t && t.pid && Friends.has(t.pid)) Chat.message(t); else Chat.open('#lobby');
+  },
+  /** The chat button's dot: messages you haven't read yet. */
+  paintMsgDot() {
+    if (!this.msgDot) return;
+    const n = Chat.unread;
+    this.msgDot.textContent = n ? String(Math.min(99, n)) : '';
+    this.msgDot.hidden = !n;
   },
   /** Watching from a room: someone else there who's still playing instead — straight from one play to the next,
    *  not back through the room. */
@@ -31577,6 +31606,7 @@ const Chat = {
     const n = this.unread;
     Toolbar.chatCount.firstChild.textContent = n ? String(Math.min(99, n)) : '';
     Toolbar.chatCount.classList.toggle('show', n > 0);
+    if (typeof Spectate !== 'undefined') Spectate.paintMsgDot();
   },
 };
 Chat.restore();
@@ -33439,7 +33469,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '31f76e7dde85';
+const APP_BUILD = '8481e638cb2d';
 
 const App = {
   lastReport: null,

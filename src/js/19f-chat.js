@@ -219,6 +219,7 @@ const Chat = {
     const n = this.unread;
     Toolbar.chatCount.firstChild.textContent = n ? String(Math.min(99, n)) : '';
     Toolbar.chatCount.classList.toggle('show', n > 0);
+    if (typeof Spectate !== 'undefined') Spectate.paintMsgDot();
   },
 };
 Chat.restore();

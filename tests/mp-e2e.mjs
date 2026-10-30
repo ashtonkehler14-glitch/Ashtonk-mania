@@ -973,8 +973,17 @@ await menuPick(alice, 'Spectate');
 check('…his panel says what he\'s playing, and its menu offers Spectate', playingMenu.includes('Spectate'), JSON.stringify(playingMenu));
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.spectate, null, { timeout: 20000 });
 await alice.waitForTimeout(5000);
-const sp = await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return { feed: s.feed.length, judged: s.engine.score.judged, t: AshtonkMania.Music.time, live: (document.querySelector('.spec-live') || {}).textContent || '', synced: !!s.spectate.synced, bar: !!document.querySelector('.rp-bar, .replay-bar') }; });
+const sp = await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return { feed: s.feed.length, judged: s.engine.score.judged, t: AshtonkMania.Music.time, live: (document.querySelector('.spec-live-t') || {}).textContent || '', synced: !!s.spectate.synced, bar: !!document.querySelector('.rp-bar, .replay-bar') }; });
 const bobT = await bob.evaluate(() => AshtonkMania.Music.time);
+// the chat while watching: the bar's Message button (or F8) opens the conversation with him over his play; Esc closes
+// the chat, not the spectating
+const msgBtn = await alice.evaluate(() => (document.querySelector('.spec-live .spec-msg') || {}).textContent || '');
+await alice.keyboard.press('F8');
+await alice.waitForSelector('.chat', { timeout: 5000 }).catch(() => {});
+const specChat = await alice.evaluate(() => ({ open: !!document.querySelector('.chat'), cur: AshtonkMania.Chat.cur, watching: AshtonkMania.Screens.currentName === 'gameplay' && !!AshtonkMania.GameplayScreen.s?.spectate }));
+await alice.keyboard.press('Escape'); await alice.waitForTimeout(500);
+const afterEsc = await alice.evaluate(() => ({ chat: !!document.querySelector('.chat'), watching: AshtonkMania.Screens.currentName === 'gameplay' && !!AshtonkMania.GameplayScreen.s?.spectate }));
+check('spectating a friend: "Message" (or F8) opens your conversation with him over his play; Esc closes it and the watching goes on', msgBtn === 'Message' && specChat.open && /^pm:/.test(specChat.cur) && specChat.watching && !afterEsc.chat && afterEsc.watching, JSON.stringify({ msgBtn, specChat, afterEsc }));
 clearInterval(mash);
 check('spectating: from the Spectator Mode screen his song starts by itself — "Watching Bob play … live" — a little behind him, from what he presses', sp.feed > 30 && sp.judged > 5 && sp.synced && /^Watching Bob play .+ live$/.test(sp.live) && sp.t < bobT && bobT - sp.t < 6000, JSON.stringify({ ...sp, bobT }));
 const st = await bob.evaluate(() => (AshtonkMania.Presence.players.find(p => p.name === 'Alice') || {}).status);

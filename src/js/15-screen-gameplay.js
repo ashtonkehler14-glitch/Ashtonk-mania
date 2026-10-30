@@ -1446,6 +1446,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (this.gpChatIn && document.activeElement === this.gpChatIn) { if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); this.gpChatIn.blur(); } return; }
     if (this.gpChatIn && e.code === 'Enter' && !e.repeat && this.gpChatOpen()) { e.preventDefault(); e.stopPropagation(); this.gpChatIn.focus(); return; }
     if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); if (!e.repeat) this.onBack(); return; }
+    // watching someone: F8 opens the chat over their play (your own play keeps it closed, as lazer)
+    if (s && s.spectate && e.code === 'F8' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) Spectate.message(); return; }
     if (!s || !this.loaderGone) {
       if (!this.loaderGone && (e.code === 'Space' || e.code === 'Enter') && !(e.target.closest && e.target.closest('input, button'))) { e.preventDefault(); this.loaderSkip = true; }
       return;

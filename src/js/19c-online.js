@@ -304,7 +304,27 @@ const Spectate = {
   /** lazer's SpectatorPlayer message, top centre: "Watching (them) play (song) live". */
   liveEl(s) {
     const c = s.spectate, title = Settings.get('ui.unicodeMetadata') && s.rec.titleUnicode ? s.rec.titleUnicode : s.rec.title;
-    return h('div.spec-live', h('span.spec-live-t', 'Watching ', h('b', c.name), ' play ', h('b', title), h('b.spec-live-l', ' live')));
+    // (and the chat, a click — or F8 — away: a message to them if they're your friend, else #lobby; the play goes on
+    // behind it)
+    const friend = this.target && this.target.pid && Friends.has(this.target.pid);
+    this.msgDot = h('i.spec-msg-n');
+    const btn = h('button.spec-msg', { title: `${friend ? `Message ${c.name}` : 'Chat in #lobby'} (F8)`, 'aria-label': friend ? `Message ${c.name}` : 'Open the chat',
+      onclick: e => { e.stopPropagation(); this.message(); } }, icon('chat'), h('span', friend ? 'Message' : 'Chat'), this.msgDot);
+    this.paintMsgDot();
+    return h('div.spec-live', h('span.spec-live-t', 'Watching ', h('b', c.name), ' play ', h('b', title), h('b.spec-live-l', ' live')), btn);
+  },
+  /** The chat while watching: your conversation with them if they're a friend (only friends can be messaged), else
+   *  #lobby. */
+  message() {
+    const t = this.target;
+    if (t && t.pid && Friends.has(t.pid)) Chat.message(t); else Chat.open('#lobby');
+  },
+  /** The chat button's dot: messages you haven't read yet. */
+  paintMsgDot() {
+    if (!this.msgDot) return;
+    const n = Chat.unread;
+    this.msgDot.textContent = n ? String(Math.min(99, n)) : '';
+    this.msgDot.hidden = !n;
   },
   /** Watching from a room: someone else there who's still playing instead — straight from one play to the next,
    *  not back through the room. */
