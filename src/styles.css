@@ -1477,6 +1477,12 @@ html.touch .practice-bar .kbd { display: none; }
 .mp-none { color: var(--text-2); font-weight: 600; }
 .mp-vote { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; padding: 8px 12px; border-radius: 8px; background: rgba(var(--accent-rgb), .18); font-size: .85rem; animation: wedgeIn var(--t-med) var(--ease-out); }
 .mp-vote .i { color: var(--accent); }
+/* (the request on a line of its own, the answers under it at the right — Accept last, as in the dialogs: in the narrow
+   beatmap column the two buttons and the request didn't fit on one line, and Decline wrapped alone under the rest) */
+.mp-vote > span:not(.grow) { flex: 1 1 calc(100% - 40px); min-width: 0; }
+.mp-vote > .grow { display: none; }
+.mp-vote .mp-decline { order: 2; margin-left: auto; }
+.mp-vote .mp-accept { order: 3; }
 .mp-pdiff .mod-badge, .mp-pdiff > span:not(:first-child) { margin-left: 4px; }
 .hud-skip.voted { opacity: .75; }
 .skip-votes { margin-left: 4px; font-variant-numeric: tabular-nums; opacity: .85; }

@@ -590,6 +590,8 @@ check('opening another menu (profile) doesn\'t leave the room; home from there g
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.every(p => p.hasMap), null, { timeout: 10000 });
 
 // each player picks their own difficulty
+// (once Bob's list has the beatmap's other difficulties: it fills in as the beatmap finishes installing)
+await bob.waitForFunction(() => [...document.querySelectorAll('.mp-diff option')].some(o => o.textContent.startsWith('Online Hard')), null, { timeout: 10000 });
 await bob.selectOption('.mp-diff select', { label: await bob.evaluate(() => [...document.querySelectorAll('.mp-diff option')].find(o => o.textContent.startsWith('Online Hard')).textContent) });
 await alice.waitForFunction(() => { const b = AshtonkMania.Multiplayer.room.players.find(p => p.id !== AshtonkMania.Multiplayer.me); return b.diff && b.diff.version === 'Online Hard'; }, null, { timeout: 5000 });
 check('players choose their own difficulty (shown to the room)', await alice.evaluate(() => [...document.querySelectorAll('.mp-pdiff')].some(e => e.textContent.includes('Online Hard'))));
