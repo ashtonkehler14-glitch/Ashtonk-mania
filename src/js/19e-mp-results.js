@@ -174,7 +174,7 @@ const MpResults = {
     const local = m.hash ? BeatmapManager.mapByHash(m.hash) : null;
     const room = Multiplayer.room, p = room && room.players.find(x => x.id === r.id);
     const g = r.forfeit ? 'F' : r.grade || 'D';
-    const score = { online: true, player: r.name, avatar: p && p.avatar, score: r.score || 0, scoreStd: r.score || 0, accuracy: r.accuracy || 0, maxCombo: r.maxCombo || 0,
+    const score = { online: true, own: r.id === Multiplayer.me, player: r.name, avatar: p && p.avatar, score: r.score || 0, scoreStd: r.score || 0, accuracy: r.accuracy || 0, maxCombo: r.maxCombo || 0,
       counts: r.counts || [0, 0, 0, 0, 0, 0], grade: g, mods: r.mods || [], passed: !r.forfeit && g !== 'F', pp: r.pp || 0, date: Date.now(), replayId: null,
       title: m.title || (local && local.title) || '', artist: m.artist || (local && local.artist) || '', version: (r.diff && r.diff.version) || m.version || (local && local.version) || '',
       creator: (local && local.creator) || m.creator || '', keys: (local && local.keys) || m.keys || 4, stars: (r.diff && r.diff.stars) || (local && local.stars) || m.stars || 0, mapHash: (r.diff && r.diff.hash) || m.hash || '' };

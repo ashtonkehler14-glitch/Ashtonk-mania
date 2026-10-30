@@ -1374,17 +1374,17 @@ const MODS = [
     desc: 'Play with nine keys (converted osu! beatmaps).' },
   { id: '10K', name: 'Ten Keys', group: 'conversion', mult: 0.9, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K'],
     desc: 'Play with ten keys (converted osu! beatmaps).' },
-  { id: 'WU', name: 'Wind Up', group: 'fun', key: 'Period', mult: 0.5, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WD', 'AS'], unranked: true, ramp: [1, 1.5],
+  { id: 'WU', name: 'Wind Up', group: 'fun', key: 'Period', mult: 0.5, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WD', 'AS'], unranked: true, nojudge: true, ramp: [1, 1.5],
     desc: 'Can you keep up? The song speeds up from 1× to 1.5× as it plays (pitch follows).' },
-  { id: 'WD', name: 'Wind Down', group: 'fun', key: 'Slash', mult: 0.5, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'AS'], unranked: true, ramp: [1, 0.75],
+  { id: 'WD', name: 'Wind Down', group: 'fun', key: 'Slash', mult: 0.5, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'AS'], unranked: true, nojudge: true, ramp: [1, 0.75],
     desc: 'Slow down… The song slows from 1× to 0.75× as it plays (pitch follows).' },
-  { id: 'AS', name: 'Adaptive Speed', group: 'fun', key: 'Semicolon', mult: 0.5, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'WD'], unranked: true, adaptive: true,
+  { id: 'AS', name: 'Adaptive Speed', group: 'fun', key: 'Semicolon', mult: 0.5, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'WD'], unranked: true, nojudge: true, adaptive: true,
     desc: 'Let the song speed adapt to you: hit early and it speeds up, late or miss and it slows down (0.5×–2×).' },
-  { id: 'MU', name: 'Muted', group: 'fun', key: 'KeyO', mult: 1.0, color: '#ff66ab', incompatible: [], unranked: true, config: 'mu',
+  { id: 'MU', name: 'Muted', group: 'fun', key: 'KeyO', mult: 1.0, color: '#ff66ab', incompatible: [], unranked: true, nojudge: true, config: 'mu',
     desc: 'Can you still feel the rhythm without music?' },
-  { id: 'AT', name: 'Auto', group: 'automation', key: 'KeyM', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true,
+  { id: 'AT', name: 'Auto', group: 'automation', key: 'KeyM', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true, nojudge: true,
     desc: 'Watch a perfect automated play-through. Scores are not saved.' },
-  { id: 'CN', name: 'Cinema', group: 'automation', key: 'Comma', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true,
+  { id: 'CN', name: 'Cinema', group: 'automation', key: 'Comma', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true, nojudge: true,
     desc: 'Watch the video without visual distractions.' },
 ];
 const MOD_BY_ID = new Map(MODS.map(m => [m.id, m]));
@@ -1475,6 +1475,9 @@ const ModSystem = {
   /** lazer's ranked mods: none it marks unranked (Difficulty Adjust and the other conversions that make a beatmap
    *  something else, a speed of your own, Auto…), and — given the settings they were played with (`cfg`) — Hidden,
    *  Fade In, Cover and Flashlight only as they come (lazer ranks those only at their default settings). */
+  /** Can the server's judge play these mods through (none it marks `nojudge`: Auto, Cinema, Wind Up / Down, Adaptive
+   *  Speed, Muted)? A room only takes mods it can — unranked ones too, for no pp. */
+  judgeable(list) { return !list.some(id => MOD_BY_ID.get(id)?.nojudge); },
   isRanked(list, cfg) {
     if (list.some(id => MOD_BY_ID.get(id)?.unranked)) return false;
     if (!cfg || typeof cfg !== 'object') return true;
@@ -2231,7 +2234,9 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   const cfg = play.modConfig && typeof play.modConfig === 'object' ? play.modConfig : {};
   const modConfig = {};
   for (const k of ['rate', 'od', 'hp', 'acc', 'cover', 'percy', 'flSize', 'coDir']) if (Number.isFinite(Number(cfg[k]))) modConfig[k] = Number(cfg[k]);
-  if (!ModSystem.isRanked(mods, modConfig)) return fail('unranked mods');
+  // (a multiplayer play — `noFail` — may have unranked mods the judge can play through: worth no pp)
+  const ranked = ModSystem.isRanked(mods, modConfig);
+  if (!ModSystem.judgeable(mods) || (!ranked && !noFail)) return fail('unranked mods');
   const rate = ModSystem.rate(mods, modConfig);
   if (!(rate >= VERIFY.MIN_RATE && rate <= VERIFY.MAX_RATE)) return fail('speed out of range');
   const seed = Number.isFinite(Number(play.seed)) ? Number(play.seed) | 0 : 0;
@@ -2269,7 +2274,7 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   if (judged >= VERIFY.BOT_NOTES && sum.unstableRate < VERIFY.BOT_UR) return fail('inhuman timing');
   const starNotes = convertsNotes(mods) ? playNotes : notes;
   const stars = DifficultyCalculator.calculate(starNotes, keys, rate);
-  const pp = failed ? 0 : OsuMath.pp(stars, sum.counts, mods);
+  const pp = failed || !ranked ? 0 : OsuMath.pp(stars, sum.counts, mods);
   const grade = ScoreSystem.gradeFor(sum.accuracy, failed, mods, sum.counts);
   return {
     score: Math.round(sum.scoreStd != null ? sum.scoreStd : sum.score), accuracy: sum.accuracy, maxCombo: sum.maxCombo, counts: sum.counts,
@@ -2303,6 +2308,10 @@ function acceptPlay(osuText, res, { noFail = false } = {}) {
   const num = (v, lo, hi, d = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
   const mods = ModSystem.normalize(Array.isArray(res.mods) ? res.mods.map(String) : []);
   if (mods.includes('AT')) return { error: 'Auto\'s play' };
+  // (as verifyPlay: unranked mods only in multiplayer, worth no pp there)
+  const cfg = res.modConfig && typeof res.modConfig === 'object' ? res.modConfig : null;
+  const ranked = ModSystem.isRanked(mods, cfg);
+  if (!ModSystem.judgeable(mods) || (!ranked && !noFail)) return { error: 'unranked mods' };
   const failed = !!res.failed;
   if (failed && !noFail) return { error: 'the play failed' };
   const counts = Array.from({ length: 6 }, (_, i) => Math.round(num(Array.isArray(res.counts) ? res.counts[i] : 0, 0, 1e6)));
@@ -2310,7 +2319,7 @@ function acceptPlay(osuText, res, { noFail = false } = {}) {
   const md = bm.metadata || {};
   return {
     score: Math.round(num(res.score, 0, 1e9)), accuracy: num(res.accuracy, 0, 1), maxCombo: Math.round(num(res.maxCombo, 0, 1e6)), counts,
-    grade, stars: num(res.stars, 0, 100), pp: failed || !ModSystem.isRanked(mods) ? 0 : num(res.pp, 0, 1e5), mods,
+    grade, stars: num(res.stars, 0, 100), pp: failed || !ranked ? 0 : num(res.pp, 0, 1e5), mods,
     keys: Math.round(num(res.keys, 1, 18, 4)), rate: num(res.rate, VERIFY.MIN_RATE, VERIFY.MAX_RATE, 1), unstableRate: num(res.unstableRate, 0, 1e4), failed,
     beatmapSetId: Number(md.BeatmapSetID) || -1, beatmapId: Number(md.BeatmapID) || -1, title: md.Title || '', artist: md.Artist || '', version: md.Version || '',
   };

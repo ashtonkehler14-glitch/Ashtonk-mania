@@ -468,6 +468,12 @@ check('results: the higher score wins (as in osu! multiplayer)', /You win/.test(
 check('winner row: full score and its pp', ra.res.rows[0].name === 'Alice' && ra.res.rows[0].score === 1000000 && ra.res.rows[0].pp > 0 && ra.res.rows[1].pp === 0, JSON.stringify(ra.res.rows.map(r => [r.name, r.score, Math.round(r.pp), r.passed])));
 check('results panel leads with the score', await alice.evaluate(() => /^[\d,]+$/.test(document.querySelector('.mp-res-score').textContent.trim())));
 check('scores are also saved locally', await alice.evaluate(() => AshtonkMania.ScoreManager.scores.length === 1));
+// a score in the room's results brings its score card back up; Esc puts it away
+await alice.click('.mp-res-row.click:not(.win)');
+await alice.waitForSelector('.mpr-pop .rs-name', { timeout: 5000 }).catch(() => {});
+check('clicking a score in the room\'s results opens its score card', await alice.evaluate(() => document.querySelector('.mpr-pop .rs-name')?.textContent === 'Bob'));
+await alice.keyboard.press('Escape');
+await alice.waitForFunction(() => !document.querySelector('.mpr-pop'), null, { timeout: 3000 }).catch(() => {});
 
 // mods: Alice (the host) picks DT (+ her own Hidden) — the room's straight away; Bob asking for HT needs Alice to accept
 // (she declines); Bob picks Mirror for himself
@@ -513,6 +519,37 @@ await alice.click('.mp-ready');
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.players.some(p => p.ready), null, { timeout: 5000 });
 check('room updates don\'t wipe what you are typing', await bob.evaluate(() => document.querySelector('.mp-tabpane input').value === 'half-typed'));
 await alice.click('.mp-ready');
+
+// each player's own speed (the room's setting): Bob picks HT for himself — no vote, the room's DT gone
+await alice.click('.mp-settings-btn');
+await alice.waitForSelector('.dialog .mp-set');
+await alice.click('.dialog .mp-seg-b:has-text("Each their own")');
+await alice.click('.dialog .actions .btn');
+await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.settings.speed === 'own', null, { timeout: 5000 }).catch(() => {});
+await bob.evaluate(() => AshtonkMania.Multiplayer.setMods(['HT', 'MR']));
+const own = await alice.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room, b = r.players.find(p => p.id !== r.host); return b && b.mods.includes('HT') ? { room: r.mods.join(), bob: b.mods.join(), vote: !!r.vote, rule: /Own speed mods/.test(document.querySelector('.mp-rules').textContent), badge: !!document.querySelector('.mp-pmods') } : null; }, null, { timeout: 5000 }).then(h => h.jsonValue(), () => null);
+check('each their own speed: Bob\'s HT is his alone — no vote, no room speed', own && own.room === '' && /HT/.test(own.bob) && !own.vote && own.rule && own.badge, JSON.stringify(own));
+await alice.click('.mp-settings-btn');
+await alice.waitForSelector('.dialog .mp-set');
+await alice.click('.dialog .mp-seg-b:has-text("Same for all")');
+await alice.click('.dialog .actions .btn');
+await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.settings.speed === 'room', null, { timeout: 5000 }).catch(() => {});
+check('one speed for everyone again: Bob\'s own HT goes', await alice.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return r.players.every(p => !(p.mods || []).includes('HT')); }, null, { timeout: 5000 }).then(() => true, () => false));
+
+// the room's queue: the host queues a song, everyone sees what's up next; only the host (in "host picks") adds or
+// takes songs off
+await alice.evaluate(() => { const M = AshtonkMania.Multiplayer; M.queueAdd(M.localMap(M.room.map)); });
+await bob.waitForSelector('.mp-qi', { timeout: 5000 }).catch(() => {});
+const qv = await bob.evaluate(() => ({ items: document.querySelectorAll('.mp-qi').length, by: document.querySelector('.mp-qi-by')?.textContent, add: !!document.querySelector('.mp-queue-h .btn'), del: !!document.querySelector('.mp-qi-b.del') }));
+check('the host queues a song: everyone sees it up next, with who added it; only the host can add or remove here', qv.items === 1 && /Alice/.test(qv.by) && !qv.add && !qv.del, JSON.stringify(qv));
+await shot(alice, 'mp-queue');
+await alice.click('.mp-queue-h .btn');
+await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'songselect' && /queue/.test(document.querySelector('.tag.accent')?.textContent || ''), null, { timeout: 5000 }).catch(() => {});
+check('Add song opens song select to pick a song for the queue', await alice.evaluate(() => AshtonkMania.SongSelect.mpQueue === true && /queue/.test(document.querySelector('.tag.accent')?.textContent || '')));
+await alice.evaluate(() => AshtonkMania.Screens.go('multiplayer', {}, { replace: true }));
+await alice.waitForSelector('.mp-qi-b.del', { timeout: 5000 });
+await alice.$eval('.mp-qi-b.del', b => b.click());
+check('the host takes it off the queue', await bob.waitForFunction(() => !document.querySelector('.mp-qi') && !(AshtonkMania.Multiplayer.room.queue || []).length, null, { timeout: 5000 }).then(() => true, () => false));
 
 // beatmap search opens the real Browse screen (Beatmap Explorer). Online results are mocked (the mirrors are external).
 const onlineDiff = (id, version, stars) => ({ beatmapset_id: 424242, id, mode: 'mania', version, difficulty_rating: stars, cs: 4, accuracy: 8, drain: 7, bpm: 150, total_length: 20, count_circles: 50, count_sliders: 4 });

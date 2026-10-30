@@ -191,6 +191,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Skin', k: 'wom.stageOpacity', d: 0.5 },
   { x: 1, s: 'Skin', k: 'wom.stageSidesOpacity', d: 1 },
   { x: 1, s: 'Skin', k: 'wom.receptorOpacity', d: 1 },
+  { x: 1, s: 'Skin', k: 'skin.receptorAlpha', d: 100 }, // (the skin editor's "Receptor opacity", %: any skin's keys)
   { x: 1, s: 'Skin', k: 'wom.receptorLighting', d: true },
   { x: 1, s: 'Skin', k: 'wom.hudY', d: 0.66 },
   { x: 1, s: 'Skin', k: 'wom.noteOffset', d: 0 },

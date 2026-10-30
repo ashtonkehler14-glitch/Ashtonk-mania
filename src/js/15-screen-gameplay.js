@@ -845,7 +845,7 @@ const GameplayScreen = {
       this.hud.append(this.hitbox);
     }
     // (lazer's SpectatorPlayer: "Watching (them) play (the song) live", top centre)
-    if (s.spectate) this.hud.append(Spectate.liveEl(s));
+    if (s.spectate) this.hud.append(Spectate.liveEl(s), ...(Spectate.target && Spectate.target.room ? [Spectate.switchEl()] : [])); // (from a room: the others there, to switch to)
     else if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }

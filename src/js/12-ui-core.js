@@ -562,13 +562,13 @@ const Dialog = {
       setTimeout(() => { inp.focus(); inp.select(); }, 30);
     });
   },
-  custom(title, bodyEl, actions = []) {
+  custom(title, bodyEl, actions = [], { onClose = null } = {}) {
     let o;
     const dlg = h('div.dialog', { role: 'dialog', 'aria-modal': 'true' }, h('h2', title), h('div.body', bodyEl),
       h('div.actions', ...actions.map(a => h(`button.btn${a.primary ? '.primary' : a.danger ? '.danger' : '.ghost'}`, { onclick: () => { a.onClick && a.onClick(); if (a.close !== false) o.close(); } }, a.label))));
     // (sized for what's in it: .for-<its class>)
     if (bodyEl && bodyEl.classList && bodyEl.classList[0]) dlg.classList.add('for-' + bodyEl.classList[0]);
-    o = makeOverlay(dlg);
+    o = makeOverlay(dlg, { onClose });
     // (a body taller than the dialog has room for — a phone on its side — fades at its foot while there's more to read,
     // and at its top once scrolled)
     const body = dlg.querySelector(':scope > .body');
@@ -921,7 +921,8 @@ const Toolbar = {
         ? { label: 'Play as yourself here (your code)', icon: 'lock', onClick: () => CodePanel.open({ use: true }) }
         : { label: 'Your code (play on another device)', icon: 'lock', onClick: () => CodePanel.open() }]),
       // (the server's owner: their admin panel, on the server)
-      ...(typeof Presence !== 'undefined' && Presence.isAdmin ? [{ label: 'Admin panel', icon: 'gear', onClick: () => window.open(Host.standalone ? new URL('admin', Host.server()).href : '/admin', '_blank', 'noopener') }] : []),
+      // (and — the owner or an admin they made — an announcement for everyone, from here)
+      ...(typeof Presence !== 'undefined' && Presence.isAdmin ? [{ label: 'Admin panel', icon: 'gear', onClick: () => Staff.openPanel() }, { label: 'Announce…', icon: 'bell', onClick: () => Staff.announce() }] : []),
     ]);
     return m;
   },

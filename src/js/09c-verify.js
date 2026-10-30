@@ -33,7 +33,9 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   const cfg = play.modConfig && typeof play.modConfig === 'object' ? play.modConfig : {};
   const modConfig = {};
   for (const k of ['rate', 'od', 'hp', 'acc', 'cover', 'percy', 'flSize', 'coDir']) if (Number.isFinite(Number(cfg[k]))) modConfig[k] = Number(cfg[k]);
-  if (!ModSystem.isRanked(mods, modConfig)) return fail('unranked mods');
+  // (a multiplayer play — `noFail` — may have unranked mods the judge can play through: worth no pp)
+  const ranked = ModSystem.isRanked(mods, modConfig);
+  if (!ModSystem.judgeable(mods) || (!ranked && !noFail)) return fail('unranked mods');
   const rate = ModSystem.rate(mods, modConfig);
   if (!(rate >= VERIFY.MIN_RATE && rate <= VERIFY.MAX_RATE)) return fail('speed out of range');
   const seed = Number.isFinite(Number(play.seed)) ? Number(play.seed) | 0 : 0;
@@ -71,7 +73,7 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   if (judged >= VERIFY.BOT_NOTES && sum.unstableRate < VERIFY.BOT_UR) return fail('inhuman timing');
   const starNotes = convertsNotes(mods) ? playNotes : notes;
   const stars = DifficultyCalculator.calculate(starNotes, keys, rate);
-  const pp = failed ? 0 : OsuMath.pp(stars, sum.counts, mods);
+  const pp = failed || !ranked ? 0 : OsuMath.pp(stars, sum.counts, mods);
   const grade = ScoreSystem.gradeFor(sum.accuracy, failed, mods, sum.counts);
   return {
     score: Math.round(sum.scoreStd != null ? sum.scoreStd : sum.score), accuracy: sum.accuracy, maxCombo: sum.maxCombo, counts: sum.counts,
@@ -105,6 +107,10 @@ function acceptPlay(osuText, res, { noFail = false } = {}) {
   const num = (v, lo, hi, d = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
   const mods = ModSystem.normalize(Array.isArray(res.mods) ? res.mods.map(String) : []);
   if (mods.includes('AT')) return { error: 'Auto\'s play' };
+  // (as verifyPlay: unranked mods only in multiplayer, worth no pp there)
+  const cfg = res.modConfig && typeof res.modConfig === 'object' ? res.modConfig : null;
+  const ranked = ModSystem.isRanked(mods, cfg);
+  if (!ModSystem.judgeable(mods) || (!ranked && !noFail)) return { error: 'unranked mods' };
   const failed = !!res.failed;
   if (failed && !noFail) return { error: 'the play failed' };
   const counts = Array.from({ length: 6 }, (_, i) => Math.round(num(Array.isArray(res.counts) ? res.counts[i] : 0, 0, 1e6)));
@@ -112,7 +118,7 @@ function acceptPlay(osuText, res, { noFail = false } = {}) {
   const md = bm.metadata || {};
   return {
     score: Math.round(num(res.score, 0, 1e9)), accuracy: num(res.accuracy, 0, 1), maxCombo: Math.round(num(res.maxCombo, 0, 1e6)), counts,
-    grade, stars: num(res.stars, 0, 100), pp: failed || !ModSystem.isRanked(mods) ? 0 : num(res.pp, 0, 1e5), mods,
+    grade, stars: num(res.stars, 0, 100), pp: failed || !ranked ? 0 : num(res.pp, 0, 1e5), mods,
     keys: Math.round(num(res.keys, 1, 18, 4)), rate: num(res.rate, VERIFY.MIN_RATE, VERIFY.MAX_RATE, 1), unstableRate: num(res.unstableRate, 0, 1e4), failed,
     beatmapSetId: Number(md.BeatmapSetID) || -1, beatmapId: Number(md.BeatmapID) || -1, title: md.Title || '', artist: md.Artist || '', version: md.Version || '',
   };

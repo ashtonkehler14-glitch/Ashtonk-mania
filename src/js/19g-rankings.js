@@ -24,7 +24,7 @@ const Verified = {
   /** A play's result, as the server takes it. */
   result(sc) {
     return { score: sc.scoreStd != null ? sc.scoreStd : sc.score, accuracy: sc.accuracy, maxCombo: sc.maxCombo, counts: sc.counts, grade: sc.grade,
-      stars: sc.stars, pp: sc.pp, mods: sc.mods || [], keys: sc.keys, rate: sc.rate || 1, unstableRate: sc.unstableRate || 0, failed: !sc.passed, date: sc.date || 0 };
+      stars: sc.stars, pp: sc.pp, mods: sc.mods || [], ...(sc.modConfig ? { modConfig: sc.modConfig } : {}), keys: sc.keys, rate: sc.rate || 1, unstableRate: sc.unstableRate || 0, failed: !sc.passed, date: sc.date || 0 };
   },
   /** The beatmap file, base64, as the server hashes it. */
   async file(rec) {

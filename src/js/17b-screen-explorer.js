@@ -331,6 +331,7 @@ const ExplorerScreen = {
     const st = this.state;
     // opened from a multiplayer room: every card picks (host) or suggests (other players) a difficulty for the room
     this.mpPick = !!params.mpPick && typeof Multiplayer !== 'undefined' && Multiplayer.inRoom();
+    this.mpQueue = this.mpPick && !!params.mpQueue && Multiplayer.canQueue(); // (onto the room's queue)
     this.searchInput = h('input.input.ex-search', { type: 'search', value: st.q, placeholder: 'Search osu!mania beatmaps — title, artist, mapper, tags…', 'aria-label': 'Search online beatmaps' });
     let t = 0;
     // (lazer's listing: a new search sorts by relevance, and clearing it goes back to ranked — another sort can be
@@ -377,7 +378,7 @@ const ExplorerScreen = {
     this.sentinel = h('div.ex-sentinel');
     const host = this.mpPick && Multiplayer.isHost();
     const header = h('div.ex-header',
-      this.mpPick ? h('div.ex-mp', icon('multi'), h('span', host ? 'Pick a beatmap for your multiplayer room — it downloads for everyone.' : 'Find a beatmap and recommend it to the room host.'), h('span.grow'),
+      this.mpPick ? h('div.ex-mp', icon('multi'), h('span', this.mpQueue ? 'Find a song for the room\'s queue — it downloads for everyone when its turn comes.' : host ? 'Pick a beatmap for your multiplayer room — it downloads for everyone.' : 'Find a beatmap and recommend it to the room host.'), h('span.grow'),
         h('button.btn.sm', { onclick: () => Screens.go('multiplayer', {}, { replace: true }) }, icon('back'), 'Back to room')) : null,
       h('div.ex-searchwrap', icon('search'), this.searchInput),
       this.filters);
@@ -817,7 +818,7 @@ const ExplorerScreen = {
     const owned = this.owned(set.id), dl = this.downloads.get(set.id);
     let main;
     if (dl && dl.state === 'downloading') main = h('div.bso-dl.busy', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('i'), h('span', 'Downloading…'), h('small', dl.progress != null ? `${Math.round(dl.progress * 100)}%` : fmtBytes(dl.bytes || 0)));
-    else if (this.mpPick) main = h('button.bso-dl', { onclick: () => this.mpPickDiff(set, d) }, icon(Multiplayer.isHost() ? 'play' : 'multi'), h('span', Multiplayer.isHost() ? 'Pick for the room' : 'Recommend to the host'), h('small', d.version));
+    else if (this.mpPick) main = h('button.bso-dl', { onclick: () => this.mpPickDiff(set, d) }, icon(this.mpQueue ? 'plus' : Multiplayer.isHost() ? 'play' : 'multi'), h('span', this.mpQueue ? 'Add to the queue' : Multiplayer.isHost() ? 'Pick for the room' : 'Recommend to the host'), h('small', d.version));
     else if (owned) { const m = owned.maps.find(x => x.onlineId === d.id) || owned.maps.find(x => !x.problems.length) || owned.maps[0]; main = h('button.bso-dl.play', { onclick: () => this.playLocal(m) }, icon('play'), h('span', 'Play'), h('small', m.version)); }
     else {
       // (as in lazer, a set with a video has a second button to download it without)
@@ -916,7 +917,7 @@ const ExplorerScreen = {
   },
   async mpPickDiff(set, d) {
     if (!Multiplayer.inRoom()) { Toast.err('You are no longer in a room'); return; }
-    const host = Multiplayer.isHost();
+    const host = Multiplayer.isHost() || this.mpQueue; // (a song for the queue is downloaded first too, as the host's pick is)
     const findLocal = () => [...BeatmapManager.maps.values()].find(m => m.onlineId === d.id && !m.problems.length)
       || (this.owned(set.id)?.maps || []).find(m => m.version === d.version && !m.problems.length) || null;
     let m = findLocal();
@@ -940,15 +941,20 @@ const ExplorerScreen = {
           m = findLocal();
         }
         if (!m) throw new Error('That difficulty couldn\'t be found after downloading.');
-        Multiplayer.selectMap(m, Settings.get('songselect.mods') || []);
-        Toast.ok('Beatmap picked', `${m.title} [${m.version}]`);
+        if (this.mpQueue) {
+          if (!Multiplayer.queueAdd(m)) throw new Error(Multiplayer.reconnecting ? 'Reconnecting to the room — try again in a moment.' : 'You\'re not connected to the room.');
+          Toast.ok(Multiplayer.room && Multiplayer.room.map ? 'Added to the queue' : 'Beatmap picked', `${m.title} [${m.version}]`);
+        } else {
+          Multiplayer.selectMap(m, Settings.get('songselect.mods') || []);
+          Toast.ok('Beatmap picked', `${m.title} [${m.version}]`);
+        }
       } else {
         const info = { title: set.title, artist: set.artist, version: d.version, creator: set.creator, stars: d.stars, keys: d.keys, onlineSetId: set.id, onlineId: d.id };
         if (!Multiplayer.send({ t: 'suggest', map: m ? { ...info, hash: m.hash, length: m.length } : info })) throw new Error(Multiplayer.reconnecting ? 'Reconnecting to the room — try again in a moment.' : 'You\'re not connected to the room.');
         Toast.show('Recommended to the host', `${set.title} [${d.version}]`);
       }
       Screens.go('multiplayer', {}, { replace: true });
-    } catch (e) { Toast.err(host ? 'Couldn\'t pick that beatmap' : 'Couldn\'t recommend that beatmap', friendlyError(e)); }
+    } catch (e) { Toast.err(this.mpQueue ? 'Couldn\'t queue that song' : host ? 'Couldn\'t pick that beatmap' : 'Couldn\'t recommend that beatmap', friendlyError(e)); }
   },
   /** Download progress, written into the card and the info page as they are: rebuilding them for every tick made
    *  the card under the pointer jitter (its hover lift and side panel restarted each time). */

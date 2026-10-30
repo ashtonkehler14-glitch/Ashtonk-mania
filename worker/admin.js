@@ -157,6 +157,21 @@ textarea { width: 100%; min-height: 64px; resize: vertical; }
 .login input { width: 100%; font-size: 18px; letter-spacing: .12em; text-transform: uppercase; text-align: center; padding: 12px; margin: 14px 0 10px; font-family: ui-monospace, monospace; }
 .login button { width: 100%; padding: 11px; }
 code { background: #0f0c16; padding: 2px 6px; border-radius: 6px; }
+a { color: #d6b3ff; } a.big { font-weight: 700; font-size: 15px; }
+.tabs .pill { margin-left: 6px; }
+.todos { display: grid; gap: 10px; margin-bottom: 16px; }
+.todo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); box-shadow: inset 3px 0 0 var(--accent); }
+.todo.bad { box-shadow: inset 3px 0 0 var(--bad); } .todo .muted { flex: 1; min-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px; border-radius: 10px; background: #0f0c16; }
+.seg button { background: none; color: var(--muted); padding: 5px 11px; } .seg button.on { background: var(--panel2); color: var(--text); }
+.check { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--muted); } .check input { width: 16px; height: 16px; }
+.ann { --ac: #66ccff; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 10px 14px; border-radius: 10px; background: #0f0c16; box-shadow: inset 3px 0 0 var(--ac); }
+.ann.warn { --ac: #ffcc22; } .ann.event { --ac: #ff66aa; } .ann.maint { --ac: #ff8a5c; }
+.ann b { color: var(--ac); } .ann span { overflow-wrap: anywhere; } .ann .cd { margin-left: auto; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 99px; background: rgba(255,255,255,.08); }
+.annrow { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.report .quote { margin: 10px 0 0; padding: 8px 12px; border-left: 3px solid var(--line); color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.report.closed { opacity: .7; }
+.chat.mini { margin-top: 10px; max-height: 180px; } .chat.mini .line { padding: 4px; }
 `;
 
 const OFF = `<div class="center"><div class="card login"><h1>The admin panel is off</h1>
@@ -228,7 +243,9 @@ const rolePill = (name, colour) => { const el = h('span.pill', name); if (/^#[0-
 const badges = p => [p.owner || p.admin ? rolePill('Owner', '#ffcc22') : p.role ? rolePill(p.role.name, p.role.colour) : null, p.banned ? h('span.pill.bad', 'banned') : null, p.muted ? h('span.pill.warn', 'muted') : null, p.named ? h('span.pill', 'renamed') : null, p.noAvatar ? h('span.pill.warn', 'picture down') : null, p.code ? h('span.pill.good', 'code') : null, p.deleted ? h('span.pill.bad', 'deleted') : null];
 let ME = { owner: true };
 
-const TABS = [['overview', 'Overview'], ['players', 'Players'], ['chat', 'Chat'], ['playlists', 'Playlists'], ['daily', 'Daily challenge'], ['log', 'Log']];
+const TABS = [['overview', 'Overview'], ['reports', 'Reports'], ['players', 'Players'], ['announce', 'Announcements'], ['chat', 'Chat'], ['playlists', 'Playlists'], ['daily', 'Daily challenge'], ['log', 'Log']];
+let OPEN = 0; // (reports waiting: shown on their tab)
+const tabBtns = () => tabsEl.replaceChildren(...tabs().map(([k, l]) => h('button' + (k === tab ? '.on' : ''), { onclick: () => go(k) }, l, k === 'reports' && OPEN ? h('span.pill.bad', String(OPEN)) : null)));
 const tabs = () => ME.owner ? TABS : TABS.filter(([k]) => k !== 'daily' && k !== 'log');
 let tab = (location.hash.slice(1).split('/')[0]) || 'overview';
 const app = document.getElementById('app'), main = h('main'), tabsEl = h('div.tabs');
@@ -240,19 +257,23 @@ window.addEventListener('hashchange', () => { if (location.hash === shown) retur
 
 async function render() {
   shown = location.hash;
-  tabsEl.replaceChildren(...tabs().map(([k, l]) => h('button' + (k === tab ? '.on' : ''), { onclick: () => go(k) }, l)));
+  tabBtns();
   main.replaceChildren(h('div.empty', 'Loading…'));
-  try { await ({ overview, players, chat, playlists, daily, log })[tab](); } catch (e) { main.replaceChildren(h('div.card', h('p.bad', e.message))); }
+  try { await ({ overview, reports, players, announce, chat, playlists, daily, log })[tab](); } catch (e) { main.replaceChildren(h('div.card', h('p.bad', e.message))); }
 }
 
 async function overview() {
   const d = await api('overview');
   const map = d.daily.map;
-  if (d.me && !d.me.owner !== !ME.owner) { ME = d.me; tabsEl.replaceChildren(...tabs().map(([k, l]) => h('button' + (k === tab ? '.on' : ''), { onclick: () => go(k) }, l))); }
-  ME = d.me || ME;
+  ME = d.me || ME; OPEN = d.reports || 0; tabBtns();
+  // (what needs an admin now: reports waiting; and what everyone sees: the announcements up)
+  const todo = [OPEN ? h('div.todo.bad', h('b', OPEN + ' report' + (OPEN === 1 ? '' : 's') + ' waiting'), h('span.muted', 'Players told the admins about someone.'), h('button.primary', { onclick: () => go('reports') }, 'Review')) : null,
+    (d.anns || []).length ? h('div.todo', h('b', d.anns.length + ' announcement' + (d.anns.length === 1 ? '' : 's') + ' up'), h('span.muted', d.anns.map(a => a.title || a.text).join(' · ')), h('button', { onclick: () => go('announce') }, 'Manage')) : null].filter(Boolean);
   main.replaceChildren(
-    h('div.card', h('div.row', h('span.muted', 'Signed in as'), ME.owner ? rolePill('Owner', '#ffcc22') : [h('b', ME.name || ME.pid), ME.role ? rolePill(ME.role.name, ME.role.colour) : null])),
-    h('div.grid', [['Online now', d.online.length], ['Players', d.players], ['Ranked players', d.ranked], ['Players with a code', d.codes], ['Open rooms', d.rooms.length], ['Open playlists', d.playlists], ['Daily challenge scores', d.dailyScores], ['Banned', d.bans], ['Muted', d.mutes]].map(([l, v]) => h('div.tile', h('b', fmt(v)), h('span', l)))),
+    h('div.card', h('div.row', h('span.muted', 'Signed in as'), ME.owner ? rolePill('Owner', '#ffcc22') : [h('b', ME.name || ME.pid), ME.role ? rolePill(ME.role.name, ME.role.colour) : null], h('span.grow'),
+      h('button.small', { onclick: () => go('announce') }, 'Announce…'), h('button.small', { onclick: () => go('players') }, 'Find a player'))),
+    todo.length ? h('div.todos', todo) : null,
+    h('div.grid', [['Online now', d.online.length], ['Open reports', OPEN], ['Players', d.players], ['Ranked players', d.ranked], ['Players with a code', d.codes], ['Open rooms', d.rooms.length], ['Open playlists', d.playlists], ['Daily challenge scores', d.dailyScores], ['Banned', d.bans], ['Muted', d.mutes]].map(([l, v]) => h('div.tile', h('b', fmt(v)), h('span', l)))),
     d.owner ? null : h('div.card', h('p.warn', 'No player has the code in ADMIN_CODE yet: sign in to the game with it (Your code) so the game knows you\\'re the owner.')),
     h('div.cols',
       h('div.card', h('h2', 'Online now'), d.online.length ? h('table', h('tr', h('th', 'Player'), h('th', 'Doing')), d.online.map(u => h('tr.click', { onclick: () => u.pid && openPlayer(u.pid) },
@@ -363,7 +384,7 @@ async function chat() {
   const announce = async () => { if (!text.value.trim()) return; await run(() => api('announce', { text: text.value }), 'Announced'); chat(); };
   text.addEventListener('keydown', e => { if (e.key === 'Enter') announce(); });
   main.replaceChildren(
-    h('div.card', h('h2', 'Announce'), h('div.row', text, h('button.primary', { onclick: announce }, 'Send'))),
+    h('div.card', h('h2', 'Announce'), h('div.row', text, h('button.primary', { onclick: announce }, 'Send')), h('p.muted.small', 'A quick one, just now. For a banner that stays up, an event or maintenance: ', h('a', { href: '#announce' }, 'Announcements'), '.')),
     h('div.card', h('div.row', h('h2.grow', '#lobby (' + d.chat.length + ')'), h('button.small', { onclick: chat }, 'Refresh'), !ME.owner ? null : h('button.small.danger', { onclick: async () => { if (!confirm('Clear #lobby for everyone?')) return; await run(() => api('chatClear'), 'Cleared'); chat(); } }, 'Clear all')),
       d.chat.length ? h('div.chat', d.chat.slice().reverse().map(l => h('div.line' + (l.from && l.from.system ? '.sys' : ''), h('span.t', clock(l.at)), h('span.n', (l.from && l.from.name) || '?'), h('span.x', l.text),
         l.from && l.from.pid ? h('button.small', { onclick: () => openPlayer(l.from.pid) }, 'Player') : null,
@@ -381,6 +402,80 @@ async function daily() {
       : h('p.' + (d.error ? 'bad' : 'muted'), d.error || 'Not picked yet: the server picks one when the first player opens the daily challenge.'),
     h('h3', 'Change it'), h('div.row', h('button', { onclick: async () => { if (m && d.scores && !confirm('Pick another? Today\\'s scores are for the current beatmap.')) return; await run(() => api('dailyPick'), 'Picked a new one'); daily(); } }, 'Pick another at random')),
     h('div.row.mt', id, h('button.primary', { onclick: set }, 'Set'))));
+}
+
+// ── Announcements: a banner in everyone's game while it's up (and whoever comes online meanwhile) — in a style, with a
+// title, for as long as you pick; maintenance counts down to a time; a pop-up has to be closed. Or just now: a
+// notification and a line in #lobby.
+const STYLES = [['info', 'News'], ['warn', 'Important'], ['event', 'Event'], ['maint', 'Maintenance']];
+const seg = (list, cur, set) => { const el = h('div.seg', list.map(([v, l]) => h('button' + (v === cur ? '.on' : ''), { type: 'button', onclick: e => { set(v); for (const b of el.children) b.classList.toggle('on', b === e.currentTarget); } }, l))); return el; };
+async function announce() {
+  const d = await api('anns');
+  let kind = 'info', hours = 6;
+  const title = h('input.grow', { placeholder: 'Title (optional) — e.g. "New update!"', maxlength: 60 });
+  const text = h('textarea', { placeholder: 'The message, for everyone in the game', maxlength: 300 });
+  const minutes = h('input', { type: 'number', min: 1, max: 10080, placeholder: 'minutes', value: '15' });
+  const popup = h('input', { type: 'checkbox' }), lobby = h('input', { type: 'checkbox', checked: true });
+  const prev = h('div'), cdRow = h('div.row', h('span.muted', 'Counts down to it in'), minutes, h('span.muted', 'minutes'));
+  const paint = () => {
+    cdRow.hidden = kind !== 'maint';
+    const label = (STYLES.find(x => x[0] === kind) || STYLES[0])[1];
+    prev.replaceChildren(h('div.ann.' + kind, h('b', title.value.trim() || label), h('span', text.value.trim() || 'Your message shows here.'), kind === 'maint' && Number(minutes.value) > 0 ? h('span.cd', 'In ' + Number(minutes.value) + ':00') : null));
+  };
+  for (const x of [title, text, minutes]) x.addEventListener('input', paint);
+  const send = async () => {
+    if (!text.value.trim()) { say('Write the message first.', true); return; }
+    await run(() => api('announce', { text: text.value, title: title.value, kind, hours, popup: popup.checked, lobby: lobby.checked, minutes: kind === 'maint' ? Number(minutes.value) || 0 : 0 }), hours || popup.checked || kind === 'maint' ? 'Announced — it\\'s up in everyone\\'s game' : 'Announced');
+    announce();
+  };
+  main.replaceChildren(
+    h('div.cols',
+      h('div.card', h('h2', 'New announcement'),
+        h('h3', 'Style'), seg(STYLES, kind, v => { kind = v; paint(); }),
+        h('h3.mt', 'Message'), h('div.row', title), h('div.mt', text), cdRow,
+        h('h3.mt', 'Stays up'), seg([[0, 'Just now'], [1, '1 hour'], [6, '6 hours'], [24, '1 day'], [72, '3 days'], [168, '7 days'], [720, '30 days']], hours, v => { hours = v; }),
+        h('p.muted.small', 'Just now: a notification for whoever is online, and a line in #lobby. Up for a while: a banner in everyone\\'s game — players coming online meanwhile see it too — until it runs out or you take it down. Each player can close it.'),
+        h('label.check', popup, ' Also a pop-up everyone has to close'), h('label.check', lobby, ' Also a line in #lobby'),
+        h('div.row.mt', h('button.primary', { onclick: send }, 'Announce'))),
+      h('div',
+        h('div.card', h('h2', 'Preview'), prev),
+        h('div.card', h('h2', 'Up now (' + d.anns.length + ')'), d.anns.length ? h('div', d.anns.map(a => h('div.annrow',
+          h('div.ann.' + a.kind, h('b', a.title || (STYLES.find(x => x[0] === a.kind) || STYLES[0])[1]), h('span', a.text)),
+          h('div.row.mt', h('span.muted.small', 'until ' + when(a.until) + (a.popup ? ' · pop-up' : '') + (a.at ? ' · counting down to ' + clock(a.at) : '')), h('span.grow'),
+            h('button.small.danger', { onclick: async () => { await run(() => api('annEnd', { id: a.id }), 'Taken down'); announce(); } }, 'Take down'))))) : h('div.empty', 'None up. Players only see the ones up now.')))));
+  paint(); text.focus();
+}
+
+// ── Reports: what players told the admins about someone — why, in their words, with the player's last lines in
+// #lobby — and the quick answers to them.
+const REASONS = { cheating: 'Cheating', chat: 'Chat', name: 'Name or picture', other: 'Something else' };
+let repShow = 'open';
+async function reports() {
+  const d = await api('reports');
+  OPEN = d.open; tabBtns();
+  const list = d.reports.filter(r => repShow === 'open' ? r.open : !r.open);
+  const done = (r, how) => async () => { await run(() => api('reportClose', { id: r.id, how }), how === 'dismissed' ? 'Dismissed' : 'Marked as dealt with'); reports(); };
+  const quick = (r, action, body, ok, confirmText) => async () => {
+    if (confirmText && !confirm(confirmText)) return;
+    await run(() => api(action, { pid: r.pid, ...body }), ok);
+    await api('reportClose', { id: r.id, how: 'done' }).catch(() => {});
+    reports();
+  };
+  const card = r => h('div.card.report' + (r.open ? '' : '.closed'),
+    h('div.row', h('span.pill.bad', REASONS[r.reason] || r.reason), h('a.big', { href: '#players/' + encodeURIComponent(r.pid) }, r.name || r.pid), h('span.muted.small', 'reported by '), h('a', { href: '#players/' + encodeURIComponent(r.by.pid) }, r.by.name || r.by.pid), h('span.grow'), h('span.muted.small', ago(r.at))),
+    r.text ? h('p.quote', r.text) : h('p.muted.small', 'No details given.'),
+    r.chat && r.chat.length ? h('div.chat.mini', h('h3', 'Their last lines in #lobby'), r.chat.map(l => h('div.line', h('span.t', clock(l.at)), h('span.x', l.text)))) : null,
+    r.open ? h('div.row.mt',
+      h('button.small', { onclick: quick(r, 'mute', { minutes: 60, reason: 'Reported: ' + (REASONS[r.reason] || '') }, 'Muted for an hour') }, 'Mute 1 hour'),
+      h('button.small', { onclick: quick(r, 'mute', { minutes: 1440, reason: 'Reported: ' + (REASONS[r.reason] || '') }, 'Muted for a day') }, 'Mute 1 day'),
+      h('button.small', { onclick: async () => { const t = prompt('A message for ' + (r.name || 'them') + ' (a notice they have to close):'); if (!t) return; await quick(r, 'warn', { text: t }, 'Message sent')(); } }, 'Warn…'),
+      h('button.small.danger', { onclick: quick(r, 'ban', { days: 1, reason: 'Reported: ' + (REASONS[r.reason] || '') }, 'Banned for a day', 'Ban ' + (r.name || r.pid) + ' for a day?') }, 'Ban 1 day'),
+      h('span.grow'),
+      h('button.small', { onclick: done(r, 'dismissed') }, 'Dismiss'), h('button.small.primary', { onclick: done(r, 'done') }, 'Dealt with'))
+      : h('p.muted.small', (r.how === 'dismissed' ? 'Dismissed' : 'Dealt with') + ' by ' + (r.closedBy || '?') + ', ' + ago(r.closedAt)));
+  main.replaceChildren(
+    h('div.row.mb', h('h2.grow', 'Reports'), seg([['open', 'Waiting (' + d.open + ')'], ['closed', 'Done']], repShow, v => { repShow = v; reports(); })),
+    list.length ? h('div', list.map(card)) : h('div.card', h('div.empty', repShow === 'open' ? 'Nothing waiting — all clear.' : 'None dealt with yet.')));
 }
 
 const logTable = list => h('table', list.map(e => h('tr', h('td.muted.small', when(e.at)), h('td', e.by ? h('span.muted', e.by + ': ') : null, h('b', e.what), e.name ? ' · ' + e.name : '', e.to ? ' → ' + e.to : '',

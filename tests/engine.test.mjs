@@ -556,6 +556,11 @@ test('score verification: the server judges a play from its key presses — not 
   for (const mods of [['DA'], ['CS'], ['NLN'], ['IN'], ['RT']]) assert.equal(V.verifyPlay(text, { mods, seed: 1, events }).error, 'unranked mods', mods.join());
   assert.equal(V.verifyPlay(text, { mods: ['HD'], modConfig: { cover: 0.8 }, seed: 1, events }).error, 'unranked mods');
   assert.ok(!V.verifyPlay(text, { mods: ['HD'], modConfig: { cover: 0.5 }, seed: 1, events }).error, 'Hidden as it comes counts');
+  // in multiplayer (noFail) they're played — worth no pp — but never Auto or the others the judge can't play through
+  const da = V.verifyPlay(text, { mods: ['DA'], modConfig: { od: 5 }, seed: 1, events }, { noFail: true });
+  assert.ok(!da.error, da.error); assert.equal(da.pp, 0);
+  assert.ok(V.verifyPlay(text, { mods: ['RT'], modConfig: { rate: 1.1 }, seed: 1, events }, { noFail: true }).score > 0);
+  for (const mods of [['AT'], ['WU'], ['CN']]) assert.equal(V.verifyPlay(text, { mods, seed: 1, events }, { noFail: true }).error, 'unranked mods', mods.join());
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000.5, 0, 0] }).error, 'impossible input');
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 900, 0, 0] }).error, 'input out of order');
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000, 0, 1] }).error, 'impossible input');
@@ -573,6 +578,11 @@ test('plays go up as the game reports them (acceptPlay): taken as they are, with
   const f = V.acceptPlay(text, { accuracy: 0.5, pp: 40, grade: 'C', failed: true }, { noFail: true });
   assert.deepEqual([f.grade, f.pp, f.failed], ['F', 0, true]);
   assert.ok(V.acceptPlay(text, { mods: ['AT'] }).error);
+  // unranked mods: turned down for the leaderboards; in multiplayer taken, for no pp
+  assert.equal(V.acceptPlay(text, { pp: 50, mods: ['DA'] }).error, 'unranked mods');
+  assert.equal(V.acceptPlay(text, { pp: 50, mods: ['HD'], modConfig: { cover: 0.9 } }).error, 'unranked mods');
+  assert.deepEqual((({ error, pp }) => [error, pp])(V.acceptPlay(text, { pp: 50, mods: ['DA'] }, { noFail: true })), [undefined, 0]);
+  assert.equal(V.acceptPlay(text, { mods: ['WU'] }, { noFail: true }).error, 'unranked mods');
 });
 
 test('bar lines: one per bar from each timing point, every fourth major, "omit first bar line" honoured', () => {

@@ -199,7 +199,8 @@ const Spectate = {
   tryStart(again = false) {
     const c = this.cur, t = this.target;
     if (!t || !this.canStart() || (c.started && !again)) return;
-    if (Screens.currentName !== (t.room ? 'multiplayer' : 'spectator') || Screens.busy) return;
+    // (from a room: from the room, or straight from the play of someone else there you switched from)
+    if ((Screens.currentName !== (t.room ? 'multiplayer' : 'spectator') && !(t.room && this.watchingNow())) || Screens.busy) return;
     const map = this.findMap(c.head);
     c.started = true;
     Object.assign(c, { synced: false, buffering: false, lag: 0, msg: null, paused: false }); // (a fresh run of the same play)
@@ -304,6 +305,37 @@ const Spectate = {
   liveEl(s) {
     const c = s.spectate, title = Settings.get('ui.unicodeMetadata') && s.rec.titleUnicode ? s.rec.titleUnicode : s.rec.title;
     return h('div.spec-live', h('span.spec-live-t', 'Watching ', h('b', c.name), ' play ', h('b', title), h('b.spec-live-l', ' live')));
+  },
+  /** Watching from a room: someone else there who's still playing instead — straight from one play to the next,
+   *  not back through the room. */
+  switchTo(p) {
+    const t = this.target;
+    if (!t || !t.room || !p || p.id === t.id) return;
+    this.watch(p);
+  },
+  /** The room's others still mid-song (as the online list has them): who watching can switch to. */
+  roomOthers() {
+    const r = Multiplayer.room, t = this.target;
+    if (!r || !t || !t.room) return [];
+    return r.players.filter(x => x.playing && !x.fin && x.id !== Multiplayer.me && x.pid && x.pid !== t.pid)
+      .map(x => Presence.players.find(o => o.pid === x.pid)).filter(Boolean);
+  },
+  /** Under "Watching … live", from a room: the others still playing, a click away. Keeps itself up to date while it's
+   *  on the screen. */
+  switchEl() {
+    const el = h('div.spec-switch');
+    let drawn = false;
+    const paint = () => {
+      if (drawn && !el.isConnected) { off(); return; }
+      drawn = true;
+      const list = this.roomOthers();
+      clearEl(el).append(...(list.length ? [h('span.spec-sw-l', 'Switch to')] : []), ...list.map(p => h('button.spec-sw', { title: `Watch ${p.name} instead`,
+        onclick: e => { e.stopPropagation(); UISounds.click(); this.switchTo(p); } }, Presence.avatarEl(p, 22), h('span', p.name))));
+      el.hidden = !list.length;
+    };
+    const off = Bus.on('mp:changed', paint);
+    paint();
+    return el;
   },
 
   /** You stop watching when you go and do something of your own: anything but the Spectator Mode screen, their play
@@ -569,6 +601,9 @@ const UserPanels = {
     else if (Friends.incoming(u.pid)) items.push({ sep: true }, { label: 'Accept friend request', icon: 'heart', onClick: () => Friends.answer(u.pid, true) });
     else if (Friends.requested(u.pid)) items.push({ sep: true }, { label: 'Friend request sent', icon: 'check', onClick: () => {} });
     else if (u.online && u.id) items.push({ sep: true }, { label: 'Add friend', icon: 'plus', onClick: () => Friends.toggle(u) });
+    // (telling the admins about them; an admin's own tools for them)
+    if (u.pid) items.push({ sep: true }, { label: 'Report', icon: 'flag', more: true, onClick: () => Report.open(u) });
+    items.push(...Staff.menuItems(u));
     return items;
   },
   openMenu(u, x, y) { showMenu(x, y, this.menuItems(u)); },
@@ -582,13 +617,15 @@ const UserPanels = {
     el.addEventListener('pointerenter', () => UISounds.hover());
     return el;
   },
+  /** The name, an admin's in their role's colour. */
+  nameEl(u) { return fxName(h('span.up-nm', u.name), u.role || roleOfPid(u.pid)); },
   /** UserGridPanel: 120px tall, 10px padding; a 60px avatar (6px corners), the name beside it, the status along the bottom. */
   card(u) {
     const me = u.id && u.id === Presence.me;
     return this.wire(h(`div.up.up-card${u.online ? '' : '.off'}`, this.cover(u),
       h('div.up-grid',
         Presence.avatarEl(u, 60),
-        h('div.up-who', h('div.up-name', u.name, me ? h('span.up-you', 'you') : null, Friends.has(u.pid) && !me ? h('span.up-fr', icon('heart', 'fill')) : null)),
+        h('div.up-who', h('div.up-name', this.nameEl(u), me ? h('span.up-you', 'you') : null, Friends.has(u.pid) && !me ? h('span.up-fr', icon('heart', 'fill')) : null)),
         h('div.up-iconcell', this.statusIcon(u)),
         this.statusMsg(u)),
       me ? null : this.moreBtn(u)), u);
@@ -597,11 +634,11 @@ const UserPanels = {
   row(u) {
     const me = u.id && u.id === Presence.me;
     return this.wire(h(`div.up.up-list${u.online ? '' : '.off'}`, this.cover(u),
-      h('div.up-l', Presence.avatarEl(u, 40), h('div.up-name', u.name, me ? h('span.up-you', 'you') : null)),
+      h('div.up-l', Presence.avatarEl(u, 40), h('div.up-name', this.nameEl(u), me ? h('span.up-you', 'you') : null)),
       h('div.up-r', this.statusIcon(u), this.statusMsg(u, true), me ? null : this.moreBtn(u))), u);
   },
   /** UserBrickPanel: a 4×13 colour bar and the name in 13px bold. */
-  brick(u) { return this.wire(h(`div.up.up-brick${u.online ? '' : '.off'}`, h('span.up-bar', { style: { background: this.statusColour(u) === '#000' ? '#555' : this.statusColour(u) } }), h('span', u.name)), u); },
+  brick(u) { return this.wire(h(`div.up.up-brick${u.online ? '' : '.off'}`, h('span.up-bar', { style: { background: this.statusColour(u) === '#000' ? '#555' : this.statusColour(u) } }), this.nameEl(u)), u); },
   panel(u, style) { return style === 'list' ? this.row(u) : style === 'brick' ? this.brick(u) : this.card(u); },
   /** A player's profile (lazer opens UserProfileOverlay): their card, what they're doing, and what you can do. */
   /** lazer's user profile: the full profile page (theirs from the server); the small card below is for players

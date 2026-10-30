@@ -3177,6 +3177,21 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   const dim = await page.evaluate(() => { const b = [...document.querySelectorAll('.se-box')].find(x => x.querySelector('.se-label').textContent === 'Judgement counter'), jc = document.querySelector('.hud-jc');
     return { box: !!b, boxOff: !!b && b.classList.contains('off'), item: document.querySelector('.se-item[data-id="jc"]')?.classList.contains('off'), dimmed: !!jc && jc.classList.contains('hl-off') && getComputedStyle(jc).visibility === 'visible' && +getComputedStyle(jc).opacity < 0.5, setting: AshtonkMania.Settings.get('gameplay.judgementCounter') }; });
   check('skin editor: a component that\'s turned off shows dimmed from the start (the judgement counter)', dim.box && dim.boxOff && dim.item && dim.dimmed && dim.setting === false, JSON.stringify(dim));
+  // the receptors' opacity: 30% — the keys drawn see-through; back to the skin's
+  await page.click('.se-item[data-id="keyalpha"]');
+  await page.waitForSelector('.se-f input.slider', { timeout: 5000 });
+  const ka = await page.evaluate(async () => {
+    const sl = document.querySelector('.se-f input.slider'); sl.value = 30; sl.dispatchEvent(new Event('input')); sl.dispatchEvent(new Event('change'));
+    const r = AshtonkMania.GameplayScreen.renderer, seen = [], orig = r._spriteImg, orig2 = r._cropImg;
+    r._spriteImg = function (...a) { seen.push(this.ctx.globalAlpha); return orig.apply(this, a); };
+    r._cropImg = function (...a) { seen.push(this.ctx.globalAlpha); return orig2.apply(this, a); };
+    await new Promise(res => setTimeout(res, 400));
+    r._spriteImg = orig; r._cropImg = orig2;
+    return { set: AshtonkMania.Settings.get('skin.receptorAlpha'), alpha: seen.some(a => Math.abs(a - 0.3) < 0.01), label: document.querySelector('.se-item[data-id="keyalpha"] small')?.textContent };
+  });
+  check('skin editor: receptor opacity — the keys drawn at 30%', ka.set === 30 && ka.alpha && ka.label === '30%', JSON.stringify(ka));
+  await page.click('.se-btns .btn');
+  check('skin editor: receptor opacity back to the skin\'s', await page.evaluate(() => AshtonkMania.Settings.get('skin.receptorAlpha') === 100));
   const boxOf = name => page.evaluate(n => { const b = [...document.querySelectorAll('.se-box')].find(b => b.querySelector('.se-label').textContent === n); if (!b) return null; const r = b.getBoundingClientRect(); const hd = b.querySelector('.se-handle').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, hx: hd.x + hd.width / 2, hy: hd.y + hd.height / 2, scale: +AshtonkMania.GameplayScreen.el.style.scale }; }, name);
   const box = await boxOf('Score');
   await page.mouse.move(box.x, box.y); await page.mouse.down(); await page.mouse.move(box.x - 120, box.y + 90, { steps: 6 }); await page.mouse.up();

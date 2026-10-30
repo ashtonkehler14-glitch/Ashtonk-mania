@@ -43,6 +43,7 @@ const SongSelect = {
     this._onlineFor = null;
     this.practiceMode = !!params.practice;
     this.mpPick = !!params.mpPick && Multiplayer.inRoom();
+    this.mpQueue = this.mpPick && !!params.mpQueue && Multiplayer.canQueue(); // (onto the room's queue, not the room's beatmap)
     if (params.mapId) this.selectedId = params.mapId;
     else if (!this.selectedId) this.selectedId = Settings.get('last.map');
     const el = h('div.ss.entering');
@@ -184,7 +185,7 @@ const SongSelect = {
       this.modBtn = (() => { const b = fb('Mods', '#b2ff66', 'mods', () => this.openMods(), 'F1 · right-click to deselect all'); b.classList.add('fb-mods'); b.append(this.modBar, this.unrankedEl); b.addEventListener('contextmenu', e => { e.preventDefault(); if ((Settings.get('songselect.mods') || []).length) { UISounds.click(); Settings.set('songselect.mods', []); Bus.emit('mods:changed'); } }); return b; })(),
       (() => { const b = fb('Random', '#66ccff', 'shuffle', () => this.random(), 'F2 · right-click or Shift+F2 to rewind'); b.addEventListener('contextmenu', e => { e.preventDefault(); this.randomRewind(); }); return b; })(),
       this.optionsBtn = fb('Options', '#8c66ff', 'cog', e => this.options(e), 'F3'),
-      h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', Multiplayer.isHost() ? 'Choose the match beatmap' : 'Recommend to the host') : null, this.playBtn);
+      h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', this.mpQueue ? 'Add to the room\'s queue' : Multiplayer.isHost() ? 'Choose the match beatmap' : 'Recommend to the host') : null, this.playBtn);
 
     el.append(h('div.ss-main', this.info, right), footer);
     this._lbKey = this._infoSet = this._infoMap = null; // (the leaderboard and wedges slide in each time the screen opens)
@@ -671,7 +672,7 @@ const SongSelect = {
       const link = (text, fn) => h('a.nr-link', { href: '#', onclick: e => { e.preventDefault(); UISounds.click(); fn(); } }, text);
       const tips = [];
       if (q) tips.push(['Try ', link('clearing', () => { this.query = ''; this.searchInput.value = ''; this.searched(); }), ' your current search criteria.']);
-      if (lo > 0 || hi < 10.1) tips.push(['Try ', link('removing', () => { Settings.set('songselect.starsMin', 0); Settings.set('songselect.starsMax', 10.1); Screens.go('songselect', { force: true, mpPick: this.mpPick, practice: this.practiceMode }, { replace: true }); }), ` the ${lo.toFixed(1)} - ${hi < 10.1 ? hi.toFixed(1) : '∞'} star difficulty filter.`]);
+      if (lo > 0 || hi < 10.1) tips.push(['Try ', link('removing', () => { Settings.set('songselect.starsMin', 0); Settings.set('songselect.starsMax', 10.1); Screens.go('songselect', { force: true, mpPick: this.mpPick, mpQueue: this.mpQueue, practice: this.practiceMode }, { replace: true }); }), ` the ${lo.toFixed(1)} - ${hi < 10.1 ? hi.toFixed(1) : '∞'} star difficulty filter.`]);
       if (q) tips.push(['Try ', link('searching online', () => { ExplorerScreen.state.q = q; ExplorerScreen.results = []; Screens.go('explore'); }), ` for "${q}".`]);
       this.emptyEl.append(h('div.nr',
         h('span.nr-ghost', icon('ghost')),
@@ -1006,7 +1007,7 @@ const SongSelect = {
     OSD.show('Mod customisation', `Speed changed to ${target.toFixed(2)}x`, 'Ctrl+Up / Ctrl+Down');
   },
   /** Mod select; picking a beatmap for a multiplayer room greys out the mods a room doesn't allow (Auto). */
-  openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: MODS.filter(x => x.unranked).map(x => x.id), why: 'not available in multiplayer' } : {}); },
+  openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: MODS.filter(x => x.nojudge).map(x => x.id), why: 'not available in multiplayer' } : {}); },
   onBack() {
     if (this.query) { this.query = ''; this.searchInput.value = ''; this.searched(); return true; }
     return false;
@@ -1262,7 +1263,7 @@ const SongSelect = {
       h('span.lbs-rank', h('b', '#' + fmtInt(i + 1))),
       h('span.lbs-mid',
         h('span.lbs-av', own ? ProfileManager.avatarEl(50) : s.online ? Presence.avatarEl({ name: s.player, avatar: s.avatar }, 50) : h('div.avatar.avatar-mono', { style: { width: '50px', height: '50px', fontSize: '20px' } }, String(s.player || '?').slice(0, 1).toUpperCase())),
-        h('span.lbs-user', h('span.lbs-date', shortAgo(s.date)), h('span.lbs-name', s.player || who)),
+        h('span.lbs-user', h('span.lbs-date', shortAgo(s.date)), fxName(h('span.lbs-name', s.player || who), own ? roleOfPid(Presence.pid()) : s.role)),
         h('span.lbs-stats', stat('MAX COMBO', `${fmtInt(s.maxCombo)}x`, c.length && !c[5]), stat('ACCURACY', fmtAcc(s.accuracy), s.accuracy >= 1))),
       h('span.lbs-right',
         h('span.lbs-sc', h('span.lbs-score', fmtScore(ScoreManager.value(s))), (s.mods || []).length ? h('span.lbs-mods', ...s.mods.map(x => ModSystem.badge(x, true))) : null),
@@ -1299,7 +1300,7 @@ const SongSelect = {
     const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();
     const me = Presence.pid(), who = ProfileManager.profile.name;
     const asScore = e => ({ id: 'o-' + e.pid, online: true, own: e.pid === me, player: e.pid === me ? who : e.name, avatar: e.avatar, score: e.score, scoreStd: e.score, accuracy: e.acc, maxCombo: e.combo,
-      grade: e.grade, mods: e.mods || [], counts: e.counts && e.counts.length === 6 ? e.counts : null, pp: e.pp, srVersion: SR_VERSION, passed: true, date: e.date, rank: e.rank,
+      grade: e.grade, mods: e.mods || [], counts: e.counts && e.counts.length === 6 ? e.counts : null, pp: e.pp, srVersion: SR_VERSION, passed: true, date: e.date, rank: e.rank, role: e.role || null,
       ...(e.stars > 0 ? { stars: e.stars } : {}) }); // (the play's own star rating — with its mods — when the server judged it)
     const scores = d.scores.map(asScore).filter(x => !modsOn || [...x.mods].sort().join() === sel);
     if (!scores.length) list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), scope === 'friends' ? 'None of your friends have set a score on this map yet.' : 'No records yet!'));
@@ -1475,7 +1476,10 @@ const SongSelect = {
     for (const el of document.querySelectorAll('.carousel-scroll .diff-panel.selected')) { el.classList.remove('activated'); void el.offsetWidth; el.classList.add('activated'); }
     if (this.mpPick && Multiplayer.inRoom()) {
       UISounds.click();
-      if (Multiplayer.isHost()) Multiplayer.selectMap(m, Settings.get('songselect.mods') || []);
+      if (this.mpQueue) {
+        if (!Multiplayer.queueAdd(m)) { Toast.err('Couldn\'t queue that song', Multiplayer.reconnecting ? 'Reconnecting to the room — try again in a moment.' : 'You\'re not connected to the room.'); return; }
+        Toast.ok(Multiplayer.room && Multiplayer.room.map ? 'Added to the queue' : 'Beatmap picked', `${m.title} [${m.version}]`);
+      } else if (Multiplayer.isHost()) Multiplayer.selectMap(m, Settings.get('songselect.mods') || []);
       else if (!Multiplayer.suggest(m)) { Toast.err('Couldn\'t recommend that beatmap', Multiplayer.reconnecting ? 'Reconnecting to the room — try again in a moment.' : 'You\'re not connected to the room.'); return; }
       else {
         const set = BeatmapManager.setById.get(m.setId);

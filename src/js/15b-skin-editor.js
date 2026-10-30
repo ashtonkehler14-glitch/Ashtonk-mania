@@ -151,7 +151,7 @@ const SkinEditor = {
     const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
     if (d && p) { const hud = GameplayScreen.hud, n = e.shiftKey ? 10 : 1, c = this.layout()[p.id] || {}; this.setPart(p.id, { x: (c.x || 0) + d[0] * n / (hud.clientWidth || 1), y: (c.y || 0) + d[1] * n / (hud.clientHeight || 1) }); return; }
     const sd = this.stageDef(this.sel);
-    if (d && sd && d[1]) this.setStage(sd, this.stageVal(sd) + d[1] * (e.shiftKey ? 10 : 1));
+    if (d && sd && d[1]) this.setStage(sd, this.stageVal(sd) + d[1] * (sd.upMore ? -1 : 1) * (e.shiftKey ? 10 : 1));
   },
 
   // ── the layout
@@ -173,15 +173,15 @@ const SkinEditor = {
     if (prev == null) return;
     const snap = JSON.parse(prev);
     Settings.set('hud.layout', snap.layout || {});
-    for (const d of this.STAGE) { const v = (snap.stage || {})[d.key] || 0; if (this.stageVal(d) !== v) Settings.set(d.key, v); }
+    for (const d of this.STAGE) { const v = (snap.stage || {})[d.key] ?? (d.def || 0); if (this.stageVal(d) !== v) Settings.set(d.key, v); }
     HudLayout.apply(GameplayScreen.hud);
     this.paintList(); this.paintSettings();
   },
   resetAll() {
     this.commit({});
-    for (const d of this.STAGE) if (this.stageVal(d)) Settings.set(d.key, 0);
+    for (const d of this.STAGE) if (this.stageVal(d) !== (d.def || 0)) Settings.set(d.key, d.def || 0);
     this.paintList(); this.paintSettings();
-    Toast.show('HUD layout reset', 'Everything is back where the skin puts it, the hit position and note offset too.');
+    Toast.show('HUD layout reset', 'Everything is back where the skin puts it, the hit position, note offset and receptors too.');
   },
 
   // ── the stage: where notes are judged (the hit position — the receptors, from the skin's own HitPosition, moved up
@@ -191,10 +191,13 @@ const SkinEditor = {
       note: 'Where the notes are judged — the receptors. Drag the line on the stage, or slide it here: up is negative, down is positive.' },
     { id: 'noteoff', key: 'gameplay.noteOffset', name: 'Note offset', icon: 'mania', min: -40, max: 40, unit: 'px',
       note: 'Where the notes are drawn against the receptors (only how they look — the timing stays the same). Negative draws them higher, positive lower.' },
+    // (a percentage, 100 as the skin draws them: up the arrow keys for more)
+    { id: 'keyalpha', key: 'skin.receptorAlpha', name: 'Receptor opacity', label: 'Opacity', icon: 'eye', min: 0, max: 100, unit: '%', def: 100, redraw: true, upMore: true, pct: true,
+      note: 'How see-through the receptors (the keys at the bottom of each column) are — 0% hides them. Any skin.' },
   ],
   get HIT() { return this.STAGE[0]; },
   stageDef(id) { return this.STAGE.find(d => d.id === id); },
-  stageVal(d) { return Settings.get(d.key) || 0; },
+  stageVal(d) { const v = Settings.get(d.key); return v == null ? d.def || 0 : v; },
   hitOffset() { return this.stageVal(this.HIT); },
   /** Live while dragging or sliding (the stage drawn again at once); saved when you let go. */
   preview(d, v) {
@@ -208,7 +211,7 @@ const SkinEditor = {
   setStage(d, v, before) {
     v = clamp(Math.round(v), d.min, d.max);
     this.undo.push(before ?? this.snapshot());
-    Settings.values[d.key] = before != null ? (JSON.parse(before).stage || {})[d.key] || 0 : this.stageVal(d); // (so the change below is seen)
+    Settings.values[d.key] = before != null ? (JSON.parse(before).stage || {})[d.key] ?? (d.def || 0) : this.stageVal(d); // (so the change below is seen)
     Settings.set(d.key, v);
     this.paintList(); this.paintSettings();
   },
@@ -216,9 +219,9 @@ const SkinEditor = {
   /** The chosen component's header: its icon and name, and (for one on the HUD) a switch to show or hide it. */
   head(item, sw = null) { return h('div.se-head', h('span.se-ic', icon(item.icon || 'brush')), h('div.se-name', item.name), sw); },
   stagePanel(d) {
-    const fnf = d.redraw && GameplayScreen.renderer && GameplayScreen.renderer.fnf;
+    const fnf = d === this.HIT && GameplayScreen.renderer && GameplayScreen.renderer.fnf; // (FNF's receptors stay where they are)
     const v0 = this.stageVal(d);
-    const fmt = v => `${v > 0 ? '+' : ''}${v}${d.unit}`;
+    const fmt = v => d.pct ? `${v}%` : `${v > 0 ? '+' : ''}${v}${d.unit}`, def = d.def || 0;
     const val = h('b', fmt(v0));
     const sl = h('input.slider', { type: 'range', min: d.min, max: d.max, step: 1, value: v0, disabled: fnf, 'aria-label': d.name });
     const paint = () => sl.style.setProperty('--p', ((sl.value - d.min) / (d.max - d.min) * 100) + '%');
@@ -230,8 +233,8 @@ const SkinEditor = {
     return [
       this.head(d),
       h('p.se-note', fnf ? 'This skin style puts its receptors in a fixed place.' : d.note),
-      h('label.se-f', h('span', 'Offset', val), sl, h('span.se-scale', h('i', fmt(d.min)), h('i', '0'), h('i', fmt(d.max)))),
-      h('div.se-btns', h('button.btn.sm', { disabled: !v0, onclick: () => { UISounds.click(); this.setStage(d, 0); } }, icon('retry'), d.redraw ? 'Back to the skin\'s' : 'Reset'))];
+      h('label.se-f', h('span', d.label || 'Offset', val), sl, h('span.se-scale', h('i', fmt(d.min)), h('i', d.pct ? '50%' : '0'), h('i', fmt(d.max)))),
+      h('div.se-btns', h('button.btn.sm', { disabled: v0 === def, onclick: () => { UISounds.click(); this.setStage(d, def); } }, icon('retry'), d.redraw ? 'Back to the skin\'s' : 'Reset'))];
   },
   /** Show or hide a component. One with a setting of its own (the hit error meter, judgement counter, leaderboard)
    *  turns that on when shown; hidden, it stays on with the component hidden. */
@@ -251,7 +254,7 @@ const SkinEditor = {
   paintList() {
     if (this.undoBtn) this.undoBtn.disabled = !this.undo.length;
     clearEl(this.stageEl).append(...this.STAGE.map(d => { const v = this.stageVal(d); return h(`div.se-item.se-stage${this.sel === d.id ? '.on' : ''}`, { dataset: { id: d.id }, onclick: () => { UISounds.click(); this.select(d.id); } },
-      h('span.se-ic', icon(d.icon)), h('span.se-nm', d.name, h('small', v ? `moved ${v > 0 ? '+' : ''}${v}${d.unit}` : 'as the skin has it'))); }));
+      h('span.se-ic', icon(d.icon)), h('span.se-nm', d.name, h('small', v === (d.def || 0) ? 'as the skin has it' : d.pct ? `${v}%` : `moved ${v > 0 ? '+' : ''}${v}${d.unit}`))); }));
     let n = 0;
     clearEl(this.listEl).append(...HUD_PARTS.map(p => {
       const on = this.shown(p), na = on && this.present && !this.present.has(p.id);

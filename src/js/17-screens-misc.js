@@ -581,7 +581,10 @@ const ProfileScreen = {
           own && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => CodePanel.open(Account.signedOut() ? { use: true } : {}) }, icon('lock'), Account.signedOut() ? 'Signed out · Use your code' : 'Your code') : null),
         h('div.pf-tags', roleBadge(this.remote ? this.remote.role : this.ownRole), h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
           u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null)),
-      u ? h('div.pf-acts', ...UserPanels.menuItems(u).filter(it => !it.sep && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label))) : null));
+      // (their actions as buttons; reporting them and an admin's tools under ⋯)
+      u ? (() => { const all = UserPanels.menuItems(u), more = all.filter(it => it.more || it.staff);
+        return h('div.pf-acts', ...all.filter(it => !it.sep && !it.header && !it.more && !it.staff && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label)),
+          more.length ? h('button.btn.sm.pf-acts-more', { title: 'More', 'aria-label': 'More', onclick: e => { UISounds.click(); const r = e.currentTarget.getBoundingClientRect(); showMenu(r.left, r.bottom + 4, all.filter(it => it.more || it.staff || (it.header && more.some(m => m.staff)))); } }, icon('bars')) : null); })() : null));
     // (play count and time aren't repeated here: they're in the stat list below)
     const centre = h('div.pf-centre',
       this.dailyEl = h('div.pf-daily', { hidden: true }),
@@ -932,8 +935,11 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
-  { id: '2026.10.31', title: 'Scores', sections: [
-    { icon: 'trophy', title: 'Scores', items: ['Other players\' scores show their star rating and every judgement, not zeros', 'As in osu!lazer, Difficulty Adjust, Constant Speed, Hold Off, Invert, a speed of your own and Percy give no pp or ranked scores — nor Hidden, Fade In, Cover or Flashlight changed from how they come'] },
+  { id: '2026.10.31', title: 'Rooms and scores', sections: [
+    { icon: 'multi', title: 'Rooms', items: ['A song queue: line songs up to play one after another (the host\'s, or everyone\'s)', 'Speed mods can be each player\'s own (a room setting)', 'Spectating in a room, switch to another player without going back', 'Click a score in a room\'s results to see its card'] },
+    { icon: 'trophy', title: 'Scores', items: ['Other players\' scores show their star rating and every judgement, not zeros', 'As in osu!lazer, Difficulty Adjust, Constant Speed, Hold Off, Invert, Song Speed and Percy give no pp or leaderboard scores (rooms still have them) — nor Hidden, Fade In, Cover or Flashlight changed from how they come'] },
+    { icon: 'brush', title: 'Skin editor', items: ['Receptor opacity'] },
+    { icon: 'crown', title: 'Admins', items: ['Announcements as banners across the game — news, important, events, maintenance with a countdown — up for as long as the admins pick', 'Report a player from their ⋯ menu or their name in chat', 'Admins moderate right from the game, and get told about new reports', 'Admins\' names in their role\'s colour; a permanently banned account is removed, scores and all'] },
   ] },
   { id: '2026.10.30b', title: 'Settings and menus', sections: [
     { icon: 'gear', title: 'Settings', items: ['Scroll speed is back in Settings → Gameplay → Scrolling', 'Notes always follow the beatmap\'s speed changes (SV and BPM), as in osu!mania — the setting for it is gone'] },

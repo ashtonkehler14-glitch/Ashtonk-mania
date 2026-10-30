@@ -1407,6 +1407,10 @@ test('beatmap leaderboards hold only judged plays: each player\'s best per beatm
   p.message('a', { t: 'friendReq', to: 'c' }); p.message('c', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
   assert.deepEqual(p.message('a', { t: 'lb', key: K1, scope: 'friends' })[0].msg.scores.map(s => s.name), ['Alice', 'Cat']);
   assert.equal(saved.length, 3);
+  // (an admin's row carries their role, for their name to be painted in its colour)
+  p.adminRole('bobpid22', { name: 'Moderator', colour: '#ff3366' });
+  const r = p.message('a', { t: 'lb', key: K1 })[0].msg;
+  assert.deepEqual(r.scores.map(s => s.role || null), [{ name: 'Moderator', colour: '#ff3366' }, null, null]);
 });
 
 test('daily challenge: the server picks the day\'s beatmap (a player\'s game can\'t); only judged plays of that beatmap count, best per player; a new day starts fresh', () => {
@@ -1968,6 +1972,35 @@ test('a player\'s own judged best plays (for their game to send the ones the ser
   assert.equal(m.keep, PresenceLogic.KEEP_BESTS);
 });
 
+test('admin: banned for good — their account is deleted (scores, profile, friends, off every board), and they stay banned', () => {
+  let now = 1_000_000;
+  const p = new PresenceLogic(() => now), kept = {};
+  p.persistMod = (kind, pid, v) => { kept[`${kind}:${pid}`] = v; };
+  p.join('a', { name: 'Alice', pid: 'alicepid', key: 'key-alicepid-0123456789' });
+  p.join('b', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789' });
+  p.makeFriends('alicepid', 'Alice', 'bobpid1', 'Bob');
+  const key = 'c'.repeat(64);
+  p.boards.set(key, [{ pid: 'bobpid1', name: 'Bob', score: 900000 }, { pid: 'alicepid', name: 'Alice', score: 800000 }]);
+  p.ranks.set('bobpid1', { pid: 'bobpid1', name: 'Bob', pp: 100, plays: 3, bests: {} });
+  p.profiles.set('bobpid1', { name: 'Bob' });
+  // a ban for a day keeps everything (for an unban)
+  p.adminBan('bobpid1', { days: 1 }); assert.ok(p.ranks.has('bobpid1') && p.boards.get(key).length === 2); p.adminUnban('bobpid1');
+  p.join('b', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789' });
+  const r = p.adminBan('bobpid1', { reason: 'cheating' });
+  assert.ok(r.out.some(o => o.to === 'b' && o.msg.t === 'banned'));
+  assert.ok(!p.ranks.has('bobpid1') && !p.profiles.has('bobpid1'));
+  assert.deepEqual(p.boards.get(key).map(x => x.pid), ['alicepid']);
+  assert.ok(r.out.some(o => o.to === 'a' && o.msg.t === 'friends' && !o.msg.list.some(f => f.pid === 'bobpid1')));
+  assert.equal(kept['bn:bobpid1'].purged, true);
+  assert.deepEqual(p.unpurgedBans(), []);
+  // their device coming back is told it's banned — not quietly made a new player
+  const back = p.join('b2', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789' });
+  assert.ok(back.some(o => o.to === 'b2' && o.msg.t === 'banned') && !back.some(o => o.msg.t === 'repid'));
+  // a ban for good from before: still to be purged
+  p.loadMod({ bans: { oldpid9: { until: 0, reason: 'x', at: 1 } } });
+  assert.deepEqual(p.unpurgedBans(), ['oldpid9']);
+});
+
 test('admin: a player deleted — everything of theirs goes, and their id is never used again (a device on it starts over)', () => {
   let now = 1_000_000;
   const p = new PresenceLogic(() => now), kept = {}, dropped = [];
@@ -2022,4 +2055,129 @@ test('admin: a picture taken down, a code reset, and a message to one player', (
   assert.deepEqual(p.adminWarn('nobody123', 'hi'), []);
   const lists = p.adminLists();
   assert.ok(lists.recent.some(x => x.pid === 'bobpid1' && x.online) && lists.top.some(x => x.pid === 'bobpid1'));
+});
+
+test('a room where each player picks their own speed: DT, HT or Rate Adjust as anyone\'s own mod — no room speed, no votes', () => {
+  const r = room();
+  r.message('a', { t: 'map', map: MAP, mods: ['DT'] });
+  assert.deepEqual(r.mods, ['DT'], 'one speed for everyone, to start with');
+  r.message('b', { t: 'mods', mods: ['HT'] });
+  assert.deepEqual(r.get('b').mods, [], 'not yours, there');
+  r.message('a', { t: 'settings', settings: { speed: 'own' } });
+  assert.deepEqual([r.settings.speed, r.mods, r.vote], ['own', [], null], 'the room\'s speed goes');
+  r.message('b', { t: 'mods', mods: ['HT', 'MR', 'WU'] });
+  r.message('a', { t: 'mods', mods: ['RT', 'HD'], modConfig: { rate: 1.3 } });
+  assert.deepEqual([r.get('b').mods, r.get('a').mods, r.get('a').modConfig.rate], [['MR', 'HT'], ['HD', 'RT'], 1.3]);
+  assert.deepEqual(r.message('b', { t: 'rate', mods: ['DT'] }), [], 'no room speed to ask for');
+  assert.equal(r.vote, null);
+  r.message('b', { t: 'hasMap', has: true }); r.message('a', { t: 'hasMap', has: true });
+  r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
+  const st = msgs(r.message('a', { t: 'start' }), 'start')[0].msg;
+  assert.deepEqual([st.mods, st.playerMods], [[], { a: ['HD', 'RT'], b: ['MR', 'HT'] }]);
+  assert.equal(r.deadline, 5000 + 120000 / 0.75 + 60000, 'as long as the slowest takes');
+  const judged = { score: 900000, accuracy: 0.98, maxCombo: 100, counts: [90, 5, 0, 0, 0, 0], grade: 'S', failed: false, pp: 0, beatmapSetId: 42 };
+  assert.equal(r.verify('a', r.get('a').token, { ...judged, mods: ['RT', 'HD'], rate: 1.3 }, { hash: MAP.hash }).ok, true, 'their own Rate Adjust speed');
+  assert.equal(r.verify('b', r.get('b').token, { ...judged, mods: ['MR'], rate: 1 }, { hash: MAP.hash }).error, 'Not the room\'s mods.', 'not with the speed they picked');
+  // back to one speed for everyone: the players' own speeds go
+  r.message('a', { t: 'settings', settings: { speed: 'room' } });
+  assert.deepEqual([r.get('a').mods, r.get('b').mods], [['HD'], ['MR']]);
+});
+
+test('the room\'s song queue: the host\'s (or, in "everyone" mode, anyone\'s) songs, one after another after each match', () => {
+  const clock = { t: 0 };
+  const r = room(clock);
+  const song = n => ({ ...MAP, hash: 'q' + n, title: 'Song ' + n });
+  // nothing picked yet: the first one queued is the room's beatmap straight away
+  r.message('a', { t: 'queue', op: 'add', map: song(1) });
+  assert.equal(r.map.title, 'Song 1'); assert.equal(r.queue.length, 0);
+  r.message('a', { t: 'queue', op: 'add', map: song(2) });
+  assert.equal(msgs(r.message('b', { t: 'queue', op: 'add', map: song(3) }), 'error').length, 1, 'only the host, by default');
+  r.message('a', { t: 'settings', settings: { queue: 'all' } });
+  r.message('b', { t: 'queue', op: 'add', map: song(3) });
+  r.message('b', { t: 'queue', op: 'add', map: song(4) });
+  assert.deepEqual(r.snapshot().queue.map(q => [q.map.title, q.byName]), [['Song 2', 'Alice'], ['Song 3', 'Bob'], ['Song 4', 'Bob']]);
+  const [q2, q3, q4] = r.queue.map(q => q.id);
+  r.message('b', { t: 'queue', op: 'remove', id: q2 });
+  assert.equal(r.queue.length, 3, 'not his to take off');
+  r.message('b', { t: 'queue', op: 'remove', id: q4 });
+  r.message('a', { t: 'queue', op: 'up', id: q3 });
+  assert.deepEqual(r.queue.map(q => q.id), [q3, q2]);
+  // the match over: the next song comes up, everyone unready, their games told to fetch it
+  for (const id of ['a', 'b']) { r.message(id, { t: 'hasMap', has: true }); r.message(id, { t: 'ready', ready: true }); }
+  r.message('a', { t: 'start' });
+  r.message('a', { t: 'finish', result: { score: 1 } });
+  const out = r.message('b', { t: 'finish', result: { score: 2 } });
+  assert.equal(msgs(out, 'results').length, 1);
+  assert.equal(r.map.title, 'Song 3'); assert.deepEqual(r.queue.map(q => q.id), [q2]);
+  assert.ok(r.players.every(x => !x.ready && !x.hasMap));
+  // the host plays one now; a full queue takes no more; it's kept with the room's setup over a restart
+  r.message('a', { t: 'queue', op: 'play', id: q2 });
+  assert.equal(r.map.title, 'Song 2'); assert.equal(r.queue.length, 0);
+  for (let i = 0; i < 25; i++) r.message('b', { t: 'queue', op: 'add', map: song(10 + i) });
+  assert.equal(r.queue.length, 20);
+  const r2 = new RoomLogic('ABCDEF', () => clock.t);
+  assert.ok(r2.restore(JSON.parse(JSON.stringify(r.saveable()))));
+  assert.equal(r2.queue.length, 20);
+  r2.join('c', 'Cat', false);
+  r2.message(r2.hostId, { t: 'queue', op: 'add', map: song(99) });
+  assert.equal(r2.queue.length, 20);
+});
+
+test('announcements: just now (a notification and a line in #lobby), or up for a while as a banner in everyone\'s game — whoever comes online too — until it runs out or is taken down', () => {
+  const clock = { t: 100000 };
+  const p = new PresenceLogic(() => clock.t), kept = [];
+  p.persistAnns = l => kept.push(l.length);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' });
+  const now = p.adminAnnounce('Hello all');
+  assert.deepEqual(now.map(o => o.msg.t), ['say', 'announce'], 'just now: as it always was');
+  assert.equal(p.annList().length, 0);
+  const up = p.adminAnnounce('Tournament tonight!', { title: 'Event', kind: 'event', hours: 2, lobby: false });
+  assert.deepEqual(up.map(o => o.msg.t), ['anns']);
+  const a = up[0].msg.list[0];
+  assert.deepEqual([a.title, a.kind, a.text, a.until - clock.t, kept.at(-1)], ['Event', 'event', 'Tournament tonight!', 7200000, 1]);
+  // (someone coming online while it's up gets it)
+  const j = p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
+  assert.equal(j.find(o => o.to === 'b' && o.msg.t === 'anns').msg.list[0].id, a.id);
+  // maintenance in 15 minutes: up until a while after it, counting down to it
+  const m = p.adminAnnounce('Restarting for an update', { kind: 'maint', minutes: 15, lobby: false }).at(-1).msg.list.at(-1);
+  assert.deepEqual([m.kind, m.at - clock.t, m.until - clock.t], ['maint', 900000, 900000 + 1800000]);
+  assert.equal(p.adminAnnounce('x', { kind: '<script>', hours: 1, lobby: false }).at(-1).msg.list.at(-1).kind, 'info', 'only the known styles');
+  // taken down; one run out goes on its own
+  assert.equal(p.annEnd(a.id)[0].msg.list.some(x => x.id === a.id), false);
+  assert.equal(p.annEnd(a.id), null, 'already down');
+  clock.t += 3 * 3600000;
+  assert.equal(p.annList().length, 0);
+  assert.equal(p.join('c', { name: 'Cat', pid: 'catpid333', key: 'key-catpid333-0123456789' }).some(o => o.msg.t === 'anns'), false);
+});
+
+test('reports: a player tells the admins about another — why, what happened, with their last lines in #lobby; online admins hear of it; a few an hour, a player once', () => {
+  const clock = { t: 1000 };
+  const p = new PresenceLogic(() => clock.t);
+  p.codes.set('h-owner', 'ownerpid1'); p.adminHash = 'h-owner';
+  p.join('o', { name: 'Owner', pid: 'ownerpid1', key: 'key-ownerpid1-0123456789' });
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' });
+  p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
+  p.message('b', { t: 'say', ch: '#lobby', text: 'something rude' });
+  const out = p.message('a', { t: 'report', pid: 'bobpid22', reason: 'chat', text: 'he was rude' });
+  assert.deepEqual(out.find(o => o.to === 'a').msg, { t: 'reported', ok: true });
+  const note = out.find(o => o.to === 'o');
+  assert.deepEqual([note.msg.t, note.msg.open, note.msg.report.name, note.msg.report.reason, note.msg.report.by], ['staffReport', 1, 'Bob', 'Chat', 'Alice'], 'the owner, online, hears of it');
+  const r = p.reports[0];
+  assert.deepEqual([r.pid, r.by.pid, r.reason, r.text, r.chat.map(l => l.text), r.open], ['bobpid22', 'alicepid1', 'chat', 'he was rude', ['something rude'], true]);
+  assert.equal(p.message('a', { t: 'report', pid: 'bobpid22', reason: 'chat' })[0].msg.ok, false, 'once in a while for the same player');
+  assert.equal(p.message('a', { t: 'report', pid: 'alicepid1' })[0].msg.ok, false, 'not yourself');
+  assert.equal(p.message('a', { t: 'report', pid: 'bobpid22', reason: 'bogus' })[0].msg.ok, false);
+  // (an admin coming online hears how many are waiting)
+  p.leave('o');
+  assert.equal(p.join('o2', { name: 'Owner', pid: 'ownerpid1', key: 'key-ownerpid1-0123456789' }).find(o => o.msg.t === 'staffReport').msg.open, 1);
+  // dealt with: the admins online hear none are waiting
+  const done = p.reportClose(r.id, 'done', 'the owner');
+  assert.deepEqual(done.map(o => [o.to, o.msg.open]), [['o2', 0]]);
+  assert.deepEqual([r.open, r.how, r.closedBy], [false, 'done', 'the owner']);
+  assert.equal(p.reportClose(r.id, 'done', 'x'), null);
+  // a few an hour
+  for (const x of ['c1', 'c2', 'c3', 'c4', 'c5']) p.join(x, { name: x, pid: `${x}pid000`, key: `key-${x}pid000-0123456789` });
+  clock.t += 1900000;
+  const sent = ['c1', 'c2', 'c3', 'c4', 'c5'].map(x => p.message('a', { t: 'report', pid: `${x}pid000`, reason: 'name' })[0].msg.ok);
+  assert.deepEqual(sent, [true, true, true, true, false]);
 });

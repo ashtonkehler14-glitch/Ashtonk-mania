@@ -1366,6 +1366,30 @@ html.touch .practice-bar .kbd { display: none; }
 .mp-res-row .grade { font-size: 1.5rem; width: 34px; text-align: center; }
 .mp-res-row .main { flex: 1; }
 .mp-res-row .s { color: var(--muted); font-size: .8rem; }
+/* (a played score: a click brings its score card back up) */
+.mp-res-row.click { cursor: pointer; transition: background-color 150ms; }
+.mp-res-row.click:hover, .mp-res-row.click:focus-visible { background: rgba(255, 255, 255, .09); outline: none; }
+.mp-res-row.win.click:hover, .mp-res-row.win.click:focus-visible { background: rgba(136, 179, 0, .24); }
+/* the room's queue: the songs coming up after this one */
+.mp-queue { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--panel-3); }
+.mp-queue-h { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
+.mp-queue-h > svg { width: 14px; height: 14px; opacity: .7; }
+.mp-queue-n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; display: inline-grid; place-items: center; font-size: .72rem; font-weight: 700; background: rgba(var(--accent-rgb), .25); color: #fff; }
+.mp-queue-h .btn.sm { height: 28px; }
+.mp-queue-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
+.mp-qi { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, .04); animation: rowIn 240ms var(--ease-out) both; }
+.mp-qi.still { animation: none; }
+.mp-qi-n { flex: none; width: 18px; text-align: center; font-size: .78rem; font-weight: 700; color: var(--muted); }
+.mp-qi-main { flex: 1; min-width: 0; }
+.mp-qi-t { font-size: .86rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-qi-s { display: flex; align-items: center; gap: 6px; font-size: .74rem; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.mp-qi-s > span:not(.mp-qi-by) { overflow: hidden; text-overflow: ellipsis; }
+.mp-qi-by { flex: none; opacity: .8; }
+.mp-qi-b { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--muted); }
+.mp-qi-b svg { width: 12px; height: 12px; }
+.mp-qi-b:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+.mp-qi-b.del:hover { background: rgba(255, 102, 102, .2); color: #ff8a8a; }
+.mp-queue-empty { margin-top: 6px; font-size: .8rem; color: var(--muted); }
 .mp-res-score { font-size: 1.3rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .hud-mp { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 4px; width: 250px; }
 /* a slim dark glass panel per score: an accent stripe at the left (lime for first, gold for you, team colours), the
@@ -3298,7 +3322,8 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 @keyframes fxBread { 0%, 100% { translate: 0 0; rotate: -32deg; } 50% { translate: 0 -8%; rotate: -24deg; } }
 @keyframes fxTwinkle { 0%, 100% { opacity: 0; scale: .3; rotate: 0deg; } 30% { opacity: 1; scale: 1; } 60% { opacity: .9; scale: .8; rotate: 45deg; } 85% { opacity: 0; scale: .3; rotate: 90deg; } }
 .fx-name.fx-neru, .fx-name.fx-admin, .fx-name.fx-teto { background: linear-gradient(100deg, #ffe680, #ffc53d 30%, #ff9fd0 50%, #ffc53d 70%, #ffe680) 0 0 / 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; text-shadow: none; }
-.fx-name.fx-admin { background-image: linear-gradient(100deg, #ffe680, #f5c842 35%, #fff6d0 50%, #f5c842 65%, #ffe680); }
+/* (an admin's name in their role's own colour, a lighter shine across it) */
+.fx-name.fx-admin { background-image: linear-gradient(100deg, var(--rc), var(--rc) 35%, color-mix(in srgb, var(--rc) 45%, #fff) 50%, var(--rc) 65%, var(--rc)); }
 .fx-name.fx-teto { background-image: linear-gradient(100deg, #ff9aa9, #ff3d5a 30%, #fff0f2 50%, #ff3d5a 70%, #ff9aa9); }
 /* (shimmering where it's big: the profile, Ranked Play's introductions) */
 .pf-name .fx-name, .rki-name.fx-name, .rkm-duel-p .fx-name { animation: fxShimmer 6s linear infinite; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .55)); }
@@ -3787,6 +3812,7 @@ html.touch .explorer.ov .ex-flabel { padding-top: 7px; }
 .up-msg span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .up-msg small { font-size: 12px; font-weight: 600; opacity: .7; }
 .up-msg.r { align-items: flex-end; text-align: right; }
+.up-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .up.off .up-name { opacity: .75; }
 /* UserGridPanel: 120px, 10px corners, 10px padding: avatar | name; status icon | status message */
 .up-card { height: 120px; border-radius: 10px; }
@@ -5166,4 +5192,42 @@ html.lp-open #toasts { right: 380px; }
 .spec-live { position: absolute; top: 96px; left: 50%; translate: -50% 0; z-index: 6; max-width: min(720px, calc(100 * var(--vw) - 40px)); padding: 6px 16px; border-radius: 99px; background: rgba(0, 0, 0, .45); color: #fff; font-size: 14px; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: specLiveIn 600ms var(--ease-out) both; }
 .spec-live b { font-weight: 600; }
 .spec-live .spec-live-l { font-weight: 800; color: #ff6b7f; }
+/* (watching from a room: the others still playing, under it — a click switches to one) */
+.spec-switch { position: absolute; top: 136px; left: 50%; translate: -50% 0; z-index: 6; max-width: min(720px, calc(100 * var(--vw) - 40px)); display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; animation: specLiveIn 600ms var(--ease-out) both; }
+.spec-switch[hidden] { display: none; }
+.spec-sw-l { font-size: 12px; color: rgba(255, 255, 255, .7); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+.spec-sw { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px 0 4px; border: 0; border-radius: 99px; background: rgba(0, 0, 0, .5); color: #fff; font: inherit; font-size: 13px; font-weight: 600; transition: background-color 150ms; }
+.spec-sw:hover { background: rgba(var(--accent-rgb), .55); }
+.spec-sw .avatar { border-radius: 50%; }
 @keyframes specLiveIn { from { opacity: 0; translate: -50% -8px; } }
+
+/* ── announcements: banners under the toolbar (never over a song) */
+.ann-stack { position: absolute; top: calc(var(--toolbar-h) + 8px); left: 50%; translate: -50% 0; z-index: 85; width: min(640px, calc(100 * var(--vw) - 24px)); display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.ann-stack:empty, #app.in-game .ann-stack { display: none; }
+.ann { --ac: #66ccff; pointer-events: auto; display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 14px; border-radius: 10px; background: rgba(20, 22, 28, .92); box-shadow: 0 6px 22px rgba(0, 0, 0, .4), inset 3px 0 0 var(--ac); animation: annIn 400ms var(--ease-out) both; }
+.ann.warn { --ac: #ffcc22; } .ann.event { --ac: #ff66aa; } .ann.maint { --ac: #ff8a5c; }
+@keyframes annIn { from { opacity: 0; translate: 0 -10px; } }
+.ann-ic { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--ac) 22%, transparent); color: var(--ac); }
+.ann-ic svg { width: 14px; height: 14px; }
+.ann-main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: .86rem; line-height: 1.35; }
+.ann-t { color: var(--ac); font-weight: 700; }
+.ann-x { color: #fff; overflow-wrap: anywhere; }
+.ann-cd { margin-left: auto; padding: 1px 8px; border-radius: 99px; background: color-mix(in srgb, var(--ac) 25%, transparent); color: #fff; font-size: .76rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ann-close { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--muted); }
+.ann-close svg { width: 11px; height: 11px; }
+.ann-close:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+.ann-pop { white-space: pre-wrap; }
+.ann-when { margin-top: 8px; font-weight: 700; color: #fff; }
+/* ── reporting a player; an admin's dialogs */
+.rep { display: flex; flex-direction: column; gap: 10px; min-width: min(420px, calc(100 * var(--vw) - 80px)); }
+.rep-who { margin: 0; color: #fff; }
+.rep-note { margin: 0; font-size: .8rem; color: var(--muted); }
+.rep-opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.rep-opts.rep-days { grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); }
+.rep-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 8px; background: rgba(255, 255, 255, .04); color: var(--text-2); font: inherit; text-align: left; transition: background-color 150ms, border-color 150ms; }
+.rep-opt b { font-size: .86rem; color: #fff; }
+.rep-opt small { font-size: .72rem; color: var(--muted); }
+.rep-opt:hover { background: rgba(255, 255, 255, .08); }
+.rep-opt.on { border-color: rgba(var(--accent-rgb), .8); background: rgba(var(--accent-rgb), .18); }
+.rep-text { width: 100%; min-height: 70px; resize: vertical; padding: 8px 10px; font: inherit; color: #fff; }
+.rep-check { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: var(--text-2); }

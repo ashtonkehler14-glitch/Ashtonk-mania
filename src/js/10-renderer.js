@@ -588,6 +588,10 @@ class ManiaRenderer {
   }
   _drawKeys(g, realNow = performance.now()) {
     const L = this.layout, K = L.keys, H = this.H;
+    // (the receptors as see-through as the skin editor's "Receptor opacity" says)
+    const op = clamp((Settings.get('skin.receptorAlpha') ?? 100) / 100, 0, 1);
+    if (op <= 0) return;
+    if (op < 1) this.ctx.globalAlpha = op;
     for (let i = 0; i < K; i++) {
       // (lazer's LegacyKeyArea: the pressed image stays 80 ms after the key is let go)
       const down = (g.held[i] || (this.legacy && realNow - this.keyLight[i] < 80)) && L.tex.keyD[i];
@@ -612,6 +616,7 @@ class ManiaRenderer {
         this._spriteImg(t.img, this.colX[i], top, this.colW[i], h, flip);
       }
     }
+    if (op < 1) this.ctx.globalAlpha = 1;
   }
 
   /** Can this canvas draw through a CSS filter (not before Safari 18)? */
@@ -806,7 +811,7 @@ class ManiaRenderer {
   _renderWom(g) {
     const L = this.layout, ctx = this.ctx, K = L.keys, H = this.H, d = this.womD, st = k => Settings.get(`wom.${k}`);
     const realNow = g.realNow ?? performance.now();
-    const style = L.wom.style, ns = this.womNS, cols = this.womCol, ro = st('receptorOpacity'), lit = st('receptorLighting');
+    const style = L.wom.style, ns = this.womNS, cols = this.womCol, ro = st('receptorOpacity') * clamp((Settings.get('skin.receptorAlpha') ?? 100) / 100, 0, 1), lit = st('receptorLighting');
     ctx.setTransform(1, 0, 0, 1, -this.cropX, 0);
     ctx.clearRect(this.cropX, 0, this.canvas.width, H);
     ctx.save();

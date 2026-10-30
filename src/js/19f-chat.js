@@ -72,6 +72,18 @@ const Chat = {
     } catch { /* nothing kept */ }
   },
   /** Does this message say your name (as a word)? */
+  /** A name in the chat (right-click or tap): their profile, reporting them, an admin's tools — and, for an admin,
+   *  taking the line out of #lobby. */
+  nameMenu(e, l) {
+    const f = l.from || {};
+    if (!f.pid || f.pid === Presence.pid()) return;
+    e.preventDefault(); e.stopPropagation(); UISounds.click();
+    const on = Presence.players.find(p => p.pid === f.pid);
+    const u = { pid: f.pid, name: f.name, id: on ? on.id : null, online: !!on, avatar: on ? on.avatar : '', status: on ? on.status : 'offline', role: roleOfPid(f.pid) };
+    const items = UserPanels.menuItems(u);
+    if (Staff.menuItems(u).length && this.cur === '#lobby' && l.at) items.push({ label: 'Delete this message', icon: 'trash', danger: true, onClick: () => Staff.run('chatDelete', { at: l.at, pid: f.pid }, 'Message deleted') });
+    showMenu(e.clientX, e.clientY, items);
+  },
   mentions(text) {
     const n = (ProfileManager.profile.name || '').trim();
     if (n.length < 2) return false;
@@ -183,7 +195,9 @@ const Chat = {
     // (/me: lazer's action line — the name and what they did, in italics)
     else this.lines.append(h(`div.ch-line${me ? '.me' : ''}${act ? '.act' : ''}${!me && this.mentions(l.text) ? '.mention' : ''}`,
       h('span.ch-time', t),
-      h('span.ch-name', { style: { color: this.colour(l.from) }, title: l.from.name }, act ? `* ${l.from.name || '?'}` : l.from.name || '?'),
+      // (an admin's name in their role's colour)
+      // (a right-click — or a tap — on it: their profile, reporting them, an admin's tools)
+      fxName(h('span.ch-name', { style: { color: this.colour(l.from) }, title: l.from.name, oncontextmenu: e => this.nameMenu(e, l), onclick: e => this.nameMenu(e, l) }, act ? `* ${l.from.name || '?'}` : l.from.name || '?'), roleOfPid(l.from.pid)),
       h('span.ch-text', act ? l.text.replace(/^\/me\s+/, '') : l.text)));
     if (scroll && (stick || me)) this.lines.scrollTop = this.lines.scrollHeight;
   },

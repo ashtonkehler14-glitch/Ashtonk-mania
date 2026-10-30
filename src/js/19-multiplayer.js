@@ -163,7 +163,7 @@ const Multiplayer = {
         this.syncHasMap();
         // mid-song: your live score goes out on the very next frame, so the others see it move again straight away
         if (typeof GameplayScreen !== 'undefined') GameplayScreen._mpSent = 0;
-        if (rc.mods.length) this.send({ t: 'mods', mods: rc.mods });
+        if (rc.mods.length) this.send({ t: 'mods', mods: rc.mods, modConfig: ModSystem.config() });
         if (rc.diff) this.chooseDiff(rc.diff);
         Toast.ok('Reconnected to the room', rc.code);
         Bus.emit('mp:changed');
@@ -193,7 +193,7 @@ const Multiplayer = {
     try {
       await this.connect(s.code, false, !!s.quick, true, s.opts || {});
       this.syncHasMap();
-      if ((s.mods || []).length) this.send({ t: 'mods', mods: s.mods });
+      if ((s.mods || []).length) this.send({ t: 'mods', mods: s.mods, modConfig: ModSystem.config() });
       if (s.diff) this.chooseDiff(s.diff);
       Toast.ok('Back in the room', s.code);
       Bus.emit('mp:changed');
@@ -402,8 +402,10 @@ const Multiplayer = {
   /** This player's own mods; a speed mod (DT, HT…) in the list is the room's instead (the host's: set; anyone else's:
    *  proposed). */
   setMods(list, { propose = true } = {}) {
+    // (a room where each player picks their own speed: a speed mod is theirs, like any other)
+    if (this.ownSpeed()) { this.send({ t: 'mods', mods: list.filter(x => !(MOD_BY_ID.get(x) || {}).nojudge), modConfig: ModSystem.config() }); return; }
     const speed = list.filter(x => MP_SPEED_MODS.includes(x)).slice(0, 1);
-    this.send({ t: 'mods', mods: list.filter(x => !MP_SPEED_MODS.includes(x) && !(MOD_BY_ID.get(x) || {}).unranked) }); // (no Auto, Cinema, Wind Up…: a room can't judge those)
+    this.send({ t: 'mods', mods: list.filter(x => !MP_SPEED_MODS.includes(x) && !(MOD_BY_ID.get(x) || {}).nojudge) }); // (no Auto, Cinema, Wind Up…: a room can't judge those)
     if (!propose) return;
     const r = this.room, cur = r ? r.mods || [] : [];
     const pending = r && r.vote ? r.vote.mods : null;
@@ -411,6 +413,13 @@ const Multiplayer = {
     if (!same(speed, cur) && (this.isHost() || !(pending && same(speed, pending)))) this.send({ t: 'rate', mods: speed, modConfig: ModSystem.config() });
   },
   vote(yes) { this.send({ t: 'vote', yes }); },
+  /** Does each player in this room pick their own speed mod (the room's setting)? */
+  ownSpeed() { const r = this.room; return !!(r && r.settings && r.settings.speed === 'own' && !r.qp && !r.rp); },
+  /** Can this player add songs to the room's queue: the host, or anyone where the queue mode is "everyone"? */
+  canQueue() { const r = this.room; return !!(r && !r.qp && !r.rp && (this.isHost() || (r.settings && r.settings.queue === 'all'))); },
+  /** A beatmap of this player's onto the room's queue (the room's beatmap straight away when it has none). */
+  queueAdd(m) { return !!this.send({ t: 'queue', op: 'add', map: this.mapInfo(m) }); },
+  queueOp(op, id) { this.send({ t: 'queue', op, id }); },
   /** A beatmap of this player's, as the room sees it (its online IDs: for the others to download it). */
   mapInfo(m) {
     const set = BeatmapManager.setById.get(m.setId);
@@ -418,7 +427,7 @@ const Multiplayer = {
       onlineSetId: set && set.onlineId > 0 ? set.onlineId : -1, onlineId: m.onlineId > 0 ? m.onlineId : -1 };
   },
   selectMap(m, mods) {
-    this.send({ t: 'map', map: this.mapInfo(m), mods: mods.filter(x => !(MOD_BY_ID.get(x) || {}).unranked), modConfig: ModSystem.config() });
+    this.send({ t: 'map', map: this.mapInfo(m), mods: mods.filter(x => !(MOD_BY_ID.get(x) || {}).nojudge), modConfig: ModSystem.config() });
   },
   /** Not the host: a beatmap from this player's library recommended to the host (in the room's chat, with a Pick
    *  button for the host). False when it couldn't be sent. */
@@ -871,6 +880,8 @@ const Presence = {
       // (your code reset: the old one doesn't work any more — this device is still you)
       else if (m.t === 'codeRevoked') { try { localStorage.removeItem('am.code'); } catch { /* private mode */ } Bus.emit('account:changed'); Toast.show('Your code was reset', 'An admin reset it. This device is still you — Your code → New code makes a new one.', { hold: true }); }
       else if (m.t === 'admin') { this.isAdmin = !m.off; this.role = m.off ? null : m.role || null; Bus.emit('presence:admin'); }
+      // (announcements, reports, and an admin's actions from the game: 19p-staff)
+      else if (m.t === 'anns' || m.t === 'staffDone' || m.t === 'reported' || m.t === 'staffReport') Staff.msg(m);
     };
     ws.onclose = ev => {
       if (this.ws !== ws) return;
@@ -1316,6 +1327,7 @@ const MultiplayerScreen = {
       st.type === 'teams' ? h('span.mp-rule.teams', h('span.mp-rteams', h('i.red'), h('i.blue')), 'Team Versus') : h('span.mp-rule', icon('user'), 'Head to Head'),
       h('span.mp-rule', icon('trophy'), `Highest ${WIN[st.win] || 'score'} wins`),
       h('span.mp-rule', `${r.players.length}/${st.size} players`),
+      st.speed === 'own' ? h('span.mp-rule', icon('bolt'), 'Own speed mods') : null,
       h('span.mp-rule', icon(st.public === false ? 'lock' : 'globe'), st.public === false ? 'Private' : 'Public'));
     // lazer's MultiplayerRoomPanel: the room as its lounge card across the top — the beatmap's cover faded behind, the
     // room's state, its name and rules, and the code with Invite and Copy code on the right
@@ -1333,7 +1345,7 @@ const MultiplayerScreen = {
       h('div.mp-roompanel-code', h('small', 'Room code'), h('b.mp-room-code', r.code)),
       invite, copy,
       // (lazer's match settings: the host changes the rules between matches)
-      host && !Multiplayer.isQP() && !Multiplayer.isRP() ? h('button.btn.sm.mp-settings-btn', { title: 'Match type, win condition, room size, queue, visibility, auto start', disabled: playing, onclick: () => { UISounds.click(); this.openSettings(); } }, icon('cog'), 'Settings') : null));
+      host && !Multiplayer.isQP() && !Multiplayer.isRP() ? h('button.btn.sm.mp-settings-btn', { title: 'Match type, win condition, room size, queue, speed mods, visibility, auto start', disabled: playing, onclick: () => { UISounds.click(); this.openSettings(); } }, icon('cog'), 'Settings') : null));
     { const rp = this.headEl.firstChild; if (rp) rp.classList.toggle('with-set', !!rp.querySelector(':scope > .mp-settings-btn')); }
     Toast.place();
 
@@ -1375,7 +1387,8 @@ const MultiplayerScreen = {
     const myMods = (me && me.mods) || [];
     const badges = (list, none) => list.length ? list.map(m => ModSystem.badge(m, true)) : [h('span.mp-none', none)];
     const modsRow = h('div.mp-mods',
-      h('div.mp-modline', h('span.mp-modlabel', 'Speed'), ...badges(r.mods || [], 'Normal')),
+      // (each picking their own speed: theirs is among their mods)
+      st.speed === 'own' ? null : h('div.mp-modline', h('span.mp-modlabel', 'Speed'), ...badges(r.mods || [], 'Normal')),
       h('div.mp-modline', h('span.mp-modlabel', 'Your mods'), ...badges(myMods, 'None')),
       h('span.grow'),
       h('button.btn.sm.mp-mods-btn', { onclick: () => this.openMods() }, icon('mods'), 'Mods'));
@@ -1391,7 +1404,7 @@ const MultiplayerScreen = {
         mine ? null : h('button.btn.sm.primary.mp-accept', { onclick: () => { UISounds.click(); Multiplayer.vote(true); } }, 'Accept'),
         mine ? null : h('button.btn.sm.mp-decline', { onclick: () => { UISounds.click(); Multiplayer.vote(false); } }, 'Decline'));
     }
-    clearEl(this.mapEl).append(h('div.mp-map', bg, h('div.mp-map-body', ...mapInfo, diffPick, modsRow, voteEl, mapActions, status.childNodes.length ? status : null)));
+    clearEl(this.mapEl).append(h('div.mp-map', bg, h('div.mp-map-body', ...mapInfo, diffPick, modsRow, voteEl, mapActions, status.childNodes.length ? status : null)), this.queuePanel(r, host));
 
     // players
     const slot = p => {
@@ -1406,7 +1419,7 @@ const MultiplayerScreen = {
       return h('div.mp-slot', h('span.mp-crown', p.id === r.host ? h('span', { title: 'Host' }, icon('crown')) : null), h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
         h('span.mp-pav', isMe ? ProfileManager.avatarEl(40) : Presence.avatarEl(p, 40)),
         // (the name, and under it the difficulty they're playing — side by side, a ready player's difficulty was cut off)
-        h('span.mp-pinfo', h('span.mp-pname', p.name, isMe ? h('span.mp-you', ' (you)') : null),
+        h('span.mp-pinfo', h('span.mp-pname', fxName(h('span', p.name), roleOfPid(isMe ? Presence.pid() : p.pid)), isMe ? h('span.mp-you', ' (you)') : null),
           r.map ? h('span.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`) : null),
         (p.mods || []).length ? h('span.mp-pmods', ...p.mods.map(m => ModSystem.badge(m, true))) : null,
         // still playing while you're back in the room: watch them finish
@@ -1471,7 +1484,7 @@ const MultiplayerScreen = {
     Settings.set('songselect.mods', ModSystem.normalize([...(r.mods || []), ...((me && me.mods) || [])]));
     // every toggle reaches the room straight away; a speed mod goes to the room once, when mod select closes
     const off = Bus.on('mods:changed', () => { if (Multiplayer.inRoom() && ModSelect.o) Multiplayer.setMods(Settings.get('songselect.mods') || [], { propose: false }); });
-    ModSelect.open({ disabled: MODS.filter(x => x.unranked).map(x => x.id), why: 'not available in multiplayer', onClose: () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); } });
+    ModSelect.open({ disabled: MODS.filter(x => x.nojudge).map(x => x.id), why: 'not available in multiplayer', onClose: () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); } });
   },
   updateFetch() {
     const f = Multiplayer.fetch;
@@ -1506,6 +1519,27 @@ const MultiplayerScreen = {
       this.chatPill.hidden = false;
     }
   },
+  /** The room's queue (lazer's playlist of upcoming songs): the next one comes up after each match. The host plays one
+   *  now, moves one up or takes one off; whoever added a song can take it off. */
+  queuePanel(r, host) {
+    const q = r.queue || [], can = Multiplayer.canQueue(), lobby = !r.players.some(p => p.playing);
+    const btn = (title, ic, fn, cls = '') => h(`button.mp-qi-b${cls}`, { title, 'aria-label': title, onclick: () => { UISounds.click(); fn(); } }, icon(ic));
+    // (the room is drawn again on every change: a song slides in the first time it shows, then stays put)
+    if (this._qCode !== r.code) { this._qCode = r.code; this._qSeen = new Set(); }
+    const seen = this._qSeen;
+    const item = (it, i) => h(`li.mp-qi${seen.has(it.id) ? '.still' : (seen.add(it.id), '')}`, h('span.mp-qi-n', String(i + 1)),
+      h('div.mp-qi-main', h('div.mp-qi-t', `${it.map.artist} - ${it.map.title}`),
+        h('div.mp-qi-s', starBadge(it.map.stars || 0), h('span', it.map.version), h('span.mp-qi-by', `added by ${it.by === Multiplayer.me ? 'you' : it.byName}`))),
+      host && lobby ? btn('Play this one now', 'play', () => Multiplayer.queueOp('play', it.id)) : null,
+      host && i > 0 ? btn('Move up', 'up', () => Multiplayer.queueOp('up', it.id)) : null,
+      host || it.by === Multiplayer.me ? btn('Take it off the queue', 'x', () => Multiplayer.queueOp('remove', it.id), '.del') : null);
+    return h('div.mp-queue',
+      h('div.mp-queue-h', icon('list'), h('b', 'Up next'), q.length ? h('span.mp-queue-n', String(q.length)) : null, h('span.grow'),
+        can ? h('button.btn.sm', { title: 'Queue a song from your library', onclick: () => { UISounds.click(); Screens.go('songselect', { mpPick: true, mpQueue: true }); } }, icon('plus'), 'Add song') : null,
+        can ? h('button.btn.sm', { title: 'Find a song online to queue', onclick: () => { UISounds.click(); Screens.go('explore', { mpPick: true, mpQueue: true }); } }, icon('search')) : null),
+      q.length ? h('ol.mp-queue-list', ...q.map(item))
+        : h('div.mp-queue-empty', can ? 'Queue songs to play one after another — the next comes up after each match.' : 'Nothing queued. The host can queue songs to play next.'));
+  },
   resultsPanel(res) {
     const meId = Multiplayer.me, mine = res.rows.find(x => x.id === meId);
     const WIN = { pp: 'pp', score: 'score', accuracy: 'accuracy', combo: 'max combo' };
@@ -1527,7 +1561,10 @@ const MultiplayerScreen = {
       cls = res.winner === null ? 'draw' : res.winner === meId ? 'won' : 'lost';
     }
     const val = x => res.win === 'score' ? fmtScore(x.score) : res.win === 'accuracy' ? fmtAcc(x.accuracy) : res.win === 'combo' ? `${fmtInt(x.maxCombo)}x` : `${fmtInt(x.pp || 0)}pp`;
-    const row = x => h(`div.mp-res-row${x.id === res.winner || (res.teams && x.team === res.winnerTeam) ? '.win' : ''}${x.team === 0 ? '.red' : x.team === 1 ? '.blue' : ''}`,
+    // (a click on a played score brings its score card back up)
+    const row = x => h(`div.mp-res-row${x.id === res.winner || (res.teams && x.team === res.winnerTeam) ? '.win' : ''}${x.team === 0 ? '.red' : x.team === 1 ? '.blue' : ''}${x.pending ? '' : '.click'}`,
+      x.pending ? {} : { role: 'button', tabindex: '0', title: x.id === meId ? 'See your score' : `See ${x.name}'s score`,
+        onclick: () => { UISounds.click(); MpResults.expand(x, res); }, onkeydown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } } },
       res.rows.length > 2 || res.teams ? h('span.mp-res-place', `#${x.place || '–'}`) : null,
       x.pending ? h('span.grade', '—') : rankPill(x.forfeit ? 'F' : x.grade || 'D'),
       h('div.main', h('div.t', x.name, x.id === meId ? h('span.muted', ' (you)') : null), h('div.s', x.forfeit ? (x.left ? 'left the match' : 'forfeited') : x.pending ? 'won by forfeit' : `${fmtScore(x.score)} · ${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.diff ? ` · ${x.diff.version}` : res.map ? ` · ${res.map.version}` : ''}`)),
@@ -1569,7 +1606,8 @@ const MultiplayerScreen = {
       clearEl(body).append(
         seg('Match type', 'type', [['h2h', 'Head to Head', 'everyone for themselves'], ['teams', 'Team Versus', 'red vs blue, team averages win']]),
         seg('Win condition', 'win', [['pp', 'pp', 'fair across difficulties'], ['score', 'Score'], ['accuracy', 'Accuracy'], ['combo', 'Max combo']]),
-        seg('Queue mode', 'queue', [['host', 'Host picks'], ['rotate', 'Host rotates', 'after each match']]),
+        seg('Queue mode', 'queue', [['host', 'Host picks'], ['rotate', 'Host rotates', 'after each match'], ['all', 'Everyone', 'anyone queues songs']]),
+        seg('Speed mods', 'speed', [['room', 'Same for all', 'the host\'s, or voted on'], ['own', 'Each their own', 'DT, HT… per player']]),
         seg('Visibility', 'public', [[true, 'Public', 'listed in the lobby'], [false, 'Private', 'join with the code']]),
         // lazer's auto start (the match starts with whoever's ready when the countdown ends) and auto skip
         seg('Auto start', 'autoStart', [[0, 'Off'], [30, '30s'], [60, '1 min'], [120, '2 min'], [300, '5 min']]),

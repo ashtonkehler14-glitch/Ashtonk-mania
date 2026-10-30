@@ -137,6 +137,44 @@ try {
   await api('announce', { text: 'Server restart in 5 minutes' });
   await bob.waitForFunction(() => [...document.querySelectorAll('#toasts .toast')].some(t => /Server restart in 5 minutes/.test(t.textContent)), null, { timeout: 8000 }).catch(() => {});
   check('Announce: every player gets it as a notification, and in #lobby', await bob.evaluate(() => [...document.querySelectorAll('#toasts .toast')].some(t => /Server restart in 5 minutes/.test(t.textContent)) && AshtonkMania.Chat.channels.get('#lobby').lines.some(l => l.text === 'Server restart in 5 minutes')));
+  // a banner that stays up (Announcements tab): every game shows it — whoever comes online meanwhile too — until it's taken down
+  await panel.evaluate(() => { location.hash = 'announce'; });
+  await panel.waitForSelector('main textarea', { timeout: 10000 });
+  await panel.click('main .seg button:text-is("Event")');
+  await panel.fill('main input[placeholder^="Title"]', 'Tournament');
+  await panel.fill('main textarea', 'Finals tonight at 8!');
+  check('Announcements: a preview of the banner as players will see it', await panel.evaluate(() => /Tournament/.test(document.querySelector('main .ann.event')?.textContent || '')));
+  await panel.click('main button.primary:text-is("Announce")');
+  const banner = await bob.waitForFunction(() => /Finals tonight at 8!/.test(document.querySelector('.ann-stack .ann.event')?.textContent || ''), null, { timeout: 8000 }).then(() => true, () => false);
+  check('…a banner in every player\'s game, in its style, with its title', banner && await bob.evaluate(() => /Tournament/.test(document.querySelector('.ann-stack .ann-t').textContent)));
+  const late = await device('Dana');
+  check('…and whoever comes online while it\'s up gets it too', await late.waitForFunction(() => /Finals tonight/.test(document.querySelector('.ann-stack')?.textContent || ''), null, { timeout: 15000 }).then(() => true, () => false));
+  await late.close();
+  await panel.waitForSelector('main button.danger:text-is("Take down")', { timeout: 8000 });
+  await panel.click('main button.danger:text-is("Take down")');
+  check('…taken down: it goes from every game', await bob.waitForFunction(() => !document.querySelector('.ann-stack .ann'), null, { timeout: 8000 }).then(() => true, () => false));
+  // a player reports another: the owner's game hears of it at once; the Reports tab has it, with what they said in #lobby
+  const alicePid = await owner.evaluate(() => AshtonkMania.Presence.pid());
+  await owner.evaluate(() => AshtonkMania.Presence.send({ t: 'say', text: 'gg ez' }));
+  await owner.waitForTimeout(400);
+  await bob.evaluate(p => AshtonkMania.Presence.send({ t: 'report', pid: p, reason: 'chat', text: 'not nice' }), alicePid);
+  const heard = await owner.waitForFunction(() => AshtonkMania.Staff.open === 1 && [...document.querySelectorAll('#toasts .toast')].some(t => /New report/.test(t.textContent)), null, { timeout: 8000 }).then(() => true, () => false);
+  check('Report: a player reports someone — the admins online hear of it in their game', heard && await bob.evaluate(() => [...document.querySelectorAll('#toasts .toast')].some(t => /Report sent/.test(t.textContent))));
+  await panel.evaluate(() => { location.hash = 'reports'; });
+  await panel.waitForSelector('main .report', { timeout: 8000 }).catch(() => {});
+  const rep = await panel.evaluate(() => ({ text: document.querySelector('main .report')?.textContent || '', tab: document.querySelector('.tabs button.on .pill')?.textContent }));
+  check('…the Reports tab has it: who, why, what they said, their last lines in #lobby', /Chat/.test(rep.text) && /not nice/.test(rep.text) && /gg ez/.test(rep.text) && rep.tab === '1', JSON.stringify(rep).slice(0, 300));
+  await panel.click('main .report button:text-is("Dealt with")');
+  check('…dealt with: nothing waiting', await panel.waitForFunction(() => /Nothing waiting/.test(document.querySelector('main').textContent), null, { timeout: 8000 }).then(() => true, () => false) && (await api('reports')).open === 0);
+  // moderating from the game: the owner mutes Bob from his ⋯ menu's admin items (the server checks it like the panel)
+  const items = await owner.evaluate(p => AshtonkMania.Staff.menuItems({ pid: p, name: 'Bob' }).map(i => i.label || i.header).filter(Boolean), bobPid);
+  const gm = await owner.evaluate(p => AshtonkMania.Staff.act('mute', { pid: p, minutes: 10, reason: '' }), bobPid);
+  const mutedNow = ((await api('moderated')).mutes || []).some(x => x.pid === bobPid);
+  check('In the game: an admin\'s ⋯ menu has their tools, and a mute from there works', items.includes('Mute for 10 minutes') && items.includes('Ban…') && gm.ok && mutedNow, JSON.stringify({ items, gm, mutedNow }));
+  const notStaff = await bob.evaluate(p => AshtonkMania.Staff.act('ban', { pid: p, days: 1 }), alicePid);
+  check('…a player who isn\'t an admin can\'t', !notStaff.ok && /not an admin/.test(notStaff.error || ''), JSON.stringify(notStaff));
+  await owner.evaluate(p => AshtonkMania.Staff.act('unmute', { pid: p }), bobPid);
+  await panel.evaluate(p => { location.hash = 'players/' + p; }, bobPid); // (back on Bob's page for what follows)
 
   // a mute, then a ban
   await api('mute', { pid: bobPid, minutes: 10 });
@@ -224,7 +262,7 @@ try {
   check('Daily challenge: the owner sets the day\'s beatmap', ds.ok && ds.daily.map.title === 'Daily Song', JSON.stringify(ds).slice(0, 120));
   await panel.evaluate(() => { location.hash = 'overview'; }); await panel.waitForTimeout(800); await shot(panel, 'admin-overview');
   const log = await api('log');
-  check('the admin log has every change', ['Signed in', 'Renamed', 'Deleted a chat line', 'Announced', 'Muted', 'Banned', 'Unbanned', 'Made admin', 'No longer admin', 'Sent a message', 'Took a picture down', 'Allowed pictures again', 'Closed a room', 'Deleted a player', 'Set the daily challenge beatmap'].every(w => log.log.some(e => e.what === w)), log.log.map(e => e.what).join('|'));
+  check('the admin log has every change', ['Signed in', 'Renamed', 'Deleted a chat line', 'Announced', 'Took an announcement down', 'Dealt with a report', 'Muted', 'Banned', 'Unbanned', 'Made admin', 'No longer admin', 'Sent a message', 'Took a picture down', 'Allowed pictures again', 'Closed a room', 'Deleted a player', 'Set the daily challenge beatmap'].every(w => log.log.some(e => e.what === w)), log.log.map(e => e.what).join('|'));
 
   // signing in with the code is limited per address
   let limited = false;

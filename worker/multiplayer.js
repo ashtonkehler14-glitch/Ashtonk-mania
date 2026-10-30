@@ -122,13 +122,16 @@ function cleanResult(r) {
 // (autoStart: lazer's auto start — seconds after someone readies up before the match starts with whoever's ready, 0
 //  off; autoSkip: every intro skipped as soon as anyone asks)
 const AUTO_STARTS = [0, 30, 60, 120, 300];
-const defaultSettings = () => ({ type: 'h2h', win: 'score', size: MAX_PLAYERS, queue: 'host', public: true, autoStart: 0, autoSkip: false });
+// (speed: 'room' — one speed mod for everyone, the host's or one they all accept — or 'own': each player picks theirs)
+const defaultSettings = () => ({ type: 'h2h', win: 'score', size: MAX_PLAYERS, queue: 'host', public: true, autoStart: 0, autoSkip: false, speed: 'room' });
+/** Songs waiting their turn in a room's queue, at most. */
+export const QUEUE_MAX = 20;
 
 export class RoomLogic {
   constructor(code, now = () => Date.now(), rnd = Math.random) {
     this.code = code; this.now = now; this.rnd = rnd;
     this.players = []; this.hostId = null; this.created = false; this.resultCid = new Map(); this.departedCid = new Map();
-    this.map = null; this.mods = []; this.modConfig = null; this.vote = null;
+    this.map = null; this.mods = []; this.modConfig = null; this.vote = null; this.queue = []; this.queueSeq = 0;
     this.state = 'lobby'; this.deadline = 0; this.lastResults = null; this.departed = []; this.skipped = false;
     this.mode = 'custom'; this.settings = defaultSettings(); this.qp = null; this.rp = null;
   }
@@ -139,13 +142,15 @@ export class RoomLogic {
   saveable() {
     if (!this.created || this.mode !== 'custom' || !this.players.length) return null;
     const host = this.get(this.hostId);
-    return { v: 1, map: this.map, mods: this.mods, modConfig: this.modConfig, settings: this.settings, hostPid: host ? host.pid : '', at: this.now() };
+    return { v: 1, map: this.map, mods: this.mods, modConfig: this.modConfig, settings: this.settings, queue: this.queue, hostPid: host ? host.pid : '', at: this.now() };
   }
   restore(d) {
     if (!d || d.v !== 1 || this.created || this.now() - (d.at || 0) > 6 * 3600000) return false;
     this.created = true; this.mode = 'custom';
     this.map = d.map || null; this.mods = Array.isArray(d.mods) ? d.mods : []; this.modConfig = d.modConfig || null;
     this.settings = { ...defaultSettings(), ...(d.settings || {}) };
+    this.queue = Array.isArray(d.queue) ? d.queue.filter(q => q && q.map).slice(0, QUEUE_MAX) : [];
+    this.queueSeq = this.queue.reduce((a, q) => Math.max(a, q.id || 0), 0);
     this.restoredHost = d.hostPid || '';
     return true;
   }
@@ -159,6 +164,7 @@ export class RoomLogic {
       qp: q ? { keys: q.keys, round: q.round, rounds: q.rounds, phase: q.phase, left: q.deadline ? Math.max(0, q.deadline - this.now()) : 0,
         pool: q.pool, picks: { ...q.picks }, chosen: q.chosen, points: { ...q.points } } : null,
       vote: this.vote ? { mods: this.vote.mods, by: this.vote.by, yes: [...this.vote.yes] } : null,
+      queue: this.queue.map(q => ({ id: q.id, map: q.map, by: q.by, byName: q.byName })),
       starting: !!this.pendingStart, players: this.players.map(p => ({ id: p.id, pid: p.pid, name: p.name, avatar: p.avatar, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team, away: !!p.away,
         // (their song's over: what they got — judged, or as their game reported it while the judge checks it)
         fin: this.state === 'playing' && p.playing && (p.finished || p.claimed) ? (({ score, accuracy, maxCombo, counts, grade, passed, forfeit, pp }) => ({ score, accuracy, maxCombo, counts, grade, passed, forfeit, pp: pp || 0, checked: !!p.finished }))(p.finished || p.claimed) : null })),
@@ -349,7 +355,14 @@ export class RoomLogic {
           if (n !== st.size) { st.size = n; changes.push(`up to ${n} players`); }
         }
         if (typeof o.public === 'boolean' && o.public !== st.public) { st.public = o.public; changes.push(o.public ? 'listed in the lobby' : 'private (join with the code)'); }
-        if (['host', 'rotate'].includes(o.queue) && o.queue !== st.queue) { st.queue = o.queue; changes.push(o.queue === 'rotate' ? 'the host rotates after each match' : 'the host picks every map'); }
+        if (['host', 'rotate', 'all'].includes(o.queue) && o.queue !== st.queue) { st.queue = o.queue; changes.push(o.queue === 'rotate' ? 'the host rotates after each match' : o.queue === 'all' ? 'everyone can add songs to the queue' : 'the host picks every map'); }
+        if (['room', 'own'].includes(o.speed) && o.speed !== st.speed) {
+          st.speed = o.speed; this.vote = null;
+          // (each their own: the room's speed is gone — anyone who wants it picks it for themselves; one for everyone:
+          // the speed mods players had picked for themselves are gone)
+          if (o.speed === 'own') { this.mods = []; this.modConfig = null; } else for (const x of this.players) { x.mods = (x.mods || []).filter(k => !RATE_MODS.includes(k)); x.modConfig = null; }
+          changes.push(o.speed === 'own' ? 'each player picks their own speed' : 'one speed for everyone');
+        }
         if (AUTO_STARTS.includes(o.autoStart) && o.autoStart !== st.autoStart) { st.autoStart = o.autoStart; changes.push(o.autoStart ? `auto start after ${o.autoStart >= 60 ? `${o.autoStart / 60} min` : `${o.autoStart}s`}` : 'auto start off'); this.armAuto(); }
         if (typeof o.autoSkip === 'boolean' && o.autoSkip !== st.autoSkip) { st.autoSkip = o.autoSkip; changes.push(o.autoSkip ? 'intros skipped automatically' : 'auto skip off'); }
         if (!changes.length) return [];
@@ -406,6 +419,35 @@ export class RoomLogic {
         if (!map) return [];
         return [{ to: 'all', msg: { t: 'chat', from: id, name: p.name, text: `suggested ${map.artist} - ${map.title} [${map.version}]`, suggest: map, ts: this.now() } }];
       }
+      // the room's queue of songs: the host's — or, queue mode "all", anyone's — added in turn; the next one comes up
+      // after each match (or straight away when the room has none)
+      case 'queue': {
+        if (this.qp || this.rp) return [];
+        const op = String(m.op || '');
+        if (op === 'add') {
+          if (!host && this.settings.queue !== 'all') return [{ to: id, msg: { t: 'error', msg: 'Only the host can add songs here.' } }];
+          const map = cleanMap(m.map);
+          if (!map) return [{ to: id, msg: { t: 'error', msg: 'Invalid beatmap' } }];
+          if (this.queue.length >= QUEUE_MAX) return [{ to: id, msg: { t: 'error', msg: `The queue is full (${QUEUE_MAX} songs).` } }];
+          const label = `${map.artist} - ${map.title} [${map.version}]`;
+          if (!this.map && this.state === 'lobby') return [...this.setMap(map, p), this.roomMsg()];
+          this.queue.push({ id: ++this.queueSeq, map, by: id, byName: p.name });
+          return [this.system(`${p.name} queued ${label}`), this.roomMsg()];
+        }
+        const at = this.queue.findIndex(q => q.id === Math.floor(Number(m.id) || 0));
+        if (at < 0) return [];
+        const item = this.queue[at];
+        if (op === 'remove') {
+          if (!host && item.by !== id) return [];
+          this.queue.splice(at, 1);
+          return [this.roomMsg()];
+        }
+        // the host plays one now (between matches)
+        if (op === 'play' && host && this.state === 'lobby') { this.queue.splice(at, 1); return [...this.setMap(item.map, p), this.roomMsg()]; }
+        // the host moves one up
+        if (op === 'up' && host && at > 0) { this.queue.splice(at, 1); this.queue.splice(at - 1, 0, item); return [this.roomMsg()]; }
+        return [];
+      }
       case 'map': {
         if (!host || this.state !== 'lobby') return [];
         const map = cleanMap(m.map);
@@ -416,20 +458,20 @@ export class RoomLogic {
         p.hasMap = true;
         const out = [this.system(`Beatmap changed to ${map.artist} - ${map.title} [${map.version}]`)];
         if (Array.isArray(m.mods)) {
-          p.mods = personalMods(m.mods);
+          this.setOwnMods(p, m.mods, m.modConfig);
           // the host's speed mod (DT…) becomes the room's. Picking a map without one keeps the room's current speed
-          // (removing it goes through the Mods button)
+          // (removing it goes through the Mods button). (Where each player picks their own, it's the host's own.)
           const sp = speedMods(m.mods);
-          if (sp.length) out.push(...this.propose(p, sp, cleanConfig(m.modConfig)));
+          if (sp.length && !this.ownSpeed()) out.push(...this.propose(p, sp, cleanConfig(m.modConfig)));
         }
         return [this.roomMsg(), ...out];
       }
       case 'mods':
         if (this.state !== 'lobby') return [];
-        p.mods = personalMods(m.mods);
+        this.setOwnMods(p, m.mods, m.modConfig);
         return [this.roomMsg()];
       case 'rate':
-        if (this.state !== 'lobby') return [];
+        if (this.state !== 'lobby' || this.ownSpeed()) return [];
         return [...this.propose(p, speedMods(m.mods), cleanConfig(m.modConfig)), this.roomMsg()];
       case 'vote': {
         if (this.state !== 'lobby' || !this.vote || this.vote.yes.includes(id)) return [];
@@ -518,7 +560,9 @@ export class RoomLogic {
   beginMatch(list) {
     this.pendingStart = false; this.autoAt = 0;
     this.state = 'playing'; this.skipped = false;
-    this.deadline = this.now() + START_DELAY + (this.map.length || 600000) / rateOf(this.mods, this.modConfig) + 60000;
+    // (each their own speed: as long as the slowest of them takes)
+    const rate = Math.min(rateOf(this.mods, this.modConfig), ...list.map(x => this.ownSpeed() ? rateOf(x.mods || [], x.modConfig) : 1));
+    this.deadline = this.now() + START_DELAY + (this.map.length || 600000) / rate + 60000;
     for (const x of this.players) { x.playing = list.includes(x); x.finished = null; x.live = null; x.skip = false; }
     this.departed = []; this.departedCid = new Map();
     const g = this.qp;
@@ -608,6 +652,26 @@ export class RoomLogic {
   /** Does the room need its clock ticking (a match to time out, a Quick Play / Ranked Play phase to end)? */
   wantsTick() { return this.state === 'playing' || !!this.autoAt || this.players.some(p => p.away) || !!(this.qp && this.qp.deadline) || !!(this.rp && this.rp.deadline); }
 
+  /** Does each player pick their own speed mod here (the room's setting; never in Quick Play or Ranked Play)? */
+  ownSpeed() { return this.settings.speed === 'own' && !this.qp && !this.rp; }
+  /** A player's own mods: a speed mod among them too where each picks their own (with Rate Adjust's rate). */
+  setOwnMods(p, list, modConfig) {
+    p.mods = this.ownSpeed() ? [...personalMods(list), ...speedMods(list)] : personalMods(list);
+    p.modConfig = p.mods.includes('RT') ? cleanConfig(modConfig) : null;
+  }
+  /** The room's beatmap, from the queue or the host's song select: everyone unready, their difficulties cleared, and
+   *  their games told to find (or download) it. */
+  setMap(map, by) {
+    this.map = map;
+    this.unreadyAll();
+    for (const x of this.players) { x.diff = null; x.hasMap = false; }
+    return [this.system(`${by ? `${by.name} picked` : 'Next up:'} ${map.artist} - ${map.title} [${map.version}]`)];
+  }
+  /** After a match: the next song in the queue comes up. */
+  nextInQueue() {
+    const q = !this.qp && !this.rp && this.queue.shift();
+    return q ? this.setMap(q.map, null) : [];
+  }
   /** A player asks for a room speed mod (or none). It applies once everyone has accepted. */
   propose(p, mods, modConfig) {
     const rateOfCfg = c => (c && Number.isFinite(+c.rate) ? +c.rate : 1);
@@ -681,7 +745,9 @@ export class RoomLogic {
     // failed, and the player's own unchecked result stood instead)
     const want = [...new Set([...this.mods, ...(p.mods || [])])].sort().join(), got = !r.error && Array.isArray(r.mods) ? [...r.mods].sort().join() : '';
     // (Rate Adjust: the room's speed too — a slower play under the same mod isn't the room's)
-    const rt = this.mods.includes('RT') && this.modConfig && Number.isFinite(+this.modConfig.rate) ? +this.modConfig.rate : null;
+    // (or theirs, where each picks their own)
+    const rtCfg = this.mods.includes('RT') ? this.modConfig : (p.mods || []).includes('RT') ? p.modConfig : null;
+    const rt = rtCfg && Number.isFinite(+rtCfg.rate) ? +rtCfg.rate : null;
     const speedOk = rt == null || (Number.isFinite(+r.rate) && Math.abs(+r.rate - rt) < 0.005);
     if (r.error || !sameMap || want !== got || !speedOk) {
       p.finished = { ...cleanResult({}), grade: 'F', unverified: true };
@@ -733,6 +799,7 @@ export class RoomLogic {
       this.hostId = this.nextAfter(this.hostId);
       out.push(this.system(`${this.get(this.hostId).name} picks the next beatmap`));
     }
+    out.push(...this.nextInQueue());
     return [{ to: 'all', msg: { t: 'results', results: this.lastResults } }, ...out, this.roomMsg()];
   }
 }
@@ -1031,6 +1098,8 @@ export class PresenceLogic {
     // lazer's chat: #lobby for everyone online (the last CHAT_KEEP lines kept for whoever comes online), and private
     // messages between friends; `said` rate-limits each connection
     this.chat = []; this.said = new Map();
+    // admins' announcements (banners in everyone's game while they're up) and players' reports for the admins
+    this.anns = []; this.reports = []; this.repAt = new Map();
     // lazer's rankings (performance): each player's own totals by public id, kept in storage (rk:<pid>)
     this.ranks = new Map(); this.persistRank = null;
     // lazer's daily challenge: one beatmap a day (US Central time), picked by the server itself (Matchmaker.pickDaily —
@@ -1167,11 +1236,17 @@ export class PresenceLogic {
    *  showing on the boards, the rankings and the daily challenge (kept, in case of an unban). Returns { out, gone }. */
   adminBan(pid, { days = 0, reason = '' } = {}) {
     const v = { until: days > 0 ? this.now() + Math.min(3650, days) * 86400000 : 0, reason: str(reason, 200), at: this.now(), name: this.adminRow(pid).name };
+    // (banned for good: their account is deleted — scores, profile, friends — and they're off every leaderboard; the
+    // ban itself stays on their id and devices, so their game says they're banned rather than starting over)
+    const touched = v.until ? new Set() : this.purgePlayer(pid);
+    if (!v.until) v.purged = true;
     this.bans.set(pid, v); if (this.persistMod) this.persistMod('bn', pid, v);
     const ids = this.byPid(pid), out = [];
     for (const id of ids) { out.push({ to: id, msg: this.bannedMsg(pid) }); out.push(...this.forget(id)); }
-    return { out: ids.length ? [...out, this.broadcast()] : out, gone: ids };
+    return { out: [...out, ...this.friendsOut(...touched), ...(ids.length ? [this.broadcast()] : [])], gone: ids };
   }
+  /** Bans for good from before they deleted the account: the players still to be purged (Matchmaker.purgeBanned). */
+  unpurgedBans() { return [...this.bans.entries()].filter(([, v]) => v && !v.until && !v.purged).map(([pid]) => pid); }
   adminUnban(pid) { this.bans.delete(pid); if (this.persistMod) this.persistMod('bn', pid, null); }
   /** No chat (#lobby or private messages) for `minutes`, or for good. */
   adminMute(pid, { minutes = 0, reason = '' } = {}) {
@@ -1209,13 +1284,74 @@ export class PresenceLogic {
   }
   adminChatClear() { this.chat = []; if (this.persistChat) this.persistChat(this.chat); return [{ to: 'all', msg: { t: 'chatClear' } }]; }
   /** A message from the server's owner: a notification for everyone online, and a line in #lobby. */
-  adminAnnounce(text) {
-    const tx = str(text, 300).replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+  /** An announcement for everyone online. Just now (no `hours`): a notification and a line in #lobby, as it always
+   *  was. Up for a while: a banner in everyone's game — whoever comes online meanwhile too — in its style (`kind`: info,
+   *  warn, event, maint), with a title; maintenance can count down to a time (`at`); `popup` also opens it as a notice
+   *  to close. At most 5 up at once (the oldest goes). */
+  adminAnnounce(text, { title = '', kind = 'info', hours = 0, popup = false, lobby = true, minutes = 0 } = {}) {
+    const clean = (v, n) => str(v, n).replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+    const tx = clean(text, 300), now = this.now();
     if (!tx) return [];
-    const line = { ch: '#lobby', from: { pid: '', name: 'Ashtonk!mania', avatar: '', system: true }, text: tx, at: this.now() };
-    this.chat.push(line); if (this.chat.length > PresenceLogic.CHAT_KEEP) this.chat.shift();
-    if (this.persistChat) this.persistChat(this.chat);
-    return [{ to: 'all', msg: { t: 'say', ...line } }, { to: 'all', msg: { t: 'announce', text: tx } }];
+    const out = [];
+    if (lobby !== false) {
+      const line = { ch: '#lobby', from: { pid: '', name: 'Ashtonk!mania', avatar: '', system: true }, text: tx, at: now };
+      this.chat.push(line); if (this.chat.length > PresenceLogic.CHAT_KEEP) this.chat.shift();
+      if (this.persistChat) this.persistChat(this.chat);
+      out.push({ to: 'all', msg: { t: 'say', ...line } });
+    }
+    const h = Math.max(0, Math.min(24 * 30, Number(hours) || 0)), at = Number(minutes) > 0 ? now + Math.min(7 * 1440, Number(minutes)) * 60000 : 0;
+    // (a pop-up, or a maintenance countdown, stays up at least a while: those who come online in the meantime get it too)
+    const keep = h ? h * 3600000 : popup || at ? Math.max(10 * 60000, at ? at - now + 30 * 60000 : 0) : 0;
+    if (!keep) return [...out, { to: 'all', msg: { t: 'announce', text: tx } }];
+    const a = { id: `${now.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, title: clean(title, 60), text: tx,
+      kind: ['info', 'warn', 'event', 'maint'].includes(kind) ? kind : 'info', popup: !!popup, at: at || 0, made: now, until: now + keep };
+    this.anns = [...this.annList(), a].slice(-5);
+    if (this.persistAnns) this.persistAnns(this.anns);
+    return [...out, { to: 'all', msg: { t: 'anns', list: this.anns } }];
+  }
+  /** The announcements up now. */
+  annList() { const now = this.now(); return this.anns.filter(a => a && a.until > now); }
+  /** An announcement taken down before its time. */
+  annEnd(id) {
+    if (!this.annList().some(a => a.id === String(id || ''))) return null;
+    this.anns = this.annList().filter(a => a.id !== String(id || ''));
+    if (this.persistAnns) this.persistAnns(this.anns);
+    return [{ to: 'all', msg: { t: 'anns', list: this.anns } }];
+  }
+  /** A player reporting another to the admins: why (cheating, chat, their name or picture, something else) and what
+   *  happened, with the reported player's last lines in #lobby. A few an hour, and one player once in 30 minutes. */
+  report(id, msg) {
+    const u = this.users.get(id), pid = String((msg && msg.pid) || ''), now = this.now();
+    const no = error => [{ to: id, msg: { t: 'reported', ok: false, error } }];
+    if (!u || !u.pid) return no('Only a player with an id can report.');
+    if (!/^[a-z0-9]{6,24}$/.test(pid) || pid === u.pid || this.deleted.has(pid)) return no('There\'s no such player.');
+    const mine = (this.repAt.get(u.pid) || []).filter(x => now - x.at < 3600000);
+    if (mine.length >= 5) return no('That\'s a lot of reports — try again in a while.');
+    if (mine.some(x => x.pid === pid && now - x.at < 1800000)) return no('You\'ve already reported them — the admins will look into it.');
+    this.repAt.set(u.pid, [...mine, { pid, at: now }]);
+    const reason = PresenceLogic.REPORT_REASONS[msg.reason] ? msg.reason : 'other';
+    const chat = this.chat.filter(l => l.from && l.from.pid === pid).slice(-6).map(l => ({ at: l.at, text: str(l.text, 300) }));
+    const r = { id: `${now.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, at: now, by: { pid: u.pid, name: u.name }, pid, name: this.adminRow(pid).name || pid, reason,
+      text: str(msg.text, 300).replace(/[\u0000-\u001f\u007f]/g, ' ').trim(), chat, open: true };
+    this.reports = [...this.reports, r].slice(-PresenceLogic.REPORTS_KEEP);
+    if (this.persistReports) this.persistReports(this.reports);
+    const open = this.openReports();
+    return [{ to: id, msg: { t: 'reported', ok: true } },
+      ...this.staffOnline().map(sid => ({ to: sid, msg: { t: 'staffReport', open, report: { name: r.name, reason: PresenceLogic.REPORT_REASONS[reason], text: r.text, by: u.name } } }))];
+  }
+  static REPORT_REASONS = { cheating: 'Cheating', chat: 'Chat', name: 'Name or picture', other: 'Something else' };
+  static REPORTS_KEEP = 300;
+  openReports() { return this.reports.filter(r => r.open).length; }
+  /** The online connections of the owner and the admins they made. */
+  staffOnline() { return [...this.users.entries()].filter(([, u]) => u.pid && this.isStaff(u.pid)).map(([sid]) => sid); }
+  /** A report dealt with (`done`) or set aside (`dismissed`), by whom. */
+  reportClose(id, how, by) {
+    const r = this.reports.find(x => x.id === String(id || ''));
+    if (!r || !r.open) return null;
+    Object.assign(r, { open: false, how: how === 'dismissed' ? 'dismissed' : 'done', closedBy: str(by, 40), closedAt: this.now() });
+    if (this.persistReports) this.persistReports(this.reports);
+    const open = this.openReports();
+    return this.staffOnline().map(sid => ({ to: sid, msg: { t: 'staffReport', open } }));
   }
   /** One score off a beatmap's board, and out of the player's best plays (their total worked out again). */
   adminRemoveScore(pid, key) {
@@ -1259,16 +1395,33 @@ export class PresenceLogic {
    *  (playOwner) is kept, so the same plays sent again from a new id count for nobody. The boards and tags they're on
    *  must be read in first (Matchmaker.preloadPlayer). Returns { out, gone }. */
   adminDelete(pid) {
+    const touched = this.purgePlayer(pid);
+    const fc = this.codeOf.get(pid);
+    if (fc) { this.codes.delete(fc); this.codeOf.delete(pid); if (this.persistCode) this.persistCode(null, pid, fc); }
+    this.auth.delete(pid); this.seen.delete(pid);
+    if (this.dropPlayer) for (const w of ['auth', 'seen']) this.dropPlayer(pid, w);
+    for (const [kind, map] of [['bn', this.bans], ['mu', this.mutes], ['nm', this.names]]) if (map.delete(pid) && this.persistMod) this.persistMod(kind, pid, null);
+    if (this.noAvatar.delete(pid) && this.persistMod) this.persistMod('na', pid, null);
+    if (this.tombs.delete(pid) && this.dropPlayer) this.dropPlayer(pid, 'tomb');
+    this.deleted.add(pid); if (this.persistMod) this.persistMod('dl', pid, { at: this.now() });
+    // (online now: told, and taken off — their game starts over as a new player)
+    const ids = this.byPid(pid), out = [];
+    for (const id of ids) { out.push({ to: id, msg: { t: 'repid', deleted: true } }); out.push(...this.forget(id)); }
+    return { out: [...out, ...this.friendsOut(...touched), ...(ids.length ? [this.broadcast()] : [])], gone: ids };
+  }
+  /** Everything of a player's the game shows anyone: their scores (adminWipe) — boards, rankings, the daily
+   *  challenge, playlists — their profile, their friends (and them in other players' lists), their tag votes and their
+   *  lines in #lobby. Their id, devices and code stay (a ban stays on them). Returns the players whose friends lists
+   *  changed. The boards and tags they're on must be read in first (Matchmaker.preloadPlayer). */
+  purgePlayer(pid) {
     this.adminWipe(pid);
     const touched = new Set();
     if (this.friends.has(pid)) { this.friends.delete(pid); this.save('fr', pid); }
     for (const [p, m] of this.friends) if (m.delete(pid)) { this.save('fr', p); touched.add(p); }
     if (this.requests.has(pid)) { this.requests.delete(pid); this.save('fq', pid); }
     for (const [p, m] of this.requests) if (m.delete(pid)) { this.save('fq', p); touched.add(p); }
-    const fc = this.codeOf.get(pid);
-    if (fc) { this.codes.delete(fc); this.codeOf.delete(pid); if (this.persistCode) this.persistCode(null, pid, fc); }
-    this.auth.delete(pid); this.seen.delete(pid); this.profiles.delete(pid); this.profileJson.delete(pid);
-    if (this.dropPlayer) for (const w of ['auth', 'seen', 'profile', 'rank', 'daily']) this.dropPlayer(pid, w);
+    this.profiles.delete(pid); this.profileJson.delete(pid);
+    if (this.dropPlayer) for (const w of ['profile', 'rank', 'daily']) this.dropPlayer(pid, w);
     for (const [key, votes] of this.tags) {
       let changed = false;
       for (const t of Object.keys(votes)) if (votes[t].includes(pid)) { votes[t] = votes[t].filter(x => x !== pid); if (!votes[t].length) delete votes[t]; changed = true; }
@@ -1278,14 +1431,7 @@ export class PresenceLogic {
     const before = this.chat.length;
     this.chat = this.chat.filter(l => !(l.from && l.from.pid === pid));
     if (this.chat.length !== before && this.persistChat) this.persistChat(this.chat);
-    for (const [kind, map] of [['bn', this.bans], ['mu', this.mutes], ['nm', this.names]]) if (map.delete(pid) && this.persistMod) this.persistMod(kind, pid, null);
-    if (this.noAvatar.delete(pid) && this.persistMod) this.persistMod('na', pid, null);
-    if (this.tombs.delete(pid) && this.dropPlayer) this.dropPlayer(pid, 'tomb');
-    this.deleted.add(pid); if (this.persistMod) this.persistMod('dl', pid, { at: this.now() });
-    // (online now: told, and taken off — their game starts over as a new player)
-    const ids = this.byPid(pid), out = [];
-    for (const id of ids) { out.push({ to: id, msg: { t: 'repid', deleted: true } }); out.push(...this.forget(id)); }
-    return { out: [...out, ...this.friendsOut(...touched), ...(ids.length ? [this.broadcast()] : [])], gone: ids };
+    return touched;
   }
   /** A message from an admin to one player (every tab of theirs): shown to them as a notice they have to close. */
   adminWarn(pid, text) {
@@ -1739,7 +1885,9 @@ export class PresenceLogic {
     const fr = this.friends.get(pid);
     const list = scope === 'friends' ? all.filter(s => s.pid === pid || (fr && fr.has(s.pid))) : all;
     const at = list.findIndex(s => s.pid === pid);
-    return { t: 'lb', key, scope: scope === 'friends' ? 'friends' : 'global', total: list.length, you: at < 0 ? null : { ...this.current(list[at]), rank: at + 1 }, scores: list.slice(0, 50).map((s, i) => ({ ...this.current(s), rank: i + 1 })) };
+    // (with each player's role, so an admin's name is painted in their role's colour)
+    const row = (s, rank) => { const role = this.roleOf(s.pid); return role ? { ...this.current(s), rank, role } : { ...this.current(s), rank }; };
+    return { t: 'lb', key, scope: scope === 'friends' ? 'friends' : 'global', total: list.length, you: at < 0 ? null : row(list[at], at + 1), scores: list.slice(0, 50).map((s, i) => row(s, i + 1)) };
   }
   loadDailyStats(all) { for (const [pid, v] of Object.entries(all || {})) if (v && typeof v === 'object') this.dailyStats.set(pid, v); }
   /** A player's daily record as of today (a streak broken by a missed day reads 0). */
@@ -1981,7 +2129,8 @@ export class PresenceLogic {
     this.dropped = gone;
     const me = this.users.get(id);
     return [...out, { to: id, msg: { t: 'welcome', you: id } }, { to: id, msg: { t: 'chatHist', list: this.chat } }, ...(me.pid ? [{ to: id, msg: this.friendsMsg(me.pid) }] : []),
-      ...(this.isStaff(me.pid) ? [{ to: id, msg: { t: 'admin', role: this.roleOf(me.pid) } }] : []), this.broadcast()];
+      ...(this.isStaff(me.pid) ? [{ to: id, msg: { t: 'admin', role: this.roleOf(me.pid) } }, ...(this.openReports() ? [{ to: id, msg: { t: 'staffReport', open: this.openReports() } }] : [])] : []),
+      ...(this.annList().length ? [{ to: id, msg: { t: 'anns', list: this.annList() } }] : []), this.broadcast()];
   }
   /** Forget everyone who hasn't been heard from in a while; returns their ids (to close) and the update. */
   prune() {
@@ -2017,6 +2166,7 @@ export class PresenceLogic {
     if (!u || !msg || typeof msg !== 'object') return [];
     u.seen = this.now();
     if (msg.t === 'list') return [{ to: id, msg: { t: 'online', players: this.list() } }];
+    if (msg.t === 'report') return this.report(id, msg);
     if (msg.t === 'stats') {
       if (!u.pid) return [];
       // (their profile, for other players to open — what it shows of pp, rank and scores is the server's own)
@@ -2377,6 +2527,8 @@ export class Matchmaker {
         const mu = this.presence.users.get(id);
         if (mu && mu.pid) { this.ensureBests(mu.pid).catch(() => {}).then(() => { if (this.presence.users.has(id)) this.send(this.presence.message(id, msg)); }); return; }
       }
+      // (an admin moderating from the game: the admin panel's own actions, checked as from the panel)
+      if (msg.t === 'staff') { this.staffFromGame(id, msg).catch(e => console.error('staff', e)); return; }
       // (no beatmap for today yet: the server picks one, and everyone online gets it)
       if (msg.t === 'daily' && !this.presence.dailyNow().map) this.pickDaily({ retry: !!msg.retry });
       this.send(this.presence.message(id, msg));
@@ -2417,6 +2569,22 @@ export class Matchmaker {
   /** The server owner's admin panel (worker/admin.js), as /internal/admin/<action> — reached only through the Worker,
    *  after it has checked the panel's session: nothing from outside gets here (handleMultiplayer and handleAccount never
    *  pass /internal/ paths on). Every change goes in the admin log. */
+  /** An admin's action from the game (their ⋯ menus, Announce…): one of the admin panel's own, as them — the owner,
+   *  or an admin the owner made — with what they may do checked there; the answer goes back to their game. */
+  async staffFromGame(id, msg) {
+    const P = this.presence, u = P.users.get(id);
+    P.adminHash = adminCodeHash(this.env);
+    const reply = r => { if (P.users.has(id)) this.send([{ to: id, msg: { t: 'staffDone', req: Math.floor(Number(msg.req) || 0), ...r } }]); };
+    if (!u || !u.pid || !P.isStaff(u.pid)) return reply({ error: 'You\'re not an admin.' });
+    const action = String(msg.action || '');
+    if (!Matchmaker.GAME_STAFF.includes(action)) return reply({ error: 'That one is in the admin panel.' });
+    const { t, req, action: _a, ...body } = msg;
+    const r = await this.admin(action, new Request(`https://matchmaker/internal/admin/${action}`, { method: 'POST', body: JSON.stringify(body),
+      headers: { 'content-type': 'application/json', 'x-ip': 'in game', 'x-admin-who': P.isAdmin(u.pid) ? 'owner' : u.pid } }));
+    const j = await r.json().catch(() => ({}));
+    reply(r.ok && !j.error ? { ok: true } : { error: j.error || 'That didn\'t work.' });
+  }
+  static GAME_STAFF = ['mute', 'unmute', 'warn', 'ban', 'chatDelete', 'announce', 'annEnd', 'reportClose'];
   async admin(action, request) {
     await this.loadFriends();
     const P = this.presence, b = (await request.json().catch(() => null)) || {}, ip = request.headers.get('x-ip') || '';
@@ -2461,7 +2629,7 @@ export class Matchmaker {
         const live = m => [...m.keys()].filter(x => P.modOf(m === P.bans ? 'bn' : 'mu', x)).length;
         return json({ online, ranked: [...P.ranks.values()].filter(r => r.pp > 0).length, codes: P.codes.size, bans: live(P.bans), mutes: live(P.mutes),
           players: P.auth.size, playlists: [...P.playlists.values()].filter(p => p.ends > Date.now()).length, dailyScores: P.dailyNow().scores.length, deleted: P.deleted.size,
-          rooms: [...this.rooms.values()].slice(0, 50), daily: daily(), chat: P.chat.slice(-100), log: owner ? (this.adminLog || []).slice(-15).reverse() : [], owner: P.adminHash ? P.codes.get(P.adminHash) || null : null,
+          rooms: [...this.rooms.values()].slice(0, 50), daily: daily(), reports: P.openReports(), anns: P.annList(), chat: P.chat.slice(-100), log: owner ? (this.adminLog || []).slice(-15).reverse() : [], owner: P.adminHash ? P.codes.get(P.adminHash) || null : null,
           me: owner ? { owner: true } : { pid: actor, name: P.adminRow(actor).name, role: P.roles.get(actor) },
           staff: [...P.roles.keys()].map(x => P.adminRow(x)) });
       }
@@ -2542,8 +2710,12 @@ export class Matchmaker {
       case 'ban': {
         if (!pid) return noPlayer();
         if (P.isAdmin(pid)) return json({ error: 'That\'s you.' }, 400);
-        const days = Math.max(0, Number(b.days) || 0), r = P.adminBan(pid, { days, reason: b.reason });
+        const days = Math.max(0, Number(b.days) || 0);
+        if (!days) await this.preloadPlayer(pid); // (for good: their account goes — the boards and tags they're on, read in first)
+        const r = P.adminBan(pid, { days, reason: b.reason });
         this.send(r.out); setTimeout(() => this.closeGone(r.gone, 4003, 'banned'), 300);
+        // (for good: what their devices kept here — settings, skin, scores — goes with the account)
+        if (!days && this.env && this.env.VAULT) this.env.VAULT.get(this.env.VAULT.idFromName(pid)).fetch('https://vault/wipe', { method: 'POST' }).catch(() => {});
         log('Banned', { ...who(pid), days, reason: str(b.reason, 200) });
         return json({ ok: true });
       }
@@ -2571,9 +2743,26 @@ export class Matchmaker {
       }
       case 'chatClear': this.send(P.adminChatClear()); log('Cleared #lobby'); return json({ ok: true });
       case 'announce': {
-        const out = P.adminAnnounce(b.text);
+        const out = P.adminAnnounce(b.text, { title: b.title, kind: b.kind, hours: b.hours, popup: !!b.popup, lobby: b.lobby !== false, minutes: b.minutes });
         if (!out.length) return json({ error: 'Write something to announce.' }, 400);
-        this.send(out); log('Announced', { text: str(b.text, 300) });
+        this.send(out); log('Announced', { text: str(b.text, 300), ...(Number(b.hours) > 0 ? { to: `up ${Number(b.hours)}h` } : {}) });
+        return json({ ok: true, anns: P.annList() });
+      }
+      case 'anns': return json({ anns: P.annList() });
+      case 'annEnd': {
+        const out = P.annEnd(b.id);
+        if (!out) return json({ error: 'That announcement is already down.' }, 400);
+        this.send(out); log('Took an announcement down');
+        return json({ ok: true });
+      }
+      // ── players' reports
+      case 'reports': return json({ reports: P.reports.slice().reverse().slice(0, 200), open: P.openReports() });
+      case 'reportClose': {
+        const by = owner ? 'the owner' : P.adminRow(actor).name || actor;
+        const r = P.reports.find(x => x.id === String(b.id || ''));
+        const out = P.reportClose(b.id, b.how, by);
+        if (!out) return json({ error: 'That report is already dealt with.' }, 400);
+        this.send(out); log(b.how === 'dismissed' ? 'Dismissed a report' : 'Dealt with a report', { pid: r.pid, name: r.name, text: r.text || undefined });
         return json({ ok: true });
       }
       case 'removeScore': {
@@ -2853,6 +3042,8 @@ export class Matchmaker {
         mod.noAvatar = [...(await st.list({ prefix: 'na:' })).keys()].map(k => k.slice(3));
         this.presence.loadMod(mod);
         const al = await st.get('adminLog'); this.adminLog = Array.isArray(al) ? al : [];
+        const an = await st.get('anns'); if (Array.isArray(an)) this.presence.anns = an;
+        const rp = await st.get('reports'); if (Array.isArray(rp)) this.presence.reports = rp.slice(-PresenceLogic.REPORTS_KEEP);
       } catch (e) {
         this._friendsLoaded = null; // (tried again with the next request)
         throw new Error('The game\'s server couldn\'t read its players just now. Try again in a moment.');
@@ -2864,6 +3055,23 @@ export class Matchmaker {
       const inline = [...this.presence.ranks].filter(([, r]) => !r.sb && r.bests).map(([pid]) => pid);
       const split = () => { for (const pid of inline.splice(0, 20)) { const r = this.presence.ranks.get(pid); if (r && !r.sb) this.presence.persistRank(pid, r); } if (inline.length) setTimeout(split, 500); };
       if (inline.length) setTimeout(split, 3000);
+      // (players banned for good before that deleted their account: deleted now, one at a time, in the background)
+      const ban = this.presence.unpurgedBans();
+      const purge = async () => {
+        const pid = ban.shift();
+        if (!pid) return;
+        try {
+          const v = this.presence.bans.get(pid);
+          if (v && !v.until && !v.purged) {
+            await this.preloadPlayer(pid);
+            this.send(this.presence.friendsOut(...this.presence.purgePlayer(pid)));
+            v.purged = true; if (this.presence.persistMod) this.presence.persistMod('bn', pid, v);
+            if (this.env && this.env.VAULT) this.env.VAULT.get(this.env.VAULT.idFromName(pid)).fetch('https://vault/wipe', { method: 'POST' }).catch(() => {});
+          }
+        } catch (e) { console.warn('purging a banned player', e); }
+        if (ban.length) setTimeout(purge, 300);
+      };
+      if (ban.length) setTimeout(purge, 4000);
       for (const [pid, r] of this.presence.ranks) if (r.reset) { delete r.reset; this.presence.persistRank(pid, r); }
       this.presence.verifyTop = (pid, top, who) => { this.verifyTop(pid, top, who).catch(e => console.error('verifyTop', e)); };
       this.presence.verifyBests = pid => { this.verifyBests(pid).catch(e => console.error('verifyBests', e)); };
@@ -2882,6 +3090,8 @@ export class Matchmaker {
         if (keys) st.delete(keys).catch(() => {});
       };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
+      this.presence.persistAnns = list => { st.put('anns', list).catch(() => {}); };
+      this.presence.persistReports = list => { st.put('reports', list).catch(() => {}); };
       this.presence.persistSeen = (pid, t) => { st.put(`ls:${pid}`, t).catch(() => {}); };
       // (written at most every couple of seconds however busy the lobby is)
       this.presence.persistChat = c => { if (this._chatT) return; this._chatT = setTimeout(() => { this._chatT = null; st.put('chat', this.presence.chat).catch(() => {}); }, 2000); };
