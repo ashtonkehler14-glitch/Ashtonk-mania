@@ -1,6 +1,7 @@
 // Two-player online match in headless Chromium against the real Worker + Durable Objects (run locally
 // in workerd through Miniflare). Usage: MINIFLARE_DIR=<dir with node_modules/miniflare> node tests/mp-e2e.mjs
 import { readFileSync } from 'node:fs';
+import zlib from 'node:zlib';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
@@ -680,7 +681,37 @@ await alice.waitForSelector('.mp-create', { timeout: 10000 });
 check('the normal lounge has no Ranked Play queue or match-type choice', await alice.evaluate(() => !document.querySelector('.rq') && !/Ranked Play/.test(document.querySelector('.mp-create').textContent)));
 // (Dana will spectate Alice in it — and fetch the beatmap of each song she watches)
 const dana = await player('Dana');
-await dana.route('**/api/getBeatmaps**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(onlineSet) }));
+// (a Ranked Play deck is one card per song, never the same song twice: twelve songs for it to be dealt from, each its
+// own beatmap set — the online fixture under ids and a title of its own — found in the listing and downloaded when played)
+const crcT = new Uint32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+const crc32 = b => { let c = ~0; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (~c) >>> 0; };
+const unzipBuf = buf => { const out = []; for (let o = 0; buf.readUInt32LE(o) === 0x04034b50;) { const m = buf.readUInt16LE(o + 8), cs = buf.readUInt32LE(o + 18), nl = buf.readUInt16LE(o + 26), xl = buf.readUInt16LE(o + 28), at = o + 30 + nl + xl, d = buf.subarray(at, at + cs); out.push([buf.subarray(o + 30, o + 30 + nl).toString(), m === 8 ? zlib.inflateRawSync(d) : d]); o = at + cs; } return out; };
+const zipBuf = files => {
+  const parts = [], central = []; let off = 0;
+  for (const [name, data] of files) {
+    const comp = zlib.deflateRawSync(data), nm = Buffer.from(name), lh = Buffer.alloc(30), ch = Buffer.alloc(46);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0x800, 6); lh.writeUInt16LE(8, 8); lh.writeUInt32LE(crc32(data), 14); lh.writeUInt32LE(comp.length, 18); lh.writeUInt32LE(data.length, 22); lh.writeUInt16LE(nm.length, 26);
+    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(0x800, 8); ch.writeUInt16LE(8, 10); ch.writeUInt32LE(crc32(data), 16); ch.writeUInt32LE(comp.length, 20); ch.writeUInt32LE(data.length, 24); ch.writeUInt16LE(nm.length, 28); ch.writeUInt32LE(off, 42);
+    parts.push(lh, nm, comp); central.push(ch, nm); off += 30 + nm.length + comp.length;
+  }
+  const cd = Buffer.concat(central), end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeUInt16LE(files.length, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(off, 16);
+  return Buffer.concat([...parts, cd, end]);
+};
+const fixtureFiles = unzipBuf(readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')));
+const rankSets = Array.from({ length: 12 }, (_, k) => ({ id: 610000 + k, title: `Card Song ${k + 1}` }));
+const rankOsz = new Map(rankSets.map(({ id, title }) => [String(id), zipBuf(fixtureFiles.map(([n, d]) => [n, !n.endsWith('.osu') ? d : Buffer.from(d.toString()
+  .replace(/^(Title(?:Unicode)?):Online Anthem/gm, `$1:${title}`).replace('BeatmapSetID:424242', `BeatmapSetID:${id}`).replace(/BeatmapID:424242(\d)/, (_, x) => `BeatmapID:${id * 10 + Number(x)}`))]))]));
+const rankDiff = (sid, n, version, stars) => ({ beatmapset_id: sid, id: sid * 10 + n, mode: 'mania', version, difficulty_rating: stars, cs: 4, accuracy: 8, drain: 7, bpm: 150, total_length: 60, count_circles: 50, count_sliders: 4 });
+const rankListing = { beatmapsets: rankSets.map(({ id, title }) => ({ id, title, title_unicode: title, artist: 'The Test Suite', artist_unicode: 'The Test Suite', creator: 'Ashton', status: 'ranked', play_count: 100, favourite_count: 50, nsfw: false,
+  beatmaps: [rankDiff(id, 0, 'Online Easy', 2.5), rankDiff(id, 1, 'Online Hard', 4)] })), cursor_string: null };
+const rankRoutes = async p => {
+  await p.route('**/api/getBeatmaps**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(rankListing) }));
+  await p.route(/\/api\/download\/(61\d{4})(?:$|[?#])/, r => r.fulfill({ contentType: 'application/octet-stream', body: rankOsz.get(r.request().url().match(/download\/(\d+)/)[1]) }));
+  await p.route(/catboy\.best\/d\/(61\d{4})(?:$|[?#])/, r => r.fulfill({ contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' }, body: rankOsz.get(r.request().url().match(/\/d\/(\d+)/)[1]) }));
+};
+for (const p of [alice, bob]) await rankRoutes(p);
+await rankRoutes(dana);
 await dana.route('**/api/download/424242', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
 await dana.route('https://catboy.best/d/424242', r => r.fulfill({ contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' }, body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
 await dana.route('https://assets.ppy.sh/**', r => r.abort());

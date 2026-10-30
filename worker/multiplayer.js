@@ -31,7 +31,7 @@
 
 import { RankedPlay, RankedQueue, RP } from './ranked-play.js';
 import { SETTINGS_MAX, SKIN_MAX, SCORE_MAX, SCORES_SEND } from './vault.js';
-export { RP, RankedPlay, RankedQueue, rateMatch, deckTargets, deckTargetsForStars, beatmapRating, starsForRating, initialRating, RATING, QUEUE } from './ranked-play.js';
+export { RP, RankedPlay, RankedQueue, rateMatch, deckTargets, deckTargetsForStars, beatmapRating, starsForRating, initialRating, RATING, QUEUE, uniqueSongs } from './ranked-play.js';
 
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const START_DELAY = 5000;

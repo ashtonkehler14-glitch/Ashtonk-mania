@@ -90,6 +90,19 @@ export function rateMatch(players, { beta = RATING.BETA, tau = RATING.TAU, kappa
   });
 }
 
+/** The cards, one per song: a beatmap set's first card only (by its osu! id, or its artist and title when it has
+ *  none), in the order they came. */
+export function uniqueSongs(maps) {
+  const seen = new Set(), out = [];
+  for (const m of maps) {
+    if (!m) continue;
+    const k = m.onlineSetId > 0 ? 's' + m.onlineSetId : 't' + String(m.artist || '').trim().toLowerCase() + '\u0000' + String(m.title || '').trim().toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k); out.push(m);
+  }
+  return out;
+}
+
 /** One Ranked Play match, run inside a room (RoomLogic): it owns the stages, the cards and the life points; the room
  *  owns the players, the beatmap being played and the gameplay itself. Every method returns messages to send. */
 export class RankedPlay {
@@ -258,23 +271,28 @@ export class RankedPlay {
    *  next two — and each pair split between the players, the harder of each going to them in turn. */
   setDeck(id, maps) {
     if (this.stage !== 'deal' || id !== this.dealer || !maps.length) return [];
-    this.pool = maps.slice(0, RP.DECK);
+    // one card per song: the same song twice in what the dealer sent (padding a short deck, or two difficulties of one
+    // set) is dropped — so a card played is gone for good, never drawn again, and the two players never hold the same
+    this.pool = uniqueSongs(maps).slice(0, RP.DECK);
+    if (this.pool.length < 2) return this.end('Couldn\'t find enough beatmaps for the deck');
     this.deck = this.pool.map((_, i) => i);
     for (let i = this.deck.length - 1; i > 0; i--) { const j = Math.floor(this.room.rnd() * (i + 1)); [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]]; }
     this.stars = Math.round(this.pool.reduce((a, m) => a + (m.stars || 0), 0) / this.pool.length * 100) / 100;
     const ids = this.order.filter(x => this.users[x]);
-    if (ids.length === 2 && this.deck.length >= RP.HAND * 2) {
+    // (as many cards each as the deck has pairs for, up to five: a short deck still deals both players the same number)
+    const hand = Math.min(RP.HAND, Math.floor(this.deck.length / 2));
+    if (ids.length === 2) {
       // (a card with a difficulty for each player: as hard as theirs together)
       const sr = i => { const m = this.pool[i], per = m.per && Object.values(m.per); return per && per.length ? per.reduce((a, d) => a + d.stars, 0) / per.length : m.stars || 0; };
-      const opening = this.deck.splice(0, RP.HAND * 2).sort((a, b) => sr(b) - sr(a));
-      for (let k = 0; k < RP.HAND; k++) {
+      const opening = this.deck.splice(0, hand * 2).sort((a, b) => sr(b) - sr(a));
+      for (let k = 0; k < hand; k++) {
         const [hard, easy] = [opening[2 * k], opening[2 * k + 1]], first = ids[k % 2];
         this.user(first).hand.push(hard); this.user(ids.find(x => x !== first)).hand.push(easy);
       }
       // (easiest first, as they're laid out — by their own difficulty of each)
       const own = (x, i) => { const d = this.pool[i].per && this.pool[i].per[x]; return d ? d.stars : sr(i); };
       for (const x of ids) this.user(x).hand.sort((a, b) => own(x, a) - own(x, b));
-    } else for (const x of this.order) this.draw(x, RP.HAND);
+    } else for (const x of this.order) this.draw(x, hand);
     return this.enter('warmup');
   }
   draw(id, n) { const u = this.user(id); if (u) u.hand.push(...this.deck.splice(0, n)); }

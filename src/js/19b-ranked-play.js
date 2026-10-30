@@ -153,9 +153,8 @@ async function buildRankedDeck(m) {
   if (prefs.length === 2) {
     const pairs = await rankedPairDeck(keys, prefs, targets.length);
     const g = Multiplayer.room && Multiplayer.room.rp;
-    // (very few such songs about — a tiny library, offline: the same ones more than once, so there are still cards)
-    for (let i = 0, n = pairs.length; n && pairs.length < Math.min(12, targets.length); i++) pairs.push(pairs[i % n]);
-    if (pairs.length) { if (g && g.stage === 'deal') Multiplayer.send({ t: 'pool', maps: pairs }); return; }
+    // (never the same song twice: few such songs about — a tiny library, offline — is a shorter match, not repeats)
+    if (pairs.length >= 2) { if (g && g.stage === 'deal') Multiplayer.send({ t: 'pool', maps: pairs }); return; }
   }
   const sorted = [...targets].sort((a, b) => a - b), lo = Math.max(0, sorted[0] - 0.35), hi = sorted[sorted.length - 1] + 0.35;
   const cand = [], seen = new Set();
@@ -180,20 +179,21 @@ async function buildRankedDeck(m) {
     }
   }
   if (!cand.length) return;
-  const used = new Set(), groups = new Set(), deck = [];
+  const groups = new Set(), deck = [];
   for (const t of targets) {
     let best = null, bd = Infinity;
     for (const c of cand) {
-      if (used.has(c)) continue;
-      // (closest to the target; a set already in the deck counts against it, and so — a little — does an obscure one)
-      const d = Math.abs(c.stars - t) + (groups.has(c.group) ? 0.75 : 0) + (c.known != null && c.known < 25 ? 0.12 : 0);
+      // (one card per song: a set already in the deck never again — a card played is gone for good, and the two
+      // players never hold the same song)
+      if (groups.has(c.group)) continue;
+      // (closest to the target; an obscure one counts against it a little)
+      const d = Math.abs(c.stars - t) + (c.known != null && c.known < 25 ? 0.12 : 0);
       if (d < bd) { bd = d; best = c; }
     }
     if (!best) break;
-    used.add(best); groups.add(best.group); deck.push(best);
+    groups.add(best.group); deck.push(best);
   }
-  // a tiny library (offline): the same beatmaps more than once, so there are still cards to play
-  for (let i = 0; deck.length < Math.min(12, targets.length); i++) deck.push(deck[i % Math.max(1, deck.length)]);
+  // (a tiny library, offline: a shorter match — never the same beatmap twice)
   const g = Multiplayer.room && Multiplayer.room.rp;
   if (g && g.stage === 'deal') Multiplayer.send({ t: 'pool', maps: deck.map(({ group, known, ...c }) => c) });
 }

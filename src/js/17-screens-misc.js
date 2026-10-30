@@ -935,6 +935,7 @@ const CHANGELOG = [
   { id: '2026.10.30b', title: 'Settings and menus', sections: [
     { icon: 'gear', title: 'Settings', items: ['Scroll speed is back in Settings → Gameplay → Scrolling', 'Notes always follow the beatmap\'s speed changes (SV and BPM), as in osu!mania — the setting for it is gone'] },
     { icon: 'sparkle', title: 'Menus', items: ['Practice tools in tidy groups — loop, speed and offset', 'The results screen\'s buttons say what they do'] },
+    { icon: 'trophy', title: 'Ranked Play', items: ['A card you play is gone for good — no song is ever in a deck twice, so it can\'t come back and you and your opponent never hold the same one'] },
   ] },
   { id: '2026.10.30', title: 'Ranked Play', sections: [
     { icon: 'trophy', title: 'Ranked Play', items: ['Open a duel with Fair or Regular cards: Fair gives each of you your own difficulty near your pick; Regular picks one star rating between your two picks, and you both play the same difficulties', 'The lounge shows which kind each duel is'] },

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { beatmapStatus, RoomLogic, PresenceLogic, MatchRoom, HttpSock, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, deckTargetsForStars, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE, codeHash, adminCodeHash } from '../worker/multiplayer.js';
+import { beatmapStatus, RoomLogic, PresenceLogic, MatchRoom, HttpSock, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, deckTargetsForStars, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE, codeHash, adminCodeHash, uniqueSongs } from '../worker/multiplayer.js';
 
 // (in these tests a finished play is judged straight away as what the player said — as if the server's judge agreed;
 // the judging itself is tested in engine.test.mjs, and what happens without it at the end of this file)
@@ -932,6 +932,34 @@ test('Ranked Play: Regular draws the deck around one star rating between the two
   assert.equal(f.rp.fair, true);
   f.message('a', { t: 'rpStars', stars: 6 });
   assert.deepEqual(msgs(f.message('b', { t: 'rpStars', stars: 2 }), 'rpDeck')[0].msg.prefs, { a: 6, b: 2 });
+});
+
+test('Ranked Play: one card per song — repeats are dropped, a short deck deals even hands, and a played card never comes back', () => {
+  assert.deepEqual(uniqueSongs([{ onlineSetId: 1, title: 'A' }, { onlineSetId: 1, title: 'A', version: 'Hard' }, { onlineSetId: -1, title: 'B', artist: 'X' }, { onlineSetId: -1, title: ' b ', artist: 'x' }, { onlineSetId: 2, title: 'C' }]).map(m => m.title), ['A', 'B', 'C']);
+  const clock = { t: 0 };
+  const r = new RoomLogic('RU', () => clock.t, () => 0.25);
+  r.join('a', 'Alice', true, { mode: 'rp', keys: 4 }); r.join('b', 'Bob', false, {});
+  r.message('a', { t: 'rpStars', stars: 3 }); r.message('b', { t: 'rpStars', stars: 3 });
+  // seven songs, sent with repeats (a dealer padding its deck): seven cards, three each to start, one left in the deck
+  const seven = deck(7);
+  r.message('a', { t: 'pool', maps: [...seven, ...seven, seven[0]] });
+  assert.equal(r.rp.pool.length, 7, 'each song once');
+  assert.equal(new Set(r.rp.pool.map(m => m.onlineSetId)).size, 7);
+  const ha = r.rp.user('a').hand, hb = r.rp.user('b').hand;
+  assert.equal(ha.length, 3); assert.equal(hb.length, 3);
+  assert.ok(!ha.some(i => hb.includes(i)), 'nobody holds a card the other has');
+  assert.equal(r.rp.deck.length, 1);
+  // a played card leaves the hand, isn't in the deck, and the card drawn in its place is a song not seen before
+  for (const id of ['a', 'b']) { r.rp.active = id; r.rp.played = r.rp.user(id).hand[0]; r.rp.spend(); }
+  const all = [...r.rp.user('a').hand, ...r.rp.user('b').hand, ...r.rp.deck];
+  assert.equal(new Set(all).size, all.length, 'every card in play is a different one');
+  assert.equal(all.length, 5, 'two played, five left — none of them back');
+  // too few songs for a match: it ends rather than dealing repeats
+  const s = new RoomLogic('RS', () => clock.t, () => 0.25);
+  s.join('a', 'Alice', true, { mode: 'rp', keys: 4 }); s.join('b', 'Bob', false, {});
+  s.message('a', { t: 'rpStars', stars: 3 }); s.message('b', { t: 'rpStars', stars: 3 });
+  s.message('a', { t: 'pool', maps: [MAP, MAP, MAP] });
+  assert.equal(s.rp.stage, 'ended');
 });
 
 test('Ranked Play queue: Fair and Regular players are only paired with their own kind', () => {
