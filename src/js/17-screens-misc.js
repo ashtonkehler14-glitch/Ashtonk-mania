@@ -933,7 +933,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.30b', title: 'Settings and menus', sections: [
-    { icon: 'gear', title: 'Settings', items: ['Scroll speed is back in Settings → Gameplay → Scrolling'] },
+    { icon: 'gear', title: 'Settings', items: ['Scroll speed is back in Settings → Gameplay → Scrolling', 'Notes always follow the beatmap\'s speed changes (SV and BPM), as in osu!mania — the setting for it is gone'] },
     { icon: 'sparkle', title: 'Menus', items: ['Practice tools in tidy groups — loop, speed and offset', 'The results screen\'s buttons say what they do'] },
   ] },
   { id: '2026.10.30', title: 'Ranked Play', sections: [

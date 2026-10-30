@@ -73,7 +73,6 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollSpeed', l: 'Scroll speed', t: 'range', d: 22, min: 1, max: 40, step: 1,
     fmt: v => `${v} (${Math.round(11485 / v)}ms)`, hint: 'How long notes are visible before reaching the receptors.' },
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollDirection', l: 'Scrolling direction', t: 'select', d: 'down', o: [['down', 'Down'], ['up', 'Up']] },
-  { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollMode', l: 'Scroll speed changes', t: 'select', d: 'sv', o: [['sv', 'SV + BPM'], ['svonly', 'SV only'], ['constant', 'Constant']], hint: 'SV + BPM is how osu!mania scrolls.' },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.mobileLayout', l: 'Mobile layout', t: 'select', d: 'auto', o: [['auto', 'Automatic (as you hold it)'], ['portrait', 'Portrait'], ['landscape', 'Landscape'], ['expanded', 'Landscape (expanded columns)']],
     hint: 'How songs are played on a phone or tablet: whichever way you hold it, or always as osu!lazer\'s — upright, or sideways with the columns as on a computer or widened to fill the screen.', when: () => TOUCH_DEVICE },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.laneWidth', l: 'Lane width', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
@@ -233,6 +232,7 @@ const Settings = {
     if (v['gameplay.bgBlur'] > 1) v['gameplay.bgBlur'] = Math.min(1, v['gameplay.bgBlur'] / 30);
     if (v['gameplay.breakMin'] < 10000) delete v['gameplay.breakMin'];
     delete v['ui.theme']; // (the accent colour setting is gone: always Kori purple)
+    delete v['gameplay.scrollMode']; // (and notes always scroll with the beatmap's SV and BPM changes, as osu!mania's do)
     // v5: menu blur is baked once into the background image, so Chromebook mode (which used to switch it off) gets it too
     // the default interface size became 80% (100% felt zoomed in); move people still on the old default along
     if (!v['migr.uiScale80']) { if (v['ui.scale'] === 1) v['ui.scale'] = 0.8; v['migr.uiScale80'] = true; }

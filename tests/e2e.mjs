@@ -2734,11 +2734,12 @@ check('settings: typing right after opening searches the settings', typed.sp ===
     s.value = '30'; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true }));
     await new Promise(r => setTimeout(r, 200));
     const got = A.Settings.get('gameplay.scrollSpeed'), text = row ? row.textContent : '';
+    const noMode = !document.querySelector('.settings-panel select[aria-label="Scroll speed changes"]') && !A.Settings.schema.has('gameplay.scrollMode');
     A.Settings.set('gameplay.scrollSpeed', was);
     q.value = ''; q.dispatchEvent(new Event('input', { bubbles: true }));
-    return { found: true, got, ms: /383ms/.test(text) };
+    return { found: true, got, ms: /383ms/.test(text), noMode };
   });
-  check('settings: Scroll speed is there (Gameplay → Scrolling), and its slider sets it', sp.found && sp.got === 30 && sp.ms, JSON.stringify(sp));
+  check('settings: Scroll speed is there (Gameplay → Scrolling), and its slider sets it; no "Scroll speed changes" (always SV + BPM)', sp.found && sp.got === 30 && sp.ms && sp.noMode, JSON.stringify(sp));
 }
 // the toolbar button of what's open lights up whole (not a dot in its corner), and a status shows on the avatar
 const tbOn = await page.evaluate(async () => {

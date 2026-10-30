@@ -457,7 +457,8 @@ const GameplayScreen = {
     // windows and weighted accuracy — and in Ranked Play osu!mania's own scrolling, SV and BPM changes and all)
     const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: p.mp ? 'od' : Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
     const accuracyMode = replay ? replay.accuracyMode : p.mp ? 'v2' : Settings.get('gameplay.accuracyMode');
-    const scrollMode = mods.includes('CS') ? 'constant' : p.mp && p.mp.rp ? 'sv' : Settings.get('gameplay.scrollMode');
+    // (the beatmap's SV and BPM changes, always, as osu!mania scrolls — but for lazer's Constant Speed mod)
+    const scrollMode = mods.includes('CS') ? 'constant' : 'sv';
     const scroll = new ScrollMap(BeatmapParser.scrollSegments(bm, { useSV: scrollMode !== 'constant', useBPM: scrollMode === 'sv' }));
     const endTime = maxOf(baseNotes, n => n.end);
 
