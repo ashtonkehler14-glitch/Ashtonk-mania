@@ -250,7 +250,18 @@ try {
   check('…and their game doesn\'t keep trying to come back', !(await bob.evaluate(() => AshtonkMania.Presence.ws)) && !(await api('overview')).online.some(u => u.pid === bobPid));
   const ps = await api('search', { q: 'Bob' });
   check('Players: search finds them, marked banned', ps.players.some(p => p.pid === bobPid && p.banned), JSON.stringify(ps.players.map(p => [p.name, !!p.banned])));
-  await api('unban', { pid: bobPid });
+  // his ban notice has an appeal: it waits with the reports; "Lift the ban" there unbans him
+  await bob.fill('.ban-appeal textarea', 'I was testing, sorry — it won\'t happen again.');
+  await bob.click('.ban-send .btn');
+  const appealed = await bob.waitForFunction(() => /Sent/.test(document.querySelector('.ban-send .rep-note')?.textContent || ''), null, { timeout: 8000 }).then(() => true, () => false);
+  await panel.evaluate(() => { location.hash = 'reports'; });
+  await panel.waitForSelector('main .report.appeal', { timeout: 8000 }).catch(() => {});
+  const ap = await panel.evaluate(() => document.querySelector('main .report.appeal')?.textContent || '');
+  check('Ban appeal: sent from the ban notice, it waits in Reports with the ban it\'s about', appealed && /Ban appeal/.test(ap) && /testing bans/.test(ap) && /it won't happen again/.test(ap), ap.slice(0, 200));
+  panel.once('dialog', d => d.accept());
+  await panel.click('main .report.appeal button:text-is("Lift the ban")');
+  await panel.waitForFunction(() => /Nothing waiting/.test(document.querySelector('main').textContent), null, { timeout: 8000 }).catch(() => {});
+  await panel.evaluate(p => { location.hash = 'players/' + p; }, bobPid);
   await bob.reload();
   await bob.waitForFunction(() => window.AshtonkMania && AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1 && AshtonkMania.Presence.me, null, { timeout: 30000 }).catch(() => {});
   check('Unban: they can come back online', await bob.evaluate(() => !!(window.AshtonkMania && AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1)));

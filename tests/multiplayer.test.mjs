@@ -2225,3 +2225,26 @@ test('admins\' notes on a player: only admins see them, newest last, one taken o
   q.loadMod({ notes: { carpid333: [{ at: 1, by: 'x', text: 'kept' }] }, chatRules: { slow: 5, locked: true, words: ['abc'] } });
   assert.deepEqual([q.notes.get('carpid333')[0].text, q.chatRules], ['kept', { slow: 5, locked: true, words: ['abc'] }]);
 });
+
+test('ban appeals: a banned player asks for the ban to be lifted — it waits with the reports (the ban\'s reason and end with it), one at a time, one a day', () => {
+  const clock = { t: 100000 };
+  const p = new PresenceLogic(() => clock.t);
+  p.codes.set('h-owner', 'ownerpid1'); p.adminHash = 'h-owner';
+  p.join('o', { name: 'Owner', pid: 'ownerpid1', key: 'key-ownerpid1-0123456789' });
+  assert.equal(p.appeal('bobpid22', 'please unban me, it was a mistake').error, 'You\'re not banned.');
+  p.adminBan('bobpid22', { days: 7, reason: 'spam in #lobby' });
+  assert.match(p.appeal('bobpid22', 'pls').error, /Say a little more/);
+  const r = p.appeal('bobpid22', 'Sorry for the spam, it won\'t happen again.');
+  assert.deepEqual(r.out.map(o => [o.to, o.msg.open, o.msg.report.reason]), [['o', 1, 'Ban appeal']], 'the admins online hear of it');
+  const a = p.reports.at(-1);
+  assert.deepEqual([a.reason, a.pid, a.open, a.ban.reason, a.ban.until - clock.t], ['appeal', 'bobpid22', true, 'spam in #lobby', 7 * 86400000]);
+  assert.match(p.appeal('bobpid22', 'another one, please please').error, /already/);
+  p.reportClose(a.id, 'dismissed', 'the owner');
+  assert.match(p.appeal('bobpid22', 'another one, please please').error, /already/, 'one a day');
+  clock.t += 86400000 + 1;
+  assert.ok(p.appeal('bobpid22', 'a day later: sorry again').out);
+  // (a player's own report can't pass itself off as an appeal)
+  p.join('c', { name: 'Cat', pid: 'catpid333', key: 'key-catpid333-0123456789' });
+  p.message('c', { t: 'report', pid: 'ownerpid1', reason: 'appeal', text: 'x' });
+  assert.equal(p.reports.at(-1).reason, 'other');
+});

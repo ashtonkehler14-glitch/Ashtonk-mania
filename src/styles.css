@@ -5246,4 +5246,7 @@ html.lp-open #toasts { right: 380px; }
 .rep-opt:hover { background: rgba(255, 255, 255, .08); }
 .rep-opt.on { border-color: rgba(var(--accent-rgb), .8); background: rgba(var(--accent-rgb), .18); }
 .rep-text { width: 100%; min-height: 70px; resize: vertical; padding: 8px 10px; font: inherit; color: #fff; }
+.ban-msg > p { margin: 0 0 12px; }
+.ban-appeal { min-width: 0; text-align: left; }
+.ban-send { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rep-check { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: var(--text-2); }

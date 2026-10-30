@@ -910,7 +910,25 @@ const Presence = {
     if (this._bannedTold) return;
     this._bannedTold = true;
     const until = this.banned.until ? `until ${new Date(this.banned.until).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'for good';
-    Dialog.popup('You\'re banned from online play', `${this.banned.reason ? `Reason: ${this.banned.reason}. ` : ''}It lasts ${until}. You can still play everything offline — your beatmaps, scores and settings are all here.`,
+    // (and a way to ask the admins to lift it: an appeal, which waits for them with the reports)
+    const ta = h('textarea.input.rep-text', { maxlength: 500, rows: 3, placeholder: 'Think it\'s a mistake? Tell the admins why.' });
+    ta.addEventListener('keydown', e => e.stopPropagation());
+    const note = h('span.rep-note');
+    const send = h('button.btn.sm', { onclick: async () => {
+      const text = ta.value.trim();
+      if (text.length < 10) { note.textContent = 'Say a little more: why should the ban be lifted?'; return; }
+      send.disabled = true; note.textContent = 'Sending…';
+      try {
+        const r = await fetch(Host.api('api/mp/appeal'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pid: this.pid(), key: this.key(), text }), signal: timeoutSignal(20000) });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.ok) { note.textContent = 'Sent — the admins will look at it.'; ta.disabled = true; return; }
+        note.textContent = d.error || `The server answered ${r.status}.`;
+      } catch { note.textContent = 'Couldn\'t reach the server — try again in a moment.'; }
+      send.disabled = false;
+    } }, icon('send'), 'Send appeal');
+    Dialog.popup('You\'re banned from online play', h('div.ban-msg',
+      h('p', `${this.banned.reason ? `Reason: ${this.banned.reason}. ` : ''}It lasts ${until}. You can still play everything offline — your beatmaps, scores and settings are all here.`),
+      h('div.rep.ban-appeal', ta, h('div.ban-send', send, note))),
       [{ label: 'OK', colour: '#66ccff', cls: 'cancel', cancel: true }], { icon: 'warn' });
   },
   /** Try the server again now (the "Try again" button; and every minute while there's no server at all). */

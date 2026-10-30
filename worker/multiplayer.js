@@ -1389,6 +1389,22 @@ export class PresenceLogic {
       ...this.staffOnline().map(sid => ({ to: sid, msg: { t: 'staffReport', open, report: { name: r.name, reason: PresenceLogic.REPORT_REASONS[reason], text: r.text, by: u.name } } }))];
   }
   static REPORT_REASONS = { cheating: 'Cheating', chat: 'Chat', name: 'Name or picture', other: 'Something else' };
+  /** A banned player asking for the ban to be lifted (from their game's ban notice): it waits with the reports, the
+   *  ban's reason and end with it. One at a time, and one a day. Returns { out } or { error }. */
+  appeal(pid, text) {
+    const ban = this.modOf('bn', pid), now = this.now();
+    if (!ban) return { error: 'You\'re not banned.' };
+    const tx = str(text, 500).replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ').trim();
+    if (tx.length < 10) return { error: 'Say a little more: why should the ban be lifted?' };
+    if (this.reports.some(r => r.reason === 'appeal' && r.pid === pid && (r.open || now - r.at < 86400000))) return { error: 'Your appeal is with the admins already (one a day).' };
+    const name = this.adminRow(pid).name || pid;
+    const r = { id: `${now.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, at: now, by: { pid, name }, pid, name, reason: 'appeal', text: tx, chat: [], open: true,
+      ban: { until: ban.until || 0, reason: str(ban.reason, 200) } };
+    this.reports = [...this.reports, r].slice(-PresenceLogic.REPORTS_KEEP);
+    if (this.persistReports) this.persistReports(this.reports);
+    const open = this.openReports();
+    return { out: this.staffOnline().map(sid => ({ to: sid, msg: { t: 'staffReport', open, report: { name, reason: 'Ban appeal', text: tx, by: name } } })) };
+  }
   static REPORTS_KEEP = 300;
   openReports() { return this.reports.filter(r => r.open).length; }
   /** The online connections of the owner and the admins they made. */
@@ -2625,6 +2641,18 @@ export class Matchmaker {
   /** The server owner's admin panel (worker/admin.js), as /internal/admin/<action> — reached only through the Worker,
    *  after it has checked the panel's session: nothing from outside gets here (handleMultiplayer and handleAccount never
    *  pass /internal/ paths on). Every change goes in the admin log. */
+  /** A banned player's appeal, from their game (it has no connection to the online service while they're banned). */
+  async appeal(request) {
+    const b = (await request.json().catch(() => null)) || {};
+    await this.loadFriends();
+    const pid = String(b.pid || '');
+    if (!/^[a-z0-9]{6,24}$/.test(pid) || !this.presence.keyOk(pid, b.key)) return json({ error: 'Not signed in as that player.' }, 403);
+    if (!this.allowTry('ap:' + pid, 5)) return json({ error: 'Too many tries — wait a few minutes.' }, 429);
+    const r = this.presence.appeal(pid, b.text);
+    if (r.error) return json({ error: r.error }, 400);
+    this.send(r.out);
+    return json({ ok: true });
+  }
   /** An admin's action from the game (their ⋯ menus, Announce…): one of the admin panel's own, as them — the owner,
    *  or an admin the owner made — with what they may do checked there; the answer goes back to their game. */
   async staffFromGame(id, msg) {
@@ -3404,6 +3432,7 @@ export class Matchmaker {
       return this.presenceSocket();
     }
     if (url.pathname === '/judged-score' && request.method === 'POST') return this.score(request);
+    if (url.pathname === '/appeal' && request.method === 'POST') return this.appeal(request);
     if (url.pathname === '/judged-scores' && request.method === 'POST') return this.scores(request);
     if (url.pathname.startsWith('/internal/admin/') && request.method === 'POST') return this.admin(url.pathname.slice(16), request);
     // (a player's kept settings or plays changed: their other devices online fetch them — not the one that sent them)
@@ -3576,6 +3605,13 @@ export async function handleMultiplayer(request, env, url) {
   if (path === '/api/mp/presence' || (path === '/api/mp/presence/http' && request.method === 'POST')) {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL(path, url), request));
+  }
+  // (a banned player's appeal: to the admins, with the reports)
+  if (path === '/api/mp/appeal' && request.method === 'POST') {
+    const text = await request.text();
+    if (text.length > 4000) return json({ error: 'Too long.' }, 413);
+    const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
+    return stub.fetch(new Request(new URL('/appeal', url), { method: 'POST', body: text, headers: { 'content-type': 'application/json' } }));
   }
   if (path === '/api/mp/score' && request.method === 'POST') {
     const j = await judgePlay(request, {});

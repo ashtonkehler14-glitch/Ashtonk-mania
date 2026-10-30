@@ -5259,6 +5259,9 @@ html.lp-open #toasts { right: 380px; }
 .rep-opt:hover { background: rgba(255, 255, 255, .08); }
 .rep-opt.on { border-color: rgba(var(--accent-rgb), .8); background: rgba(var(--accent-rgb), .18); }
 .rep-text { width: 100%; min-height: 70px; resize: vertical; padding: 8px 10px; font: inherit; color: #fff; }
+.ban-msg > p { margin: 0 0 12px; }
+.ban-appeal { min-width: 0; text-align: left; }
+.ban-send { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rep-check { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: var(--text-2); }
 </style>
 <style id="css-no-anim" media="not all">
@@ -24221,7 +24224,7 @@ const CHANGELOG = [
     { icon: 'multi', title: 'Rooms', items: ['A song queue: line songs up to play one after another (the host\'s, or everyone\'s)', 'Speed mods can be each player\'s own (a room setting)', 'Spectating in a room, switch to another player without going back', 'Click a score in a room\'s results to see its card'] },
     { icon: 'trophy', title: 'Scores', items: ['Other players\' scores show their star rating and every judgement, not zeros', 'As in osu!lazer, Difficulty Adjust, Constant Speed, Hold Off, Invert, Song Speed and Percy give no pp or leaderboard scores (rooms still have them) — nor Hidden, Fade In, Cover or Flashlight changed from how they come'] },
     { icon: 'brush', title: 'Skin editor', items: ['Receptor opacity'] },
-    { icon: 'crown', title: 'Admins', items: ['Announcements as banners across the game — news, important, events, maintenance with a countdown — up for as long as the admins pick', 'Report a player from their ⋯ menu or their name in chat', 'Admins moderate right from the game, and get told about new reports', '#lobby can have slow mode, be locked for a while, and star out blocked words', 'Admins\' names in their role\'s colour; a permanently banned account is removed, scores and all'] },
+    { icon: 'crown', title: 'Admins', items: ['Announcements as banners across the game — news, important, events, maintenance with a countdown — up for as long as the admins pick', 'Report a player from their ⋯ menu or their name in chat', 'Admins moderate right from the game, and get told about new reports', '#lobby can have slow mode, be locked for a while, and star out blocked words', 'A banned player can appeal from the ban notice', 'Admins\' names in their role\'s colour; a permanently banned account is removed, scores and all'] },
   ] },
   { id: '2026.10.30b', title: 'Settings and menus', sections: [
     { icon: 'gear', title: 'Settings', items: ['Scroll speed is back in Settings → Gameplay → Scrolling', 'Notes always follow the beatmap\'s speed changes (SV and BPM), as in osu!mania — the setting for it is gone'] },
@@ -27876,7 +27879,25 @@ const Presence = {
     if (this._bannedTold) return;
     this._bannedTold = true;
     const until = this.banned.until ? `until ${new Date(this.banned.until).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'for good';
-    Dialog.popup('You\'re banned from online play', `${this.banned.reason ? `Reason: ${this.banned.reason}. ` : ''}It lasts ${until}. You can still play everything offline — your beatmaps, scores and settings are all here.`,
+    // (and a way to ask the admins to lift it: an appeal, which waits for them with the reports)
+    const ta = h('textarea.input.rep-text', { maxlength: 500, rows: 3, placeholder: 'Think it\'s a mistake? Tell the admins why.' });
+    ta.addEventListener('keydown', e => e.stopPropagation());
+    const note = h('span.rep-note');
+    const send = h('button.btn.sm', { onclick: async () => {
+      const text = ta.value.trim();
+      if (text.length < 10) { note.textContent = 'Say a little more: why should the ban be lifted?'; return; }
+      send.disabled = true; note.textContent = 'Sending…';
+      try {
+        const r = await fetch(Host.api('api/mp/appeal'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pid: this.pid(), key: this.key(), text }), signal: timeoutSignal(20000) });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.ok) { note.textContent = 'Sent — the admins will look at it.'; ta.disabled = true; return; }
+        note.textContent = d.error || `The server answered ${r.status}.`;
+      } catch { note.textContent = 'Couldn\'t reach the server — try again in a moment.'; }
+      send.disabled = false;
+    } }, icon('send'), 'Send appeal');
+    Dialog.popup('You\'re banned from online play', h('div.ban-msg',
+      h('p', `${this.banned.reason ? `Reason: ${this.banned.reason}. ` : ''}It lasts ${until}. You can still play everything offline — your beatmaps, scores and settings are all here.`),
+      h('div.rep.ban-appeal', ta, h('div.ban-send', send, note))),
       [{ label: 'OK', colour: '#66ccff', cls: 'cancel', cancel: true }], { icon: 'warn' });
   },
   /** Try the server again now (the "Try again" button; and every minute while there's no server at all). */
@@ -33337,7 +33358,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'ff1116c8ff56';
+const APP_BUILD = '5214ddb7bd53';
 
 const App = {
   lastReport: null,

@@ -175,6 +175,7 @@ a { color: #d6b3ff; } a.big { font-weight: 700; font-size: 15px; }
 .annrow { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .report .quote { margin: 10px 0 0; padding: 8px 12px; border-left: 3px solid var(--line); color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
 .report.closed { opacity: .7; }
+.report.appeal { border-color: rgba(179,102,255,.35); }
 .chat.mini { margin-top: 10px; max-height: 180px; } .chat.mini .line { padding: 4px; }
 .find { width: 200px; } @media (max-width: 860px) { .find { flex: 1; width: auto; } }
 td.quick { white-space: nowrap; text-align: right; } td.quick button + button { margin-left: 4px; }
@@ -489,7 +490,7 @@ async function announce() {
 
 // ── Reports: what players told the admins about someone — why, in their words, with the player's last lines in
 // #lobby — and the quick answers to them.
-const REASONS = { cheating: 'Cheating', chat: 'Chat', name: 'Name or picture', other: 'Something else' };
+const REASONS = { cheating: 'Cheating', chat: 'Chat', name: 'Name or picture', other: 'Something else', appeal: 'Ban appeal' };
 let repShow = 'open';
 async function reports() {
   const d = await api('reports');
@@ -502,7 +503,16 @@ async function reports() {
     await api('reportClose', { id: r.id, how: 'done' }).catch(() => {});
     reports();
   };
-  const card = r => h('div.card.report' + (r.open ? '' : '.closed'),
+  // (a banned player's appeal: what they said, the ban it's about, and the two answers to it)
+  const appeal = r => h('div.card.report.appeal' + (r.open ? '' : '.closed'),
+    h('div.row', h('span.pill.acc', 'Ban appeal'), h('a.big', { href: '#players/' + encodeURIComponent(r.pid) }, r.name || r.pid), h('span.grow'), h('span.muted.small', ago(r.at))),
+    h('p.muted.small', 'Banned ' + (r.ban && r.ban.until ? 'until ' + when(r.ban.until) : 'for good') + (r.ban && r.ban.reason ? ' — ' + r.ban.reason : '')),
+    h('p.quote', r.text),
+    r.open ? h('div.row.mt', h('span.grow'),
+      h('button.small', { onclick: done(r, 'dismissed') }, 'Keep the ban'),
+      h('button.small.primary', { onclick: async () => { if (!confirm('Lift the ban on ' + (r.name || r.pid) + '?')) return; await run(() => api('unban', { pid: r.pid }), 'Ban lifted'); await api('reportClose', { id: r.id, how: 'done' }).catch(() => {}); reports(); } }, 'Lift the ban'))
+      : h('p.muted.small', (r.how === 'dismissed' ? 'Ban kept' : 'Ban lifted') + ' by ' + (r.closedBy || '?') + ', ' + ago(r.closedAt)));
+  const card = r => r.reason === 'appeal' ? appeal(r) : h('div.card.report' + (r.open ? '' : '.closed'),
     h('div.row', h('span.pill.bad', REASONS[r.reason] || r.reason), h('a.big', { href: '#players/' + encodeURIComponent(r.pid) }, r.name || r.pid), h('span.muted.small', 'reported by '), h('a', { href: '#players/' + encodeURIComponent(r.by.pid) }, r.by.name || r.by.pid), h('span.grow'), h('span.muted.small', ago(r.at))),
     r.text ? h('p.quote', r.text) : h('p.muted.small', 'No details given.'),
     r.chat && r.chat.length ? h('div.chat.mini', h('h3', 'Their last lines in #lobby'), r.chat.map(l => h('div.line', h('span.t', clock(l.at)), h('span.x', l.text)))) : null,
