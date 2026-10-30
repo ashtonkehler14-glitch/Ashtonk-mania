@@ -1961,6 +1961,8 @@ body.f-chat .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260
 .inv-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .inv-who b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .inv-who small { color: var(--muted); font-size: .75rem; }
+.inv-later { gap: 6px; background: rgba(255, 204, 34, .12); color: #ffcc22; } /* (an invite waiting for their song to end) */
+.inv-later .i { width: 12px; height: 12px; }
 .inv-empty { padding: 14px; text-align: center; color: var(--muted); border-radius: 10px; background: rgba(255, 255, 255, .03); }
 .inv-link { align-self: flex-start; }
 .mp-reconnecting { display: inline-flex; align-items: center; gap: 8px; margin-left: 16px; padding: 4px 12px; border-radius: 99px; background: rgba(255, 255, 255, .07); font-size: .8rem; font-weight: 600; color: var(--text-2); align-self: center; }
@@ -4081,9 +4083,11 @@ html.touch img { -webkit-user-drag: none; }
 .std-panel .dp-bottom .rank-pill { transform: scale(.8); margin: 0 -2px; }
 .set-panel.std-panel.expanded { --x: calc(55px * var(--k)); box-shadow: 0 0 3px 1px color-mix(in srgb, var(--sc) 80%, transparent); }
 /* lazer's StatisticsPanel items: grey cards with 20px corners, the name in bold with a #66FFCC bar under it */
-.st-pair { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; align-items: start; }
-.st-item { position: relative; min-width: 0; padding: 48px 17px 17px; border-radius: 20px; background: linear-gradient(rgba(64, 64, 64, .8), rgba(46, 46, 46, .95)); box-shadow: inset 0 0 0 2px #2e2e2e; }
-.st-h { position: absolute; left: 14px; top: 10px; font-size: 16px; font-weight: 700; }
+.st-pair { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 1.6fr); gap: 10px; align-items: start; }
+.st-item { position: relative; min-width: 0; padding: 10px 17px 17px; border-radius: 20px; background: linear-gradient(rgba(64, 64, 64, .8), rgba(46, 46, 46, .95)); box-shadow: inset 0 0 0 2px #2e2e2e; }
+/* (the name in the card's flow, not laid over it: a narrow card wraps it to two lines and what's under it moves down,
+   instead of the name and its bar running through the numbers) */
+.st-h { width: fit-content; max-width: 100%; margin: 0 -3px 13px; font-size: 16px; font-weight: 700; line-height: 1.2; }
 .st-h::after { content: ""; display: block; height: 2px; margin-top: 4px; background: #66ffcc; }
 .st-pp { display: flex; justify-content: space-between; margin-bottom: 12px; }
 .st-pp > div { display: flex; flex-direction: column; font-size: 13px; }
@@ -24255,7 +24259,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.31', title: 'Rooms and scores', sections: [
-    { icon: 'multi', title: 'Rooms', items: ['A song queue: line songs up to play one after another (the host\'s, or everyone\'s)', 'Speed mods can be each player\'s own (a room setting)', 'Spectating in a room, switch to another player without going back', 'Click a score in a room\'s results to see its card'] },
+    { icon: 'multi', title: 'Rooms', items: ['A song queue: line songs up to play one after another (the host\'s, or everyone\'s)', 'Speed mods can be each player\'s own (a room setting)', 'Spectating in a room, switch to another player without going back', 'Click a score in a room\'s results to see its card', 'Invite a friend who\'s in the middle of a song: they get the invite as soon as it ends'] },
     { icon: 'trophy', title: 'Scores', items: ['Other players\' scores show their star rating and every judgement, not zeros', 'As in osu!lazer, Difficulty Adjust, Constant Speed, Hold Off, Invert, Song Speed and Percy give no pp or leaderboard scores (rooms still have them) — nor Hidden, Fade In, Cover or Flashlight changed from how they come'] },
     { icon: 'brush', title: 'Skin editor', items: ['Receptor opacity'] },
     { icon: 'sparkle', title: 'Menus', items: ['The back button is in the same place on every screen, phones too', 'Esc closes a dialog even while you\'re typing in it', 'On a phone held sideways, pop-ups fit the screen'] },
@@ -27711,6 +27715,7 @@ const Presence = {
     this.checkHealth();
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
+    Bus.on('presence:changed', () => this.checkAfterSong()); Bus.on('mp:changed', () => this.checkAfterSong());
     Bus.on('scores:changed', () => { clearTimeout(this._rkT); this._rkT = setTimeout(() => Rankings.report(), 2000); });
   },
   status() {
@@ -28027,8 +28032,8 @@ const Presence = {
     this.send({ t: 'status', status: st, name, avatar: av, song, rp });
   },
   others() { return this.players.filter(p => p.id !== this.me); },
-  /** Is a list of online players on screen (the invite dialog)? */
-  watching() { return !!document.querySelector('.inv-list') || Screens.currentName === 'dashboard'; },
+  /** Is a list of online players on screen (the invite dialog) — or an invite waiting for someone's song to end? */
+  watching() { return !!document.querySelector('.inv-list') || Screens.currentName === 'dashboard' || this.afterSong.size > 0; },
   refresh() { this.send({ t: 'list' }); },
   /** A player's picture: their chosen preset / uploaded thumbnail when they share one, else their initial. */
   avatarEl(p, size = 44) {
@@ -28038,6 +28043,23 @@ const Presence = {
     return h('div.avatar.avatar-mono', { style: { width: size + 'px', height: size + 'px', fontSize: Math.round(size * 0.45) + 'px' } }, (p && p.name || '?').slice(0, 1).toUpperCase());
   },
   invite(id) { if (Multiplayer.inRoom()) this.send({ t: 'invite', to: id, code: Multiplayer.room.code }); },
+  /** Invites waiting for a friend's song to end (the invite list's "Invite after song"): their id → { name, at }. Sent
+   *  the moment they're back in the menus; dropped if they go into a room instead, go offline, you leave the room, or
+   *  after 15 minutes. */
+  afterSong: new Map(),
+  inviteAfterSong(p) { this.afterSong.set(p.id, { name: p.name, at: Date.now() }); this.checkAfterSong(); },
+  checkAfterSong() {
+    if (!this.afterSong.size) return;
+    if (!Multiplayer.inRoom()) { this.afterSong.clear(); return; }
+    for (const [id, w] of this.afterSong) {
+      const p = this.players.find(x => x.id === id);
+      if (!p || Date.now() - w.at > 15 * 60000) { this.afterSong.delete(id); continue; }
+      if (p.status === 'playing' || p.status === 'watching') continue; // (still mid-song)
+      this.afterSong.delete(id);
+      if (p.status === 'menu') { this.invite(id); Toast.ok(`Invited ${w.name}`, 'Their song just ended.'); }
+      else Toast.show(`${w.name} went into a room`, 'Your invite wasn\'t sent.');
+    }
+  },
   async onInvite(m) {
     const from = m.from && m.from.name || 'Someone';
     if (Multiplayer.inRoom() && Multiplayer.room.code === m.code) return;
@@ -28067,15 +28089,23 @@ const Presence = {
     const paint = () => {
       const others = this.others().filter(p => Friends.has(p.pid)); // (only friends can be invited)
       clearEl(list).append(...(others.length ? others.map(p => {
-        const busy = p.status === 'playing' || p.status === 'room' || p.status === 'ranked'; // (already in a room or a match: can't be invited)
+        const busy = p.status === 'room' || p.status === 'ranked'; // (already in a room or a match: can't be invited)
+        // (mid-song — or watching someone's: invited the moment they're back in the menus)
+        const mid = p.status === 'playing' || p.status === 'watching', later = this.afterSong.has(p.id);
         const done = invited.has(p.id);
+        const btn = done || busy ? h('button.btn.sm', { disabled: true, title: busy ? 'Already in a room' : '' }, done ? 'Invited' : 'In a room')
+          : later ? h('button.btn.sm.inv-later', { title: 'Sent when their song ends — click to cancel', onclick: () => { this.afterSong.delete(p.id); UISounds.click(); paint(); } }, icon('clock'), 'After their song')
+          : mid ? h('button.btn.sm.primary', { title: 'They get the invite as soon as their song ends', onclick: () => { this.inviteAfterSong(p); UISounds.click(); paint(); } }, 'Invite after song')
+          : h('button.btn.sm.primary', { onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, 'Invite');
         return h('div.inv-row', h('span.inv-av', this.avatarEl(p, 34)),
-          h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing' : p.status === 'room' ? 'In a room' : p.status === 'ranked' ? 'In Ranked Play' : 'Online')),
-          h(`button.btn.sm${done || busy ? '' : '.primary'}`, { disabled: done || busy, title: busy ? 'Already in a room' : '', onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, done ? 'Invited' : busy ? 'In a room' : 'Invite'));
+          h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing a song' : p.status === 'watching' ? 'Watching a song' : p.status === 'room' ? 'In a room' : p.status === 'ranked' ? 'In Ranked Play' : 'Online')),
+          btn);
       }) : [h('div.inv-empty', this.ws ? 'None of your friends are online. Add friends from the online users list (top bar).' : 'Connecting…')]));
     };
     paint();
-    const off = Bus.on('presence:changed', paint);
+    const off1 = Bus.on('presence:changed', paint);
+    const off2 = Bus.on('presence:invited', id => { invited.add(id); paint(); });
+    const off = () => { off1(); off2(); };
     const o = Dialog.custom(`Invite to room ${Multiplayer.room.code}`, h('div.inv',
       h('div.inv-label', 'Friends online'), list,
       h('div.inv-label', 'Or send a link'),
@@ -33395,7 +33425,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '300f483df33d';
+const APP_BUILD = 'ba85115a9634';
 
 const App = {
   lastReport: null,

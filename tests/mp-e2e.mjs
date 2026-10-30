@@ -370,6 +370,21 @@ check('the invited player gets a Join prompt', await bob.evaluate(code => docume
 await bob.click('.dialog .pd-btn.cancel');
 await alice.click('.dialog .actions .btn');
 await alice.waitForTimeout(300);
+// a friend mid-song: "Invite after song" — nothing reaches them until their song is over, then the invite does
+await bob.evaluate(() => { const P = AshtonkMania.Presence; P._status = P.status; P.status = () => 'playing'; P.pushStatus(); });
+await alice.waitForFunction(() => AshtonkMania.Presence.others().some(p => p.name === 'Bob' && p.status === 'playing'), null, { timeout: 5000 });
+await alice.click('.mp-invite');
+await alice.waitForSelector('.inv-row');
+const lateBtn = await alice.evaluate(() => [...document.querySelectorAll('.inv-row')].find(r => r.querySelector('b').textContent === 'Bob').querySelector('button').textContent);
+await alice.evaluate(() => [...document.querySelectorAll('.inv-row')].find(r => r.querySelector('b').textContent === 'Bob').querySelector('button').click());
+const waiting = await alice.evaluate(() => [...document.querySelectorAll('.inv-row')].find(r => r.querySelector('b').textContent === 'Bob').querySelector('button').textContent);
+await alice.click('.dialog .actions .btn');
+await alice.waitForTimeout(3200); // (and past the server's 3 s double-click guard for the same invite)
+const early = await bob.evaluate(() => [...document.querySelectorAll('.dialog h2')].some(x => /invited you/.test(x.textContent)));
+await bob.evaluate(() => { const P = AshtonkMania.Presence; P.status = P._status; delete P._status; P.pushStatus(); });
+const late = await bob.waitForFunction(() => [...document.querySelectorAll('.dialog h2')].some(x => /Alice invited you/.test(x.textContent)), null, { timeout: 8000 }).then(() => true, () => false);
+check('a friend mid-song: "Invite after song" waits, and the invite reaches them as soon as their song is over', lateBtn === 'Invite after song' && /After their song/.test(waiting) && !early && late && await alice.evaluate(() => AshtonkMania.Presence.afterSong.size === 0), JSON.stringify({ lateBtn, waiting, early, late }));
+if (late) await bob.click('.dialog .pd-btn.cancel');
 await bob.fill('.mp-code', code);
 await bob.click('.mp-join');
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });

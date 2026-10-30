@@ -936,7 +936,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.31', title: 'Rooms and scores', sections: [
-    { icon: 'multi', title: 'Rooms', items: ['A song queue: line songs up to play one after another (the host\'s, or everyone\'s)', 'Speed mods can be each player\'s own (a room setting)', 'Spectating in a room, switch to another player without going back', 'Click a score in a room\'s results to see its card'] },
+    { icon: 'multi', title: 'Rooms', items: ['A song queue: line songs up to play one after another (the host\'s, or everyone\'s)', 'Speed mods can be each player\'s own (a room setting)', 'Spectating in a room, switch to another player without going back', 'Click a score in a room\'s results to see its card', 'Invite a friend who\'s in the middle of a song: they get the invite as soon as it ends'] },
     { icon: 'trophy', title: 'Scores', items: ['Other players\' scores show their star rating and every judgement, not zeros', 'As in osu!lazer, Difficulty Adjust, Constant Speed, Hold Off, Invert, Song Speed and Percy give no pp or leaderboard scores (rooms still have them) — nor Hidden, Fade In, Cover or Flashlight changed from how they come'] },
     { icon: 'brush', title: 'Skin editor', items: ['Receptor opacity'] },
     { icon: 'sparkle', title: 'Menus', items: ['The back button is in the same place on every screen, phones too', 'Esc closes a dialog even while you\'re typing in it', 'On a phone held sideways, pop-ups fit the screen'] },

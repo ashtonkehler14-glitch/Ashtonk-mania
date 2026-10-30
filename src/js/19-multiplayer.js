@@ -709,6 +709,7 @@ const Presence = {
     this.checkHealth();
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
+    Bus.on('presence:changed', () => this.checkAfterSong()); Bus.on('mp:changed', () => this.checkAfterSong());
     Bus.on('scores:changed', () => { clearTimeout(this._rkT); this._rkT = setTimeout(() => Rankings.report(), 2000); });
   },
   status() {
@@ -1025,8 +1026,8 @@ const Presence = {
     this.send({ t: 'status', status: st, name, avatar: av, song, rp });
   },
   others() { return this.players.filter(p => p.id !== this.me); },
-  /** Is a list of online players on screen (the invite dialog)? */
-  watching() { return !!document.querySelector('.inv-list') || Screens.currentName === 'dashboard'; },
+  /** Is a list of online players on screen (the invite dialog) — or an invite waiting for someone's song to end? */
+  watching() { return !!document.querySelector('.inv-list') || Screens.currentName === 'dashboard' || this.afterSong.size > 0; },
   refresh() { this.send({ t: 'list' }); },
   /** A player's picture: their chosen preset / uploaded thumbnail when they share one, else their initial. */
   avatarEl(p, size = 44) {
@@ -1036,6 +1037,23 @@ const Presence = {
     return h('div.avatar.avatar-mono', { style: { width: size + 'px', height: size + 'px', fontSize: Math.round(size * 0.45) + 'px' } }, (p && p.name || '?').slice(0, 1).toUpperCase());
   },
   invite(id) { if (Multiplayer.inRoom()) this.send({ t: 'invite', to: id, code: Multiplayer.room.code }); },
+  /** Invites waiting for a friend's song to end (the invite list's "Invite after song"): their id → { name, at }. Sent
+   *  the moment they're back in the menus; dropped if they go into a room instead, go offline, you leave the room, or
+   *  after 15 minutes. */
+  afterSong: new Map(),
+  inviteAfterSong(p) { this.afterSong.set(p.id, { name: p.name, at: Date.now() }); this.checkAfterSong(); },
+  checkAfterSong() {
+    if (!this.afterSong.size) return;
+    if (!Multiplayer.inRoom()) { this.afterSong.clear(); return; }
+    for (const [id, w] of this.afterSong) {
+      const p = this.players.find(x => x.id === id);
+      if (!p || Date.now() - w.at > 15 * 60000) { this.afterSong.delete(id); continue; }
+      if (p.status === 'playing' || p.status === 'watching') continue; // (still mid-song)
+      this.afterSong.delete(id);
+      if (p.status === 'menu') { this.invite(id); Toast.ok(`Invited ${w.name}`, 'Their song just ended.'); }
+      else Toast.show(`${w.name} went into a room`, 'Your invite wasn\'t sent.');
+    }
+  },
   async onInvite(m) {
     const from = m.from && m.from.name || 'Someone';
     if (Multiplayer.inRoom() && Multiplayer.room.code === m.code) return;
@@ -1065,15 +1083,23 @@ const Presence = {
     const paint = () => {
       const others = this.others().filter(p => Friends.has(p.pid)); // (only friends can be invited)
       clearEl(list).append(...(others.length ? others.map(p => {
-        const busy = p.status === 'playing' || p.status === 'room' || p.status === 'ranked'; // (already in a room or a match: can't be invited)
+        const busy = p.status === 'room' || p.status === 'ranked'; // (already in a room or a match: can't be invited)
+        // (mid-song — or watching someone's: invited the moment they're back in the menus)
+        const mid = p.status === 'playing' || p.status === 'watching', later = this.afterSong.has(p.id);
         const done = invited.has(p.id);
+        const btn = done || busy ? h('button.btn.sm', { disabled: true, title: busy ? 'Already in a room' : '' }, done ? 'Invited' : 'In a room')
+          : later ? h('button.btn.sm.inv-later', { title: 'Sent when their song ends — click to cancel', onclick: () => { this.afterSong.delete(p.id); UISounds.click(); paint(); } }, icon('clock'), 'After their song')
+          : mid ? h('button.btn.sm.primary', { title: 'They get the invite as soon as their song ends', onclick: () => { this.inviteAfterSong(p); UISounds.click(); paint(); } }, 'Invite after song')
+          : h('button.btn.sm.primary', { onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, 'Invite');
         return h('div.inv-row', h('span.inv-av', this.avatarEl(p, 34)),
-          h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing' : p.status === 'room' ? 'In a room' : p.status === 'ranked' ? 'In Ranked Play' : 'Online')),
-          h(`button.btn.sm${done || busy ? '' : '.primary'}`, { disabled: done || busy, title: busy ? 'Already in a room' : '', onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, done ? 'Invited' : busy ? 'In a room' : 'Invite'));
+          h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing a song' : p.status === 'watching' ? 'Watching a song' : p.status === 'room' ? 'In a room' : p.status === 'ranked' ? 'In Ranked Play' : 'Online')),
+          btn);
       }) : [h('div.inv-empty', this.ws ? 'None of your friends are online. Add friends from the online users list (top bar).' : 'Connecting…')]));
     };
     paint();
-    const off = Bus.on('presence:changed', paint);
+    const off1 = Bus.on('presence:changed', paint);
+    const off2 = Bus.on('presence:invited', id => { invited.add(id); paint(); });
+    const off = () => { off1(); off2(); };
     const o = Dialog.custom(`Invite to room ${Multiplayer.room.code}`, h('div.inv',
       h('div.inv-label', 'Friends online'), list,
       h('div.inv-label', 'Or send a link'),
