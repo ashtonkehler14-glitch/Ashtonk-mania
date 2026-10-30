@@ -977,7 +977,7 @@ const sp = await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s;
 const bobT = await bob.evaluate(() => AshtonkMania.Music.time);
 // the chat while watching: the bar's Message button (or F8) opens the conversation with him over his play; Esc closes
 // the chat, not the spectating
-const msgBtn = await alice.evaluate(() => (document.querySelector('.spec-live .spec-msg') || {}).textContent || '');
+const msgBtn = await alice.evaluate(() => (document.querySelector('.spec-live .spec-msg > span') || {}).textContent || ''); // (the label: the count of unread messages beside it apart)
 await alice.keyboard.press('F8');
 await alice.waitForSelector('.chat', { timeout: 5000 }).catch(() => {});
 const specChat = await alice.evaluate(() => ({ open: !!document.querySelector('.chat'), cur: AshtonkMania.Chat.cur, watching: AshtonkMania.Screens.currentName === 'gameplay' && !!AshtonkMania.GameplayScreen.s?.spectate }));
