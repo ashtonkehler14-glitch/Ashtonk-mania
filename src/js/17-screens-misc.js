@@ -86,7 +86,7 @@ const BeatmapsScreen = {
     ], { icon: 'music', hue: 'blue' });
     this.page = page;
     this.summary = h('div.lib-summary');
-    const search = h('input.input', { placeholder: 'Filter library…', value: this.q, style: { flex: '1', maxWidth: '420px' } });
+    const search = h('input.input', { type: 'search', placeholder: 'type to search', 'aria-label': 'Search your beatmaps', value: this.q });
     search.addEventListener('input', () => { this.q = search.value.toLowerCase(); this.renderList(); });
     search.addEventListener('keydown', e => searchBoxKey(e, () => { this.q = ''; this.renderList(); }));
     this.list = h('div.ex-grid.lib-grid', { style: { '--o-h': OVERLAY_HUES.blue } });
@@ -95,7 +95,8 @@ const BeatmapsScreen = {
     // do again a moment after it stops
     const shield = h('div.lib-shield');
     page.classList.add('lib-page');
-    page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, search, h('span.grow'), this.summary), this.list, shield);
+    // (the magnifier in the box, as the other search boxes have)
+    page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, h('label.lib-search', icon('search'), search), h('span.grow'), this.summary), this.list, shield);
     let still = 0;
     const sc = this._scroller = el.querySelector('.screen-body');
     sc.classList.add('lib-body');

@@ -4951,6 +4951,10 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mp-lounge-bar .mp-search.mp-search-top { width: 100%; height: 48px; margin: 0; padding-left: 40px; border-radius: 8px; }
 .mp-lounge-bar .mp-joinbox { margin-left: 0; }
 .mp-roomlist > .off-state { margin-top: 30px; }
+/* the beatmap library's search box: the magnifier inside it, as the other search boxes have it */
+.lib-search { position: relative; display: flex; align-items: center; flex: 1; max-width: 420px; }
+.lib-search > .i { position: absolute; left: 12px; width: 15px; height: 15px; opacity: .55; pointer-events: none; }
+.lib-search > input { width: 100%; padding-left: 36px; }
 /* an empty list ("No replays saved", "Empty collection"…): the same icon and words, without the card behind them */
 .off-state.plain { background: none; box-shadow: none; margin: 48px auto; max-width: 520px; }
 /* (a short screen — a phone on its side: less room around it, so it isn't pushed off the bottom) */
@@ -23410,7 +23414,7 @@ const BeatmapsScreen = {
     ], { icon: 'music', hue: 'blue' });
     this.page = page;
     this.summary = h('div.lib-summary');
-    const search = h('input.input', { placeholder: 'Filter library…', value: this.q, style: { flex: '1', maxWidth: '420px' } });
+    const search = h('input.input', { type: 'search', placeholder: 'type to search', 'aria-label': 'Search your beatmaps', value: this.q });
     search.addEventListener('input', () => { this.q = search.value.toLowerCase(); this.renderList(); });
     search.addEventListener('keydown', e => searchBoxKey(e, () => { this.q = ''; this.renderList(); }));
     this.list = h('div.ex-grid.lib-grid', { style: { '--o-h': OVERLAY_HUES.blue } });
@@ -23419,7 +23423,8 @@ const BeatmapsScreen = {
     // do again a moment after it stops
     const shield = h('div.lib-shield');
     page.classList.add('lib-page');
-    page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, search, h('span.grow'), this.summary), this.list, shield);
+    // (the magnifier in the box, as the other search boxes have)
+    page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, h('label.lib-search', icon('search'), search), h('span.grow'), this.summary), this.list, shield);
     let still = 0;
     const sc = this._scroller = el.querySelector('.screen-body');
     sc.classList.add('lib-body');
@@ -33434,7 +33439,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '4db70ab2c630';
+const APP_BUILD = '31f76e7dde85';
 
 const App = {
   lastReport: null,
