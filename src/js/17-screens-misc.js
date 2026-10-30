@@ -751,7 +751,13 @@ const ReplaysScreen = {
 // ─────────────────────────────── Skins ───────────────────────────────
 class SkinPreview {
   /** scrollSpeed: scroll at the player's scroll speed setting instead of a fixed demo speed. */
-  constructor(canvas, { scrollSpeed = false } = {}) { this.canvas = canvas; this.renderer = new ManiaRenderer(canvas, { touch: false }); this.running = false; this.useSpeed = scrollSpeed; }
+  constructor(canvas, { scrollSpeed = false } = {}) {
+    this.canvas = canvas; this.renderer = new ManiaRenderer(canvas, { touch: false }); this.running = false; this.useSpeed = scrollSpeed;
+    // (not drawn while it's out of sight — scrolled away, or the page it's on hidden: on a slow computer it was a third of
+    // the time the menus took, drawing for nobody)
+    this.seen = true;
+    if (typeof IntersectionObserver === 'function') { this._io = new IntersectionObserver(es => { for (const e of es) this.seen = e.isIntersecting; }); this._io.observe(canvas); }
+  }
   async show(skin, keys) {
     this.token = {};
     const tok = this.token;
@@ -795,9 +801,11 @@ class SkinPreview {
       if (!this.running) return;
       this._raf = requestAnimationFrame(frame);
       if (!this.engine) return;
-      // (Performance mode: drawn at 30fps — it's a picture of the skin, not a play to keep up with)
+      // (Performance mode, or a computer found slow: drawn at 30fps — it's a picture of the skin, not a play to keep up
+      // with)
       const real = performance.now();
-      if (real - (this._drawn || 0) < 31 && Settings.get('graphics.performanceMode')) return;
+      if (!this.seen) { this.t0 += real - (this._drawn || real); this._drawn = real; return; }
+      if (real - (this._drawn || 0) < 31 && (Settings.get('graphics.performanceMode') || document.documentElement.classList.contains('slow'))) return;
       this._drawn = real;
       const now = real - this.t0;
       if (now > this.end) { this.reset(); return; }
@@ -813,7 +821,7 @@ class SkinPreview {
     };
     frame();
   }
-  stop() { this.running = false; cancelAnimationFrame(this._raf); if (this.hpBar) { this.hpBar.el.remove(); this.hpBar = null; } }
+  stop() { this.running = false; cancelAnimationFrame(this._raf); if (this._io) { this._io.disconnect(); this._io = null; } if (this.hpBar) { this.hpBar.el.remove(); this.hpBar = null; } }
 }
 
 const SkinsScreen = {
