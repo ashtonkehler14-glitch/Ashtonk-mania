@@ -682,13 +682,13 @@ const NetErr = {
 };
 const NO_SERVER = 'This copy of the game has no multiplayer server. Open Ashtonk!mania from the website its server is on — everyone in a room has to use that same website.';
 
-function offlineState(what, { compact = false } = {}) {
+function offlineState(what, { compact = false, plural = false } = {}) {
   const cls = `div.off-state${compact ? '.compact' : ''}`;
   if (Presence.connecting()) return h(`${cls}.connecting`, h('span.spinner'), h('div.off-sub', 'Connecting…'));
   const local = !Multiplayer.available(), none = !local && Presence.noServer;
   const card = stateCard('globe', local ? 'Offline' : none ? 'No game server here' : 'Can\'t reach the server',
-    local ? `${what} needs the game's server — open Ashtonk!mania from its website.`
-      : none ? `${what} needs the game's server, and this copy of the game doesn't have one. Open Ashtonk!mania from the website its server is on — everyone you play with has to use that same website.`
+    local ? `${what} ${plural ? 'need' : 'needs'} the game's server — open Ashtonk!mania from its website.`
+      : none ? `${what} ${plural ? 'need' : 'needs'} the game's server, and this copy of the game doesn't have one. Open Ashtonk!mania from the website its server is on — everyone you play with has to use that same website.`
       : `${what} will show up as soon as it's back.`,
     { slash: true, cls: compact ? '.compact' : '', action: local || none ? null : h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Presence.tryNow(); } }, icon('sync'), 'Try again') });
   // (why, exactly: the error code and what it means — NetErr — and everything behind it to copy for a report)
@@ -912,7 +912,7 @@ const Presence = {
     const until = this.banned.until ? `until ${new Date(this.banned.until).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'for good';
     // (and a way to ask the admins to lift it: an appeal, which waits for them with the reports)
     const ta = h('textarea.input.rep-text', { maxlength: 500, rows: 3, placeholder: 'Think it\'s a mistake? Tell the admins why.' });
-    ta.addEventListener('keydown', e => e.stopPropagation());
+    ta.addEventListener('keydown', typingKeys);
     const note = h('span.rep-note');
     const send = h('button.btn.sm', { onclick: async () => {
       const text = ta.value.trim();
@@ -1289,7 +1289,7 @@ const MultiplayerScreen = {
       row._name = `${r.name} ${r.host || ''} ${r.map ? `${r.map.artist} ${r.map.title} ${r.map.version}` : ''}`.toLowerCase();
       nextRows.set(r.code, { sig, row });
       return row;
-    }) : [rooms ? stateCard('multi', this.mode === 'ranked' ? 'No duels open right now' : 'No open rooms right now', 'Create one and it shows up here for everyone.', { cls: '.plain', neru: true }) : (rooms === null && Presence.connecting() ? h('div.mp-rooms-empty', h('span.spinner'), 'Looking for open rooms…') : offlineState('Open rooms'))]));
+    }) : [rooms ? stateCard('multi', this.mode === 'ranked' ? 'No duels open right now' : 'No open rooms right now', 'Create one and it shows up here for everyone.', { cls: '.plain', neru: true }) : (rooms === null && Presence.connecting() ? h('div.mp-rooms-empty', h('span.spinner'), 'Looking for open rooms…') : offlineState('Open rooms', { plural: true }))]));
     this._roomRows = nextRows;
     this.filterRooms();
     this._roomsT = setTimeout(() => this.pollRooms(), 3000);

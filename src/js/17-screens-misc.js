@@ -60,7 +60,7 @@ const AccountBeatmaps = {
       cards.set(s.id, el); grid.append(el); io.observe(el);
     }
     q.addEventListener('input', () => { const t = q.value.trim().toLowerCase(); for (const s of all) cards.get(s.id).hidden = !!t && !`${s.title} ${s.artist} ${s.creator}`.toLowerCase().includes(t); paint(); });
-    q.addEventListener('keydown', e => e.stopPropagation());
+    q.addEventListener('keydown', typingKeys);
     const body = h('div.ab', h('p.ab-sub', 'On your other devices and not on this one. Pick the ones you want here.'), h('div.ab-bar', q, allBtn), grid,
       h('div.ab-foot', count, h('span.grow'), h('button.btn.ghost', { onclick: () => o.close() }, 'Close'), go));
     const o = Dialog.custom('Your beatmaps', body);
@@ -88,7 +88,7 @@ const BeatmapsScreen = {
     this.summary = h('div.lib-summary');
     const search = h('input.input', { placeholder: 'Filter library…', value: this.q, style: { flex: '1', maxWidth: '420px' } });
     search.addEventListener('input', () => { this.q = search.value.toLowerCase(); this.renderList(); });
-    search.addEventListener('keydown', e => e.stopPropagation());
+    search.addEventListener('keydown', e => searchBoxKey(e, () => { this.q = ''; this.renderList(); }));
     this.list = h('div.ex-grid.lib-grid', { style: { '--o-h': OVERLAY_HUES.blue } });
     this.report = h('div');
     // while the list scrolls, the cards passing under the pointer don't react to it (as in the beatmap listing); they
@@ -939,6 +939,7 @@ const CHANGELOG = [
     { icon: 'multi', title: 'Rooms', items: ['A song queue: line songs up to play one after another (the host\'s, or everyone\'s)', 'Speed mods can be each player\'s own (a room setting)', 'Spectating in a room, switch to another player without going back', 'Click a score in a room\'s results to see its card'] },
     { icon: 'trophy', title: 'Scores', items: ['Other players\' scores show their star rating and every judgement, not zeros', 'As in osu!lazer, Difficulty Adjust, Constant Speed, Hold Off, Invert, Song Speed and Percy give no pp or leaderboard scores (rooms still have them) — nor Hidden, Fade In, Cover or Flashlight changed from how they come'] },
     { icon: 'brush', title: 'Skin editor', items: ['Receptor opacity'] },
+    { icon: 'sparkle', title: 'Menus', items: ['The back button is in the same place on every screen, phones too', 'Esc closes a dialog even while you\'re typing in it', 'On a phone held sideways, pop-ups fit the screen and announcements stay clear of the logo and the top bar\'s buttons'] },
     { icon: 'crown', title: 'Admins', items: ['Announcements as banners across the game — news, important, events, maintenance with a countdown — up for as long as the admins pick', 'Report a player from their ⋯ menu or their name in chat', 'Admins moderate right from the game, and get told about new reports', '#lobby can have slow mode, be locked for a while, and star out blocked words', 'A banned player can appeal from the ban notice', 'Admins\' names in their role\'s colour; a permanently banned account is removed, scores and all'] },
   ] },
   { id: '2026.10.30b', title: 'Settings and menus', sections: [

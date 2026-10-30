@@ -735,7 +735,7 @@ const DashboardScreen = {
     const style = this.style();
     // (a new view — tab, filter, sort or style — fades in as lazer's lists do; presence updates just redraw)
     this.listEl.className = `dash-list s-${style}${this._fade ? ' fade' : ''}`; this._fade = false;
-    if (!Presence.ws) { clearEl(this.listEl).append(offlineState('Your friends and who\'s online')); return; }
+    if (!Presence.ws) { clearEl(this.listEl).append(offlineState('Your friends and who\'s online', { plural: true })); return; }
     clearEl(this.listEl).append(...(list.length ? list.map(u => UserPanels.panel(u, style))
       : [this.tab !== 'friends' ? stateCard('social', 'Nobody is online right now', 'Players show up here while they\'re playing.', { cls: '.plain', neru: true })
         : Friends.list().length ? stateCard('search', 'Nobody here', q ? 'None of your friends match that search.' : 'None of your friends are in this list.', { cls: '.plain' })

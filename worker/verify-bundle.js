@@ -220,6 +220,10 @@ if (typeof Element !== 'undefined') for (const P of [Element.prototype, Document
 }
 
 
+/** A text field in a dialog: its keys stay in it (no game shortcuts while typing) — all but Esc, which still closes the
+ *  dialog. */
+function typingKeys(e) { if (e.key !== 'Escape') e.stopPropagation(); }
+
 /** lazer's search boxes (FocusedTextBox): Esc clears what's typed first; with nothing typed, it does what Esc does
  *  anywhere on the screen (back). Every other key stays in the box. */
 function searchBoxKey(e, onClear) {

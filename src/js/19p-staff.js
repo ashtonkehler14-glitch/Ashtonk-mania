@@ -36,13 +36,17 @@ const Announcements = {
     const app = document.getElementById('app');
     if (!app) return;
     if (!this.el || !this.el.isConnected) { this.el = h('div.ann-stack', { 'aria-live': 'polite' }); app.append(this.el); }
-    if (!this.chip || !this.chip.isConnected) { this.chip = h('button.ann-chip', { onclick: () => { UISounds.click(); this.showAll(); } }); app.append(this.chip); }
+    // (the chip sits in the toolbar's free middle, between the ruleset and the buttons on the right — never over them)
+    if (!this.chip) this.chip = h('button.ann-chip', { onclick: () => { UISounds.click(); this.showAll(); } });
+    const host = document.querySelector('#toolbar .tb-spacer') || app;
+    if (this.chip.parentNode !== host) host.append(this.chip);
     if (!this._scr) this._scr = Bus.on('screen:changed', () => this.paint());
     const shut = this.closed(), now = Date.now();
     const show = this.list.filter(a => !shut.has(a.id) && (!a.until || a.until > now));
-    // the main menu has room for them in full; anywhere else they'd cover the screen's own top (song select's search,
-    // a room's header), so they're a chip in the middle of the toolbar instead — a click shows them all
-    const full = typeof Screens === 'undefined' || Screens.currentName === 'home';
+    // the main menu has room for them in full (on a phone on its side, for one: more would run into the logo); anywhere
+    // else they'd cover the screen's own top (song select's search, a room's header), so they're a chip in the middle
+    // of the toolbar instead — a click shows them all
+    const full = (typeof Screens === 'undefined' || Screens.currentName === 'home') && (show.length < 2 || !matchMedia('(max-height: 520px)').matches);
     clearEl(this.el).append(...(full ? show : []).map(a => {
       const [ic, label] = this.STYLE[a.kind] || this.STYLE.info;
       return h(`div.ann.${this.STYLE[a.kind] ? a.kind : 'info'}`, { role: 'status' },
@@ -95,7 +99,7 @@ const Report = {
     if (!(Presence.ws && Presence.ws.readyState === 1)) { Toast.err('Can\'t report right now', 'You\'re not connected to the online service.'); return; }
     let reason = 'cheating';
     const text = h('textarea.input.rep-text', { maxlength: 300, rows: 3, placeholder: 'What happened? (optional)' });
-    text.addEventListener('keydown', e => e.stopPropagation());
+    text.addEventListener('keydown', typingKeys);
     const opts = h('div.rep-opts', ...this.REASONS.map(([k, l, sub]) => h(`button.rep-opt${k === reason ? '.on' : ''}`, { type: 'button', onclick: e => {
       UISounds.click(); reason = k; for (const b of opts.children) b.classList.toggle('on', b === e.currentTarget);
     } }, h('b', l), sub ? h('small', sub) : null)));
@@ -165,7 +169,7 @@ const Staff = {
     return new Promise(resolve => {
       let out = null;
       const ta = h('textarea.input.rep-text', { maxlength: 300, rows: 3 });
-      ta.addEventListener('keydown', e => e.stopPropagation());
+      ta.addEventListener('keydown', typingKeys);
       Dialog.custom(title, h('div.rep', note ? h('p.rep-note', note) : null, ta), [{ label: 'Cancel' }, { label: ok, primary: true, onClick: () => { out = ta.value.trim(); } }], { onClose: () => resolve(out) });
       setTimeout(() => ta.focus({ preventScroll: true }), 50);
     });
@@ -173,7 +177,7 @@ const Staff = {
   ban(u) {
     let days = 1;
     const reason = h('input.input', { maxlength: 200, placeholder: 'Reason (they see it)' });
-    reason.addEventListener('keydown', e => e.stopPropagation());
+    reason.addEventListener('keydown', typingKeys);
     const opts = h('div.rep-opts.rep-days', ...[[1 / 24, '1 hour'], [1, '1 day'], [7, '7 days'], [30, '30 days'], [0, 'For good']].map(([d, l]) => h(`button.rep-opt${d === days ? '.on' : ''}`, { type: 'button', onclick: e => {
       UISounds.click(); days = d; for (const b of opts.children) b.classList.toggle('on', b === e.currentTarget);
     } }, h('b', l))));
@@ -204,7 +208,7 @@ const Staff = {
     let kind = 'info', hours = 1;
     const title = h('input.input', { maxlength: 60, placeholder: 'Title (optional)' });
     const text = h('textarea.input.rep-text', { maxlength: 300, rows: 3, placeholder: 'The message, for everyone online' });
-    for (const x of [title, text]) x.addEventListener('keydown', e => e.stopPropagation());
+    for (const x of [title, text]) x.addEventListener('keydown', typingKeys);
     const seg = (list, cur, set) => { const el = h('div.rep-opts.rep-days', ...list.map(([v, l]) => h(`button.rep-opt${v === cur ? '.on' : ''}`, { type: 'button', onclick: e => { UISounds.click(); set(v); for (const b of el.children) b.classList.toggle('on', b === e.currentTarget); } }, h('b', l)))); return el; };
     const popup = h('input', { type: 'checkbox' });
     Dialog.custom('Announce', h('div.rep',

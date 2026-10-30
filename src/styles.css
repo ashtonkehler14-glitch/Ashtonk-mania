@@ -3682,7 +3682,7 @@ html.touch .nf-clear { padding: 10px 12px; margin: -10px -12px; }
 .sh-btn:disabled { filter: brightness(.45); cursor: default; }
 .sh-btn:disabled > span { opacity: .6; }
 .modsel-foot { align-items: flex-end; gap: 10px; padding: 0 20px 12px 0; }
-.modsel-foot .lz-back { margin-right: 0; }
+.modsel-foot .lz-back { margin-right: 0; margin-bottom: 0; } /* (level with the footer's other buttons and song select's back button) */
 .ms-deselect { width: 200px; margin-bottom: 12px; }
 .modsel-foot > .sh-btn { margin-bottom: 0; }
 .ms-info { display: flex; align-items: stretch; height: 50px; border: 2px solid hsl(var(--o-h) 10% 30%); border-radius: 7px; transform: skewX(-11.31deg); overflow: hidden; background: hsl(var(--o-h) 10% 20%); }
@@ -3936,7 +3936,7 @@ html.touch img { -webkit-user-drag: none; }
   .ss-footer .foot-btn .i { width: 22px; height: 22px; }
   .ss-footer .lz-back { width: 112px; min-width: 0; }
   /* results footer: the buttons sit to the right of the back button instead of under it */
-  .res-actions { justify-content: flex-end; gap: 6px; padding: 0 8px 0 134px; } /* (clear of the back button's slant) */
+  .res-actions { justify-content: flex-end; gap: 6px; padding: 0 8px 0 142px; } /* (clear of the back button's slant) */
   .res-actions > .lz-back { width: 112px; min-width: 0; }
   .res-ab, .res-ab.wide { width: auto; flex: 1 1 0; max-width: 90px; height: 34px; }
   .res-actions > .muted { display: none; }
@@ -4325,8 +4325,7 @@ html.touch .ch-item.on .ch-x { display: grid; place-items: center; width: 26px; 
 /* phones: the screen's rounded corners — the toolbar's ends and the bottom bars keep clear of them */
 html.touch { --corner: 34px; }
 html.touch #toolbar { padding-left: var(--corner); padding-right: var(--corner); }
-html.touch .page-back, html.touch .ss-footer .lz-back { margin-left: calc(var(--corner) - 30px); }
-html.touch .page-back { left: var(--corner); }
+html.touch .lz-back { margin-left: calc(var(--corner) - 14px); } /* (every screen's back button in the same place) */
 html.touch .mp-footer { padding-left: calc(24px + var(--corner)); padding-right: calc(24px + var(--corner)); }
 html.touch .ss-footer { padding-right: calc(20px + var(--corner)); }
 .mob-inst-quiet { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; color: rgba(255, 255, 255, .6); font-size: 13px; cursor: pointer; }
@@ -4709,7 +4708,15 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
   .pf-top { height: 150px; }
   .pf-top .pf-avatar { width: 84px !important; height: 84px !important; font-size: 2.2rem !important; border-radius: 16px; }
   .pf-name { font-size: 1.5rem; }
-  .page-back .lz-back, .ss-footer .lz-back { height: 40px; min-width: 104px; font-size: .85rem; }
+  .lz-back, .lz-back:hover, .lz-back:focus-visible { height: 40px; min-width: 104px; font-size: .85rem; }
+}
+/* (a short screen: the pop-up's ring, gaps and buttons smaller, so everything in it — buttons too — fits) */
+@media (max-height: 520px) {
+  .dialog.popup { padding: 22px 0 16px; }
+  .pd-ring { width: 60px; height: 60px; margin-bottom: 12px; border-width: 4px; }
+  .pd-ring .i { width: 30px; height: 30px; }
+  .pd-buttons { padding-top: 16px; }
+  .pd-btn { height: 42px; font-size: 1rem; }
 }
 /* (the results card fits a sideways phone's height instead of scrolling) */
 @media (max-height: 520px) { .results .rs { zoom: .74; justify-self: center; } }
@@ -4721,7 +4728,7 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 @media (max-height: 520px) and (min-aspect-ratio: 3/2) {
   .results .res-grid:not(.stats-open) { grid-template-columns: 640px; }
   .results .res-grid:not(.stats-open) > .rs { width: 640px; min-height: 0; }
-  .results .res-grid:not(.stats-open) > .rs .rs-mid { display: grid; grid-template-columns: 236px minmax(0, 1fr); column-gap: 16px; align-content: center; padding: 14px 18px 18px; }
+  .results .res-grid:not(.stats-open) > .rs .rs-mid { display: grid; grid-template-columns: 236px minmax(0, 1fr); column-gap: 16px; align-content: center; padding: 14px 18px 28px; } /* (room under the counts for the date) */
   .results .res-grid:not(.stats-open) > .rs .rs-mid > * { grid-column: 2; }
   .results .res-grid:not(.stats-open) > .rs .rs-ring { grid-column: 1; grid-row: 1 / span 9; align-self: center; justify-self: center; margin: 0; width: 220px; height: 220px; }
   .results .res-grid:not(.stats-open) > .rs .res-score { margin: 6px 0 2px; }
@@ -5223,6 +5230,8 @@ html.lp-open #toasts { right: 380px; }
   background: rgba(20, 22, 28, .92); color: #fff; font: inherit; font-size: 13px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 45%, transparent); animation: annIn 400ms var(--ease-out) both; }
 .ann-chip.warn { --ac: #ffcc22; } .ann-chip.event { --ac: #ff66aa; } .ann-chip.maint { --ac: #ff8a5c; }
 .ann-chip[hidden], #app.in-game .ann-chip, #app.hide-toolbar .ann-chip { display: none; }
+.tb-spacer { display: flex; align-items: center; justify-content: center; min-width: 0; padding: 0 8px; }
+.tb-spacer > .ann-chip { position: relative; top: auto; left: auto; translate: none; flex: 0 1 auto; min-width: 0; max-width: min(420px, 100%); }
 .ann-chip .ann-ic { width: 24px; height: 24px; }
 .ann-chip .ann-ic svg { width: 11px; height: 11px; }
 .ann-chip-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--ac); }
@@ -5239,7 +5248,8 @@ html.lp-open #toasts { right: 380px; }
 .rep-who { margin: 0; color: #fff; }
 .rep-note { margin: 0; font-size: .8rem; color: var(--muted); }
 .rep-opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-.rep-opts.rep-days { grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); }
+.rep-opts.rep-days { grid-template-columns: repeat(auto-fit, minmax(62px, 1fr)); }
+.rep-days .rep-opt { align-items: center; justify-content: center; padding: 8px 6px; text-align: center; white-space: nowrap; } /* (one word or two, on one line) */
 .rep-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 8px; background: rgba(255, 255, 255, .04); color: var(--text-2); font: inherit; text-align: left; transition: background-color 150ms, border-color 150ms; }
 .rep-opt b { font-size: .86rem; color: #fff; }
 .rep-opt small { font-size: .72rem; color: var(--muted); }
