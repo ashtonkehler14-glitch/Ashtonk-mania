@@ -157,6 +157,10 @@ textarea { width: 100%; min-height: 64px; resize: vertical; }
 .login input { width: 100%; font-size: 18px; letter-spacing: .12em; text-transform: uppercase; text-align: center; padding: 12px; margin: 14px 0 10px; font-family: ui-monospace, monospace; }
 .login button { width: 100%; padding: 11px; }
 code { background: #0f0c16; padding: 2px 6px; border-radius: 6px; }
+[hidden] { display: none !important; }
+input[type=color] { width: 46px; height: 34px; padding: 3px; cursor: pointer; }
+.card { overflow-x: auto; }
+@media (max-width: 600px) { .doing { display: none; } td.quick { white-space: normal; } td.quick button { margin: 2px 0 2px 4px; } }
 a { color: #d6b3ff; } a.big { font-weight: 700; font-size: 15px; }
 .tabs .pill { margin-left: 6px; }
 .todos { display: grid; gap: 10px; margin-bottom: 16px; }
@@ -283,13 +287,13 @@ async function overview() {
     (d.anns || []).length ? h('div.todo', h('b', d.anns.length + ' announcement' + (d.anns.length === 1 ? '' : 's') + ' up'), h('span.muted', d.anns.map(a => a.title || a.text).join(' · ')), h('button', { onclick: () => go('announce') }, 'Manage')) : null].filter(Boolean);
   main.replaceChildren(
     h('div.card', h('div.row', h('span.muted', 'Signed in as'), ME.owner ? rolePill('Owner', '#ffcc22') : [h('b', ME.name || ME.pid), ME.role ? rolePill(ME.role.name, ME.role.colour) : null], h('span.grow'),
-      h('button.small', { onclick: () => go('announce') }, 'Announce…'), h('button.small', { onclick: () => go('players') }, 'Find a player'))),
+      h('button.small', { onclick: () => go('announce') }, 'Announce…'))),
     todo.length ? h('div.todos', todo) : null,
     h('div.grid', [['Online now', d.online.length], ['Open reports', OPEN], ['Players', d.players], ['Ranked players', d.ranked], ['Players with a code', d.codes], ['Open rooms', d.rooms.length], ['Open playlists', d.playlists], ['Daily challenge scores', d.dailyScores], ['Banned', d.bans], ['Muted', d.mutes]].map(([l, v]) => h('div.tile', h('b', fmt(v)), h('span', l)))),
     d.owner ? null : h('div.card', h('p.warn', 'No player has the code in ADMIN_CODE yet: sign in to the game with it (Your code) so the game knows you\\'re the owner.')),
     h('div.cols',
-      h('div.card', h('h2', 'Online now'), d.online.length ? h('table', h('tr', h('th', 'Player'), h('th', 'Doing'), h('th')), d.online.map(u => h('tr.click', { onclick: () => u.pid && openPlayer(u.pid) },
-        h('td', avatar(u.avatar, u.name), u.name, u.pid ? null : h('span.pill', 'guest')), h('td.muted', u.status === 'playing' && u.song ? 'Playing ' + u.song.artist + ' - ' + u.song.title + ' [' + u.song.version + ']' : u.status, u.vis === 'offline' ? ' (appearing offline)' : ''),
+      h('div.card', h('h2', 'Online now'), d.online.length ? h('table', h('tr', h('th', 'Player'), h('th.doing', 'Doing'), h('th')), d.online.map(u => h('tr.click', { onclick: () => u.pid && openPlayer(u.pid) },
+        h('td', avatar(u.avatar, u.name), u.name, u.pid ? null : h('span.pill', 'guest')), h('td.muted.doing', u.status === 'playing' && u.song ? 'Playing ' + u.song.artist + ' - ' + u.song.title + ' [' + u.song.version + ']' : u.status, u.vis === 'offline' ? ' (appearing offline)' : ''),
         // (quick ones, right here: a message, ten minutes' mute — not for the owner or the admins)
         h('td.quick', u.pid && u.pid !== d.owner && !(d.staff || []).some(x => x.pid === u.pid) ? [
           h('button.small', { title: 'Send them a message', onclick: async e => { e.stopPropagation(); const t = prompt('A message for ' + u.name + ' (a notice they have to close):'); if (!t) return; await run(() => api('warn', { pid: u.pid, text: t }), 'Sent'); } }, 'Message'),
@@ -338,15 +342,25 @@ async function openPlayer(pid, inPlace) {
   const name = h('input.grow', { placeholder: 'New name', maxlength: 24, value: p.named || '' });
   const again = () => openPlayer(pid, true);
   const act = (a, body, ok, confirmText) => async () => { if (confirmText && !confirm(confirmText)) return; await run(() => api(a, { pid, ...body() }), ok); again(); };
+  // (what the admins know of them — notes only admins see, what was reported, what was done — under their details)
+  const side = [
+      h('div.card', h('h2', 'Admins\\' notes (' + p.notes.length + ')'), h('p.muted.small', 'Only admins see these — a warning given, something to keep an eye on.'),
+        p.notes.length ? h('div', p.notes.slice().reverse().map(n => h('div.note', h('div.row', h('b.small', n.by || '?'), h('span.muted.small', when(n.at)), h('span.grow'),
+          h('button.small', { onclick: async () => { if (!confirm('Delete this note?')) return; await run(() => api('note', { pid, del: n.at }), 'Note deleted'); again(); } }, 'Delete')), h('div.x', n.text)))) : h('div.empty', 'No notes yet.'),
+        (() => { const t = h('textarea', { placeholder: 'Add a note…', maxlength: 500 }); return h('div.mt', t, h('div.row.mt', h('button.primary', { onclick: async () => { if (!t.value.trim()) return; await run(() => api('note', { pid, text: t.value }), 'Note added'); again(); } }, 'Add note'))); })()),
+      h('div.card', h('h2', 'History'),
+        p.reports.length ? h('div', h('h3', 'Reported ' + p.reports.length + ' time' + (p.reports.length === 1 ? '' : 's')), p.reports.map(r => h('div.line', h('span.t', ago(r.at)), h('span.n', REASONS[r.reason] || r.reason), h('span.x', (r.text || '') + ' — by ' + ((r.by && r.by.name) || '?') + (r.open ? ' (waiting)' : ''))))) : h('p.muted.small', 'Never reported.' + (p.reported ? '' : '')),
+        p.reported ? h('p.muted.small', 'They\\'ve reported others ' + p.reported + ' time' + (p.reported === 1 ? '' : 's') + '.') : null,
+        h('h3.mt', 'What the admins did'), p.history && p.history.length ? logTable(p.history) : h('div.empty', 'Nothing yet.'))];
   main.replaceChildren(
     h('div.row.mb', h('button.small', { onclick: () => go('players') }, '← Players')),
     h('div.cols',
-      h('div.card', h('div.who', avatar(p.avatar, p.name).cloneNode(true), h('h2', p.name || p.pid, badges(p))), h('div.kv',
+      h('div.col', h('div.card', h('div.who', avatar(p.avatar, p.name).cloneNode(true), h('h2', p.name || p.pid, badges(p))), h('div.kv',
         h('span', 'Player id'), h('div', p.pid), h('span', 'Online'), h('div', p.online ? h('b.good', 'now (' + p.sessions.length + ' tab' + (p.sessions.length === 1 ? '' : 's') + ')') : 'last seen ' + ago(p.seen)),
         h('span', 'Global rank'), h('div', p.rank ? '#' + fmt(p.rank) : '—'), h('span', 'pp'), h('div', fmt(p.pp)), h('span', 'Accuracy'), h('div', p.acc ? pct(p.acc) : '—'), h('span', 'Ranked plays'), h('div', fmt(p.plays)),
         h('span', 'First places'), h('div', fmt(p.firsts)), h('span', 'Friends'), h('div', fmt(p.friends)), h('span', 'Devices'), h('div', fmt(p.devices) + (p.code ? ' · has a code' : '')),
         h('span', 'Daily challenge'), h('div', p.daily ? p.daily.days + ' days played · best streak ' + (p.daily.best || 0) : '—'),
-        p.banned ? [h('span', 'Banned'), h('div.bad', until(p.banned))] : null, p.muted ? [h('span', 'Muted'), h('div.warn', until(p.muted))] : null)),
+        p.banned ? [h('span', 'Banned'), h('div.bad', until(p.banned))] : null, p.muted ? [h('span', 'Muted'), h('div.warn', until(p.muted))] : null)), ...side),
       h('div.card.actions', h('h2', 'Actions'),
         p.admin ? h('p.muted', 'This is the owner (the ADMIN_CODE player).') : !ME.owner && p.role ? h('p.muted', 'An admin: only the owner can act on them.') : [
           ME.owner ? roleBox(p, act) : null,
@@ -374,16 +388,6 @@ async function openPlayer(pid, inPlace) {
         if (typed.trim().toUpperCase() !== 'DELETE') { say('Not deleted: type DELETE to confirm.', true); return; }
         await run(() => api('deletePlayer', { pid }), 'Player deleted'); go('players');
       } }, 'Delete player…')) : null,
-    // what the admins know of them: notes only admins see, what was done about them, and what was reported
-    h('div.cols',
-      h('div.card', h('h2', 'Admins\\' notes (' + p.notes.length + ')'), h('p.muted.small', 'Only admins see these — a warning given, something to keep an eye on.'),
-        p.notes.length ? h('div', p.notes.slice().reverse().map(n => h('div.note', h('div.row', h('b.small', n.by || '?'), h('span.muted.small', when(n.at)), h('span.grow'),
-          h('button.small', { onclick: async () => { if (!confirm('Delete this note?')) return; await run(() => api('note', { pid, del: n.at }), 'Note deleted'); again(); } }, 'Delete')), h('div.x', n.text)))) : h('div.empty', 'No notes yet.'),
-        (() => { const t = h('textarea', { placeholder: 'Add a note…', maxlength: 500 }); return h('div.mt', t, h('div.row.mt', h('button.primary', { onclick: async () => { if (!t.value.trim()) return; await run(() => api('note', { pid, text: t.value }), 'Note added'); again(); } }, 'Add note'))); })()),
-      h('div.card', h('h2', 'History'),
-        p.reports.length ? h('div', h('h3', 'Reported ' + p.reports.length + ' time' + (p.reports.length === 1 ? '' : 's')), p.reports.map(r => h('div.line', h('span.t', ago(r.at)), h('span.n', REASONS[r.reason] || r.reason), h('span.x', (r.text || '') + ' — by ' + ((r.by && r.by.name) || '?') + (r.open ? ' (waiting)' : ''))))) : h('p.muted.small', 'Never reported.' + (p.reported ? '' : '')),
-        p.reported ? h('p.muted.small', 'They\\'ve reported others ' + p.reported + ' time' + (p.reported === 1 ? '' : 's') + '.') : null,
-        h('h3.mt', 'What the admins did'), p.history && p.history.length ? logTable(p.history) : h('div.empty', 'Nothing yet.'))),
     h('div.card', h('h2', 'Best plays (' + p.bests.length + ')'), p.bests.length ? h('table', h('tr', h('th', 'Beatmap'), h('th', 'pp'), h('th', 'Score'), h('th', 'Accuracy'), h('th', 'Mods'), h('th', 'Set'), h('th')),
       p.bests.map(s => h('tr', h('td', s.artist + ' - ' + s.title, h('span.muted', ' [' + s.version + ']')), h('td', fmt(s.pp)), h('td', fmt(s.score)), h('td', pct(s.acc)), h('td.muted', s.mods.join(' ') || '—'), h('td.muted', ago(s.date)),
         h('td', h('button.small.danger', { onclick: act('removeScore', () => ({ key: s.key }), 'Score removed', 'Remove this score?') }, 'Remove'))))) : h('div.empty', 'No ranked plays.')));
