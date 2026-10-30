@@ -1825,7 +1825,9 @@ await page.hover('.ex-card[data-id="777"]'); // (its preview button shows on hov
 // over the card and its button goes — so the lift is let finish first)
 await page.waitForFunction(() => { const b = document.querySelector('.ex-card[data-id="777"] .ex-play'); return b && getComputedStyle(b).visibility === 'visible' && !b.closest('.ex-card').getAnimations({ subtree: true }).some(a => a.playState === 'running'); }, null, { timeout: 5000 }).catch(() => {});
 await page.waitForTimeout(300);
-await page.click('.ex-card[data-id="777"] .ex-play');
+// (pressed where it is: Playwright's own click scrolls the list first when it thinks it must, which takes the pointer
+// off the card — and its hover-only button with it — so it never finds the button again)
+await page.$eval('.ex-card[data-id="777"] .ex-play', b => b.click());
 await page.waitForTimeout(800);
 {
   // (the preview's audio is blocked here: it shows pause in place, then — as it can't play — goes back to play and says so)

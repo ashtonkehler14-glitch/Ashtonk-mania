@@ -688,9 +688,11 @@ await alice.waitForFunction(() => /Ranked Play/.test(document.querySelector('#ap
 check('the Ranked Play lounge: "Create duel", no rating shown', await alice.evaluate(() => !document.querySelector('.rq-rating') && !/Your \dK rating/.test(document.querySelector('#app').textContent)));
 await alice.click('.mp-create');
 await alice.waitForSelector('.dialog .mp-cr', { timeout: 5000 });
+check('the duel dialog offers Fair (chosen) or Regular cards', await alice.evaluate(() => { const c = [...document.querySelectorAll('.mp-cr-card.deck')]; return c.length === 2 && c[0].classList.contains('on') && /Fair/.test(c[0].textContent) && /Regular/.test(c[1].textContent); }));
 await alice.click('.dialog .actions .btn.primary');
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.isRP() && AshtonkMania.Multiplayer.room.rp.stage === 'waitjoin', null, { timeout: 15000 });
 const duel = await alice.evaluate(() => AshtonkMania.Multiplayer.room.code);
+check('…a Fair duel by default', await alice.evaluate(() => AshtonkMania.Multiplayer.room.rp.fair === true));
 check('the duel is unrated', await alice.evaluate(() => !AshtonkMania.Multiplayer.room.rp.rated));
 await bob.waitForFunction(c => document.querySelector('.mp-roomlist') && AshtonkMania.MultiplayerScreen._roomRows && !AshtonkMania.MultiplayerScreen._roomRows.has(c), duel, { timeout: 15000 });
 check('the duel isn\'t listed in the normal lounge', true);
@@ -698,7 +700,7 @@ const refused = await bob.evaluate(async c => { try { await AshtonkMania.Multipl
 check('joining a duel\'s code from the normal lounge is refused', /Ranked Play/.test(refused) && !(await bob.evaluate(() => AshtonkMania.Multiplayer.inRoom())), refused);
 await bob.evaluate(() => AshtonkMania.Screens.go('multiplayer', { ranked: true, force: true }));
 await bob.waitForFunction(c => AshtonkMania.MultiplayerScreen._roomRows && AshtonkMania.MultiplayerScreen._roomRows.has(c), duel, { timeout: 15000 });
-check('…but it is in the Ranked Play lounge', true);
+check('…but it is in the Ranked Play lounge, as a Fair duel', await bob.evaluate(c => /Fair/.test(AshtonkMania.MultiplayerScreen._roomRows.get(c).row.textContent), duel));
 await shot(bob, 'mp-rp-lounge');
 await bob.evaluate(c => AshtonkMania.MultiplayerScreen._roomRows.get(c).row.click(), duel);
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Multiplayer.isRP() && AshtonkMania.Multiplayer.room.rp.stage === 'stars' && document.querySelector('.rks .rks-lock'), null, { timeout: 15000 })));
@@ -837,6 +839,18 @@ check('the match screen shows no stray "null" / "undefined" / "NaN" text', await
 await alice.click('.rke-btn.quit');
 await alice.waitForFunction(() => !AshtonkMania.Multiplayer.inRoom() && /Create duel/.test((document.querySelector('.mp-create') || {}).textContent || ''), null, { timeout: 10000 });
 check('back in the Ranked Play lounge', true);
+// Regular cards: chosen in the dialog, kept for next time, and the lounge says so
+await alice.click('.mp-create');
+await alice.waitForSelector('.dialog .mp-cr', { timeout: 5000 });
+await alice.click('.mp-cr-card.deck[data-v="regular"]');
+await alice.click('.dialog .actions .btn.primary');
+await alice.waitForFunction(() => AshtonkMania.Multiplayer.isRP() && AshtonkMania.Multiplayer.room.rp.stage === 'waitjoin', null, { timeout: 15000 });
+const reg = await alice.evaluate(() => AshtonkMania.Multiplayer.room.code);
+check('a Regular duel: the room is Regular, and the choice is kept', await alice.evaluate(() => AshtonkMania.Multiplayer.room.rp.fair === false && AshtonkMania.Settings.get('mp.rpDeck') === 'regular'));
+await bob.evaluate(() => AshtonkMania.Screens.go('multiplayer', { ranked: true, force: true }));
+await bob.waitForFunction(c => AshtonkMania.MultiplayerScreen._roomRows && AshtonkMania.MultiplayerScreen._roomRows.has(c), reg, { timeout: 15000 });
+check('…the Ranked Play lounge lists it as Regular', await bob.evaluate(c => /Regular/.test(AshtonkMania.MultiplayerScreen._roomRows.get(c).row.textContent), reg));
+await alice.evaluate(() => { AshtonkMania.Multiplayer.leave(); AshtonkMania.Settings.set('mp.rpDeck', 'fair'); });
 
 // the dashboard: Alice's friends (Bob among them), then she spectates his play live from his panel's ⋯ menu
 await alice.evaluate(() => AshtonkMania.Screens.go('home')); await bob.evaluate(() => AshtonkMania.Screens.go('home'));

@@ -3230,6 +3230,8 @@ body.f-cl #toasts { opacity: 0; pointer-events: none; }
 /* the lobby's Ranked Play panel (lazer's queue screen) */
 .rq { margin: 0 0 22px; padding: 18px 20px; border-radius: 16px; background: linear-gradient(120deg, rgba(67, 130, 255, .16), rgba(249, 77, 146, .12)), var(--panel-solid); box-shadow: 0 10px 34px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(255, 255, 255, .06); }
 .rq-head { display: flex; align-items: center; gap: 12px; }
+.rq-head { flex-wrap: wrap; }
+.rq-deck .qp-key { padding: 0 12px; }
 .rq-ico { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; background: rgba(94, 191, 255, .18); color: #5ebfff; }
 .rq-ico .i { width: 22px; height: 22px; }
 .rq-t { font-size: 1.25rem; font-weight: 700; }

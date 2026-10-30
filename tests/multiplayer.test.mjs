@@ -910,6 +910,44 @@ test('Ranked Play queue: pairs close ratings, both accept → one room; a declin
   assert.equal(q.status(quiet.ticket).status, 'none');
 });
 
+test('Ranked Play: Regular draws the deck around one star rating between the two picks; Fair keeps each player\'s own', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('RG', () => clock.t, () => 0.25);
+  r.join('a', 'Alice', true, { mode: 'rp', keys: 4, deck: 'regular' }); r.join('b', 'Bob', false, {});
+  assert.equal(r.rp.fair, false); assert.equal(r.rp.view('a').fair, false);
+  assert.equal(r.listing().fair, false, 'the lounge says which');
+  r.message('a', { t: 'rpStars', stars: 6 });
+  const ask = msgs(r.message('b', { t: 'rpStars', stars: 2 }), 'rpDeck')[0];
+  assert.equal(ask.msg.prefs, undefined, 'no difficulty for each player: one for both');
+  assert.equal(r.rp.mid, 3, 'a star rating picked between the two (2 + 4 × 0.25)');
+  assert.ok(ask.msg.targets.every(t => Math.abs(t - 3) < 1.5), 'the deck is drawn around it');
+  assert.equal(r.rp.view('a').users.a.pref, 6, 'each pick is still the player\'s own');
+  assert.ok(!JSON.stringify(r.rp.view('a')).includes('"mid"'), 'the star rating in between isn\'t told to the players');
+  // a dealer that never answers: the other is asked for the same deck
+  clock.t += RP.DEAL + 1; const again = msgs(r.tick(), 'rpDeck')[0];
+  assert.equal(r.rp.mid, 3); assert.equal(again.to, 'b');
+  // a rematch keeps the mode; Fair is what a room is without it
+  const f = new RoomLogic('RF', () => clock.t, () => 0.25);
+  f.join('a', 'Alice', true, { mode: 'rp', keys: 4 }); f.join('b', 'Bob', false, {});
+  assert.equal(f.rp.fair, true);
+  f.message('a', { t: 'rpStars', stars: 6 });
+  assert.deepEqual(msgs(f.message('b', { t: 'rpStars', stars: 2 }), 'rpDeck')[0].msg.prefs, { a: 6, b: 2 });
+});
+
+test('Ranked Play queue: Fair and Regular players are only paired with their own kind', () => {
+  const clock = { t: 0 };
+  const q = new RankedQueue(() => clock.t, () => 0.5, () => 'R');
+  const a = q.join({ cid: 'ca', keys: 4, rating: 1500, deck: 'regular' }), b = q.join({ cid: 'cb', keys: 4, rating: 1500 });
+  assert.equal(q.status(a.ticket).status, 'search'); assert.equal(q.status(b.ticket).status, 'search');
+  assert.equal(q.status(a.ticket).queued, 1, 'the count is of their own queue');
+  const c = q.join({ cid: 'cc', keys: 4, rating: 1500, deck: 'regular' });
+  assert.equal(q.status(c.ticket).status, 'found'); assert.equal(q.status(c.ticket).deck, 'regular');
+  assert.equal(q.status(b.ticket).status, 'search');
+  q.accept(a.ticket); q.accept(c.ticket);
+  assert.equal(q.status(a.ticket).deck, 'regular', 'the room is opened as Regular');
+  assert.equal(q.join({ cid: 'cd', keys: 4, deck: 'nonsense' }).ticket && [...q.users.values()].find(u => u.cid === 'cd').deck, 'fair');
+});
+
 test('Ranked Play queue: not the same opponent again straight away — unless nobody else is around for a while', () => {
   const clock = { t: 0 };
   const q = new RankedQueue(() => clock.t, () => 0.5, () => 'R');

@@ -97,6 +97,9 @@ export class RankedPlay {
     this.room = room;
     this.keys = Number(opts.keys) === 7 ? 7 : 4;
     this.rated = !!opts.rated;
+    // Fair: each player gets their own difficulty of every card, near the star rating they chose. Regular: one star
+    // rating picked at random between the two, and the deck drawn up around it — one difficulty for both
+    this.fair = opts.deck !== 'regular';
     this.stage = 'waitjoin'; this.round = 0;
     this.deadline = opts.rated ? room.now() + RP.WAIT_JOIN : 0; this.stageAt = room.now(); this.stageLen = opts.rated ? RP.WAIT_JOIN : 0;
     this.mult = 1;                 // (no round multiplier: damage is the score difference + the bonus, every round)
@@ -110,7 +113,7 @@ export class RankedPlay {
     this.selected = -1;            // the card the active player last selected (played if their time runs out)
     this.discarded = {}; this.ready = {}; this.countdown = false;
     this.results = null; this.history = []; this.winner = null; this.stars = 0;
-    this.dealer = null; this.dealFails = 0; this.completed = false;
+    this.dealer = null; this.dealFails = 0; this.completed = false; this.mid = null;
     this.bans = [];                // queue bans for the Worker to pass on: [{ cid, ms }]
   }
   now() { return this.room.now(); }
@@ -141,7 +144,7 @@ export class RankedPlay {
       users[id] = { name: u.name || '', avatar: this.room.get(id) ? '' : u.avatar || '', rating: u.rating, ratingAfter: u.ratingAfter, muAfter: u.muAfter ?? null, sigmaAfter: u.sigmaAfter ?? null, pref: showPref ? u.pref : null, picked: u.pref != null, life: u.life, hand: [...u.hand], won: u.won, mult: u.mult, dmg: u.dmg,
         discarded: !!this.discarded[id], ready: !!this.ready[id], away: !!(this.room.get(id) || {}).away };
     }
-    return { keys: this.keys, rated: this.rated, stage: this.stage, round: this.round, left: this.deadline ? Math.max(0, this.deadline - this.now()) : 0, len: this.stageLen,
+    return { keys: this.keys, rated: this.rated, fair: this.fair, stage: this.stage, round: this.round, left: this.deadline ? Math.max(0, this.deadline - this.now()) : 0, len: this.stageLen,
       mult: this.mult, users, order: [...this.order], active: this.active, deck: this.deck.length, cards, played: this.played, countdown: this.countdown,
       results: this.results, history: this.history, winner: this.winner, stars: this.starsFor(viewer), id: this.id, rematch: Object.keys(this.rematch) };
   }
@@ -239,6 +242,12 @@ export class RankedPlay {
   askDeck() {
     this.go('deal', RP.DEAL);
     const prefs = Object.values(this.users).map(u => u.pref).filter(v => v != null);
+    if (!this.fair && prefs.length) {
+      // Regular: a star rating somewhere between the two (never told to the players), and songs around it
+      const lo = Math.min(...prefs), hi = Math.max(...prefs);
+      this.mid = this.mid ?? Math.round((lo + (hi - lo) * this.room.rnd()) * 100) / 100;
+      return [{ to: this.dealer, msg: { t: 'rpDeck', keys: this.keys, targets: deckTargetsForStars([this.mid], RP.DECK, this.room.rnd) } }, this.room.roomMsg()];
+    }
     const targets = prefs.length ? deckTargetsForStars(prefs, RP.DECK, this.room.rnd) : deckTargets(Object.values(this.users).map(u => u.mu), RP.DECK, this.room.rnd);
     // (each player's own star rating: the dealer finds songs with a difficulty near each, one for each player)
     const own = Object.fromEntries(Object.entries(this.users).filter(([, u]) => u.pref != null).map(([id, u]) => [id, u.pref]));
@@ -410,7 +419,7 @@ export class RankedPlay {
     if (this.stage !== 'ended' || !this.users[id] || this.room.players.length !== 2) return [];
     this.rematch[id] = true;
     if (!this.room.players.every(p => this.rematch[p.id])) return [this.room.system(`${(this.room.get(id) || {}).name || 'Your opponent'} wants a rematch`), this.room.roomMsg()];
-    const next = new RankedPlay(this.room, { keys: this.keys, rated: false });
+    const next = new RankedPlay(this.room, { keys: this.keys, rated: false, deck: this.fair ? 'fair' : 'regular' });
     for (const p of this.room.players) {
       const u = this.users[p.id];
       next.addUser(p, { mu: u.muAfter ?? u.mu, sigma: u.sigmaAfter ?? u.sigma, cid: u.cid });
@@ -464,7 +473,7 @@ export class RankedQueue {
     for (const [t, u] of this.users) if (cid && u.cid === cid) this.remove(t); // one queue entry per player
     const ticket = this.id() + this.id();
     const u = { ticket, cid, name: String(o.name || 'Player').slice(0, 24), avatar: typeof o.avatar === 'string' && o.avatar.length < 12000 ? o.avatar : '',
-      keys: Number(o.keys) === 7 ? 7 : 4, rating: num(o.rating, 0, 5000, RATING.MU), since: this.now(), seen: this.now(), state: 'search', invite: null, room: null };
+      keys: Number(o.keys) === 7 ? 7 : 4, deck: o.deck === 'regular' ? 'regular' : 'fair', rating: num(o.rating, 0, 5000, RATING.MU), since: this.now(), seen: this.now(), state: 'search', invite: null, room: null };
     this.users.set(ticket, u);
     this.update();
     return this.status(ticket);
@@ -503,7 +512,7 @@ export class RankedQueue {
     for (const u of waiting) {
       if (taken.has(u.ticket)) continue;
       const r = this.radius(u);
-      const opp = waiting.filter(v => v !== u && !taken.has(v.ticket) && v.keys === u.keys && (!u.cid || v.cid !== u.cid) && Math.abs(v.rating - u.rating) <= Math.max(r, this.radius(v)) && !this.again(u, v))
+      const opp = waiting.filter(v => v !== u && !taken.has(v.ticket) && v.keys === u.keys && v.deck === u.deck && (!u.cid || v.cid !== u.cid) && Math.abs(v.rating - u.rating) <= Math.max(r, this.radius(v)) && !this.again(u, v))
         .sort((a, b) => Math.abs(a.rating - u.rating) - Math.abs(b.rating - u.rating))[0];
       if (!opp) continue;
       taken.add(u.ticket); taken.add(opp.ticket);
@@ -543,12 +552,12 @@ export class RankedQueue {
     const u = this.users.get(ticket);
     if (!u) return { status: 'none' };
     u.seen = this.now();
-    const queued = [...this.users.values()].filter(v => v.keys === u.keys && v.state === 'search').length;
+    const queued = [...this.users.values()].filter(v => v.keys === u.keys && v.deck === u.deck && v.state === 'search').length;
     if (u.state === 'search') return { status: 'search', ticket, queued, waited: this.now() - u.since };
-    if (u.state === 'ready') return { status: 'ready', ticket, room: u.room, keys: u.keys };
+    if (u.state === 'ready') return { status: 'ready', ticket, room: u.room, keys: u.keys, deck: u.deck };
     const inv = this.invites.get(u.invite), o = this.users.get(inv.tickets.find(x => x !== ticket));
     return { status: 'found', ticket, left: Math.max(0, inv.deadline - this.now()), accepted: inv.accepted.has(ticket), opponentAccepted: !!o && inv.accepted.has(o.ticket),
-      opponent: o ? { name: o.name, avatar: o.avatar, rating: Math.round(o.rating) } : null, keys: u.keys };
+      opponent: o ? { name: o.name, avatar: o.avatar, rating: Math.round(o.rating) } : null, keys: u.keys, deck: u.deck };
   }
   /** Queue sizes per key count, for the lobby. */
   counts() { const c = { 4: 0, 7: 0 }; for (const u of this.users.values()) if (u.state === 'search') c[u.keys]++; return c; }

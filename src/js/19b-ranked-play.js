@@ -54,10 +54,11 @@ const RankQueue = {
   async start(keys) {
     if (this.st || Multiplayer.inRoom()) return;
     keys = keys === 7 ? 7 : 4;
-    this.st = { keys, status: 'joining', since: performance.now() };
+    const deck = rankedDeckMode();
+    this.st = { keys, deck, status: 'joining', since: performance.now() };
     Bus.emit('rq:changed');
     try {
-      const r = await this.api('join', { ...RankedRating.hello(), name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', keys, rating: RankedRating.rating(keys) });
+      const r = await this.api('join', { ...RankedRating.hello(), name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', keys, deck, rating: RankedRating.rating(keys) });
       if (!this.st) { if (r.ticket) this.api('leave', { ticket: r.ticket }).catch(() => {}); return; }
       if (r.status === 'banned') { this.st = null; Toast.err('You can\'t queue right now', `You left or declined a match. Try again in ${Math.ceil(r.left / 1000)}s.`); Bus.emit('rq:changed'); return; }
       this.apply(r);
@@ -93,7 +94,7 @@ const RankQueue = {
     Bus.emit('rq:changed');
     try {
       if (Screens.currentName !== 'multiplayer') await Screens.go('multiplayer');
-      await Multiplayer.connect(r.room, true, false, false, { mode: 'rp', rated: true, keys: st.keys, ...RankedRating.hello() });
+      await Multiplayer.connect(r.room, true, false, false, { mode: 'rp', rated: true, keys: st.keys, deck: r.deck || st.deck, ...RankedRating.hello() });
     } catch (e) { Toast.err('Couldn\'t join the match', friendlyError(e)); }
   },
   /** lazer's "Match found!" offer: the opponent, 30 seconds to accept. Shown over any screen but gameplay. */
@@ -111,7 +112,7 @@ const RankQueue = {
           h('div.rq-x', 'VS'),
           h('div.rq-p', Presence.avatarEl(o, 64), h('b', o.name), h('span', `Rating ${fmtInt(o.rating)}`))),
         h('div.rq-bar', h('i', { style: { transform: `scaleX(${clamp((s.left || 0) / 30000, 0, 1).toFixed(3)})` } })),
-        h('div.rq-note', s.accepted ? (s.opponentAccepted ? 'Good luck!' : 'Waiting for your opponent…') : `${s.keys}K Ranked Play · accept within ${Math.ceil((s.left || 0) / 1000)}s`));
+        h('div.rq-note', s.accepted ? (s.opponentAccepted ? 'Good luck!' : 'Waiting for your opponent…') : `${s.keys}K Ranked Play · ${s.deck === 'regular' ? 'Regular' : 'Fair'} · accept within ${Math.ceil((s.left || 0) / 1000)}s`));
     };
     paint();
     const o = Dialog.custom('Match found!', body, [
@@ -605,7 +606,8 @@ const RankedMatch = {
     this._stars = { val, slider, num, lock, presets, status: h('div.rks-status') };
     m.append(h('div.rks',
       h('div.rks-t', this.watching ? `${this.name(this.M.me)} is choosing a star rating` : 'Choose your star rating'),
-      h('div.rks-s', 'Both players pick how hard they want the match. The cards lean towards the lower of your two picks, so nobody is dragged far out of their depth.'),
+      h('div.rks-s', g.fair === false ? 'Both players pick how hard they want the match. Regular: the cards are drawn up around a star rating somewhere between your two picks, and you both play the same difficulty.'
+        : 'Both players pick how hard they want the match. Fair: each card has a difficulty near your pick for you, and one near theirs for them.'),
       val, h('div.rks-row', slider, num), presets, lock, this._stars.status));
     set(me.pref != null ? me.pref : last);
     this.refreshStars(g);
@@ -990,7 +992,7 @@ const RankedMatch = {
             asked ? 'Waiting for opponent…' : they ? `Rematch! (${this.name(opp)} wants one)` : g.rated ? 'Rematch (unrated)' : 'Rematch');
         })() : null,
         h('button.rke-btn.quit', { onclick: () => { UISounds.back(); this.M.leave(); } }, 'Quit'),
-        h('button.rke-btn.again', { onclick: () => { UISounds.click(); const keys = g.keys, rated = g.rated; this.M.leave(); if (rated) RankQueue.start(keys); else MultiplayerScreen.openCreate({ ranked: true, keys }); } }, g.rated ? 'Play Again' : 'New duel'))));
+        h('button.rke-btn.again', { onclick: () => { UISounds.click(); const keys = g.keys, rated = g.rated, deck = g.fair === false ? 'regular' : 'fair'; this.M.leave(); if (rated) RankQueue.start(keys); else MultiplayerScreen.openCreate({ ranked: true, keys, deck }); } }, g.rated ? 'Play Again' : 'New duel'))));
     if (this._endSounded !== `${this.M.room.code}-${g.id}`) { this._endSounded = `${this.M.room.code}-${g.id}`; if (res === 'win') UISounds.play('rp-victory'); else if (res === 'loss') UISounds.play('rp-defeat'); }
   },
 
@@ -1160,6 +1162,14 @@ function countUp(el, from, to, ms, fmt = fmtInt) {
   step();
 }
 
+/** Fair (each player's own difficulty of every card) or Regular (one star rating between the two picks): the player's
+ *  choice, kept. */
+const rankedDeckMode = () => (Settings.get('mp.rpDeck') === 'regular' ? 'regular' : 'fair');
+/** The Fair / Regular switch (queue panel and the duel dialog). */
+function rankedDeckPick(v, set, disabled = false) {
+  return h('div.qp-keys.rq-deck', { title: 'Fair: each card has a difficulty near each player\'s own pick. Regular: one star rating between your two picks, the same difficulties for both.' },
+    ...[['fair', 'Fair'], ['regular', 'Regular']].map(([k, t]) => h(`button.qp-key${v === k ? '.on' : ''}`, { disabled, dataset: { deck: k }, onclick: () => { UISounds.click(); set(k); } }, t)));
+}
 /** The lobby's Ranked Play panel (lazer's queue screen): key count, your rating, Begin queueing / Stop queueing with
  *  the time searching and how many are queued, and your recent matches. */
 function rankedQueuePanel() {
@@ -1167,12 +1177,13 @@ function rankedQueuePanel() {
   const paint = () => {
     if (!el.isConnected && el._painted) { off(); off2(); clearInterval(t); return; }
     el._painted = true;
-    const st = RankQueue.st, keys = st ? st.keys : (Settings.get('mp.qpKeys') === 7 ? 7 : 4), p = RankedRating.get(keys);
+    const st = RankQueue.st, keys = st ? st.keys : (Settings.get('mp.qpKeys') === 7 ? 7 : 4), deck = st ? st.deck : rankedDeckMode(), p = RankedRating.get(keys);
     const searching = st && ['joining', 'search'].includes(st.status), found = st && st.status === 'found';
     const hist = RankedRating.history().slice(0, 4);
     clearEl(el).append(
       h('div.rq-head', h('div.rq-ico', icon('trophy')), h('div', h('div.rq-t', 'Ranked Play'), h('div.rq-s', '1v1 · beatmap cards · 1,000,000 life · lazer\'s rules')),
         h('div.grow'),
+        rankedDeckPick(deck, v => { Settings.set('mp.rpDeck', v); paint(); }, !!st),
         h('div.qp-keys', ...[4, 7].map(k => h(`button.qp-key${keys === k ? '.on' : ''}`, { disabled: !!st, onclick: () => { UISounds.click(); Settings.set('mp.qpKeys', k); paint(); } }, `${k}K`)))),
       h('div.rq-body',
         h('div.rq-rating', h('span', `Your ${keys}K rating`), h('b', fmtInt(Math.round(p.mu))), h('small', p.fresh ? 'from your pp — play a match to settle it' : `${p.played} match${p.played === 1 ? '' : 'es'} · ${p.won} won`)),
@@ -1200,13 +1211,14 @@ function rankedRules() {
   Dialog.custom('How Ranked Play works', h('div.rq-rules',
     h('ol',
       li('Choose a star rating.', 'Both of you pick how hard you want the match; neither sees the other\'s pick until both are in.'),
+      li('Fair or Regular.', 'Chosen by whoever opens the duel (the lounge shows which). Fair: each card has a difficulty near each player\'s own pick. Regular: one star rating is picked at random between your two, and you both play the same difficulties around it.'),
       li('Five cards each.', 'A card is a beatmap. Round 1 opens with a chance to swap any of yours, once.'),
       li('Take turns.', 'On your turn, play a card: you both play that beatmap, and the lower score takes damage — the difference, plus 50,000. A new card from the deck takes its place.'),
       li('1,000,000 life.', 'Run out and you lose; when the cards run out, the most life wins.')),
     h('div.rq-rules-h', icon('check'), 'What keeps it fair'),
     h('ul',
       h('li', 'The same rules for both: the beatmap\'s own timing windows, the same accuracy and the same scrolling, whatever your settings.'),
-      h('li', 'Each card is one song with a difficulty for each of you, near the star rating you chose — both the same length.'),
+      h('li', 'Fair: each card is one song with a difficulty for each of you, near the star rating you chose — both the same length.'),
       h('li', 'Matched hands: the opening cards are dealt in pairs of the same difficulty, one each.'),
       h('li', 'One song does at most 500,000 damage, so a single bad song can\'t decide the match. A hit at full life always leaves you standing (last stand).'),
       h('li', 'No gimmick or joke beatmaps, and nothing shorter than 45 seconds or longer than 6 minutes.'),

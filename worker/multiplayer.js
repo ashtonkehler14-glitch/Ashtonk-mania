@@ -171,7 +171,7 @@ export class RoomLogic {
     if (ranked && this.rp.rated) return null; // (queue matches are the two players' own)
     if (ranked && this.rp.stage === 'ended' && this.players.length < 2) return null; // (over, and nobody left to play again)
     return { code: this.code, name: `${host ? host.name : 'Someone'}'s ${ranked ? 'Ranked Play duel' : 'room'}`, host: host ? host.name : '', avatar: host ? host.avatar : '', rating: ranked && host && this.rp.user(host.id) ? this.rp.user(host.id).rating : null,
-      players: this.players.length, size: this.settings.size, ranked, keys: ranked ? this.rp.keys : null,
+      players: this.players.length, size: this.settings.size, ranked, keys: ranked ? this.rp.keys : null, fair: ranked ? this.rp.fair : null,
       state: ranked ? (this.rp.stage === 'waitjoin' ? 'lobby' : 'playing') : this.state, type: this.settings.type, win: this.settings.win,
       map: m ? { title: m.title, artist: m.artist, version: m.version, stars: m.stars, keys: m.keys, onlineSetId: m.onlineSetId } : null };
   }
@@ -226,7 +226,7 @@ export class RoomLogic {
       if (opts.mode === 'rp') {
         // a match the queue made is rated and unlisted; a duel between friends is neither rated nor (unless public) listed
         this.mode = 'rp'; this.settings = { ...defaultSettings(), win: 'score', size: 2, public: !opts.rated && opts.public !== false };
-        this.rp = new RankedPlay(this, { keys: opts.keys, rated: !!opts.rated });
+        this.rp = new RankedPlay(this, { keys: opts.keys, rated: !!opts.rated, deck: opts.deck });
       } else if (opts.mode === 'qp') {
         this.mode = 'qp'; this.settings = { ...defaultSettings(), win: 'score', size: 8 };
         this.qp = { keys: Number(opts.keys) === 7 ? 7 : 4, round: 0, rounds: QP.ROUNDS, phase: 'gather', deadline: 0, pool: null, picks: {}, chosen: -1, points: {}, fails: 0 };

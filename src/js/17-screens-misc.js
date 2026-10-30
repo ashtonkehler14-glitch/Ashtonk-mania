@@ -924,6 +924,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.30', title: 'Ranked Play', sections: [
+    { icon: 'trophy', title: 'Ranked Play', items: ['Open a duel with Fair or Regular cards: Fair gives each of you your own difficulty near your pick; Regular picks one star rating between your two picks, and you both play the same difficulties', 'The lounge shows which kind each duel is'] },
+  ] },
   { id: '2026.10.29c', title: 'Ranked Play', sections: [
     { icon: 'trophy', title: 'Ranked Play', items: ['Each card you play is replaced from the deck, so your hand stays full', 'No "star rating has been decided" after you both pick', 'The star rating slider fills up to where you put it', 'Songs come at random from the online listing, not your own library'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate someone in Ranked Play and see the whole match as they do: their cards, their picks, each round\'s results, and their songs live'] },
