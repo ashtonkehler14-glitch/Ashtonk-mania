@@ -1222,8 +1222,9 @@ html.touch .practice-bar .kbd { display: none; }
 .pf-ppblock > * { position: relative; }
 .pf-ppblock small { font-size: .7em; margin-left: 1px; opacity: .8; }
 .pf-ppblock.failed { color: #ff6b77; font-size: .8rem; }
+.pf-ppblock.nopp { color: var(--muted); }
 .pf-ppblock.failed::after { content: ""; }
-.pf-empty { color: var(--muted); padding: 16px 4px; }
+.pf-empty { color: var(--muted); padding: 16px 0; }
 .pf-note { color: var(--muted); font-size: .8rem; margin: -2px 0 8px; }
 /* replays: the profile's score rows, with the replay's buttons in the slanted block */
 .rp-list { display: flex; flex-direction: column; gap: 4px; }

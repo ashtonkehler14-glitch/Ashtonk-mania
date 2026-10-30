@@ -612,7 +612,9 @@ const ProfileScreen = {
     // (a section with nothing in it is left out, tab and all: no wall of "nothing here yet")
     const section = (id, title, ...kids) => { kids = kids.filter(Boolean); if (!kids.length) return null; const el = h('section.pf-sec', { dataset: { sec: id } }, h('h2', title), ...kids); secs.push([id, title, el]); return el; };
     const sub = (title, count, ...kids) => h('div.pf-subsec', h('h3', title, count ? h('span.pf-count', typeof count === 'number' ? fmtInt(count) : count) : null), ...kids);
-    const row = (x, i, weighted) => this.scoreRow(x._s || { ...x, remote: true }, x.pp == null ? null : fmtInt(x.pp), weighted ? `weighted ${Math.round(Math.pow(0.95, i) * 100)}%` : null, weighted ? fmtInt(x.pp * Math.pow(0.95, i)) : null);
+    // (a pass of yours on a beatmap that isn't ranked on osu! gives no pp: a dash, not a "0pp" that reads as a bad play)
+    const noPp = x => x._s && x._s.passed && !ScoreManager.isRanked(x._s);
+    const row = (x, i, weighted) => this.scoreRow(x._s || { ...x, remote: true }, !weighted && noPp(x) ? false : x.pp == null ? null : fmtInt(x.pp), weighted ? `weighted ${Math.round(Math.pow(0.95, i) * 100)}%` : null, weighted ? fmtInt(x.pp * Math.pow(0.95, i)) : null);
     // lazer's ProfileShowMoreButton: a list starts with 5 and grows by 10 with each "show more"
     const more = (items, mk, first = 5) => {
       const box = h('div.pf-scores');
@@ -693,7 +695,8 @@ const ProfileScreen = {
       h('span.pf-mods', ...(s.mods || []).map(m => ModSystem.badge(m, true))),
       // (no accuracy here: next to the weighting it read as the play's weight)
       weight ? h('div.pf-weight', h('b', `${weighted}pp`), h('span', weight)) : note ? h('div.pf-weight.pf-why', h('span', note)) : null,
-      h(`div.pf-ppblock${pp == null ? '.failed' : ''}`, pp == null ? h('span', 'failed') : h('span', pp, h('small', 'pp'))));
+      pp === false ? h('div.pf-ppblock.nopp', { title: 'No pp: the beatmap isn\'t ranked on osu!' }, h('span', '–'))
+        : h(`div.pf-ppblock${pp == null ? '.failed' : ''}`, pp == null ? h('span', 'failed') : h('span', pp, h('small', 'pp'))));
   },
 };
 
