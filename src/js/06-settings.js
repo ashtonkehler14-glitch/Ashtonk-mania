@@ -69,8 +69,8 @@ function womSkinOn() { return customSkinOn(); }
 
 const SETTINGS_SCHEMA = [
   // ── Gameplay
-  // (x: set before each song — on the player loader — and with F3 / F4 while playing; no longer in the settings)
-  { x: 1, s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollSpeed', l: 'Scroll speed', t: 'range', d: 22, min: 1, max: 40, step: 1,
+  // (also set before each song — on the player loader — and with F3 / F4 while playing)
+  { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollSpeed', l: 'Scroll speed', t: 'range', d: 22, min: 1, max: 40, step: 1,
     fmt: v => `${v} (${Math.round(11485 / v)}ms)`, hint: 'How long notes are visible before reaching the receptors.' },
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollDirection', l: 'Scrolling direction', t: 'select', d: 'down', o: [['down', 'Down'], ['up', 'Up']] },
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollMode', l: 'Scroll speed changes', t: 'select', d: 'sv', o: [['sv', 'SV + BPM'], ['svonly', 'SV only'], ['constant', 'Constant']], hint: 'SV + BPM is how osu!mania scrolls.' },

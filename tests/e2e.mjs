@@ -2722,6 +2722,24 @@ await page.evaluate(() => AshtonkMania.SettingsPanel.open()); await page.waitFor
 await page.keyboard.type('dim'); await page.waitForTimeout(200);
 const typed = await page.evaluate(() => ({ sp: document.querySelector('.sp-search').value, ss: document.querySelector('input[aria-label="Search beatmaps"]').value, rows: document.querySelectorAll('.settings-panel .sp-section').length }));
 check('settings: typing right after opening searches the settings', typed.sp === 'dim' && typed.ss === '' && typed.rows >= 1, JSON.stringify(typed));
+{
+  // scroll speed is in the settings (Gameplay → Scrolling): its slider sets it, and it says how long notes are on screen
+  const sp = await page.evaluate(async () => {
+    const A = AshtonkMania, was = A.Settings.get('gameplay.scrollSpeed'), q = document.querySelector('.sp-search');
+    q.value = 'scroll speed'; q.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 300));
+    const s = document.querySelector('.settings-panel input.slider[aria-label="Scroll speed"]');
+    if (!s) return { found: false };
+    const row = s.closest('.sp-row, .set-row, .setting') || s.parentElement.parentElement;
+    s.value = '30'; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 200));
+    const got = A.Settings.get('gameplay.scrollSpeed'), text = row ? row.textContent : '';
+    A.Settings.set('gameplay.scrollSpeed', was);
+    q.value = ''; q.dispatchEvent(new Event('input', { bubbles: true }));
+    return { found: true, got, ms: /383ms/.test(text) };
+  });
+  check('settings: Scroll speed is there (Gameplay → Scrolling), and its slider sets it', sp.found && sp.got === 30 && sp.ms, JSON.stringify(sp));
+}
 // the toolbar button of what's open lights up whole (not a dot in its corner), and a status shows on the avatar
 const tbOn = await page.evaluate(async () => {
   const st = document.querySelector('.tb-btn.on > .tb-st'), r = st && st.getBoundingClientRect(), btn = st && st.parentElement.getBoundingClientRect();

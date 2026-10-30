@@ -8736,8 +8736,8 @@ function womSkinOn() { return customSkinOn(); }
 
 const SETTINGS_SCHEMA = [
   // ── Gameplay
-  // (x: set before each song — on the player loader — and with F3 / F4 while playing; no longer in the settings)
-  { x: 1, s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollSpeed', l: 'Scroll speed', t: 'range', d: 22, min: 1, max: 40, step: 1,
+  // (also set before each song — on the player loader — and with F3 / F4 while playing)
+  { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollSpeed', l: 'Scroll speed', t: 'range', d: 22, min: 1, max: 40, step: 1,
     fmt: v => `${v} (${Math.round(11485 / v)}ms)`, hint: 'How long notes are visible before reaching the receptors.' },
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollDirection', l: 'Scrolling direction', t: 'select', d: 'down', o: [['down', 'Down'], ['up', 'Up']] },
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollMode', l: 'Scroll speed changes', t: 'select', d: 'sv', o: [['sv', 'SV + BPM'], ['svonly', 'SV only'], ['constant', 'Constant']], hint: 'SV + BPM is how osu!mania scrolls.' },
@@ -24094,6 +24094,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.30b', title: 'Settings and menus', sections: [
+    { icon: 'gear', title: 'Settings', items: ['Scroll speed is back in Settings → Gameplay → Scrolling'] },
+    { icon: 'sparkle', title: 'Menus', items: ['Practice tools in tidy groups — loop, speed and offset', 'The results screen\'s buttons say what they do'] },
+  ] },
   { id: '2026.10.30', title: 'Ranked Play', sections: [
     { icon: 'trophy', title: 'Ranked Play', items: ['Open a duel with Fair or Regular cards: Fair gives each of you your own difficulty near your pick; Regular picks one star rating between your two picks, and you both play the same difficulties', 'The lounge shows which kind each duel is'] },
   ] },
@@ -32886,7 +32890,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'ce57c5e6c729';
+const APP_BUILD = '64c0252cead3';
 
 const App = {
   lastReport: null,
