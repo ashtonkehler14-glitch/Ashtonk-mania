@@ -307,7 +307,7 @@ async function overview() {
             h('td', ME.owner ? h('button.small.danger', { onclick: async () => { if (!confirm('Close ' + (r.name || r.code) + '? Everyone in it goes back to the lounge.')) return; await run(() => api('roomClose', { code: r.code }), 'Room closed'); overview(); } }, 'Close') : null)))) : h('div.empty', 'No open rooms.')),
         h('div.card', h('h2', 'Admins'), h('p.muted.small', ME.owner ? 'Players you\\'ve made admins: they sign in here with their own code and can ban, mute, rename and remove scores — but not act on another admin. Make one from a player\\'s page.' : 'The admins the owner made.'),
           d.staff && d.staff.length ? h('table', d.staff.map(p => h('tr.click', { onclick: () => openPlayer(p.pid) }, h('td', p.online ? h('span.dot') : null, p.name || p.pid, badges(p)), h('td.muted', p.online ? 'online' : ago(p.seen))))) : h('div.empty', 'No admins yet.')),
-        ME.owner ? h('div.card', h('h2', 'Recent actions'), d.log.length ? logTable(d.log) : h('div.empty', 'Nothing yet.')) : null)));
+        h('div.card', h('h2', ME.owner ? 'Recent actions' : 'Your recent actions'), d.log.length ? logTable(d.log) : h('div.empty', 'Nothing yet.')))));
 }
 
 async function players() {
@@ -414,13 +414,19 @@ async function chat() {
   const words = h('textarea', { placeholder: 'One word per line (or separated by commas): starred out wherever they\\'re written', maxlength: 4000 });
   words.value = R.words.join('\\n');
   const setRules = async (set, ok) => { await run(() => api('chatRules', { set }), ok); chat(); };
+  // (#lobby's lines narrowed to a player or some words)
+  const chatFilter = h('input.filter', { placeholder: 'Filter: a player, some words…', 'aria-label': 'Filter #lobby' });
+  chatFilter.addEventListener('input', () => { const t = chatFilter.value.trim().toLowerCase(); for (const el of main.querySelectorAll('.chat > .line')) el.hidden = !!t && !el.dataset.q.includes(t); });
+  const autoBox = h('input', { type: 'checkbox', checked: R.auto !== false });
+  autoBox.addEventListener('change', () => setRules({ auto: autoBox.checked }, autoBox.checked ? 'Automatic mutes on' : 'Automatic mutes off'));
   const rulesCard = h('div.card', h('h2', '#lobby rules'),
     h('h3', 'Slow mode'), h('p.muted.small', 'How long each player waits between messages (admins don\\'t).'),
     seg([[0, 'Off'], [5, '5s'], [15, '15s'], [30, '30s'], [60, '1 min'], [300, '5 min']], R.slow, v => setRules({ slow: v }, v ? 'Slow mode on' : 'Slow mode off')),
     h('h3.mt', 'Lock'), h('p.muted.small', R.locked ? 'Locked: only admins can talk in #lobby.' : 'Open: everyone can talk.'),
     h('button' + (R.locked ? '' : '.danger'), { onclick: () => setRules({ locked: !R.locked }, R.locked ? '#lobby is open again' : '#lobby locked') }, R.locked ? 'Unlock #lobby' : 'Lock #lobby'),
     h('h3.mt', 'Blocked words (' + R.words.length + ')'), h('p.muted.small', 'Starred out in #lobby and private messages. Players don\\'t see the list.'), words,
-    h('div.row.mt', h('button.primary', { onclick: () => setRules({ words: words.value }, 'Blocked words saved') }, 'Save words')));
+    h('div.row.mt', h('button.primary', { onclick: () => setRules({ words: words.value }, 'Blocked words saved') }, 'Save words')),
+    h('label.check', autoBox, ' Mute for 10 minutes anyone who uses blocked words 3 times in 10 minutes (it goes in the log)'));
   const text = h('input.grow', { placeholder: 'A message for everyone online (a notification, and a line in #lobby)', maxlength: 300 });
   const announce = async () => { if (!text.value.trim()) return; await run(() => api('announce', { text: text.value }), 'Announced'); chat(); };
   text.addEventListener('keydown', e => { if (e.key === 'Enter') announce(); });
@@ -428,7 +434,8 @@ async function chat() {
     h('div.card', h('h2', 'Announce'), h('div.row', text, h('button.primary', { onclick: announce }, 'Send')), h('p.muted.small', 'A quick one, just now. For a banner that stays up, an event or maintenance: ', h('a', { href: '#announce' }, 'Announcements'), '.')),
     rulesCard,
     h('div.card', h('div.row', h('h2.grow', '#lobby (' + d.chat.length + ')'), h('button.small', { onclick: chat }, 'Refresh'), !ME.owner ? null : h('button.small.danger', { onclick: async () => { if (!confirm('Clear #lobby for everyone?')) return; await run(() => api('chatClear'), 'Cleared'); chat(); } }, 'Clear all')),
-      d.chat.length ? h('div.chat', d.chat.slice().reverse().map(l => h('div.line' + (l.from && l.from.system ? '.sys' : ''), h('span.t', clock(l.at)), h('span.n', (l.from && l.from.name) || '?'), h('span.x', l.text),
+      d.chat.length ? chatFilter : null,
+      d.chat.length ? h('div.chat', d.chat.slice().reverse().map(l => h('div.line' + (l.from && l.from.system ? '.sys' : ''), { 'data-q': (((l.from && l.from.name) || '') + ' ' + l.text).toLowerCase() }, h('span.t', clock(l.at)), h('span.n', (l.from && l.from.name) || '?'), h('span.x', l.text),
         l.from && l.from.pid ? h('button.small', { onclick: () => openPlayer(l.from.pid) }, 'Player') : null,
         h('button.small.danger', { onclick: async () => { await run(() => api('chatDelete', { at: l.at, pid: (l.from && l.from.pid) || '' }), 'Deleted'); chat(); } }, 'Delete')))) : h('div.empty', 'No messages.')));
 }

@@ -2223,7 +2223,7 @@ test('admins\' notes on a player: only admins see them, newest last, one taken o
   assert.equal(kept['nt:bobpid22'], null, 'none left: gone from storage');
   const q = new PresenceLogic(() => 1);
   q.loadMod({ notes: { carpid333: [{ at: 1, by: 'x', text: 'kept' }] }, chatRules: { slow: 5, locked: true, words: ['abc'] } });
-  assert.deepEqual([q.notes.get('carpid333')[0].text, q.chatRules], ['kept', { slow: 5, locked: true, words: ['abc'] }]);
+  assert.deepEqual([q.notes.get('carpid333')[0].text, q.chatRules], ['kept', { slow: 5, locked: true, words: ['abc'], auto: true }]);
 });
 
 test('ban appeals: a banned player asks for the ban to be lifted — it waits with the reports (the ban\'s reason and end with it), one at a time, one a day', () => {
@@ -2247,4 +2247,27 @@ test('ban appeals: a banned player asks for the ban to be lifted — it waits wi
   p.join('c', { name: 'Cat', pid: 'catpid333', key: 'key-catpid333-0123456789' });
   p.message('c', { t: 'report', pid: 'ownerpid1', reason: 'appeal', text: 'x' });
   assert.equal(p.reports.at(-1).reason, 'other');
+});
+
+test('automatic moderation: a player who uses blocked words 3 times in 10 minutes is muted for 10 minutes (logged), unless the admins turned it off', () => {
+  const clock = { t: 10000 };
+  const p = new PresenceLogic(() => clock.t), logged = [];
+  p.onAuto = (what, extra) => logged.push([what, extra.pid, extra.minutes]);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' });
+  p.setChatRules({ words: 'heck' });
+  for (let i = 0; i < 2; i++) { clock.t += 60000; p.message('a', { t: 'say', text: 'heck ' + i }); }
+  assert.equal(p.modOf('mu', 'alicepid1'), null, 'two: starred, not muted');
+  clock.t += 60000;
+  const out = p.message('a', { t: 'say', text: 'heck again' });
+  assert.equal(out[0].msg.text, '**** again', 'the line still goes, starred');
+  assert.ok(out.some(o => o.to === 'a' && /muted: blocked words in chat \(automatic\)/.test(o.msg.msg)));
+  assert.equal(Math.round((p.modOf('mu', 'alicepid1').until - clock.t) / 60000), 10);
+  assert.deepEqual(logged, [['Muted (automatic)', 'alicepid1', 10]]);
+  // (spread out over more than 10 minutes: no mute; and off when the admins turn it off)
+  p.adminUnmute('alicepid1'); p.wordHits.clear();
+  for (let i = 0; i < 3; i++) { clock.t += 400000; p.message('a', { t: 'say', text: 'heck' }); }
+  assert.equal(p.modOf('mu', 'alicepid1'), null);
+  p.setChatRules({ auto: false });
+  for (let i = 0; i < 4; i++) { clock.t += 10000; p.message('a', { t: 'say', text: 'heck' }); }
+  assert.equal(p.modOf('mu', 'alicepid1'), null);
 });

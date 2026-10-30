@@ -1147,7 +1147,7 @@ export class PresenceLogic {
     this.bans = new Map(); this.mutes = new Map(); this.names = new Map(); this.persistMod = null;
     // the admins' own notes on a player (pid → [{ at, by, text }]) — only admins see them; and #lobby's rules: slow mode
     // (seconds between a player's lines), locked (only admins talk), and words that are starred out
-    this.notes = new Map(); this.chatRules = { slow: 0, locked: false, words: [] }; this.lastSay = new Map();
+    this.notes = new Map(); this.chatRules = { slow: 0, locked: false, words: [], auto: true }; this.lastSay = new Map(); this.wordHits = new Map(); this.onAuto = null;
     // which player is the server's owner: the one whose code is the ADMIN_CODE secret (its hash, set by Matchmaker)
     this.adminHash = '';
     // the admins the owner has made, each with a role of the owner's naming and colour (pid → { name, colour, at }; rl:)
@@ -1239,6 +1239,7 @@ export class PresenceLogic {
       reports: this.reports.filter(x => x.pid === pid).slice(-20).reverse(), reported: this.reports.filter(x => x.by && x.by.pid === pid).length };
   }
   static NOTES_KEEP = 50;
+  static AUTO_MUTE_HITS = 3;
   /** An admin's note on a player (only admins see it), or one taken off (`at`). */
   adminNote(pid, { text = '', by = '', del = 0 } = {}) {
     let list = this.notes.get(pid) || [];
@@ -1255,7 +1256,7 @@ export class PresenceLogic {
   /** #lobby's rules, tidied: slow mode 0–300 s, locked or not, up to 100 words (2–30 letters each). */
   static cleanRules(r) {
     const words = [...new Set((Array.isArray(r.words) ? r.words : String(r.words || '').split(/[\n,]/)).map(w => str(w, 30).toLowerCase().trim()).filter(w => w.length >= 2))].slice(0, 100);
-    return { slow: Math.round(num(r.slow, 0, 300)), locked: !!r.locked, words };
+    return { slow: Math.round(num(r.slow, 0, 300)), locked: !!r.locked, words, auto: r.auto !== false };
   }
   /** New rules for #lobby, said there in a line from the game (not the words, which only admins see). */
   setChatRules(r) {
@@ -2354,12 +2355,24 @@ export class PresenceLogic {
       recent.push(t); this.said.set(id, recent);
       if (msg.t === 'say') { this.lastSay.set(u.pid || id, t); if (this.lastSay.size > 5000) this.lastSay.clear(); }
       const from = { pid: u.pid, name: u.name, avatar: u.avatar };
-      text = this.starWords(text);
+      // (blocked words starred out; one who keeps at it — 3 lines in 10 minutes — is muted for 10 minutes, where the
+      // admins have that on)
+      const starred = this.starWords(text), auto = [];
+      if (starred !== text && u.pid && !staff && rules.auto) {
+        const hits = [...(this.wordHits.get(u.pid) || []).filter(x => t - x < 600000), t];
+        this.wordHits.set(u.pid, hits);
+        if (hits.length >= PresenceLogic.AUTO_MUTE_HITS) {
+          this.wordHits.delete(u.pid);
+          auto.push(...this.adminMute(u.pid, { minutes: 10, reason: 'blocked words in chat (automatic)' }));
+          if (this.onAuto) this.onAuto('Muted (automatic)', { pid: u.pid, name: u.name, minutes: 10, reason: 'blocked words in chat' });
+        }
+      }
+      text = starred;
       if (msg.t === 'say') {
         const line = { ch: '#lobby', from, text, at: t };
         this.chat.push(line); if (this.chat.length > PresenceLogic.CHAT_KEEP) this.chat.shift();
         if (this.persistChat) this.persistChat(this.chat);
-        return [{ to: 'all', msg: { t: 'say', ...line } }];
+        return [{ to: 'all', msg: { t: 'say', ...line } }, ...auto];
       }
       const to = String(msg.to || '');
       if (!u.pid || !this.areFriends(u.pid, to)) return [{ to: id, msg: { t: 'error', msg: 'You can only message your friends.' } }];
@@ -2641,6 +2654,11 @@ export class Matchmaker {
   /** The server owner's admin panel (worker/admin.js), as /internal/admin/<action> — reached only through the Worker,
    *  after it has checked the panel's session: nothing from outside gets here (handleMultiplayer and handleAccount never
    *  pass /internal/ paths on). Every change goes in the admin log. */
+  /** A line in the admin log (the newest 300 kept). */
+  logAdmin(entry) {
+    this.adminLog = [...(this.adminLog || []), { at: Date.now(), ...entry }].slice(-300);
+    this.state.storage.put('adminLog', this.adminLog).catch(() => {});
+  }
   /** A banned player's appeal, from their game (it has no connection to the online service while they're banned). */
   async appeal(request) {
     const b = (await request.json().catch(() => null)) || {};
@@ -2676,10 +2694,7 @@ export class Matchmaker {
     const pid = /^[a-z0-9]{6,24}$/.test(String(b.pid || '')) ? String(b.pid) : '';
     // (an admin the owner made: their name goes in the log with what they did)
     const actorHdr = request.headers.get('x-admin-who') || 'owner';
-    const log = (what, extra = {}) => {
-      this.adminLog = [...(this.adminLog || []), { at: Date.now(), what, ip, ...(actorHdr !== 'owner' ? { by: P.adminRow(actorHdr).name || actorHdr } : {}), ...extra }].slice(-300);
-      this.state.storage.put('adminLog', this.adminLog).catch(() => {});
-    };
+    const log = (what, extra = {}) => this.logAdmin({ what, ip, ...(actorHdr !== 'owner' ? { by: P.adminRow(actorHdr).name || actorHdr } : {}), ...extra });
     const who = p => ({ pid: p, name: P.adminRow(p).name || p });
     const noPlayer = () => json({ error: 'No such player.' }, 400);
     // who's acting: the owner (their code is ADMIN_CODE), or an admin the owner made (their pid). Admins moderate players;
@@ -2713,7 +2728,7 @@ export class Matchmaker {
         const live = m => [...m.keys()].filter(x => P.modOf(m === P.bans ? 'bn' : 'mu', x)).length;
         return json({ online, ranked: [...P.ranks.values()].filter(r => r.pp > 0).length, codes: P.codes.size, bans: live(P.bans), mutes: live(P.mutes),
           players: P.auth.size, playlists: [...P.playlists.values()].filter(p => p.ends > Date.now()).length, dailyScores: P.dailyNow().scores.length, deleted: P.deleted.size,
-          rooms: [...this.rooms.values()].slice(0, 50), daily: daily(), reports: P.openReports(), anns: P.annList(), chat: P.chat.slice(-100), log: owner ? (this.adminLog || []).slice(-15).reverse() : [], owner: P.adminHash ? P.codes.get(P.adminHash) || null : null,
+          rooms: [...this.rooms.values()].slice(0, 50), daily: daily(), reports: P.openReports(), anns: P.annList(), chat: P.chat.slice(-100), log: owner ? (this.adminLog || []).slice(-15).reverse() : (this.adminLog || []).filter(e => e.by && e.by === (P.adminRow(actor).name || actor)).slice(-15).reverse(), owner: P.adminHash ? P.codes.get(P.adminHash) || null : null,
           me: owner ? { owner: true } : { pid: actor, name: P.adminRow(actor).name, role: P.roles.get(actor) },
           staff: [...P.roles.keys()].map(x => P.adminRow(x)) });
       }
@@ -3208,6 +3223,8 @@ export class Matchmaker {
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
       this.presence.persistAnns = list => { st.put('anns', list).catch(() => {}); };
       this.presence.persistChatRules = r => { st.put('chatRules', r).catch(() => {}); };
+      // (what the game did by itself — an automatic mute — goes in the admin log too)
+      this.presence.onAuto = (what, extra) => this.logAdmin({ what, by: 'the game', ...extra });
       this.presence.persistReports = list => { st.put('reports', list).catch(() => {}); };
       this.presence.persistSeen = (pid, t) => { st.put(`ls:${pid}`, t).catch(() => {}); };
       // (written at most every couple of seconds however busy the lobby is)

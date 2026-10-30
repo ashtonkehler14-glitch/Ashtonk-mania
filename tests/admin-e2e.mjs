@@ -198,6 +198,11 @@ try {
   await bob.evaluate(() => AshtonkMania.Presence.send({ t: 'say', text: 'and again' }));
   const slowed = await bob.waitForFunction(() => [...document.querySelectorAll('#toasts .toast')].some(t => /Slow mode: one message every 15 seconds/.test(t.textContent)), null, { timeout: 8000 }).then(() => true, () => false);
   check('#lobby rules: a blocked word is starred out, and slow mode holds players back', starred && slowed && await bob.evaluate(() => AshtonkMania.Chat.channels.get('#lobby').lines.some(l => /Slow mode: one message every 15 seconds\./.test(l.text))), JSON.stringify({ starred, slowed, lines: await bob.evaluate(() => AshtonkMania.Chat.channels.get('#lobby').lines.slice(-4).map(l => l.text)), toasts: await bob.evaluate(() => [...document.querySelectorAll('#toasts .toast')].map(t => t.textContent).slice(-4)), rules: (await api('chatRules')).rules }));
+  // (#lobby's lines filtered to some words; the automatic mute is on unless turned off)
+  await panel.waitForFunction(() => /Slow mode: one message every 15 seconds/.test(document.querySelector('main .chat')?.textContent || ''), null, { timeout: 8000 }).catch(() => {}); // (the tab drawn again after the change)
+  await panel.fill('main input.filter', 'the ****');
+  const filtered = await panel.evaluate(() => { const ls = [...document.querySelectorAll('main .chat > .line')]; return { shown: ls.filter(l => !l.hidden).map(l => l.querySelector('.x').textContent), all: ls.length, auto: document.querySelector('main label.check input')?.checked }; });
+  check('Chat tab: a filter narrows #lobby to some words; automatic mutes are on', filtered.shown.length === 1 && filtered.shown[0] === 'what the ****' && filtered.all > 1 && filtered.auto === true, JSON.stringify(filtered));
   await api('chatRules', { set: { slow: 0, words: '' } });
   // the search box in the top bar finds a player from any page
   await panel.fill('.top input.find', 'Bob'); await panel.press('.top input.find', 'Enter');
@@ -279,6 +284,8 @@ try {
   const bapi = (action, body) => post('/admin/api/' + action, body, { 'x-admin': '1', cookie: bobCookie });
   const ownerPid = await owner.evaluate(() => AshtonkMania.Presence.pid());
   const st = { overview: (await bapi('overview')).status, role: (await bapi('role', { pid: bobPid, name: 'Boss' })).status, log: (await bapi('log')).status, banOwner: (await bapi('ban', { pid: ownerPid, days: 1 })).status };
+  const own = await (await bapi('overview')).json();
+  check('…and on their overview, their own recent actions (not everyone\'s)', own.log.length >= 1 && own.log.every(e => e.by === 'Bob'), JSON.stringify(own.log.map(e => [e.what, e.by])));
   check('an admin moderates, but making admins, the log and acting on the owner are the owner\'s', st.overview === 200 && st.role === 403 && st.log === 403 && st.banOwner === 403, JSON.stringify(st));
   await api('unrole', { pid: bobPid });
   await bob.waitForFunction(() => AshtonkMania.Presence.isAdmin === false, null, { timeout: 8000 }).catch(() => {});
