@@ -5222,10 +5222,14 @@ html.lp-open #toasts { right: 380px; }
 .spm-watch { width: 250px; height: 40px; border: 0; border-radius: 6px; background: linear-gradient(90deg, #593790, #7a4fc4); color: #fff; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; transition: filter var(--t-fast), opacity var(--t-fast); }
 .spm-watch:hover:not(:disabled) { filter: brightness(1.15); }
 .spm-watch:disabled { opacity: .45; cursor: default; }
+.spm-acts { display: flex; align-items: center; gap: 10px; }
+.spm-msg { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border: 0; border-radius: 6px; background: hsl(270 10% 24%); color: #fff; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; transition: background var(--t-fast); }
+.spm-msg:hover { background: hsl(270 10% 30%); }
+.spm-msg .i { width: 15px; height: 15px; }
 /* (an upright tablet: one above the other; a phone on its side: side by side, smaller) */
 @media (max-width: 900px) and (min-height: 561px) { .spm-row { flex-direction: column; } .spm-arrow .i { transform: rotate(-90deg); width: 28px; height: 28px; } .spm-map { width: min(430px, calc(100 * var(--vw) - 72px)); } }
 @media (max-height: 560px) { .spm { padding-top: calc(var(--toolbar-h) + 6px); padding-bottom: 56px; } .spm-box { gap: 8px; padding: 12px 16px; } .spm-t { font-size: 22px; } .spm-row { gap: 10px; }
-  .spm-user { width: 210px; } .spm-user .up-card { height: 108px; } .spm-arrow .i { width: 26px; height: 26px; } .spm-map { width: min(340px, calc(100 * var(--vw) - 300px)); } .spm-watch { height: 34px; } }
+  .spm-user { width: 210px; } .spm-user .up-card { height: 108px; } .spm-arrow .i { width: 26px; height: 26px; } .spm-map { width: min(340px, calc(100 * var(--vw) - 300px)); } .spm-watch, .spm-msg { height: 34px; } }
 /* lazer's SpectatorPlayer message: "Watching (them) play (song) live", top centre */
 .spec-live { position: absolute; top: 96px; left: 50%; translate: -50% 0; z-index: 6; display: flex; align-items: center; gap: 12px; max-width: min(720px, calc(100 * var(--vw) - 40px)); padding: 4px 4px 4px 16px; border-radius: 99px; background: rgba(0, 0, 0, .45); color: #fff; font-size: 14px; pointer-events: none; white-space: nowrap; animation: specLiveIn 600ms var(--ease-out) both; }
 .spec-live-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -30527,11 +30531,14 @@ const SpectatorScreen = {
     this.userEl = h('div.spm-user');
     this.mapEl = h('div.spm-map');
     this.btn = h('button.spm-watch', { onclick: () => { UISounds.click(); Spectate.tryStart(true); } }, 'Start Watching');
+    // (the chat from here too, as from their play: your conversation with them if they're a friend, else #lobby)
+    const t = Spectate.target, friend = t && t.pid && Friends.has(t.pid);
+    const msg = h('button.spm-msg', { title: friend ? `Message ${t.name}` : 'Chat in #lobby', onclick: () => Spectate.message() }, icon('chat'), friend ? 'Message' : 'Chat');
     clearEl(box).append(
       h('div.spm-t', 'Spectator Mode'),
       h('div.spm-row', this.userEl, h('span.spm-arrow', icon('back')), this.mapEl),
       this.autoRow(),
-      this.btn);
+      h('div.spm-acts', this.btn, msg));
     this.paintUser(); this.paintMap();
   },
   /** lazer's UserGridPanel of who you're watching (offline: as the online list shows someone who's gone). */
@@ -33469,7 +33476,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'dceb57b32c18';
+const APP_BUILD = 'f1c2bf536b93';
 
 const App = {
   lastReport: null,

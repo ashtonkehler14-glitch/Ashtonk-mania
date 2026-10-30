@@ -478,11 +478,14 @@ const SpectatorScreen = {
     this.userEl = h('div.spm-user');
     this.mapEl = h('div.spm-map');
     this.btn = h('button.spm-watch', { onclick: () => { UISounds.click(); Spectate.tryStart(true); } }, 'Start Watching');
+    // (the chat from here too, as from their play: your conversation with them if they're a friend, else #lobby)
+    const t = Spectate.target, friend = t && t.pid && Friends.has(t.pid);
+    const msg = h('button.spm-msg', { title: friend ? `Message ${t.name}` : 'Chat in #lobby', onclick: () => Spectate.message() }, icon('chat'), friend ? 'Message' : 'Chat');
     clearEl(box).append(
       h('div.spm-t', 'Spectator Mode'),
       h('div.spm-row', this.userEl, h('span.spm-arrow', icon('back')), this.mapEl),
       this.autoRow(),
-      this.btn);
+      h('div.spm-acts', this.btn, msg));
     this.paintUser(); this.paintMap();
   },
   /** lazer's UserGridPanel of who you're watching (offline: as the online list shows someone who's gone). */
