@@ -106,9 +106,9 @@ test('key mods (1K–10K): a convert takes that many columns, an osu!mania map k
     assert.ok(notes.length >= (k > 1 ? 30 : 10) && notes.every(n => n.col >= 0 && n.col < k), `${k}K`);
     if (k > 1) assert.equal(new Set(notes.map(n => n.col)).size > 1, true);
   }
-  // the server judges a 4K convert play with 4 columns
+  // the server judges a 4K convert play with 4 columns (key mods give no pp: judged as a room's play is)
   const notes = V.prepareNotes(V.BeatmapParser.toManiaNotes(bm, 4), 4, ['4K'], 1);
-  const r = V.verifyPlay(text, { mods: ['4K'], seed: 1, events: V.generateAutoInputs(notes, 4).flat() });
+  const r = V.verifyPlay(text, { mods: ['4K'], seed: 1, events: V.generateAutoInputs(notes, 4).flat() }, { noFail: true });
   assert.ok(!r.error, r.error);
   assert.equal(r.counts[5], 0);
   // an osu!mania map isn't changed by one

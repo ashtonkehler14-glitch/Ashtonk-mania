@@ -1391,6 +1391,13 @@ const MODS = [
   { id: 'CN', name: 'Cinema', group: 'automation', key: 'Comma', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true, nojudge: true,
     desc: 'Watch the video without visual distractions.' },
 ];
+// Ashtonk!mania's ranked mods (its players' call, not lazer's): of the conversions only Mirror and Percy (Percy only
+// draws long notes' tails shorter) are ranked — Random, the key mods and the rest aren't — and Hard Rock isn't either.
+// Hidden, Fade In, Cover and Flashlight are ranked whatever their settings.
+for (const m of MODS) {
+  if (m.group === 'conversion') m.unranked = !['MR', 'PC'].includes(m.id) || undefined;
+  if (m.id === 'HR') m.unranked = true;
+}
 const MOD_BY_ID = new Map(MODS.map(m => [m.id, m]));
 /** A glyph for every mod (24×24, stroked), in the spirit of osu!lazer's mod icons. */
 const MOD_GLYPHS = {
@@ -1476,20 +1483,14 @@ const ModSystem = {
   label(list) { return list.length ? list.join('') : 'NM'; },
   /** The column count a key mod (1K–10K) asks for, or 0. */
   keyMod(list) { for (const id of list || []) { const m = /^(\d+)K$/.exec(id); if (m && MOD_BY_ID.has(id)) return +m[1]; } return 0; },
-  /** lazer's ranked mods: none it marks unranked (Difficulty Adjust and the other conversions that make a beatmap
-   *  something else, a speed of your own, Auto…), and — given the settings they were played with (`cfg`) — Hidden,
-   *  Fade In, Cover and Flashlight only as they come (lazer ranks those only at their default settings). */
+  /** Ranked mods: none marked unranked (Hard Rock, every conversion but Mirror and Percy, a speed of your own,
+   *  Auto…). */
   /** Can the server's judge play these mods through (none it marks `nojudge`: Auto, Cinema, Wind Up / Down, Adaptive
    *  Speed, Muted)? A room only takes mods it can — unranked ones too, for no pp. */
   judgeable(list) { return !list.some(id => MOD_BY_ID.get(id)?.nojudge); },
-  isRanked(list, cfg) {
-    if (list.some(id => MOD_BY_ID.get(id)?.unranked)) return false;
-    if (!cfg || typeof cfg !== 'object') return true;
-    const off = k => cfg[k] != null && Number(cfg[k]) !== MOD_CONFIG_DEFAULTS[k];
-    if (list.some(id => id === 'HD' || id === 'FI' || id === 'CO') && (off('cover') || off('coDir'))) return false;
-    if (list.includes('FL') && off('flSize')) return false;
-    return true;
-  },
+  // (`cfg`, the settings they were played with, no longer matters: Hidden, Fade In, Cover and Flashlight count
+  // whatever theirs)
+  isRanked(list, cfg) { return !list.some(id => MOD_BY_ID.get(id)?.unranked); },
   /** Column permutation for Mirror / Random. */
   columnMap(list, keys, seed) {
     const map = Array.from({ length: keys }, (_, i) => i);

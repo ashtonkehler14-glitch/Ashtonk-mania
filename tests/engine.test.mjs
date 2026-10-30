@@ -554,8 +554,10 @@ test('score verification: the server judges a play from its key presses — not 
   assert.equal(V.verifyPlay(text, { mods: ['AT'], seed: 1, events }).error, 'unranked mods');
   // nor mods lazer doesn't rank (Difficulty Adjust and the like), nor Hidden or Flashlight at settings of your own
   for (const mods of [['DA'], ['CS'], ['NLN'], ['IN'], ['RT']]) assert.equal(V.verifyPlay(text, { mods, seed: 1, events }).error, 'unranked mods', mods.join());
-  assert.equal(V.verifyPlay(text, { mods: ['HD'], modConfig: { cover: 0.8 }, seed: 1, events }).error, 'unranked mods');
-  assert.ok(!V.verifyPlay(text, { mods: ['HD'], modConfig: { cover: 0.5 }, seed: 1, events }).error, 'Hidden as it comes counts');
+  // (Hard Rock, Random and the key mods aren't ranked here; Hidden counts whatever its settings, as Percy does)
+  for (const mods of [['HR'], ['RD'], ['4K']]) assert.equal(V.verifyPlay(text, { mods, seed: 1, events }).error, 'unranked mods', mods.join());
+  assert.ok(!V.verifyPlay(text, { mods: ['HD'], modConfig: { cover: 0.8 }, seed: 1, events }).error, 'Hidden with any settings counts');
+  assert.ok(!V.verifyPlay(text, { mods: ['PC'], seed: 1, events }).error, 'Percy counts');
   // in multiplayer (noFail) they're played — worth no pp — but never Auto or the others the judge can't play through
   const da = V.verifyPlay(text, { mods: ['DA'], modConfig: { od: 5 }, seed: 1, events }, { noFail: true });
   assert.ok(!da.error, da.error); assert.equal(da.pp, 0);
@@ -580,7 +582,7 @@ test('plays go up as the game reports them (acceptPlay): taken as they are, with
   assert.ok(V.acceptPlay(text, { mods: ['AT'] }).error);
   // unranked mods: turned down for the leaderboards; in multiplayer taken, for no pp
   assert.equal(V.acceptPlay(text, { pp: 50, mods: ['DA'] }).error, 'unranked mods');
-  assert.equal(V.acceptPlay(text, { pp: 50, mods: ['HD'], modConfig: { cover: 0.9 } }).error, 'unranked mods');
+  assert.ok(!V.acceptPlay(text, { pp: 50, mods: ['HD'], modConfig: { cover: 0.9 } }).error, 'Hidden with any settings counts');
   assert.deepEqual((({ error, pp }) => [error, pp])(V.acceptPlay(text, { pp: 50, mods: ['DA'] }, { noFail: true })), [undefined, 0]);
   assert.equal(V.acceptPlay(text, { mods: ['WU'] }, { noFail: true }).error, 'unranked mods');
 });
