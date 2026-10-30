@@ -28251,7 +28251,7 @@ const MultiplayerScreen = {
       // lazer's match types: everyone for themselves, or red against blue (each team's average decides it)
       st.ranked ? null : h('div.mp-cr-l', 'Match type'),
       st.ranked ? null : h('div.mp-cr-row', choice('type', 'type', 'h2h', 'user', 'Head to Head', 'Everyone for themselves: the best score wins.'),
-        choice('type', 'type', 'teams', 'social', 'Team Versus', 'Red against blue: each team scores its players\' average, so uneven teams are fair — the higher average wins. Players can switch teams in the room.')),
+        choice('type', 'type', 'teams', 'multi', 'Team Versus', 'Red against blue: each team scores its players\' average, so uneven teams are fair — the higher average wins. Players can switch teams in the room.')),
       h('div.mp-cr-l', 'Who can join'),
       h('div.mp-cr-row', choice('vis', 'isPublic', true, 'globe', 'Public', `Listed in the ${st.ranked ? 'Ranked Play' : 'multiplayer'} lounge for anyone to join.`),
         choice('vis', 'isPublic', false, 'lock', 'Private', 'Only people with the room code (or an invite) can join.'))].filter(Boolean));
@@ -33430,7 +33430,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '10500ca8bfa8';
+const APP_BUILD = 'bdf61ba89271';
 
 const App = {
   lastReport: null,

@@ -1240,7 +1240,7 @@ const MultiplayerScreen = {
       // lazer's match types: everyone for themselves, or red against blue (each team's average decides it)
       st.ranked ? null : h('div.mp-cr-l', 'Match type'),
       st.ranked ? null : h('div.mp-cr-row', choice('type', 'type', 'h2h', 'user', 'Head to Head', 'Everyone for themselves: the best score wins.'),
-        choice('type', 'type', 'teams', 'social', 'Team Versus', 'Red against blue: each team scores its players\' average, so uneven teams are fair — the higher average wins. Players can switch teams in the room.')),
+        choice('type', 'type', 'teams', 'multi', 'Team Versus', 'Red against blue: each team scores its players\' average, so uneven teams are fair — the higher average wins. Players can switch teams in the room.')),
       h('div.mp-cr-l', 'Who can join'),
       h('div.mp-cr-row', choice('vis', 'isPublic', true, 'globe', 'Public', `Listed in the ${st.ranked ? 'Ranked Play' : 'multiplayer'} lounge for anyone to join.`),
         choice('vis', 'isPublic', false, 'lock', 'Private', 'Only people with the room code (or an invite) can join.'))].filter(Boolean));
