@@ -65,7 +65,7 @@ const Onboarding = {
       this.resolve = resolve;
       this.again = again;
       this.accountOnly = account;
-      this.acct = null; this.linked = false; this.nameVal = null; this.code = null; this.codeErr = null; this.helpOpen = false; this.got = null; this.busy = false; this.finishing = false;
+      this.acct = null; this.linked = false; this.nameVal = null; this.code = null; this.codeErr = null; this.codeNone = false; this.helpOpen = false; this.got = null; this.busy = false; this.finishing = false;
       this.i = 0;
       // (closed before Finish after typing a code or getting one: this device is that player already — on to their page,
       // where what's kept for them is brought again — never "I'm new", which would rename them)
@@ -251,8 +251,11 @@ const Onboarding = {
     try {
       if (Account.signedOut()) Account.fresh();
       this.code = Account.code() || await Account.newCode();
-    } catch (e) { this.codeErr = friendlyError(e); }
-    finally { this.codeBusy = false; }
+    } catch (e) {
+      // (a copy of the game with no server behind it — 404 on the API — isn't an error to show a new player: their code
+      // comes once they play on the game's website)
+      if (e && e.status === 404) this.codeNone = true; else this.codeErr = friendlyError(e);
+    } finally { this.codeBusy = false; }
     if (this.codeWrap && this.codeWrap.isConnected) this.paintCode();
   },
   step_account() {
@@ -307,7 +310,8 @@ const Onboarding = {
       clearEl(w).append(h('label.setup-lbl', 'Your code'),
         h('div.lp-code-row', h('div.lp-codebox', h('div.lp-code', this.code)), copy),
         h('p.setup-save', icon('warn'), h('span', h('b', 'Save it somewhere safe'), ` — a note on your phone, a screenshot, or write it down. It's how you play as yourself on another device, and nobody can get it back for you if it's lost. You can always see it again: ${Account.where()}.`)));
-    } else if (this.codeErr) clearEl(w).append(h('p.setup-save.err', h('span', `Couldn't make your code just now (${noStop(this.codeErr)}). You can get it later: ${Account.where()}.`)));
+    } else if (this.codeNone) clearEl(w).append(h('p.setup-save', icon('info'), h('span', `Your code comes when you play on the game's website — it's how you play as yourself on another device (${Account.where()}).`)));
+    else if (this.codeErr) clearEl(w).append(h('p.setup-save.err', h('span', `Couldn't make your code just now (${noStop(this.codeErr)}). You can get it later: ${Account.where()}.`)));
     else clearEl(w).append(h('div.setup-codewait', h('span.spinner'), 'Making your code…'));
   },
   /** Type your code — and how to find it. */
@@ -388,7 +392,8 @@ const Onboarding = {
   },
 
   step_device() {
-    const cur = Settings.values['setup.device'];
+    // (nothing picked yet: the one that matches how the game is set now — what Next keeps — shows as chosen)
+    const cur = Settings.values['setup.device'] || (Settings.get('graphics.performanceMode') ? 'chromebook' : 'pc');
     const pick = id => {
       for (const [k, v] of Object.entries(SETUP_DEVICES[id].values())) Settings.set(k, v);
       Settings.set('setup.device', id);
