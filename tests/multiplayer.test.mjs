@@ -631,7 +631,7 @@ test('presence: whoever spectates a player in a Ranked Play match is told which 
 
 test('a Ranked Play match watched as one of its players sees it: their own view, read-only, and over when they leave', () => {
   const room = new MatchRoom({ storage: { get: async () => null, put: async () => {}, delete: async () => {} } }, {});
-  room.logic = new RoomLogic('WTCH23');
+  room.logic = new RoomLogic('WTCH23', () => 50000); // (a clock that doesn't move: both views are drawn at the same moment)
   const got = s => s.q.map(t => JSON.parse(t));
   const conn = hello => { const s = new HttpSock('x'), c = room.attach(s); c.message(JSON.stringify({ t: 'hello', ...hello })); return { s, c, say: m => c.message(JSON.stringify(m)) }; };
   try {
@@ -2180,4 +2180,48 @@ test('reports: a player tells the admins about another — why, what happened, w
   clock.t += 1900000;
   const sent = ['c1', 'c2', 'c3', 'c4', 'c5'].map(x => p.message('a', { t: 'report', pid: `${x}pid000`, reason: 'name' })[0].msg.ok);
   assert.deepEqual(sent, [true, true, true, true, false]);
+});
+
+test('#lobby\'s rules: locked (only admins talk), slow mode, blocked words starred out — and the change said in #lobby', () => {
+  const clock = { t: 10000 };
+  const p = new PresenceLogic(() => clock.t), kept = [];
+  p.persistChatRules = r => kept.push(r);
+  p.codes.set('h-owner', 'ownerpid1'); p.adminHash = 'h-owner';
+  p.join('o', { name: 'Owner', pid: 'ownerpid1', key: 'key-ownerpid1-0123456789' });
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' });
+  const said = p.setChatRules({ slow: 15, words: 'Darn, heck\nx' });
+  assert.deepEqual(said.map(o => o.msg.text), ['Slow mode: one message every 15 seconds.']);
+  assert.deepEqual([p.chatRules.slow, p.chatRules.words, kept.length], [15, ['darn', 'heck'], 1], 'words of 2+ letters, lower case');
+  assert.equal(p.message('a', { t: 'say', text: 'oh DARN it, what the heck' })[0].msg.text, 'oh **** it, what the ****');
+  assert.match(p.message('a', { t: 'say', text: 'again' })[0].msg.msg, /Slow mode: one message every 15 seconds \(15s to go\)/);
+  assert.equal(p.message('o', { t: 'say', text: 'admins aren\'t slowed' })[0].msg.t, 'say');
+  assert.equal(p.message('o', { t: 'say', text: 'twice' })[0].msg.t, 'say');
+  clock.t += 15000;
+  assert.equal(p.message('a', { t: 'say', text: 'later' })[0].msg.t, 'say');
+  assert.deepEqual(p.setChatRules({ locked: true }).map(o => o.msg.text), ['#lobby is locked for now: only the admins can talk.']);
+  clock.t += 20000;
+  assert.match(p.message('a', { t: 'say', text: 'hello?' })[0].msg.msg, /locked/);
+  assert.equal(p.message('o', { t: 'say', text: 'we\'re fixing things' })[0].msg.t, 'say');
+  assert.deepEqual(p.setChatRules({ locked: false, slow: 0 }).map(o => o.msg.text), ['#lobby is open again.', 'Slow mode is off.']);
+  assert.deepEqual(PresenceLogic.cleanRules({ slow: 9999, words: Array.from({ length: 150 }, (_, i) => 'w' + i) }).slow, 300);
+  assert.equal(PresenceLogic.cleanRules({ words: Array.from({ length: 150 }, (_, i) => 'w' + i) }).words.length, 100);
+});
+
+test('admins\' notes on a player: only admins see them, newest last, one taken off; and what was reported about them', () => {
+  const clock = { t: 5000 };
+  const p = new PresenceLogic(() => clock.t), kept = {};
+  p.persistMod = (k, pid, v) => { kept[k + ':' + pid] = v; };
+  assert.equal(p.adminNote('bobpid22', { text: '   ', by: 'Mo' }), false);
+  p.adminNote('bobpid22', { text: 'Warned about spam in #lobby', by: 'Mo' });
+  p.adminNote('bobpid22', { text: 'Second warning', by: 'the owner' });
+  const notes = p.adminPlayer('bobpid22').notes;
+  assert.deepEqual(notes.map(n => [n.by, n.text]), [['Mo', 'Warned about spam in #lobby'], ['the owner', 'Second warning']]);
+  assert.ok(notes[1].at > notes[0].at, 'each its own time');
+  p.adminNote('bobpid22', { del: notes[0].at });
+  assert.deepEqual(kept['nt:bobpid22'].map(n => n.text), ['Second warning']);
+  p.adminNote('bobpid22', { del: notes[1].at });
+  assert.equal(kept['nt:bobpid22'], null, 'none left: gone from storage');
+  const q = new PresenceLogic(() => 1);
+  q.loadMod({ notes: { carpid333: [{ at: 1, by: 'x', text: 'kept' }] }, chatRules: { slow: 5, locked: true, words: ['abc'] } });
+  assert.deepEqual([q.notes.get('carpid333')[0].text, q.chatRules], ['kept', { slow: 5, locked: true, words: ['abc'] }]);
 });

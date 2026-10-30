@@ -174,6 +174,32 @@ try {
   const notStaff = await bob.evaluate(p => AshtonkMania.Staff.act('ban', { pid: p, days: 1 }), alicePid);
   check('…a player who isn\'t an admin can\'t', !notStaff.ok && /not an admin/.test(notStaff.error || ''), JSON.stringify(notStaff));
   await owner.evaluate(p => AshtonkMania.Staff.act('unmute', { pid: p }), bobPid);
+  // #lobby's rules from the Chat tab: blocked words starred out, slow mode (admins aren't held to it)
+  await panel.evaluate(() => { location.hash = 'chat'; });
+  await panel.waitForSelector('main textarea[placeholder^="One word"]', { timeout: 8000 });
+  await panel.fill('main textarea[placeholder^="One word"]', 'heck');
+  await panel.click('main button:text-is("Save words")');
+  await panel.waitForFunction(() => /Blocked words \(1\)/.test(document.querySelector('main').textContent), null, { timeout: 8000 }).catch(() => {});
+  await bob.evaluate(() => AshtonkMania.Presence.send({ t: 'say', text: 'what the heck' }));
+  const starred = await bob.waitForFunction(() => AshtonkMania.Chat.channels.get('#lobby').lines.some(l => l.text === 'what the ****'), null, { timeout: 8000 }).then(() => true, () => false);
+  // (slow mode on just after he spoke: his next line waits)
+  await panel.click('main .seg button:text-is("15s")');
+  await panel.waitForFunction(() => document.querySelector('main .seg button.on')?.textContent === '15s', null, { timeout: 8000 }).catch(() => {});
+  await bob.evaluate(() => AshtonkMania.Presence.send({ t: 'say', text: 'and again' }));
+  const slowed = await bob.waitForFunction(() => [...document.querySelectorAll('#toasts .toast')].some(t => /Slow mode: one message every 15 seconds/.test(t.textContent)), null, { timeout: 8000 }).then(() => true, () => false);
+  check('#lobby rules: a blocked word is starred out, and slow mode holds players back', starred && slowed && await bob.evaluate(() => AshtonkMania.Chat.channels.get('#lobby').lines.some(l => /Slow mode: one message every 15 seconds\./.test(l.text))), JSON.stringify({ starred, slowed, lines: await bob.evaluate(() => AshtonkMania.Chat.channels.get('#lobby').lines.slice(-4).map(l => l.text)), toasts: await bob.evaluate(() => [...document.querySelectorAll('#toasts .toast')].map(t => t.textContent).slice(-4)), rules: (await api('chatRules')).rules }));
+  await api('chatRules', { set: { slow: 0, words: '' } });
+  // the search box in the top bar finds a player from any page
+  await panel.fill('.top input.find', 'Bob'); await panel.press('.top input.find', 'Enter');
+  check('Find a player (top bar): straight to the Players tab with them found', await panel.waitForFunction(() => location.hash === '#players' && [...document.querySelectorAll('main table td')].some(td => /Bob/.test(td.textContent)), null, { timeout: 8000 }).then(() => true, () => false));
+  // a note on Bob, which only admins see; his page has what was done about him
+  await panel.evaluate(p => { location.hash = 'players/' + p; }, bobPid);
+  await panel.waitForSelector('main textarea[placeholder="Add a note…"]', { timeout: 8000 });
+  await panel.fill('main textarea[placeholder="Add a note…"]', 'Starred words in #lobby — keep an eye on him');
+  await panel.click('main button:text-is("Add note")');
+  await panel.waitForFunction(() => /keep an eye on him/.test(document.querySelector('main .note')?.textContent || ''), null, { timeout: 8000 }).catch(() => {});
+  const pg = await panel.evaluate(() => ({ note: document.querySelector('main .note')?.textContent || '', hist: [...document.querySelectorAll('main .card')].find(c => /^History/.test(c.querySelector('h2')?.textContent || ''))?.textContent || '' }));
+  check('Player page: admins\' notes, and the history of what was done about them (the mute from the game)', /keep an eye on him/.test(pg.note) && /the owner/.test(pg.note) && /Muted/.test(pg.hist) && /Reported 0|Never reported/.test(pg.hist), JSON.stringify(pg).slice(0, 300));
   await panel.evaluate(p => { location.hash = 'players/' + p; }, bobPid); // (back on Bob's page for what follows)
 
   // a mute, then a ban
@@ -262,7 +288,7 @@ try {
   check('Daily challenge: the owner sets the day\'s beatmap', ds.ok && ds.daily.map.title === 'Daily Song', JSON.stringify(ds).slice(0, 120));
   await panel.evaluate(() => { location.hash = 'overview'; }); await panel.waitForTimeout(800); await shot(panel, 'admin-overview');
   const log = await api('log');
-  check('the admin log has every change', ['Signed in', 'Renamed', 'Deleted a chat line', 'Announced', 'Took an announcement down', 'Dealt with a report', 'Muted', 'Banned', 'Unbanned', 'Made admin', 'No longer admin', 'Sent a message', 'Took a picture down', 'Allowed pictures again', 'Closed a room', 'Deleted a player', 'Set the daily challenge beatmap'].every(w => log.log.some(e => e.what === w)), log.log.map(e => e.what).join('|'));
+  check('the admin log has every change', ['Signed in', 'Renamed', 'Deleted a chat line', 'Announced', 'Took an announcement down', 'Dealt with a report', 'Wrote a note', 'Changed #lobby\'s rules', 'Muted', 'Banned', 'Unbanned', 'Made admin', 'No longer admin', 'Sent a message', 'Took a picture down', 'Allowed pictures again', 'Closed a room', 'Deleted a player', 'Set the daily challenge beatmap'].every(w => log.log.some(e => e.what === w)), log.log.map(e => e.what).join('|'));
 
   // signing in with the code is limited per address
   let limited = false;

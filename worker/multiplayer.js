@@ -1145,6 +1145,9 @@ export class PresenceLogic {
     // count while there's one; `name` '' with `was`: given back, their own name to be handed back when they're next on)
     // — `persistMod(kind, pid, value or null)` keeps them (bn:, mu:, nm:)
     this.bans = new Map(); this.mutes = new Map(); this.names = new Map(); this.persistMod = null;
+    // the admins' own notes on a player (pid → [{ at, by, text }]) — only admins see them; and #lobby's rules: slow mode
+    // (seconds between a player's lines), locked (only admins talk), and words that are starred out
+    this.notes = new Map(); this.chatRules = { slow: 0, locked: false, words: [] }; this.lastSay = new Map();
     // which player is the server's owner: the one whose code is the ADMIN_CODE secret (its hash, set by Matchmaker)
     this.adminHash = '';
     // the admins the owner has made, each with a role of the owner's naming and colour (pid → { name, colour, at }; rl:)
@@ -1176,7 +1179,9 @@ export class PresenceLogic {
     if (this.persistMod) this.persistMod('rl', pid, null);
     return [...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id]) => ({ to: id, msg: { t: 'admin', off: true } }));
   }
-  loadMod({ bans = {}, mutes = {}, names = {}, roles = {}, deleted = [], noAvatar = [] } = {}) {
+  loadMod({ bans = {}, mutes = {}, names = {}, roles = {}, deleted = [], noAvatar = [], notes = {}, chatRules = null } = {}) {
+    for (const [pid, v] of Object.entries(notes)) if (Array.isArray(v) && v.length) this.notes.set(pid, v.slice(-PresenceLogic.NOTES_KEEP));
+    if (chatRules && typeof chatRules === 'object') this.chatRules = PresenceLogic.cleanRules(chatRules);
     for (const pid of deleted) this.deleted.add(pid);
     for (const pid of noAvatar) this.noAvatar.add(pid);
     for (const [pid, v] of Object.entries(roles)) if (v && typeof v === 'object' && v.name) this.roles.set(pid, { name: str(v.name, 24), colour: /^#[0-9a-f]{6}$/i.test(String(v.colour)) ? v.colour : '#66ccff', at: Number(v.at) || 0 });
@@ -1230,7 +1235,51 @@ export class PresenceLogic {
     const sessions = [...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id, u]) => ({ id, name: u.name, status: u.status, vis: u.vis }));
     return { ...this.adminRow(pid), admin: this.isAdmin(pid), rank: mine ? [...this.ranks.values()].filter(x => x.pp > r.pp && !this.isBanned(x.pid)).length + 1 : 0, acc: r ? r.acc || 0 : 0,
       devices: this.keyHashes(pid).length, friends: (this.friends.get(pid) || new Map()).size, sessions, bests, daily: this.dailyStats.get(pid) || null,
-      firsts: Object.keys(this.firsts.get(pid) || {}).length };
+      firsts: Object.keys(this.firsts.get(pid) || {}).length, notes: this.notes.get(pid) || [],
+      reports: this.reports.filter(x => x.pid === pid).slice(-20).reverse(), reported: this.reports.filter(x => x.by && x.by.pid === pid).length };
+  }
+  static NOTES_KEEP = 50;
+  /** An admin's note on a player (only admins see it), or one taken off (`at`). */
+  adminNote(pid, { text = '', by = '', del = 0 } = {}) {
+    let list = this.notes.get(pid) || [];
+    if (del) list = list.filter(n => n.at !== Number(del));
+    else {
+      const tx = str(text, 500).replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ').trim();
+      if (!tx) return false;
+      list = [...list, { at: Math.max(this.now(), (list.at(-1) || { at: 0 }).at + 1), by: str(by, 40), text: tx }].slice(-PresenceLogic.NOTES_KEEP);
+    }
+    if (list.length) this.notes.set(pid, list); else this.notes.delete(pid);
+    if (this.persistMod) this.persistMod('nt', pid, list.length ? list : null);
+    return true;
+  }
+  /** #lobby's rules, tidied: slow mode 0–300 s, locked or not, up to 100 words (2–30 letters each). */
+  static cleanRules(r) {
+    const words = [...new Set((Array.isArray(r.words) ? r.words : String(r.words || '').split(/[\n,]/)).map(w => str(w, 30).toLowerCase().trim()).filter(w => w.length >= 2))].slice(0, 100);
+    return { slow: Math.round(num(r.slow, 0, 300)), locked: !!r.locked, words };
+  }
+  /** New rules for #lobby, said there in a line from the game (not the words, which only admins see). */
+  setChatRules(r) {
+    const before = this.chatRules, next = PresenceLogic.cleanRules({ ...before, ...r });
+    this.chatRules = next;
+    if (this.persistChatRules) this.persistChatRules(next);
+    const said = [];
+    if (next.locked !== before.locked) said.push(next.locked ? '#lobby is locked for now: only the admins can talk.' : '#lobby is open again.');
+    if (next.slow !== before.slow) said.push(next.slow ? `Slow mode: one message every ${next.slow} seconds.` : 'Slow mode is off.');
+    const out = [];
+    for (const text of said) {
+      const line = { ch: '#lobby', from: { pid: '', name: 'Ashtonk!mania', avatar: '', system: true }, text, at: this.now() };
+      this.chat.push(line); if (this.chat.length > PresenceLogic.CHAT_KEEP) this.chat.shift();
+      out.push({ to: 'all', msg: { t: 'say', ...line } });
+    }
+    if (out.length && this.persistChat) this.persistChat(this.chat);
+    return out;
+  }
+  /** A line with #lobby's blocked words starred out (whole words, any case; one that's part of a longer one too). */
+  starWords(text) {
+    const w = this.chatRules.words;
+    if (!w.length) return text;
+    const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return text.replace(new RegExp(w.map(esc).join('|'), 'gi'), m => '*'.repeat(m.length));
   }
   /** Banned (for `days`, or for good): they're taken offline now and can't come back online, and their scores stop
    *  showing on the boards, the rankings and the daily challenge (kept, in case of an unban). Returns { out, gone }. */
@@ -2272,7 +2321,7 @@ export class PresenceLogic {
     }
     // ── chat: a line in #lobby, or a private message to a friend (every tab of both of you)
     if (msg.t === 'say' || msg.t === 'pm') {
-      const text = str(msg.text, 300).replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+      let text = str(msg.text, 300).replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
       if (!text) return [];
       const muted = this.modOf('mu', u.pid);
       if (muted) {
@@ -2281,8 +2330,15 @@ export class PresenceLogic {
       }
       const t = this.now(), recent = (this.said.get(id) || []).filter(x => t - x < PresenceLogic.CHAT_WINDOW);
       if (recent.length >= PresenceLogic.CHAT_BURST) return [{ to: id, msg: { t: 'error', msg: 'You\'re sending messages too fast.' } }];
+      // #lobby's rules (the admins aren't held to them): locked, or slow mode
+      const staff = !!u.pid && this.isStaff(u.pid), rules = this.chatRules;
+      if (msg.t === 'say' && !staff && rules.locked) return [{ to: id, msg: { t: 'error', msg: '#lobby is locked for now: only the admins can talk.' } }];
+      const last = this.lastSay.get(u.pid || id);
+      if (msg.t === 'say' && !staff && rules.slow && last != null && t - last < rules.slow * 1000) return [{ to: id, msg: { t: 'error', msg: `Slow mode: one message every ${rules.slow} seconds (${Math.ceil((rules.slow * 1000 - (t - last)) / 1000)}s to go).` } }];
       recent.push(t); this.said.set(id, recent);
+      if (msg.t === 'say') { this.lastSay.set(u.pid || id, t); if (this.lastSay.size > 5000) this.lastSay.clear(); }
       const from = { pid: u.pid, name: u.name, avatar: u.avatar };
+      text = this.starWords(text);
       if (msg.t === 'say') {
         const line = { ch: '#lobby', from, text, at: t };
         this.chat.push(line); if (this.chat.length > PresenceLogic.CHAT_KEEP) this.chat.shift();
@@ -2584,7 +2640,7 @@ export class Matchmaker {
     const j = await r.json().catch(() => ({}));
     reply(r.ok && !j.error ? { ok: true } : { error: j.error || 'That didn\'t work.' });
   }
-  static GAME_STAFF = ['mute', 'unmute', 'warn', 'ban', 'chatDelete', 'announce', 'annEnd', 'reportClose'];
+  static GAME_STAFF = ['mute', 'unmute', 'warn', 'ban', 'chatDelete', 'announce', 'annEnd', 'reportClose', 'chatRules'];
   async admin(action, request) {
     await this.loadFriends();
     const P = this.presence, b = (await request.json().catch(() => null)) || {}, ip = request.headers.get('x-ip') || '';
@@ -2701,7 +2757,8 @@ export class Matchmaker {
         if (!pid) return noPlayer();
         await this.ensureBests(pid);
         if (!P.profiles.has(pid)) { const v = await this.state.storage.get(`pf:${pid}`).catch(() => null); if (v && typeof v === 'object' && !P.profiles.has(pid)) P.profiles.set(pid, v); }
-        return json({ player: { ...P.adminPlayer(pid), admin: P.isAdmin(pid) } });
+        // (and what the admins did about them: the log's lines about them)
+        return json({ player: { ...P.adminPlayer(pid), admin: P.isAdmin(pid), history: (this.adminLog || []).filter(e => e.pid === pid).slice(-40).reverse() } });
       }
       case 'moderated': {
         const of = (m, kind) => [...m.keys()].filter(x => kind ? P.modOf(kind, x) : true).map(x => P.adminRow(x));
@@ -2749,6 +2806,22 @@ export class Matchmaker {
         return json({ ok: true, anns: P.annList() });
       }
       case 'anns': return json({ anns: P.annList() });
+      // ── an admin's notes on a player (only admins see them)
+      case 'note': {
+        if (!pid) return noPlayer();
+        const by = owner ? 'the owner' : P.adminRow(actor).name || actor;
+        if (!P.adminNote(pid, { text: b.text, by, del: b.del })) return json({ error: 'Write the note first.' }, 400);
+        if (!b.del) log('Wrote a note', { ...who(pid), text: str(b.text, 200) });
+        return json({ ok: true, notes: P.notes.get(pid) || [] });
+      }
+      // ── #lobby's rules: slow mode, locked, starred-out words
+      case 'chatRules': {
+        if (b.set && typeof b.set === 'object') {
+          const out = P.setChatRules(b.set);
+          this.send(out); log('Changed #lobby\'s rules', { text: `slow ${P.chatRules.slow}s${P.chatRules.locked ? ', locked' : ''}, ${P.chatRules.words.length} blocked words` });
+        }
+        return json({ rules: P.chatRules });
+      }
       case 'annEnd': {
         const out = P.annEnd(b.id);
         if (!out) return json({ error: 'That announcement is already down.' }, 400);
@@ -3040,6 +3113,8 @@ export class Matchmaker {
         mod.roles = {}; for (const [k, v] of await st.list({ prefix: 'rl:' })) mod.roles[k.slice(3)] = v;
         mod.deleted = [...(await st.list({ prefix: 'dl:' })).keys()].map(k => k.slice(3));
         mod.noAvatar = [...(await st.list({ prefix: 'na:' })).keys()].map(k => k.slice(3));
+        mod.notes = {}; for (const [k, v] of await st.list({ prefix: 'nt:' })) mod.notes[k.slice(3)] = v;
+        mod.chatRules = await st.get('chatRules').catch(() => null);
         this.presence.loadMod(mod);
         const al = await st.get('adminLog'); this.adminLog = Array.isArray(al) ? al : [];
         const an = await st.get('anns'); if (Array.isArray(an)) this.presence.anns = an;
@@ -3091,6 +3166,7 @@ export class Matchmaker {
       };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
       this.presence.persistAnns = list => { st.put('anns', list).catch(() => {}); };
+      this.presence.persistChatRules = r => { st.put('chatRules', r).catch(() => {}); };
       this.presence.persistReports = list => { st.put('reports', list).catch(() => {}); };
       this.presence.persistSeen = (pid, t) => { st.put(`ls:${pid}`, t).catch(() => {}); };
       // (written at most every couple of seconds however busy the lobby is)

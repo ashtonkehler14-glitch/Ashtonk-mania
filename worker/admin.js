@@ -172,6 +172,8 @@ a { color: #d6b3ff; } a.big { font-weight: 700; font-size: 15px; }
 .report .quote { margin: 10px 0 0; padding: 8px 12px; border-left: 3px solid var(--line); color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
 .report.closed { opacity: .7; }
 .chat.mini { margin-top: 10px; max-height: 180px; } .chat.mini .line { padding: 4px; }
+.find { width: 200px; } @media (max-width: 860px) { .find { flex: 1; width: auto; } }
+.note { padding: 8px 0; border-bottom: 1px solid var(--line); } .note .x { margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
 `;
 
 const OFF = `<div class="center"><div class="card login"><h1>The admin panel is off</h1>
@@ -243,13 +245,22 @@ const rolePill = (name, colour) => { const el = h('span.pill', name); if (/^#[0-
 const badges = p => [p.owner || p.admin ? rolePill('Owner', '#ffcc22') : p.role ? rolePill(p.role.name, p.role.colour) : null, p.banned ? h('span.pill.bad', 'banned') : null, p.muted ? h('span.pill.warn', 'muted') : null, p.named ? h('span.pill', 'renamed') : null, p.noAvatar ? h('span.pill.warn', 'picture down') : null, p.code ? h('span.pill.good', 'code') : null, p.deleted ? h('span.pill.bad', 'deleted') : null];
 let ME = { owner: true };
 
+let lastQuery = '';
 const TABS = [['overview', 'Overview'], ['reports', 'Reports'], ['players', 'Players'], ['announce', 'Announcements'], ['chat', 'Chat'], ['playlists', 'Playlists'], ['daily', 'Daily challenge'], ['log', 'Log']];
 let OPEN = 0; // (reports waiting: shown on their tab)
 const tabBtns = () => tabsEl.replaceChildren(...tabs().map(([k, l]) => h('button' + (k === tab ? '.on' : ''), { onclick: () => go(k) }, l, k === 'reports' && OPEN ? h('span.pill.bad', String(OPEN)) : null)));
 const tabs = () => ME.owner ? TABS : TABS.filter(([k]) => k !== 'daily' && k !== 'log');
 let tab = (location.hash.slice(1).split('/')[0]) || 'overview';
 const app = document.getElementById('app'), main = h('main'), tabsEl = h('div.tabs');
-app.append(h('div.top', h('div.logo', 'A'), h('h1', 'Admin'), tabsEl, h('span.grow'), h('button.small', { onclick: async () => { await api('logout').catch(() => {}); location.reload(); } }, 'Sign out')), main);
+// (a player found from any page: their name or id, Enter)
+const findBox = h('input.find', { placeholder: 'Find a player…', 'aria-label': 'Find a player' });
+findBox.addEventListener('keydown', e => { if (e.key === 'Enter' && findBox.value.trim()) { lastQuery = findBox.value.trim(); findBox.value = ''; findBox.blur(); go('players'); } });
+app.append(h('div.top', h('div.logo', 'A'), h('h1', 'Admin'), tabsEl, findBox, h('button.small', { onclick: async () => { await api('logout').catch(() => {}); location.reload(); } }, 'Sign out')), main);
+// (the overview and the reports keep themselves up to date while the panel is in view — not while you're typing)
+setInterval(() => { if (document.hidden || (tab !== 'overview' && tab !== 'reports') || (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) return; ({ overview, reports })[tab]().catch(() => {}); }, 20000);
+// (reasons admins give most, offered as they type one)
+const REASON_LIST = h('datalist', { id: 'reasons' }, ['Cheating', 'Offensive name', 'Offensive picture', 'Spam in #lobby', 'Harassment', 'Hate speech', 'Impersonating someone', 'Ban evasion'].map(r => h('option', { value: r })));
+document.body.append(REASON_LIST);
 const go = (t, sub) => { tab = t; location.hash = sub ? t + '/' + sub : t; render(); };
 // (any change of address — a player's page, back to the list, the browser's Back button — draws the page it names)
 let shown = null;
@@ -289,7 +300,6 @@ async function overview() {
         ME.owner ? h('div.card', h('h2', 'Recent actions'), d.log.length ? logTable(d.log) : h('div.empty', 'Nothing yet.')) : null)));
 }
 
-let lastQuery = '';
 async function players() {
   const sub = decodeURIComponent(location.hash.split('/')[1] || '');
   if (sub) return openPlayer(sub, true);
@@ -316,7 +326,7 @@ async function players() {
 async function openPlayer(pid, inPlace) {
   if (!inPlace) { tab = 'players'; location.hash = 'players/' + encodeURIComponent(pid); return; }
   const { player: p } = await api('player', { pid });
-  const reason = h('input.grow', { placeholder: 'Reason, for a ban or mute (they see it)', maxlength: 200 });
+  const reason = h('input.grow', { placeholder: 'Reason, for a ban or mute (they see it)', maxlength: 200, list: 'reasons' });
   const banFor = h('select', [String(10 / 1440) + '|10 minutes', String(1 / 24) + '|1 hour', '1|1 day', '7|7 days', '30|30 days', '0|For good'].map(x => h('option', { value: x.split('|')[0] }, x.split('|')[1])));
   const note = h('textarea', { placeholder: 'A message only they see, as a notice they have to close (while they\\'re online)', maxlength: 300 });
   const muteFor = h('select', ['10|10 minutes', '60|1 hour', '1440|1 day', '10080|7 days', '0|For good'].map(x => h('option', { value: x.split('|')[0] }, x.split('|')[1])));
@@ -359,6 +369,16 @@ async function openPlayer(pid, inPlace) {
         if (typed.trim().toUpperCase() !== 'DELETE') { say('Not deleted: type DELETE to confirm.', true); return; }
         await run(() => api('deletePlayer', { pid }), 'Player deleted'); go('players');
       } }, 'Delete player…')) : null,
+    // what the admins know of them: notes only admins see, what was done about them, and what was reported
+    h('div.cols',
+      h('div.card', h('h2', 'Admins\\' notes (' + p.notes.length + ')'), h('p.muted.small', 'Only admins see these — a warning given, something to keep an eye on.'),
+        p.notes.length ? h('div', p.notes.slice().reverse().map(n => h('div.note', h('div.row', h('b.small', n.by || '?'), h('span.muted.small', when(n.at)), h('span.grow'),
+          h('button.small', { onclick: async () => { if (!confirm('Delete this note?')) return; await run(() => api('note', { pid, del: n.at }), 'Note deleted'); again(); } }, 'Delete')), h('div.x', n.text)))) : h('div.empty', 'No notes yet.'),
+        (() => { const t = h('textarea', { placeholder: 'Add a note…', maxlength: 500 }); return h('div.mt', t, h('div.row.mt', h('button.primary', { onclick: async () => { if (!t.value.trim()) return; await run(() => api('note', { pid, text: t.value }), 'Note added'); again(); } }, 'Add note'))); })()),
+      h('div.card', h('h2', 'History'),
+        p.reports.length ? h('div', h('h3', 'Reported ' + p.reports.length + ' time' + (p.reports.length === 1 ? '' : 's')), p.reports.map(r => h('div.line', h('span.t', ago(r.at)), h('span.n', REASONS[r.reason] || r.reason), h('span.x', (r.text || '') + ' — by ' + ((r.by && r.by.name) || '?') + (r.open ? ' (waiting)' : ''))))) : h('p.muted.small', 'Never reported.' + (p.reported ? '' : '')),
+        p.reported ? h('p.muted.small', 'They\\'ve reported others ' + p.reported + ' time' + (p.reported === 1 ? '' : 's') + '.') : null,
+        h('h3.mt', 'What the admins did'), p.history && p.history.length ? logTable(p.history) : h('div.empty', 'Nothing yet.'))),
     h('div.card', h('h2', 'Best plays (' + p.bests.length + ')'), p.bests.length ? h('table', h('tr', h('th', 'Beatmap'), h('th', 'pp'), h('th', 'Score'), h('th', 'Accuracy'), h('th', 'Mods'), h('th', 'Set'), h('th')),
       p.bests.map(s => h('tr', h('td', s.artist + ' - ' + s.title, h('span.muted', ' [' + s.version + ']')), h('td', fmt(s.pp)), h('td', fmt(s.score)), h('td', pct(s.acc)), h('td.muted', s.mods.join(' ') || '—'), h('td.muted', ago(s.date)),
         h('td', h('button.small.danger', { onclick: act('removeScore', () => ({ key: s.key }), 'Score removed', 'Remove this score?') }, 'Remove'))))) : h('div.empty', 'No ranked plays.')));
@@ -379,12 +399,24 @@ function roleBox(p, act) {
 }
 
 async function chat() {
-  const d = await api('overview');
+  const [d, cr] = await Promise.all([api('overview'), api('chatRules')]);
+  const R = cr.rules;
+  const words = h('textarea', { placeholder: 'One word per line (or separated by commas): starred out wherever they\\'re written', maxlength: 4000 });
+  words.value = R.words.join('\\n');
+  const setRules = async (set, ok) => { await run(() => api('chatRules', { set }), ok); chat(); };
+  const rulesCard = h('div.card', h('h2', '#lobby rules'),
+    h('h3', 'Slow mode'), h('p.muted.small', 'How long each player waits between messages (admins don\\'t).'),
+    seg([[0, 'Off'], [5, '5s'], [15, '15s'], [30, '30s'], [60, '1 min'], [300, '5 min']], R.slow, v => setRules({ slow: v }, v ? 'Slow mode on' : 'Slow mode off')),
+    h('h3.mt', 'Lock'), h('p.muted.small', R.locked ? 'Locked: only admins can talk in #lobby.' : 'Open: everyone can talk.'),
+    h('button' + (R.locked ? '' : '.danger'), { onclick: () => setRules({ locked: !R.locked }, R.locked ? '#lobby is open again' : '#lobby locked') }, R.locked ? 'Unlock #lobby' : 'Lock #lobby'),
+    h('h3.mt', 'Blocked words (' + R.words.length + ')'), h('p.muted.small', 'Starred out in #lobby and private messages. Players don\\'t see the list.'), words,
+    h('div.row.mt', h('button.primary', { onclick: () => setRules({ words: words.value }, 'Blocked words saved') }, 'Save words')));
   const text = h('input.grow', { placeholder: 'A message for everyone online (a notification, and a line in #lobby)', maxlength: 300 });
   const announce = async () => { if (!text.value.trim()) return; await run(() => api('announce', { text: text.value }), 'Announced'); chat(); };
   text.addEventListener('keydown', e => { if (e.key === 'Enter') announce(); });
   main.replaceChildren(
     h('div.card', h('h2', 'Announce'), h('div.row', text, h('button.primary', { onclick: announce }, 'Send')), h('p.muted.small', 'A quick one, just now. For a banner that stays up, an event or maintenance: ', h('a', { href: '#announce' }, 'Announcements'), '.')),
+    rulesCard,
     h('div.card', h('div.row', h('h2.grow', '#lobby (' + d.chat.length + ')'), h('button.small', { onclick: chat }, 'Refresh'), !ME.owner ? null : h('button.small.danger', { onclick: async () => { if (!confirm('Clear #lobby for everyone?')) return; await run(() => api('chatClear'), 'Cleared'); chat(); } }, 'Clear all')),
       d.chat.length ? h('div.chat', d.chat.slice().reverse().map(l => h('div.line' + (l.from && l.from.system ? '.sys' : ''), h('span.t', clock(l.at)), h('span.n', (l.from && l.from.name) || '?'), h('span.x', l.text),
         l.from && l.from.pid ? h('button.small', { onclick: () => openPlayer(l.from.pid) }, 'Player') : null,
