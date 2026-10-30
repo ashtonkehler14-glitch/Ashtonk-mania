@@ -38,6 +38,8 @@ const mf = new Miniflare(opts(''));
 let url = String(await mf.ready).replace(/\/$/, '');
 
 const results = [];
+// (screenshots of the panel, with SHOT_DIR set)
+const shot = async (pg, n) => { if (process.env.SHOT_DIR) await pg.screenshot({ path: join(process.env.SHOT_DIR, n + '.png'), fullPage: true }); };
 const check = (name, ok, extra = '') => { results.push({ name, ok }); console.log(`${ok ? '✔' : '✖'} ${name}${extra ? '  — ' + extra : ''}`); };
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const errors = [];
@@ -175,11 +177,54 @@ try {
   await bob.waitForFunction(() => AshtonkMania.Presence.isAdmin === false, null, { timeout: 8000 }).catch(() => {});
   check('Remove admin: their game loses the admin panel, and their session ends', await bob.evaluate(() => AshtonkMania.Presence.isAdmin === false) && (await bapi('overview')).status === 401);
 
+  // a message to one player, a picture taken down, a room closed
+  await api('warn', { pid: bobPid, text: 'Please keep #lobby friendly' });
+  const warned = await bob.waitForFunction(() => [...document.querySelectorAll('.dialog')].some(d => /keep #lobby friendly/.test(d.textContent)), null, { timeout: 8000 }).then(() => true, () => false);
+  check('Message: it pops up in their game', warned);
+  await bob.keyboard.press('Escape');
+  await bob.evaluate(() => AshtonkMania.ProfileManager.setAvatar('preset:cat-1'));
+  await api('noAvatar', { pid: bobPid });
+  const pic = await bob.waitForFunction(() => AshtonkMania.ProfileManager.profile.avatar === 'default', null, { timeout: 8000 }).then(() => true, () => false);
+  const row = (await api('search', { q: bobPid })).players.find(x => x.pid === bobPid) || {};
+  check('Take picture down: their game goes back to the default picture, and the panel marks it', pic && row.noAvatar === true, JSON.stringify({ pic, noAvatar: row.noAvatar }));
+  await api('noAvatar', { pid: bobPid, on: false });
+  const room = await bob.evaluate(async () => { await AshtonkMania.Multiplayer.create({ isPublic: true }); return AshtonkMania.Multiplayer.code; });
+  await bob.waitForTimeout(1500);
+  const listed = (await api('overview')).rooms.some(r => r.code === room);
+  const closed = await api('roomClose', { code: room });
+  const left = await bob.waitForFunction(() => !AshtonkMania.Multiplayer.inRoom(), null, { timeout: 8000 }).then(() => true, () => false);
+  check('Close a room: everyone in it is sent back to the lounge (told why)', listed && closed.ok && left && await bob.evaluate(() => [...document.querySelectorAll('#toasts .toast')].some(t => /room was closed/i.test(t.textContent))), JSON.stringify({ listed, closed, left }));
+  // the Players tab before anything's searched: who's online and was lately, and the top players
+  await panel.evaluate(() => { location.hash = 'players'; }); await panel.waitForTimeout(800);
+  const lists = await panel.$$eval('main .card h2', x => x.map(e => e.textContent));
+  const recent = await panel.$$eval('main .card', cs => { const c = cs.find(x => /Online and recently seen/.test(x.textContent)); return c ? c.textContent : ''; });
+  await shot(panel, 'admin-players');
+  check('Players tab: who\'s online and was lately, and the top players, before any search', lists.some(t => /Online and recently seen/.test(t)) && lists.some(t => /Top players/.test(t)) && /Bob/.test(recent), lists.join('|'));
+
+  // deleting a player: Cara, from her page's Delete player button — her game starts over as a new player
+  const cara = await device('Cara');
+  const caraPid = await cara.evaluate(() => AshtonkMania.Presence.pid());
+  await cara.evaluate(() => AshtonkMania.Presence.send({ t: 'say', text: 'cara was here' }));
+  await panel.evaluate(p => { location.hash = 'players/' + p; }, caraPid);
+  await panel.waitForSelector('.danger-zone button.danger', { timeout: 10000 });
+  await shot(panel, 'admin-player');
+  panel.once('dialog', d => d.accept('DELETE'));
+  await panel.click('.danger-zone button.danger');
+  const told = await cara.waitForFunction(() => [...document.querySelectorAll('.dialog')].some(d => /deleted/i.test(d.textContent)), null, { timeout: 10000 }).then(() => true, () => false);
+  await cara.waitForFunction(p => AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1 && AshtonkMania.Presence.me && AshtonkMania.Presence.pid() !== p, caraPid, { timeout: 15000 }).catch(() => {});
+  const after = await cara.evaluate(() => ({ pid: AshtonkMania.Presence.pid(), name: AshtonkMania.ProfileManager.profile.name }));
+  const gone = !(await api('search', { q: 'Cara' })).players.some(x => x.pid === caraPid) && !(await api('overview')).chat.some(l => l.text === 'cara was here');
+  check('Delete player: gone from the server (and #lobby), and their game is told and starts over as a new player', told && after.pid && after.pid !== caraPid && gone, JSON.stringify({ told, after, gone }));
+  const reuse = await post('/api/account/code', { pid: caraPid, key: 'key-' + caraPid + '-0123456789abcdef' });
+  check('…and the deleted id can\'t be taken again', reuse.status >= 400, String(reuse.status));
+  await cara.context().close();
+
   // the daily challenge
   const ds = await api('dailySet', { map: { onlineSetId: 424242, onlineId: 777, keys: 4, title: 'Daily Song', artist: 'Daily Artist', version: 'Daily Hard', creator: 'Mapper', stars: 4.2, length: 95000 } });
   check('Daily challenge: the owner sets the day\'s beatmap', ds.ok && ds.daily.map.title === 'Daily Song', JSON.stringify(ds).slice(0, 120));
+  await panel.evaluate(() => { location.hash = 'overview'; }); await panel.waitForTimeout(800); await shot(panel, 'admin-overview');
   const log = await api('log');
-  check('the admin log has every change', ['Signed in', 'Renamed', 'Deleted a chat line', 'Announced', 'Muted', 'Banned', 'Unbanned', 'Made admin', 'No longer admin', 'Set the daily challenge beatmap'].every(w => log.log.some(e => e.what === w)), log.log.map(e => e.what).join('|'));
+  check('the admin log has every change', ['Signed in', 'Renamed', 'Deleted a chat line', 'Announced', 'Muted', 'Banned', 'Unbanned', 'Made admin', 'No longer admin', 'Sent a message', 'Took a picture down', 'Allowed pictures again', 'Closed a room', 'Deleted a player', 'Set the daily challenge beatmap'].every(w => log.log.some(e => e.what === w)), log.log.map(e => e.what).join('|'));
 
   // signing in with the code is limited per address
   let limited = false;

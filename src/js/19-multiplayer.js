@@ -312,7 +312,7 @@ const Multiplayer = {
         Bus.emit('mp:changed');
         break;
       case 'error': Toast.err(m.msg); break;
-      case 'kicked': { const code = this.room && this.room.code; this.leave(); Toast.show('Removed from the room', code ? `The host removed you from ${code}.` : 'The host removed you from the room.'); break; }
+      case 'kicked': { const code = this.room && this.room.code; this.leave(); if (m.closed) Toast.show('The room was closed', 'An admin closed it.'); else Toast.show('Removed from the room', code ? `The host removed you from ${code}.` : 'The host removed you from the room.'); break; }
       // Ranked Play: the opponent left mid-song — the match is over, so you're taken off the song to the match screen
       case 'rpAbort':
         if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
@@ -855,7 +855,7 @@ const Presence = {
       // (playing as yourself through a code: this device's key doesn't work any more — signed out, not quietly made new)
       // (but first: a copy left behind on an id another copy here has moved on from — it follows that one, rather than
       // signing the device out or starting over as a new player)
-      else if (m.t === 'repid') { if (this.otherTab()) return; if (typeof Account !== 'undefined' && (Account.linked() || m.account)) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws._why = 'ours'; ws.close(); } }
+      else if (m.t === 'repid') { if (this.otherTab()) return; if (m.deleted && typeof Account !== 'undefined') { if (!this._removed) { this._removed = true; ws._why = 'ours'; Account.removed(); } } else if (typeof Account !== 'undefined' && (Account.linked() || m.account)) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws._why = 'ours'; ws.close(); } }
       // (your code was just used on another device)
       else if (m.t === 'codeUsed') Toast.show('A new device is playing as you', 'Someone typed your code on another device. Not you? Your code → New code, then Sign out other devices.', { type: 'err', timeout: 20000, hold: true });
       else if (m.t === 'error') { ws._serverMsg = m.msg; Toast.err(m.msg); }
@@ -864,6 +864,12 @@ const Presence = {
       else if (m.t === 'renamed') { if (m.name && m.name !== ProfileManager.profile.name) ProfileManager.setName(m.name); }
       else if (m.t === 'sayDel' || m.t === 'chatClear') Chat.on(m);
       else if (m.t === 'announce') Toast.show('Announcement', String(m.text || ''), { hold: true, timeout: 20000 });
+      // (a message to you from an admin: a notice to read and close)
+      else if (m.t === 'warned') Dialog.popup('A message from the game\'s admins', String(m.text || ''), [{ label: 'OK', colour: '#66ccff', cls: 'cancel', cancel: true }], { icon: 'warn' });
+      // (your picture taken down: back to the default one here too, so it isn't sent again)
+      else if (m.t === 'avatarRemoved') { if (ProfileManager.profile.avatar !== 'default') ProfileManager.setAvatar('default').then(() => { Toolbar.updateProfile(); Bus.emit('profile:changed'); }); Toast.err('Your profile picture was taken down', 'An admin removed it. Pick another one from the presets, or upload one that\'s OK for everyone.', { hold: true }); }
+      // (your code reset: the old one doesn't work any more — this device is still you)
+      else if (m.t === 'codeRevoked') { try { localStorage.removeItem('am.code'); } catch { /* private mode */ } Bus.emit('account:changed'); Toast.show('Your code was reset', 'An admin reset it. This device is still you — Your code → New code makes a new one.', { hold: true }); }
       else if (m.t === 'admin') { this.isAdmin = !m.off; this.role = m.off ? null : m.role || null; Bus.emit('presence:admin'); }
     };
     ws.onclose = ev => {

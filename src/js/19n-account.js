@@ -117,6 +117,17 @@ const Account = {
     await this.forget();
     this.askAgain();
   },
+  /** This player was deleted from the server by its owner (the admin panel): what was theirs here goes, as when signing
+   *  out, and the game starts over as a new player. The beatmaps, skins and the device's own settings stay. */
+  async removed() {
+    try { ['am.pid', 'am.key', 'am.code', 'am.linked', 'am.restore', 'am.signedOut'].forEach(k => localStorage.removeItem(k)); } catch { /* private mode */ }
+    Presence._pid = null; Presence._key = null;
+    await this.wipeLocal().catch(e => console.warn('wipe', e));
+    Bus.emit('account:changed');
+    Dialog.popup('This player was deleted', 'The game\'s owner deleted this player from the server, so you\'re starting over as a new player. Your beatmaps, skins and settings on this device are still here.',
+      [{ label: 'OK', colour: '#66ccff', cls: 'cancel', cancel: true }], { icon: 'warn' });
+    Presence._removed = false; Presence.reconnect();
+  },
   async forget() {
     try { ['am.pid', 'am.key', 'am.code', 'am.linked', 'am.restore'].forEach(k => localStorage.removeItem(k)); localStorage.setItem('am.signedOut', '1'); } catch { /* private mode */ }
     Presence._pid = null; Presence._key = null;

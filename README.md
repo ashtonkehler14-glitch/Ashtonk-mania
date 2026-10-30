@@ -27,7 +27,7 @@ While osu! refuses your server (it often refuses logins from Cloudflare's shared
 
 ### Admin panel
 
-`/admin` on your site is your admin panel: who's online, players (ban, mute, give a name, remove scores), #lobby (delete lines, clear it, announce something to everyone) and the daily challenge's beatmap, with a log of every change. It lives only on the server — it isn't part of the game or the HTML file — and opens with your player code:
+`/admin` on your site is your admin panel: who's online, players (ban, mute, give a name, send them a message, take down a profile picture, remove scores, reset their code, make them an admin, or delete them from the server for good), open rooms (close one), playlists (remove one), #lobby (delete lines, clear it, announce something to everyone) and the daily challenge's beatmap, with a log of every change. It lives only on the server — it isn't part of the game or the HTML file — and opens with your player code:
 
 1. In the game, right-click your name → **Your code**, and copy it.
 2. Run `npx wrangler secret put ADMIN_CODE` and paste it (or on Cloudflare: Workers & Pages → v2-ashtonkmania → Settings → Variables and Secrets → Add, type **Secret**).

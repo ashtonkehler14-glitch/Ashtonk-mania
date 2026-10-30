@@ -1880,3 +1880,59 @@ test('a player\'s own judged best plays (for their game to send the ones the ser
   assert.deepEqual(m.list, [['a'.repeat(64), 123.46]]);
   assert.equal(m.keep, PresenceLogic.KEEP_BESTS);
 });
+
+test('admin: a player deleted — everything of theirs goes, and their id is never used again (a device on it starts over)', () => {
+  let now = 1_000_000;
+  const p = new PresenceLogic(() => now), kept = {}, dropped = [];
+  p.persistMod = (kind, pid, v) => { kept[`${kind}:${pid}`] = v; };
+  p.dropPlayer = (pid, what) => dropped.push(what);
+  p.join('a', { name: 'Alice', pid: 'alicepid', key: 'key-alicepid-0123456789' });
+  p.join('b', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789', avatar: 'preset:cat-1' });
+  p.makeFriends('alicepid', 'Alice', 'bobpid1', 'Bob');
+  p.setCode('bobpid1', codeHash('K7QM3XRA9DPZW2HF'));
+  const key = 'b'.repeat(64);
+  p.boards.set(key, [{ pid: 'bobpid1', name: 'Bob', score: 900000 }, { pid: 'alicepid', name: 'Alice', score: 800000 }]);
+  p.ranks.set('bobpid1', { pid: 'bobpid1', name: 'Bob', pp: 100, plays: 3, bests: {} });
+  p.profiles.set('bobpid1', { name: 'Bob' });
+  p.message('b', { t: 'say', text: 'hi all' });
+  const r = p.adminDelete('bobpid1');
+  assert.ok(r.out.some(o => o.to === 'b' && o.msg.t === 'repid' && o.msg.deleted), 'their game is told');
+  assert.deepEqual(r.gone, ['b']); assert.ok(!p.users.has('b'));
+  assert.ok(r.out.some(o => o.to === 'a' && o.msg.t === 'friends' && !o.msg.list.some(f => f.pid === 'bobpid1')), 'gone from their friends\' lists');
+  assert.ok(!p.ranks.has('bobpid1') && !p.profiles.has('bobpid1') && !p.codeOf.has('bobpid1') && !p.auth.has('bobpid1'));
+  assert.deepEqual(p.boards.get(key).map(x => x.pid), ['alicepid']);
+  assert.ok(!p.chat.some(l => l.from && l.from.pid === 'bobpid1'), 'their #lobby lines too');
+  assert.ok(kept['dl:bobpid1'] && ['rank', 'auth', 'profile'].every(w => dropped.includes(w)));
+  // the device comes back with the same id and key: told again, and the id isn't taken back
+  const back = p.join('b2', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789' });
+  assert.ok(back.some(o => o.to === 'b2' && o.msg.t === 'repid' && o.msg.deleted) && p.users.get('b2').pid === '');
+  assert.equal(p.claim('bobpid1', 'key-someone-else-0123456789'), false, 'nobody else can have the id either');
+  assert.ok(!p.adminSearch('bob').some(x => x.pid === 'bobpid1'));
+});
+
+test('admin: a picture taken down, a code reset, and a message to one player', () => {
+  const p = new PresenceLogic(() => 1000), kept = {};
+  p.persistMod = (kind, pid, v) => { kept[`${kind}:${pid}`] = v; };
+  p.join('b', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789', avatar: 'preset:cat-1' });
+  p.ranks.set('bobpid1', { pid: 'bobpid1', name: 'Bob', pp: 1, avatar: 'preset:cat-1', bests: {} });
+  const down = p.adminNoAvatar('bobpid1');
+  assert.ok(down.some(o => o.to === 'b' && o.msg.t === 'avatarRemoved'));
+  assert.equal(p.users.get('b').avatar, ''); assert.equal(p.ranks.get('bobpid1').avatar, '');
+  p.message('b', { t: 'status', status: 'menu', avatar: 'preset:dog-2' });
+  assert.equal(p.users.get('b').avatar, '', 'a new one isn\'t taken while it\'s down');
+  assert.equal(p.join('b2', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789', avatar: 'preset:dog-2' }) && p.users.get('b2').avatar, '');
+  p.adminNoAvatar('bobpid1', false);
+  p.message('b', { t: 'status', status: 'menu', avatar: 'preset:dog-2' });
+  assert.equal(p.users.get('b').avatar, 'preset:dog-2', 'allowed again');
+  assert.equal(kept['na:bobpid1'], null);
+  // code reset
+  assert.equal(p.adminRevokeCode('bobpid1'), null, 'no code: nothing to reset');
+  p.setCode('bobpid1', codeHash('K7QM3XRA9DPZW2HF'));
+  assert.ok(p.adminRevokeCode('bobpid1').some(o => o.to === 'b' && o.msg.t === 'codeRevoked'));
+  assert.ok(!p.codeOf.has('bobpid1') && !p.codes.has(codeHash('K7QM3XRA9DPZW2HF')) && p.keyOk('bobpid1', 'key-bobpid1-0123456789'), 'the code\'s gone; the device is still them');
+  // a message
+  assert.deepEqual(p.adminWarn('bobpid1', '  please keep chat friendly  ').map(o => o.msg), [{ t: 'warned', text: 'please keep chat friendly' }, { t: 'warned', text: 'please keep chat friendly' }]);
+  assert.deepEqual(p.adminWarn('nobody123', 'hi'), []);
+  const lists = p.adminLists();
+  assert.ok(lists.recent.some(x => x.pid === 'bobpid1' && x.online) && lists.top.some(x => x.pid === 'bobpid1'));
+});
