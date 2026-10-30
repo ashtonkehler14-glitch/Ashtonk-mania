@@ -519,7 +519,10 @@ const GameplayScreen = {
     const rec = this.bgRec;
     const mods = p.replay ? p.replay.mods : ModSystem.normalize(p.mods || []);
     const cover = h('div.pl-cover');
-    if (rec && rec.setId) BeatmapManager.bgURL(rec).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('on'); } }).catch(() => {});
+    // (a beatmap with no background picture: a note in the strip, rather than an empty bar that looks like it's loading)
+    const noPic = () => { if (cover.parentNode && !cover.parentNode.querySelector('.pl-nopic')) cover.after(h('span.pl-nopic', icon('music'))); };
+    if (rec && rec.setId) BeatmapManager.bgURL(rec).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('on'); } else noPic(); }).catch(noPic);
+    else requestAnimationFrame(noPic);
     this.plStatus = h('span', 'Loading…');
     this.plBar = h('i');
     // lazer's BeatmapMetadataDisplay: the logo, the title and artist in italics, a 300×60 cover strip that shows the

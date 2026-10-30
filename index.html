@@ -230,7 +230,12 @@ svg.i.lzi { background: currentColor; -webkit-mask: var(--lzi) center / contain 
 /* the playlist: Gray3 with the same corners and shadow, 10px under the player, up to 510px tall (600ms OutQuint) */
 .np-playlist { margin-top: 10px; height: 0; border-radius: 5px; overflow: hidden; background: #333; box-shadow: 0 0 5px rgba(0, 0, 0, .16); opacity: 0; transition: height 600ms var(--oq), opacity 600ms var(--oq); }
 .np-panel.list .np-playlist { height: min(510px, calc(100 * var(--vh) - var(--toolbar-h) - 160px)); opacity: 1; }
-.np-list { height: 100%; overflow-y: auto; padding: 10px 10px 10px 0; scrollbar-width: thin; }
+.np-playlist { display: flex; flex-direction: column; }
+.np-filter { flex: none; padding: 10px 10px 0; }
+.np-search { width: 100%; height: 30px; padding: 0 10px; border: 0; border-radius: 5px; background: rgba(0, 0, 0, .35); color: #fff; font: inherit; font-size: 14px; outline: none; box-shadow: inset 0 0 0 2px transparent; transition: box-shadow 150ms; }
+.np-search::placeholder { color: rgba(255, 255, 255, .45); font-style: italic; }
+.np-search:focus { box-shadow: inset 0 0 0 2px #ffcc22; }
+.np-list { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 10px 10px 0; scrollbar-width: thin; }
 .np-li { height: 20px; padding: 0 15px; font-size: 16px; line-height: 20px; cursor: pointer; color: #fff; transition: color 100ms; justify-content: flex-start; }
 .np-li .np-li-a { font-size: 14px; font-weight: 700; color: #999; }
 .np-li.sel { color: #ffcc22; }
@@ -2245,6 +2250,8 @@ body.f-chat .home .neru { opacity: 0; translate: 0 40px; transition: opacity 260
 .pl-card .pl-a { max-width: 100%; padding: 0 .15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.625rem; font-style: italic; color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
 .pl-thumb { position: relative; width: 300px; height: 60px; margin: 10px; border-radius: 10px; overflow: hidden; background: #2a2833; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); }
 .pl-thumb .pl-cover { position: absolute; inset: 0; height: auto; }
+.pl-nopic { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255, 255, 255, .3); }
+.pl-nopic .i { width: 26px; height: 26px; }
 .pl-thumb .pl-load { position: absolute; inset: 0; padding: 0; justify-content: center; border: 0; background: rgba(0, 0, 0, .5); color: #fff; transition: background 400ms, opacity 400ms; }
 /* (lazer's LoadingLayer: the cover dimmed to half with a 20px spinner while loading, gone once it's ready — no text) */
 .pl-thumb .pl-load > span:not(.spinner) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -4486,8 +4493,8 @@ html.touch .pl-group input[type=range].slider { height: 40px; margin: -8px 0; }
 .bso-tagw:hover { text-decoration: underline; }
 
 /* lazer's user status (toolbar user menu) */
-.st-opt { display: inline-flex; align-items: center; gap: 8px; }
-.st-opt i { width: 8px; height: 8px; border-radius: 50%; }
+.st-opt { display: inline-flex; align-items: center; gap: 10px; }
+.st-opt i { flex: none; width: 8px; height: 8px; margin: 0 3.5px; border-radius: 50%; } /* (in a 15px slot, so the text lines up with the items that have icons) */
 .tb-av { position: relative; }
 .tb-rep { position: absolute; top: -3px; right: -3px; z-index: 1; width: 10px; height: 10px; border-radius: 50%; background: #ff4d6a; box-shadow: 0 0 0 2px var(--bg, #171717); animation: tbRep 1.6s ease-in-out infinite; }
 @keyframes tbRep { 50% { scale: 1.25; } }
@@ -14334,7 +14341,11 @@ const NowPlaying = {
     this.shuffleBtn = b('shuffle', 'Shuffle', () => { Settings.set('audio.shuffle', !this.shuffleOn()); this.paintToggles(); }, '.np-side.np-shuffle');
     this.listBtn = b('bars', 'Playlist', () => this.togglePlaylist(), '.np-side.np-listbtn');
     this.list = h('div.np-list');
-    this.playlist = h('div.np-playlist', this.list);
+    // (lazer's playlist filter: a search box over the list — title, artist or mapper; its keys stay in it)
+    this.search = h('input.np-search', { type: 'search', placeholder: 'type to search', 'aria-label': 'Search the playlist', spellcheck: 'false', autocomplete: 'off' });
+    this.search.addEventListener('input', () => this.renderList());
+    this.search.addEventListener('keydown', typingKeys);
+    this.playlist = h('div.np-playlist', h('div.np-filter', this.search), this.list);
     this.player = h('div.np-player', this.bgs, this.title, this.artist,
       h('div.np-bottom', this.shuffleBtn,
         h('div.np-ctls', b('npprev', 'Previous track', () => MenuMusic.prev()), this.playBtn, b('npnext', 'Next track', () => MenuMusic.next())),
@@ -14372,7 +14383,12 @@ const NowPlaying = {
     document.addEventListener('pointerdown', e => {
       if (this.open && !this.el.contains(e.target) && !Toolbar.npBtn.contains(e.target)) this.hide();
     }, true);
-    window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.open) { e.preventDefault(); e.stopImmediatePropagation(); this.hide(); } }, true);
+    // (Esc in the playlist's search clears what's typed first, as lazer's search boxes do)
+    window.addEventListener('keydown', e => {
+      if (e.key !== 'Escape' || !this.open) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (e.target === this.search && this.search.value) { this.search.value = ''; this.renderList(); } else this.hide();
+    }, true);
     Bus.on('screen:changed', () => this.hide());
     this.paintToggles();
   },
@@ -14391,8 +14407,9 @@ const NowPlaying = {
   renderList() {
     const cur = MenuMusic.current;
     clearEl(this.list);
-    const sets = BeatmapManager.sets.filter(s => s.maps.some(m => !m.problems.length));
-    if (!sets.length) { this.list.append(h('div.np-li.empty', 'No beatmaps yet')); return; }
+    const q = this.search.value.trim().toLowerCase();
+    const sets = BeatmapManager.sets.filter(s => s.maps.some(m => !m.problems.length) && (!q || s.maps.some(m => `${m.title} ${m.titleUnicode || ''} ${m.artist} ${m.artistUnicode || ''} ${m.creator}`.toLowerCase().includes(q))));
+    if (!sets.length) { this.list.append(h('div.np-li.empty', q ? 'Nothing matches that search' : 'No beatmaps yet')); return; }
     for (const s of sets) {
       const m = s.maps.find(x => !x.problems.length);
       const row = h('div.np-li', { onclick: () => { UISounds.click(); MenuMusic.go(m, false); } });
@@ -20152,7 +20169,10 @@ const GameplayScreen = {
     const rec = this.bgRec;
     const mods = p.replay ? p.replay.mods : ModSystem.normalize(p.mods || []);
     const cover = h('div.pl-cover');
-    if (rec && rec.setId) BeatmapManager.bgURL(rec).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('on'); } }).catch(() => {});
+    // (a beatmap with no background picture: a note in the strip, rather than an empty bar that looks like it's loading)
+    const noPic = () => { if (cover.parentNode && !cover.parentNode.querySelector('.pl-nopic')) cover.after(h('span.pl-nopic', icon('music'))); };
+    if (rec && rec.setId) BeatmapManager.bgURL(rec).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('on'); } else noPic(); }).catch(noPic);
+    else requestAnimationFrame(noPic);
     this.plStatus = h('span', 'Loading…');
     this.plBar = h('i');
     // lazer's BeatmapMetadataDisplay: the logo, the title and artist in italics, a 300×60 cover strip that shows the
@@ -33375,7 +33395,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '9c07bf16accf';
+const APP_BUILD = '300f483df33d';
 
 const App = {
   lastReport: null,

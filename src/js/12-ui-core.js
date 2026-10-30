@@ -980,7 +980,11 @@ const NowPlaying = {
     this.shuffleBtn = b('shuffle', 'Shuffle', () => { Settings.set('audio.shuffle', !this.shuffleOn()); this.paintToggles(); }, '.np-side.np-shuffle');
     this.listBtn = b('bars', 'Playlist', () => this.togglePlaylist(), '.np-side.np-listbtn');
     this.list = h('div.np-list');
-    this.playlist = h('div.np-playlist', this.list);
+    // (lazer's playlist filter: a search box over the list — title, artist or mapper; its keys stay in it)
+    this.search = h('input.np-search', { type: 'search', placeholder: 'type to search', 'aria-label': 'Search the playlist', spellcheck: 'false', autocomplete: 'off' });
+    this.search.addEventListener('input', () => this.renderList());
+    this.search.addEventListener('keydown', typingKeys);
+    this.playlist = h('div.np-playlist', h('div.np-filter', this.search), this.list);
     this.player = h('div.np-player', this.bgs, this.title, this.artist,
       h('div.np-bottom', this.shuffleBtn,
         h('div.np-ctls', b('npprev', 'Previous track', () => MenuMusic.prev()), this.playBtn, b('npnext', 'Next track', () => MenuMusic.next())),
@@ -1018,7 +1022,12 @@ const NowPlaying = {
     document.addEventListener('pointerdown', e => {
       if (this.open && !this.el.contains(e.target) && !Toolbar.npBtn.contains(e.target)) this.hide();
     }, true);
-    window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.open) { e.preventDefault(); e.stopImmediatePropagation(); this.hide(); } }, true);
+    // (Esc in the playlist's search clears what's typed first, as lazer's search boxes do)
+    window.addEventListener('keydown', e => {
+      if (e.key !== 'Escape' || !this.open) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (e.target === this.search && this.search.value) { this.search.value = ''; this.renderList(); } else this.hide();
+    }, true);
     Bus.on('screen:changed', () => this.hide());
     this.paintToggles();
   },
@@ -1037,8 +1046,9 @@ const NowPlaying = {
   renderList() {
     const cur = MenuMusic.current;
     clearEl(this.list);
-    const sets = BeatmapManager.sets.filter(s => s.maps.some(m => !m.problems.length));
-    if (!sets.length) { this.list.append(h('div.np-li.empty', 'No beatmaps yet')); return; }
+    const q = this.search.value.trim().toLowerCase();
+    const sets = BeatmapManager.sets.filter(s => s.maps.some(m => !m.problems.length) && (!q || s.maps.some(m => `${m.title} ${m.titleUnicode || ''} ${m.artist} ${m.artistUnicode || ''} ${m.creator}`.toLowerCase().includes(q))));
+    if (!sets.length) { this.list.append(h('div.np-li.empty', q ? 'Nothing matches that search' : 'No beatmaps yet')); return; }
     for (const s of sets) {
       const m = s.maps.find(x => !x.problems.length);
       const row = h('div.np-li', { onclick: () => { UISounds.click(); MenuMusic.go(m, false); } });
