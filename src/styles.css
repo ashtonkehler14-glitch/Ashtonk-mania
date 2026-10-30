@@ -5218,6 +5218,20 @@ html.lp-open #toasts { right: 380px; }
 .ann-close { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--muted); }
 .ann-close svg { width: 11px; height: 11px; }
 .ann-close:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+/* (anywhere but the main menu: one chip in the middle of the toolbar — the one that matters most, a click for all) */
+.ann-chip { --ac: #66ccff; position: absolute; top: 4px; left: 50%; translate: -50% 0; z-index: 31; height: 32px; max-width: min(420px, 34vw); display: flex; align-items: center; gap: 8px; padding: 0 12px 0 4px; border: 0; border-radius: 99px;
+  background: rgba(20, 22, 28, .92); color: #fff; font: inherit; font-size: 13px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 45%, transparent); animation: annIn 400ms var(--ease-out) both; }
+.ann-chip.warn { --ac: #ffcc22; } .ann-chip.event { --ac: #ff66aa; } .ann-chip.maint { --ac: #ff8a5c; }
+.ann-chip[hidden], #app.in-game .ann-chip, #app.hide-toolbar .ann-chip { display: none; }
+.ann-chip .ann-ic { width: 24px; height: 24px; }
+.ann-chip .ann-ic svg { width: 11px; height: 11px; }
+.ann-chip-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--ac); }
+.ann-chip .ann-cd { margin-left: 0; }
+.ann-more { flex: none; font-size: 11px; font-weight: 700; color: var(--muted); }
+.ann-chip:hover { background: rgba(32, 34, 42, .96); }
+@media (max-width: 760px) { .ann-chip-t { display: none; } .ann-chip { padding-right: 8px; } }
+.ann-list { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.ann-list .ann { animation: none; box-shadow: inset 3px 0 0 var(--ac); background: rgba(255, 255, 255, .04); }
 .ann-pop { white-space: pre-wrap; }
 .ann-when { margin-top: 8px; font-weight: 700; color: #fff; }
 /* ── reporting a player; an admin's dialogs */

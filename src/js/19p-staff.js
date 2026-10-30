@@ -9,7 +9,7 @@
 const Announcements = {
   list: [], el: null, _tick: 0,
   KEY: 'am.annClosed',
-  STYLE: { info: ['info', 'Announcement'], warn: ['warn', 'Important'], event: ['sparkle', 'Event'], maint: ['gear', 'Maintenance'] },
+  STYLE: { info: ['info', 'Announcement'], warn: ['warn', 'Important'], event: ['star', 'Event'], maint: ['gear', 'Maintenance'] },
   closed() { try { return new Set(JSON.parse(localStorage.getItem(this.KEY) || '[]')); } catch { return new Set(); } },
   remember(id) { const c = this.closed(); c.add(id); try { localStorage.setItem(this.KEY, JSON.stringify([...c].slice(-60))); } catch { /* private mode */ } },
   close(id) { this.remember(id); this.paint(); },
@@ -36,25 +36,53 @@ const Announcements = {
     const app = document.getElementById('app');
     if (!app) return;
     if (!this.el || !this.el.isConnected) { this.el = h('div.ann-stack', { 'aria-live': 'polite' }); app.append(this.el); }
+    if (!this.chip || !this.chip.isConnected) { this.chip = h('button.ann-chip', { onclick: () => { UISounds.click(); this.showAll(); } }); app.append(this.chip); }
+    if (!this._scr) this._scr = Bus.on('screen:changed', () => this.paint());
     const shut = this.closed(), now = Date.now();
     const show = this.list.filter(a => !shut.has(a.id) && (!a.until || a.until > now));
-    clearEl(this.el).append(...show.map(a => {
+    // the main menu has room for them in full; anywhere else they'd cover the screen's own top (song select's search,
+    // a room's header), so they're a chip in the middle of the toolbar instead — a click shows them all
+    const full = typeof Screens === 'undefined' || Screens.currentName === 'home';
+    clearEl(this.el).append(...(full ? show : []).map(a => {
       const [ic, label] = this.STYLE[a.kind] || this.STYLE.info;
       return h(`div.ann.${this.STYLE[a.kind] ? a.kind : 'info'}`, { role: 'status' },
         h('span.ann-ic', icon(ic)),
         h('div.ann-main', h('b.ann-t', a.title || label), h('span.ann-x', String(a.text)), a.at > now ? h('span.ann-cd', { dataset: { at: a.at } }, this.countdown(a.at)) : null),
         h('button.ann-close', { title: 'Close', 'aria-label': 'Close the announcement', onclick: () => { UISounds.click(); this.close(a.id); } }, icon('x')));
     }));
+    // (the chip: the one that matters most — maintenance, then a warning, an event, news — and how many more)
+    const RANK = { maint: 0, warn: 1, event: 2, info: 3 }, top = [...show].sort((x, y) => (RANK[x.kind] ?? 3) - (RANK[y.kind] ?? 3))[0];
+    this.chip.hidden = full || !top;
+    if (top) {
+      const [ic, label] = this.STYLE[top.kind] || this.STYLE.info;
+      this.chip.className = `ann-chip ${this.STYLE[top.kind] ? top.kind : 'info'}`;
+      this.chip.title = show.map(a => `${a.title || (this.STYLE[a.kind] || this.STYLE.info)[1]}: ${a.text}`).join('\n');
+      clearEl(this.chip).append(h('span.ann-ic', icon(ic)), h('span.ann-chip-t', top.title || label),
+        top.at > now ? h('span.ann-cd', { dataset: { at: top.at } }, this.countdown(top.at)) : null, show.length > 1 ? h('span.ann-more', `+${show.length - 1}`) : null);
+    }
     // (a countdown ticks while one's on screen)
     clearInterval(this._tick);
     if (show.some(a => a.at > now)) this._tick = setInterval(() => {
-      for (const c of this.el.querySelectorAll('.ann-cd')) c.textContent = this.countdown(+c.dataset.at);
+      for (const c of [...this.el.querySelectorAll('.ann-cd'), ...this.chip.querySelectorAll('.ann-cd')]) c.textContent = this.countdown(+c.dataset.at);
       if (show.every(a => !(a.at > Date.now() - 60000))) clearInterval(this._tick);
     }, 1000);
     // (one that's run out goes on its own)
     clearTimeout(this._end);
     const next = Math.min(...show.filter(a => a.until).map(a => a.until));
     if (Number.isFinite(next)) this._end = setTimeout(() => this.paint(), Math.min(2 ** 31 - 1, Math.max(1000, next - now + 500)));
+  },
+  /** Every announcement up, in one notice (the toolbar chip's click); "Close all" closes them here. */
+  showAll() {
+    const shut = this.closed(), now = Date.now(), show = this.list.filter(a => !shut.has(a.id) && (!a.until || a.until > now));
+    if (!show.length) return;
+    const body = h('div.ann-list', ...show.map(a => {
+      const [ic, label] = this.STYLE[a.kind] || this.STYLE.info;
+      return h(`div.ann.${this.STYLE[a.kind] ? a.kind : 'info'}`, h('span.ann-ic', icon(ic)), h('div.ann-main', h('b.ann-t', a.title || label), h('span.ann-x', String(a.text)), a.at > now ? h('span.ann-cd', this.countdown(a.at)) : null));
+    }));
+    Dialog.popup(show.length === 1 ? 'Announcement' : 'Announcements', body, [
+      { label: 'OK', colour: '#66ccff', cls: 'cancel', cancel: true },
+      { label: 'Close all', colour: '#ff66aa', onClick: () => { for (const a of show) this.remember(a.id); this.paint(); } },
+    ], { icon: 'bell' });
   },
 };
 

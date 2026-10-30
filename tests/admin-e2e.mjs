@@ -147,6 +147,15 @@ try {
   await panel.click('main button.primary:text-is("Announce")');
   const banner = await bob.waitForFunction(() => /Finals tonight at 8!/.test(document.querySelector('.ann-stack .ann.event')?.textContent || ''), null, { timeout: 8000 }).then(() => true, () => false);
   check('…a banner in every player\'s game, in its style, with its title', banner && await bob.evaluate(() => /Tournament/.test(document.querySelector('.ann-stack .ann-t').textContent)));
+  // (anywhere but the main menu: a chip in the toolbar instead, a click for the whole of it)
+  await bob.evaluate(() => AshtonkMania.Screens.go('songselect'));
+  const chip = await bob.waitForFunction(() => !document.querySelector('.ann-stack .ann') && /Tournament/.test(document.querySelector('.ann-chip.event:not([hidden])')?.textContent || ''), null, { timeout: 8000 }).then(() => true, () => false);
+  await bob.click('.ann-chip');
+  const all = await bob.waitForFunction(() => /Finals tonight at 8!/.test(document.querySelector('.dialog .ann-list')?.textContent || ''), null, { timeout: 5000 }).then(() => true, () => false);
+  check('…elsewhere, a chip in the toolbar (not over the screen), and a click shows it in full', chip && all);
+  await bob.keyboard.press('Escape');
+  await bob.evaluate(() => AshtonkMania.Screens.go('home'));
+  await bob.waitForSelector('.ann-stack .ann', { timeout: 8000 }).catch(() => {});
   const late = await device('Dana');
   check('…and whoever comes online while it\'s up gets it too', await late.waitForFunction(() => /Finals tonight/.test(document.querySelector('.ann-stack')?.textContent || ''), null, { timeout: 15000 }).then(() => true, () => false));
   await late.close();
